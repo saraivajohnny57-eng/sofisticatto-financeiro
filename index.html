@@ -16,25 +16,26 @@ body{background:#f5f2fb;display:flex;min-height:100vh;color:#4d4694}
 .logo h1{font-size:38px;font-style:italic;font-weight:300;color:#5a4fa3}
 .logo p{font-size:12px;letter-spacing:6px;color:#9c92d9}
 .menu button{width:100%;padding:15px;border:none;border-radius:15px;background:#ede9fb;margin-bottom:10px;cursor:pointer;color:#4d4694}
-.logout{background:#5a4fa3!important;color:white!important}
+.logout{background:#5a4fa3!important;color:white!important;border:none;padding:15px;border-radius:15px}
 .main{flex:1;padding:30px;overflow:auto}
 .card{background:white;padding:25px;border-radius:25px;box-shadow:0 0 15px rgba(0,0,0,.05);margin-bottom:25px}
-.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px;gap:15px}
 .total h2{font-size:35px;margin-top:10px}
 .inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-top:20px}
 input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outline:none;width:100%}
 .salvar{margin-top:20px;background:#5a4fa3;color:white;border:none;padding:14px 22px;border-radius:14px;cursor:pointer}
-table{width:100%;border-collapse:collapse;margin-top:20px}
+.table-wrap{width:100%;overflow-x:auto}
+table{width:100%;border-collapse:collapse;margin-top:20px;min-width:850px}
 th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
-.status{padding:8px 15px;border-radius:20px;font-size:12px;color:white}
+.status{padding:8px 15px;border-radius:20px;font-size:12px;color:white;white-space:nowrap}
 .andamento{background:#f0ad4e}
 .finalizado{background:#5cb85c}
-.btn{border:none;padding:10px 14px;border-radius:10px;color:white;cursor:pointer;margin:3px}
+.btn{border:none;padding:10px 14px;border-radius:10px;color:white;cursor:pointer;margin:3px;white-space:nowrap}
 .azul{background:#3498db}
 .roxo{background:#5a4fa3}
 .vermelho{background:#c0392b}
-.login{position:fixed;inset:0;background:#f5f2fb;display:flex;justify-content:center;align-items:center;z-index:999}
-.login-box{background:white;padding:40px;border-radius:30px;width:350px;box-shadow:0 0 20px rgba(0,0,0,.08)}
+.login{position:fixed;inset:0;background:#f5f2fb;display:flex;justify-content:center;align-items:center;z-index:999;padding:20px}
+.login-box{background:white;padding:40px;border-radius:30px;width:350px;max-width:100%;box-shadow:0 0 20px rgba(0,0,0,.08)}
 .login-box h1{text-align:center;font-size:40px;font-style:italic;font-weight:300;color:#5a4fa3}
 .login-box p{text-align:center;letter-spacing:5px;font-size:12px;margin-bottom:30px;color:#9c92d9}
 .login-box input{margin-bottom:15px}
@@ -42,6 +43,29 @@ th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
 .entrar{background:#5a4fa3;color:white}
 .usuario-logado{font-size:14px;background:#ede9fb;padding:12px;border-radius:15px;margin-bottom:20px}
 .cor-box{width:35px;height:25px;border-radius:8px;border:1px solid #ddd}
+.mobile-title{display:none}
+
+@media(max-width:768px){
+body{display:block}
+.sidebar{width:100%;padding:15px;position:sticky;top:0;z-index:10}
+.logo h1{font-size:30px}
+.logo p{letter-spacing:4px}
+.menu{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.menu button{margin-bottom:0;padding:12px;font-size:14px}
+.logout{margin-top:10px;width:100%}
+.main{padding:15px}
+.top{display:block}
+.top h1{font-size:26px;margin-bottom:5px}
+.card{padding:18px;border-radius:20px}
+.total{margin-top:15px}
+.total h2{font-size:28px}
+.inputs{grid-template-columns:1fr}
+table{min-width:760px}
+.login-box{padding:30px}
+.login-box h1{font-size:34px}
+.mobile-title{display:block;font-size:13px;color:#8b84c7;margin-bottom:8px}
+canvas{max-height:280px}
+}
 </style>
 </head>
 
@@ -112,40 +136,47 @@ th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
 
     <div class="card">
       <h2>Relatórios</h2>
+      <p class="mobile-title">No celular, arraste a tabela para o lado.</p>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Cliente</th>
-            <th>Valor</th>
-            <th>Banco</th>
-            <th>Observação</th>
-            <th>Criado por</th>
-            <th>Status</th>
-            <th>Data</th>
-            <th>Ação</th>
-          </tr>
-        </thead>
-        <tbody id="tabela"></tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Valor</th>
+              <th>Banco</th>
+              <th>Observação</th>
+              <th>Criado por</th>
+              <th>Status</th>
+              <th>Data</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody id="tabela"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
   <div id="historico" style="display:none;">
     <div class="card">
       <h2>Histórico Finalizado</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Cliente</th>
-            <th>Valor</th>
-            <th>Banco</th>
-            <th>Observação</th>
-            <th>Data</th>
-          </tr>
-        </thead>
-        <tbody id="tabelaHistorico"></tbody>
-      </table>
+      <p class="mobile-title">No celular, arraste a tabela para o lado.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Valor</th>
+              <th>Banco</th>
+              <th>Observação</th>
+              <th>Data</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaHistorico"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -176,30 +207,34 @@ th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
 
       <button class="salvar" onclick="criarBanco()">Cadastrar Banco</button>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Banco</th>
-            <th>Cor</th>
-            <th>Ação</th>
-          </tr>
-        </thead>
-        <tbody id="tabelaBancos"></tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Banco</th>
+              <th>Cor</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaBancos"></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="card">
       <h2>Usuários</h2>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Login</th>
-            <th>Tipo</th>
-          </tr>
-        </thead>
-        <tbody id="tabelaUsuarios"></tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Login</th>
+              <th>Tipo</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaUsuarios"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -545,6 +580,10 @@ function atualizarGrafico(bancosGrafico){
         borderColor: cores,
         borderWidth: 1
       }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false
     }
   });
 }
