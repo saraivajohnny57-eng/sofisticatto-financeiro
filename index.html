@@ -41,6 +41,7 @@ th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
 .login-box button{width:100%;padding:15px;border:none;border-radius:15px;margin-top:10px;cursor:pointer}
 .entrar{background:#5a4fa3;color:white}
 .usuario-logado{font-size:14px;background:#ede9fb;padding:12px;border-radius:15px;margin-bottom:20px}
+.cor-box{width:35px;height:25px;border-radius:8px;border:1px solid #ddd}
 </style>
 </head>
 
@@ -98,7 +99,6 @@ th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
   </div>
 
   <div id="relatorios" style="display:none;">
-
     <div class="card" id="boxNovoRelatorio">
       <h2>Novo Relatório</h2>
 
@@ -129,7 +129,6 @@ th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
         <tbody id="tabela"></tbody>
       </table>
     </div>
-
   </div>
 
   <div id="historico" style="display:none;">
@@ -151,7 +150,6 @@ th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
   </div>
 
   <div id="admin" style="display:none;">
-
     <div class="card">
       <h2>Criar Usuário</h2>
 
@@ -173,6 +171,7 @@ th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
 
       <div class="inputs">
         <input type="text" id="novoBanco" placeholder="Ex: Bradesco, Banco do Brasil, Caixa">
+        <input type="color" id="corBanco" value="#5a4fa3">
       </div>
 
       <button class="salvar" onclick="criarBanco()">Cadastrar Banco</button>
@@ -181,6 +180,7 @@ th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
         <thead>
           <tr>
             <th>Banco</th>
+            <th>Cor</th>
             <th>Ação</th>
           </tr>
         </thead>
@@ -201,7 +201,6 @@ th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
         <tbody id="tabelaUsuarios"></tbody>
       </table>
     </div>
-
   </div>
 
 </div>
@@ -261,7 +260,6 @@ function mostrarSecao(secao){
   document.getElementById("relatorios").style.display = "none";
   document.getElementById("historico").style.display = "none";
   document.getElementById("admin").style.display = "none";
-
   document.getElementById(secao).style.display = "block";
 }
 
@@ -292,6 +290,7 @@ async function carregarBancos(){
       tabelaBancos.innerHTML +=
         "<tr>" +
         "<td>" + item.nome + "</td>" +
+        "<td><div class='cor-box' style='background:" + (item.cor || "#5a4fa3") + "'></div></td>" +
         "<td><button class='btn vermelho' onclick='excluirBanco(\"" + item.id + "\")'>Excluir</button></td>" +
         "</tr>";
     });
@@ -300,7 +299,6 @@ async function carregarBancos(){
 
 function montarSelectBanco(id, bancoAtual){
   let html = "<select id='banco_" + id + "'>";
-
   html += "<option value=''>Selecione</option>";
 
   listaBancos.forEach(function(b){
@@ -308,7 +306,6 @@ function montarSelectBanco(id, bancoAtual){
   });
 
   html += "</select>";
-
   return html;
 }
 
@@ -344,6 +341,7 @@ async function criarBanco(){
   }
 
   const nomeBanco = document.getElementById("novoBanco").value.trim();
+  const corBanco = document.getElementById("corBanco").value;
 
   if(nomeBanco == ""){
     alert("Digite o nome do banco");
@@ -352,14 +350,19 @@ async function criarBanco(){
 
   const resposta = await banco
     .from("bancos")
-    .insert([{ nome: nomeBanco }]);
+    .insert([{ 
+      nome: nomeBanco,
+      cor: corBanco
+    }]);
 
   if(resposta.error){
     alert(resposta.error.message);
   }else{
     alert("Banco cadastrado!");
     document.getElementById("novoBanco").value = "";
+    document.getElementById("corBanco").value = "#5a4fa3";
     carregarBancos();
+    carregarRelatorios();
   }
 }
 
@@ -374,6 +377,7 @@ async function excluirBanco(id){
     .eq("id", id);
 
   carregarBancos();
+  carregarRelatorios();
 }
 
 async function salvarRelatorio(){
@@ -442,7 +446,6 @@ async function carregarRelatorios(){
       if(!bancosGrafico[item.banco]){
         bancosGrafico[item.banco] = 0;
       }
-
       bancosGrafico[item.banco] += Number(item.valor || 0);
     }
 
@@ -460,15 +463,20 @@ async function carregarRelatorios(){
     }
 
     if(usuarioLogado.tipo == "financeiro"){
-      acaoColuna += "<button class='btn roxo' onclick='finalizar(\"" + item.id + "\")'>Finalizar</button>";
+      if(item.banco && item.banco != "" && item.status != "Finalizado"){
+        acaoColuna += "<button class='btn roxo' onclick='finalizar(\"" + item.id + "\")'>Finalizar</button>";
+      }
 
-      if(item.criado_por == usuarioLogado.login){
+      if(item.criado_por == usuarioLogado.login && item.status != "Finalizado"){
         acaoColuna += "<button class='btn vermelho' onclick='excluirRelatorio(\"" + item.id + "\")'>Excluir</button>";
       }
     }
 
     if(usuarioLogado.tipo == "admin"){
-      acaoColuna += "<button class='btn roxo' onclick='finalizar(\"" + item.id + "\")'>Finalizar</button>";
+      if(item.status != "Finalizado"){
+        acaoColuna += "<button class='btn roxo' onclick='finalizar(\"" + item.id + "\")'>Finalizar</button>";
+      }
+
       acaoColuna += "<button class='btn vermelho' onclick='excluirRelatorio(\"" + item.id + "\")'>Excluir</button>";
     }
 
@@ -502,7 +510,51 @@ async function carregarRelatorios(){
   atualizarGrafico(bancosGrafico);
 }
 
+function buscarCorBanco(nomeBanco){
+  const encontrado = listaBancos.find(function(b){
+    return b.nome == nomeBanco;
+  });
+
+  if(encontrado && encontrado.cor){
+    return encontrado.cor;
+  }
+
+  return "#5a4fa3";
+}
+
+function atualizarGrafico(bancosGrafico){
+  const labels = Object.keys(bancosGrafico);
+  const valores = Object.values(bancosGrafico);
+
+  const cores = labels.map(function(nomeBanco){
+    return buscarCorBanco(nomeBanco);
+  });
+
+  if(grafico){
+    grafico.destroy();
+  }
+
+  grafico = new Chart(document.getElementById("grafico"), {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Total por banco",
+        data: valores,
+        backgroundColor: cores,
+        borderColor: cores,
+        borderWidth: 1
+      }]
+    }
+  });
+}
+
 async function finalizar(id){
+  if(usuarioLogado.tipo != "financeiro" && usuarioLogado.tipo != "admin"){
+    alert("Somente o financeiro pode finalizar.");
+    return;
+  }
+
   const resposta = await banco
     .from("boletos")
     .update({
@@ -586,26 +638,6 @@ async function carregarUsuarios(){
       "<td>" + usuario.login + "</td>" +
       "<td>" + usuario.tipo + "</td>" +
       "</tr>";
-  });
-}
-
-function atualizarGrafico(bancosGrafico){
-  const labels = Object.keys(bancosGrafico);
-  const valores = Object.values(bancosGrafico);
-
-  if(grafico){
-    grafico.destroy();
-  }
-
-  grafico = new Chart(document.getElementById("grafico"), {
-    type: "bar",
-    data: {
-      labels: labels,
-      datasets: [{
-        label: "Total por banco",
-        data: valores
-      }]
-    }
   });
 }
 
