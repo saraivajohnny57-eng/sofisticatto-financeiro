@@ -1,237 +1,233 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Sofisticatto Financeiro</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
 
 *{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
-    font-family:Arial, sans-serif;
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Arial, sans-serif;
 }
 
 body{
-    background:#f5f2fb;
-    display:flex;
-    min-height:100vh;
-    color:#4d4694;
+background:#f5f2fb;
+display:flex;
+min-height:100vh;
+color:#4d4694;
 }
 
 .sidebar{
-    width:260px;
-    background:white;
-    padding:25px;
-    box-shadow:0 0 20px rgba(0,0,0,0.08);
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
+width:250px;
+background:white;
+padding:25px;
+box-shadow:0 0 15px rgba(0,0,0,0.08);
+display:flex;
+flex-direction:column;
+justify-content:space-between;
 }
 
 .logo{
-    text-align:center;
-    margin-bottom:40px;
+text-align:center;
+margin-bottom:30px;
 }
 
 .logo h1{
-    font-size:40px;
-    font-style:italic;
-    font-weight:300;
-    color:#5a4fa3;
+font-size:38px;
+font-style:italic;
+font-weight:300;
+color:#5a4fa3;
 }
 
 .logo p{
-    letter-spacing:8px;
-    text-transform:uppercase;
-    font-size:12px;
-    margin-top:8px;
-    color:#8b84c7;
+font-size:12px;
+letter-spacing:6px;
+margin-top:5px;
+color:#9c92d9;
 }
 
 .menu button{
-    width:100%;
-    padding:15px;
-    border:none;
-    border-radius:15px;
-    margin-bottom:10px;
-    cursor:pointer;
-    background:#ede9fb;
-    color:#4d4694;
-    font-size:16px;
-    transition:0.3s;
+width:100%;
+padding:15px;
+border:none;
+border-radius:15px;
+background:#ede9fb;
+margin-bottom:10px;
+cursor:pointer;
+font-size:16px;
+color:#4d4694;
+transition:0.3s;
 }
 
 .menu button:hover{
-    background:#dcd4ff;
+background:#dcd4ff;
 }
 
 .logout{
-    background:#5a4fa3 !important;
-    color:white !important;
+background:#5a4fa3 !important;
+color:white !important;
 }
 
 .main{
-    flex:1;
-    padding:30px;
-    overflow:auto;
+flex:1;
+padding:30px;
+overflow:auto;
 }
 
 .top{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-bottom:30px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:25px;
 }
 
 .card{
-    background:white;
-    padding:25px;
-    border-radius:25px;
-    box-shadow:0 0 15px rgba(0,0,0,0.05);
+background:white;
+padding:25px;
+border-radius:25px;
+box-shadow:0 0 15px rgba(0,0,0,0.05);
+margin-bottom:25px;
 }
 
 .total{
-    min-width:250px;
+min-width:250px;
 }
 
 .total h2{
-    margin-top:10px;
-    font-size:35px;
-}
-
-.formulario{
-    margin-bottom:30px;
+font-size:35px;
+margin-top:10px;
 }
 
 .inputs{
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
-    gap:15px;
-    margin-top:20px;
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+gap:15px;
+margin-top:20px;
 }
 
 input{
-    padding:15px;
-    border:none;
-    border-radius:15px;
-    background:#f5f2fb;
-    outline:none;
+padding:15px;
+border:none;
+border-radius:15px;
+background:#f5f2fb;
+outline:none;
 }
 
 .salvar{
-    margin-top:20px;
-    background:#5a4fa3;
-    color:white;
-    border:none;
-    padding:15px 25px;
-    border-radius:15px;
-    cursor:pointer;
+margin-top:20px;
+background:#5a4fa3;
+color:white;
+border:none;
+padding:15px 25px;
+border-radius:15px;
+cursor:pointer;
 }
 
 table{
-    width:100%;
-    border-collapse:collapse;
-    margin-top:20px;
+width:100%;
+border-collapse:collapse;
+margin-top:20px;
 }
 
 th,td{
-    padding:15px;
-    border-bottom:1px solid #eee;
-    text-align:left;
+padding:15px;
+border-bottom:1px solid #eee;
+text-align:left;
 }
 
 .status{
-    padding:8px 15px;
-    border-radius:20px;
-    color:white;
-    font-size:12px;
+padding:8px 15px;
+border-radius:20px;
+font-size:12px;
+color:white;
 }
 
 .andamento{
-    background:#f0ad4e;
+background:#f0ad4e;
 }
 
 .finalizado{
-    background:#5cb85c;
+background:#5cb85c;
 }
 
 .finalizar{
-    background:#5a4fa3;
-    color:white;
-    border:none;
-    padding:10px 15px;
-    border-radius:10px;
-    cursor:pointer;
+background:#5a4fa3;
+color:white;
+border:none;
+padding:10px 15px;
+border-radius:10px;
+cursor:pointer;
 }
 
 .login{
-    position:fixed;
-    inset:0;
-    background:#f5f2fb;
-    display:flex;
-    justify-content:center;
-    align-items:center;
+position:fixed;
+inset:0;
+background:#f5f2fb;
+display:flex;
+justify-content:center;
+align-items:center;
+z-index:999;
 }
 
 .login-box{
-    background:white;
-    padding:40px;
-    border-radius:30px;
-    width:350px;
-    box-shadow:0 0 20px rgba(0,0,0,0.08);
+background:white;
+padding:40px;
+border-radius:30px;
+width:350px;
+box-shadow:0 0 20px rgba(0,0,0,0.08);
 }
 
 .login-box h1{
-    text-align:center;
-    font-size:40px;
-    font-style:italic;
-    color:#5a4fa3;
-    font-weight:300;
+text-align:center;
+font-size:40px;
+font-style:italic;
+font-weight:300;
+color:#5a4fa3;
 }
 
 .login-box p{
-    text-align:center;
-    margin-bottom:30px;
-    color:#8b84c7;
-    letter-spacing:5px;
-    font-size:12px;
+text-align:center;
+letter-spacing:5px;
+font-size:12px;
+margin-bottom:30px;
+color:#9c92d9;
 }
 
 .login-box input{
-    width:100%;
-    margin-bottom:15px;
+width:100%;
+margin-bottom:15px;
 }
 
 .login-box button{
-    width:100%;
-    padding:15px;
-    border:none;
-    border-radius:15px;
-    margin-top:10px;
-    cursor:pointer;
+width:100%;
+padding:15px;
+border:none;
+border-radius:15px;
+cursor:pointer;
+margin-top:10px;
 }
 
 .entrar{
-    background:#5a4fa3;
-    color:white;
+background:#5a4fa3;
+color:white;
 }
 
 .criar{
-    background:#ede9fb;
-    color:#4d4694;
-}
-
-.grafico{
-    margin-top:30px;
+background:#ede9fb;
+color:#4d4694;
 }
 
 </style>
+
 </head>
 
 <body>
@@ -246,10 +242,16 @@ th,td{
 <input type="email" id="email" placeholder="Email">
 <input type="password" id="senha" placeholder="Senha">
 
-<button class="entrar" onclick="login()">Entrar</button>
-<button class="criar" onclick="cadastrar()">Criar Conta</button>
+<button class="entrar" onclick="login()">
+Entrar
+</button>
+
+<button class="criar" onclick="cadastrar()">
+Criar Conta
+</button>
 
 </div>
+
 </div>
 
 <div class="sidebar">
@@ -269,7 +271,9 @@ th,td{
 
 </div>
 
-<button class="logout" onclick="logout()">Sair</button>
+<button class="logout" onclick="logout()">
+Sair
+</button>
 
 </div>
 
@@ -283,19 +287,19 @@ th,td{
 </div>
 
 <div class="card total">
-<p>Valor Total</p>
-<h2 id="total">R$ 0</h2>
+<p>Total Geral</p>
+<h2 id="total">R$ 0,00</h2>
 </div>
 
 </div>
 
-<div class="card formulario">
+<div class="card">
 
 <h2>Novo Relatório</h2>
 
 <div class="inputs">
 
-<input type="text" id="nome" placeholder="Nome do Cliente">
+<input type="text" id="nome" placeholder="Nome do cliente">
 
 <input type="number" id="valor" placeholder="Valor do boleto">
 
@@ -313,7 +317,7 @@ Salvar Relatório
 
 <div class="card">
 
-<h2>Histórico de Relatórios</h2>
+<h2>Relatórios</h2>
 
 <table>
 
@@ -339,7 +343,7 @@ Salvar Relatório
 
 </div>
 
-<div class="card grafico">
+<div class="card">
 
 <h2>Total por Banco</h2>
 
@@ -351,53 +355,68 @@ Salvar Relatório
 
 <script>
 
-const SUPABASE_URL = "https://drtgtwwsbxrmqcaabzcs.supabase.co";
+const SUPABASE_URL =
+"https://drtgtwwsbxrmqcaabzcs.supabase.co";
 
-const SUPABASE_KEY = "sb_publishable_yiTEjwaD0gPFz3nHb22bJQ_kTa-DWjS";
+const SUPABASE_KEY =
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRydGd0d3dzYnhybXFjYWFiemNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwODYyMDQsImV4cCI6MjA5MzY2MjIwNH0.7TIaXvrFPaCNLlTrFmsaVbTnbvxL2uVckdPN3L9tBbY";
 
-const supabase = window.supabase.createClient(
+const banco =
+window.supabase.createClient(
 SUPABASE_URL,
 SUPABASE_KEY
 );
 
-let usuario = null;
-let chart = null;
+let grafico = null;
 
 async function cadastrar(){
 
-const email = document.getElementById("email").value;
-const senha = document.getElementById("senha").value;
+const email =
+document.getElementById("email").value;
 
-const { error } = await supabase.auth.signUp({
-email,
-password: senha
+const senha =
+document.getElementById("senha").value;
+
+const { error } =
+await banco.auth.signUp({
+email:email,
+password:senha
 });
 
 if(error){
+
 alert(error.message);
+
 }else{
+
 alert("Conta criada com sucesso!");
+
 }
 
 }
 
 async function login(){
 
-const email = document.getElementById("email").value;
-const senha = document.getElementById("senha").value;
+const email =
+document.getElementById("email").value;
 
-const { data, error } = await supabase.auth.signInWithPassword({
-email,
-password: senha
+const senha =
+document.getElementById("senha").value;
+
+const { error } =
+await banco.auth.signInWithPassword({
+email:email,
+password:senha
 });
 
 if(error){
+
 alert(error.message);
+
 }else{
 
-usuario = data.user;
-
-document.getElementById("login").style.display = "none";
+document.getElementById("login").style.display =
+"none";
 
 carregarRelatorios();
 
@@ -407,7 +426,7 @@ carregarRelatorios();
 
 async function logout(){
 
-await supabase.auth.signOut();
+await banco.auth.signOut();
 
 location.reload();
 
@@ -415,23 +434,31 @@ location.reload();
 
 async function salvarRelatorio(){
 
-const nome = document.getElementById("nome").value;
-const valor = document.getElementById("valor").value;
-const banco = document.getElementById("banco").value;
-const observacao = document.getElementById("observacao").value;
+const nome =
+document.getElementById("nome").value;
 
-const { error } = await supabase
+const valor =
+document.getElementById("valor").value;
+
+const bancoNome =
+document.getElementById("banco").value;
+
+const observacao =
+document.getElementById("observacao").value;
+
+const { error } =
+await banco
 .from("boletos")
-.insert([
-{
-nome,
-valor,
-banco,
-observacao,
+.insert([{
+
+nome:nome,
+valor:valor,
+banco:bancoNome,
+observacao:observacao,
 status:"Em andamento",
 data_finalizacao:new Date()
-}
-]);
+
+}]);
 
 if(error){
 
@@ -441,9 +468,9 @@ alert(error.message);
 
 alert("Relatório salvo!");
 
-carregarRelatorios();
-
 limpar();
+
+carregarRelatorios();
 
 }
 
@@ -451,7 +478,7 @@ limpar();
 
 async function finalizar(id){
 
-await supabase
+await banco
 .from("boletos")
 .update({
 status:"Finalizado"
@@ -464,18 +491,28 @@ carregarRelatorios();
 
 async function carregarRelatorios(){
 
-const { data } = await supabase
+const { data, error } =
+await banco
 .from("boletos")
 .select("*")
 .order("id",{ascending:false});
 
-const tabela = document.getElementById("tabela");
+if(error){
+
+console.log(error);
+
+return;
+
+}
+
+const tabela =
+document.getElementById("tabela");
 
 tabela.innerHTML = "";
 
 let total = 0;
 
-const bancos = {};
+let bancos = {};
 
 data.forEach(item=>{
 
@@ -485,15 +522,18 @@ if(!bancos[item.banco]){
 bancos[item.banco] = 0;
 }
 
-bancos[item.banco] += Number(item.valor);
+bancos[item.banco] +=
+Number(item.valor);
 
 tabela.innerHTML += `
+
 <tr>
 
 <td>${item.nome}</td>
 
 <td>
-R$ ${Number(item.valor).toLocaleString("pt-BR")}
+R$ ${Number(item.valor)
+.toLocaleString("pt-BR")}
 </td>
 
 <td>${item.banco}</td>
@@ -501,18 +541,26 @@ R$ ${Number(item.valor).toLocaleString("pt-BR")}
 <td>${item.observacao}</td>
 
 <td>
+
 <span class="status ${
 item.status == "Finalizado"
-? "finalizado"
-: "andamento"
+?
+"finalizado"
+:
+"andamento"
 }">
+
 ${item.status}
+
 </span>
+
 </td>
 
 <td>
+
 ${new Date(item.data_finalizacao)
 .toLocaleDateString("pt-BR")}
+
 </td>
 
 <td>
@@ -520,10 +568,15 @@ ${new Date(item.data_finalizacao)
 ${
 item.status != "Finalizado"
 ?
-`<button class="finalizar"
+`
+<button
+class="finalizar"
 onclick="finalizar('${item.id}')">
+
 Finalizar
-</button>`
+
+</button>
+`
 :
 ""
 }
@@ -531,12 +584,15 @@ Finalizar
 </td>
 
 </tr>
+
 `;
 
 });
 
-document.getElementById("total").innerHTML =
-"R$ " + total.toLocaleString("pt-BR");
+document.getElementById("total")
+.innerHTML =
+"R$ " +
+total.toLocaleString("pt-BR");
 
 atualizarGrafico(bancos);
 
@@ -544,29 +600,37 @@ atualizarGrafico(bancos);
 
 function atualizarGrafico(bancos){
 
-const labels = Object.keys(bancos);
-const valores = Object.values(bancos);
+const labels =
+Object.keys(bancos);
 
-if(chart){
-chart.destroy();
+const valores =
+Object.values(bancos);
+
+if(grafico){
+grafico.destroy();
 }
 
-chart = new Chart(
+grafico = new Chart(
 document.getElementById("grafico"),
 {
+
 type:"bar",
 
 data:{
+
 labels:labels,
 
 datasets:[{
+
 label:"Total por banco",
+
 data:valores
+
 }]
-}
 
 }
-);
+
+});
 
 }
 
@@ -579,7 +643,7 @@ document.getElementById("observacao").value = "";
 
 }
 
-supabase
+banco
 .channel("tempo-real")
 .on(
 "postgres_changes",
