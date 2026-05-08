@@ -3,134 +3,979 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Sofisticatto Financeiro</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
-body{background:#f5f2fb;display:flex;min-height:100vh;color:#4d4694}
-.sidebar{width:250px;background:white;padding:25px;box-shadow:0 0 15px rgba(0,0,0,.08);display:flex;flex-direction:column;justify-content:space-between}
-.logo{text-align:center;margin-bottom:30px}
-.logo h1{font-size:38px;font-style:italic;font-weight:300;color:#5a4fa3}
-.logo p{font-size:12px;letter-spacing:6px;color:#9c92d9}
-.menu button{width:100%;padding:15px;border:none;border-radius:15px;background:#ede9fb;margin-bottom:10px;cursor:pointer;color:#4d4694}
-.logout{background:#5a4fa3!important;color:white!important}
-.main{flex:1;padding:30px;overflow:auto}
-.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px}
-.card{background:white;padding:25px;border-radius:25px;box-shadow:0 0 15px rgba(0,0,0,.05);margin-bottom:25px}
-.total{min-width:250px}
-.total h2{font-size:35px;margin-top:10px}
-.inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-top:20px}
-input,select{padding:15px;border:none;border-radius:15px;background:#f5f2fb;outline:none;width:100%}
-button{cursor:pointer}
-.salvar{margin-top:20px;background:#5a4fa3;color:white;border:none;padding:15px 25px;border-radius:15px}
-table{width:100%;border-collapse:collapse;margin-top:20px}
-th,td{padding:15px;border-bottom:1px solid #eee;text-align:left}
-.status{padding:8px 15px;border-radius:20px;font-size:12px;color:white}
-.andamento{background:#f0ad4e}
-.finalizado{background:#5cb85c}
-.finalizar,.editar,.excluir{border:none;padding:10px 15px;border-radius:10px;color:white;margin:3px}
-.finalizar{background:#5a4fa3}
-.editar{background:#2980b9}
-.excluir{background:#c0392b}
-.login{position:fixed;inset:0;background:#f5f2fb;display:flex;justify-content:center;align-items:center;z-index:999}
-.login-box{background:white;padding:40px;border-radius:30px;width:350px;box-shadow:0 0 20px rgba(0,0,0,.08)}
-.login-box h1{text-align:center;font-size:40px;font-style:italic;font-weight:300;color:#5a4fa3}
-.login-box p{text-align:center;letter-spacing:5px;font-size:12px;margin-bottom:30px;color:#9c92d9}
-.login-box input{margin-bottom:15px}
-.login-box button{width:100%;padding:15px;border:none;border-radius:15px;margin-top:10px}
-.entrar{background:#5a4fa3;color:white}
-.usuario-logado{font-size:14px;background:#ede9fb;padding:12px;border-radius:15px;margin-bottom:20px}
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Arial,sans-serif;
+}
+
+body{
+background:#f5f2fb;
+display:flex;
+min-height:100vh;
+color:#4d4694;
+}
+
+.sidebar{
+width:250px;
+background:white;
+padding:25px;
+box-shadow:0 0 15px rgba(0,0,0,.08);
+display:flex;
+flex-direction:column;
+justify-content:space-between;
+}
+
+.logo{
+text-align:center;
+margin-bottom:30px;
+}
+
+.logo h1{
+font-size:38px;
+font-style:italic;
+font-weight:300;
+color:#5a4fa3;
+}
+
+.logo p{
+font-size:12px;
+letter-spacing:6px;
+color:#9c92d9;
+}
+
+.menu button{
+width:100%;
+padding:15px;
+border:none;
+border-radius:15px;
+background:#ede9fb;
+margin-bottom:10px;
+cursor:pointer;
+color:#4d4694;
+}
+
+.logout{
+background:#5a4fa3 !important;
+color:white !important;
+}
+
+.main{
+flex:1;
+padding:30px;
+overflow:auto;
+}
+
+.card{
+background:white;
+padding:25px;
+border-radius:25px;
+box-shadow:0 0 15px rgba(0,0,0,.05);
+margin-bottom:25px;
+}
+
+.top{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:25px;
+}
+
+.total h2{
+font-size:35px;
+margin-top:10px;
+}
+
+.inputs{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+gap:15px;
+margin-top:20px;
+}
+
+input,select{
+padding:15px;
+border:none;
+border-radius:15px;
+background:#f5f2fb;
+outline:none;
+width:100%;
+}
+
+.salvar{
+margin-top:20px;
+background:#5a4fa3;
+color:white;
+border:none;
+padding:15px 25px;
+border-radius:15px;
+cursor:pointer;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:20px;
+}
+
+th,td{
+padding:15px;
+border-bottom:1px solid #eee;
+text-align:left;
+}
+
+.status{
+padding:8px 15px;
+border-radius:20px;
+font-size:12px;
+color:white;
+}
+
+.andamento{
+background:#f0ad4e;
+}
+
+.finalizado{
+background:#5cb85c;
+}
+
+.editar,
+.finalizar,
+.excluir{
+border:none;
+padding:10px 15px;
+border-radius:10px;
+color:white;
+cursor:pointer;
+margin:3px;
+}
+
+.editar{
+background:#3498db;
+}
+
+.finalizar{
+background:#5a4fa3;
+}
+
+.excluir{
+background:#c0392b;
+}
+
+.login{
+position:fixed;
+inset:0;
+background:#f5f2fb;
+display:flex;
+justify-content:center;
+align-items:center;
+z-index:999;
+}
+
+.login-box{
+background:white;
+padding:40px;
+border-radius:30px;
+width:350px;
+box-shadow:0 0 20px rgba(0,0,0,.08);
+}
+
+.login-box h1{
+text-align:center;
+font-size:40px;
+font-style:italic;
+font-weight:300;
+color:#5a4fa3;
+}
+
+.login-box p{
+text-align:center;
+letter-spacing:5px;
+font-size:12px;
+margin-bottom:30px;
+color:#9c92d9;
+}
+
+.login-box input{
+margin-bottom:15px;
+}
+
+.login-box button{
+width:100%;
+padding:15px;
+border:none;
+border-radius:15px;
+margin-top:10px;
+cursor:pointer;
+}
+
+.entrar{
+background:#5a4fa3;
+color:white;
+}
+
+.usuario-logado{
+font-size:14px;
+background:#ede9fb;
+padding:12px;
+border-radius:15px;
+margin-bottom:20px;
+}
+
 </style>
 </head>
 
 <body>
 
 <div id="loginTela" class="login">
-  <div class="login-box">
-    <h1>Sofisticatto</h1>
-    <p>COSMÉTICOS</p>
 
-    <input type="text" id="login" placeholder="Login">
-    <input type="password" id="senha" placeholder="Senha">
+<div class="login-box">
 
-    <button class="entrar" onclick="entrar()">Entrar</button>
-  </div>
+<h1>Sofisticatto</h1>
+<p>COSMÉTICOS</p>
+
+<input type="text" id="login" placeholder="Login">
+
+<input type="password" id="senha" placeholder="Senha">
+
+<button class="entrar" onclick="entrar()">
+Entrar
+</button>
+
+</div>
+
 </div>
 
 <div class="sidebar">
-  <div>
-    <div class="logo">
-      <h1>Sofisticatto</h1>
-      <p>COSMÉTICOS</p>
-    </div>
 
-    <div id="usuarioInfo" class="usuario-logado"></div>
+<div>
 
-    <div class="menu">
-      <button onclick="mostrarSecao('dashboard')">Dashboard</button>
-      <button onclick="mostrarSecao('relatorios')">Relatórios</button>
-      <button onclick="mostrarSecao('historico')">Histórico</button>
-      <button id="btnAdmin" onclick="mostrarSecao('admin')" style="display:none;">Admin</button>
-    </div>
-  </div>
+<div class="logo">
+<h1>Sofisticatto</h1>
+<p>COSMÉTICOS</p>
+</div>
 
-  <button class="logout" onclick="sair()">Sair</button>
+<div id="usuarioInfo" class="usuario-logado"></div>
+
+<div class="menu">
+
+<button onclick="mostrarSecao('dashboard')">
+Dashboard
+</button>
+
+<button onclick="mostrarSecao('relatorios')">
+Relatórios
+</button>
+
+<button onclick="mostrarSecao('historico')">
+Histórico
+</button>
+
+<button id="btnAdmin"
+onclick="mostrarSecao('admin')"
+style="display:none;">
+Admin
+</button>
+
+</div>
+
+</div>
+
+<button class="logout" onclick="sair()">
+Sair
+</button>
+
 </div>
 
 <div class="main">
 
-  <div id="dashboard">
-    <div class="top">
-      <div>
-        <h1>Painel Financeiro</h1>
-        <p>Sistema online integrado com Supabase</p>
-      </div>
+<div id="dashboard">
 
-      <div class="card total">
-        <p>Total Geral</p>
-        <h2 id="total">R$ 0,00</h2>
-      </div>
-    </div>
+<div class="top">
 
-    <div class="card">
-      <h2>Total por Banco</h2>
-      <canvas id="grafico"></canvas>
-    </div>
-  </div>
+<div>
+<h1>Painel Financeiro</h1>
+<p>Sistema Online</p>
+</div>
 
-  <div id="relatorios" style="display:none;">
-    <div class="card">
-      <h2>Novo Relatório</h2>
+<div class="card total">
+<p>Total Geral</p>
+<h2 id="total">R$ 0,00</h2>
+</div>
 
-      <div class="inputs">
-        <input type="text" id="nome" placeholder="Nome do cliente">
-        <input type="number" id="valor" placeholder="Valor do boleto">
-        <input type="text" id="bancoCampo" placeholder="Banco">
-        <input type="text" id="observacao" placeholder="Observação">
-      </div>
+</div>
 
-      <button class="salvar" onclick="salvarRelatorio()">Salvar Relatório</button>
-    </div>
+<div class="card">
+<h2>Total por Banco</h2>
+<canvas id="grafico"></canvas>
+</div>
 
-    <div class="card">
-      <h2>Relatórios</h2>
+</div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Cliente</th>
-            <th>Valor</th>
-            <th>Banco</th>
-            <th>Observação</th>
-            <th>Status</th>
-            <th>Data</th>
-            <th>Ação</th>
-          </tr>
-        </thead>
-        <tbody id="tabela"></tbody>
-      </table>
-    </div>
-  </div>
+<div id="relatorios" style="display:none;">
+
+<div class="card">
+
+<h2>Novo Relatório</h2>
+
+<div class="inputs">
+
+<input type="text" id="nome" placeholder="Nome do cliente">
+
+<input type="number" id="valor" placeholder="Valor">
+
+<input type="text" id="bancoCampo" placeholder="Banco">
+
+<input type="text" id="observacao" placeholder="Observação">
+
+</div>
+
+<button class="salvar" onclick="salvarRelatorio()">
+Salvar Relatório
+</button>
+
+</div>
+
+<div class="card">
+
+<h2>Relatórios</h2>
+
+<table>
+
+<thead>
+<tr>
+<th>Cliente</th>
+<th>Valor</th>
+<th>Banco</th>
+<th>Observação</th>
+<th>Status</th>
+<th>Data</th>
+<th>Ação</th>
+</tr>
+</thead>
+
+<tbody id="tabela"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+<div id="historico" style="display:none;">
+
+<div class="card">
+
+<h2>Histórico</h2>
+
+<table>
+
+<thead>
+<tr>
+<th>Cliente</th>
+<th>Valor</th>
+<th>Banco</th>
+<th>Observação</th>
+<th>Data</th>
+</tr>
+</thead>
+
+<tbody id="tabelaHistorico"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+<div id="admin" style="display:none;">
+
+<div class="card">
+
+<h2>Criar Usuário</h2>
+
+<div class="inputs">
+
+<input type="text" id="novoLogin" placeholder="Login">
+
+<input type="text" id="novaSenha" placeholder="Senha">
+
+<select id="novoTipo">
+<option value="financeiro">Financeiro</option>
+<option value="banco">Banco</option>
+<option value="admin">Admin</option>
+</select>
+
+</div>
+
+<button class="salvar" onclick="criarUsuario()">
+Criar Usuário
+</button>
+
+</div>
+
+<div class="card">
+
+<h2>Usuários</h2>
+
+<table>
+
+<thead>
+<tr>
+<th>Login</th>
+<th>Tipo</th>
+</tr>
+</thead>
+
+<tbody id="tabelaUsuarios"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+<script>
+
+const SUPABASE_URL =
+"https://drtgtwwsbxrmqcaabzcs.supabase.co";
+
+const SUPABASE_KEY =
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRydGd0d3dzYnhybXFjYWFiemNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwODYyMDQsImV4cCI6MjA5MzY2MjIwNH0.7TIaXvrFPaCNLlTrFmsaVbTnbvxL2uVckdPN3L9tBbY";
+
+const banco =
+supabase.createClient(
+SUPABASE_URL,
+SUPABASE_KEY
+);
+
+let usuarioLogado = null;
+let grafico = null;
+
+async function entrar(){
+
+const loginDigitado =
+document.getElementById("login").value;
+
+const senhaDigitada =
+document.getElementById("senha").value;
+
+const resposta =
+await banco
+.from("usuarios")
+.select("*")
+.eq("login", loginDigitado)
+.eq("senha", senhaDigitada)
+.single();
+
+if(resposta.error || !resposta.data){
+
+alert("Login inválido");
+return;
+
+}
+
+usuarioLogado = resposta.data;
+
+localStorage.setItem(
+"usuarioLogado",
+JSON.stringify(usuarioLogado)
+);
+
+document.getElementById("loginTela")
+.style.display = "none";
+
+document.getElementById("usuarioInfo")
+.innerHTML =
+"Usuário: <b>" +
+usuarioLogado.login +
+"</b><br>Tipo: <b>" +
+usuarioLogado.tipo +
+"</b>";
+
+if(usuarioLogado.tipo == "admin"){
+document.getElementById("btnAdmin")
+.style.display = "block";
+}
+
+configurarPermissoes();
+
+carregarRelatorios();
+
+carregarUsuarios();
+
+mostrarSecao("dashboard");
+
+}
+
+function configurarPermissoes(){
+
+if(usuarioLogado.tipo == "financeiro"){
+
+document.getElementById("bancoCampo")
+.disabled = true;
+
+document.getElementById("observacao")
+.disabled = true;
+
+}
+
+if(usuarioLogado.tipo == "banco"){
+
+document.getElementById("nome")
+.disabled = true;
+
+document.getElementById("valor")
+.disabled = true;
+
+}
+
+}
+
+function mostrarSecao(secao){
+
+document.getElementById("dashboard")
+.style.display = "none";
+
+document.getElementById("relatorios")
+.style.display = "none";
+
+document.getElementById("historico")
+.style.display = "none";
+
+document.getElementById("admin")
+.style.display = "none";
+
+document.getElementById(secao)
+.style.display = "block";
+
+}
+
+function sair(){
+
+localStorage.removeItem("usuarioLogado");
+
+location.reload();
+
+}
+
+async function salvarRelatorio(){
+
+const nome =
+document.getElementById("nome").value;
+
+const valor =
+document.getElementById("valor").value;
+
+const bancoCampo =
+document.getElementById("bancoCampo").value;
+
+const observacao =
+document.getElementById("observacao").value;
+
+const resposta =
+await banco
+.from("boletos")
+.insert([{
+
+nome:nome,
+valor:valor,
+banco:bancoCampo,
+observacao:observacao,
+status:"Em andamento",
+data_finalizacao:new Date(),
+criado_por:usuarioLogado.login
+
+}]);
+
+if(resposta.error){
+
+alert(resposta.error.message);
+
+}else{
+
+alert("Relatório salvo!");
+
+carregarRelatorios();
+
+limpar();
+
+}
+
+}
+
+async function carregarRelatorios(){
+
+const resposta =
+await banco
+.from("boletos")
+.select("*")
+.order("id",{ascending:false});
+
+if(resposta.error){
+console.log(resposta.error);
+return;
+}
+
+const dados = resposta.data;
+
+const tabela =
+document.getElementById("tabela");
+
+const historico =
+document.getElementById("tabelaHistorico");
+
+tabela.innerHTML = "";
+historico.innerHTML = "";
+
+let total = 0;
+let bancos = {};
+
+dados.forEach(item=>{
+
+total += Number(item.valor || 0);
+
+if(!bancos[item.banco]){
+bancos[item.banco] = 0;
+}
+
+bancos[item.banco] +=
+Number(item.valor || 0);
+
+tabela.innerHTML += `
+<tr>
+
+<td>${item.nome || ""}</td>
+
+<td>
+R$ ${Number(item.valor || 0)
+.toLocaleString("pt-BR")}
+</td>
+
+<td>${item.banco || ""}</td>
+
+<td>${item.observacao || ""}</td>
+
+<td>
+
+<span class="status ${
+item.status == "Finalizado"
+?
+"finalizado"
+:
+"andamento"
+}">
+
+${item.status}
+
+</span>
+
+</td>
+
+<td>
+
+${new Date(item.data_finalizacao)
+.toLocaleDateString("pt-BR")}
+
+</td>
+
+<td>
+
+<button
+class="editar"
+onclick="editarRelatorio('${item.id}')">
+Editar
+</button>
+
+${
+item.status != "Finalizado"
+?
+`
+<button
+class="finalizar"
+onclick="finalizar('${item.id}')">
+Finalizar
+</button>
+`
+:
+""
+}
+
+${
+usuarioLogado.tipo == "admin"
+?
+`
+<button
+class="excluir"
+onclick="excluirRelatorio('${item.id}')">
+Excluir
+</button>
+`
+:
+""
+}
+
+</td>
+
+</tr>
+`;
+
+if(item.status == "Finalizado"){
+
+historico.innerHTML += `
+<tr>
+
+<td>${item.nome}</td>
+
+<td>
+R$ ${Number(item.valor)
+.toLocaleString("pt-BR")}
+</td>
+
+<td>${item.banco}</td>
+
+<td>${item.observacao}</td>
+
+<td>
+${new Date(item.data_finalizacao)
+.toLocaleDateString("pt-BR")}
+</td>
+
+</tr>
+`;
+
+}
+
+});
+
+document.getElementById("total")
+.innerHTML =
+"R$ " +
+total.toLocaleString("pt-BR");
+
+atualizarGrafico(bancos);
+
+}
+
+async function finalizar(id){
+
+await banco
+.from("boletos")
+.update({
+status:"Finalizado",
+data_finalizacao:new Date()
+})
+.eq("id",id);
+
+carregarRelatorios();
+
+}
+
+async function excluirRelatorio(id){
+
+if(!confirm("Excluir relatório?")){
+return;
+}
+
+await banco
+.from("boletos")
+.delete()
+.eq("id",id);
+
+carregarRelatorios();
+
+}
+
+async function editarRelatorio(id){
+
+const resposta =
+await banco
+.from("boletos")
+.select("*")
+.eq("id",id)
+.single();
+
+if(resposta.error){
+return;
+}
+
+const item = resposta.data;
+
+document.getElementById("nome")
+.value = item.nome || "";
+
+document.getElementById("valor")
+.value = item.valor || "";
+
+document.getElementById("bancoCampo")
+.value = item.banco || "";
+
+document.getElementById("observacao")
+.value = item.observacao || "";
+
+}
+
+async function criarUsuario(){
+
+const login =
+document.getElementById("novoLogin").value;
+
+const senha =
+document.getElementById("novaSenha").value;
+
+const tipo =
+document.getElementById("novoTipo").value;
+
+const resposta =
+await banco
+.from("usuarios")
+.insert([{
+login:login,
+senha:senha,
+tipo:tipo
+}]);
+
+if(resposta.error){
+
+alert(resposta.error.message);
+
+}else{
+
+alert("Usuário criado!");
+
+carregarUsuarios();
+
+}
+
+}
+
+async function carregarUsuarios(){
+
+if(usuarioLogado.tipo != "admin"){
+return;
+}
+
+const resposta =
+await banco
+.from("usuarios")
+.select("*");
+
+if(resposta.error){
+return;
+}
+
+const tabela =
+document.getElementById("tabelaUsuarios");
+
+tabela.innerHTML = "";
+
+resposta.data.forEach(usuario=>{
+
+tabela.innerHTML += `
+<tr>
+<td>${usuario.login}</td>
+<td>${usuario.tipo}</td>
+</tr>
+`;
+
+});
+
+}
+
+function atualizarGrafico(bancos){
+
+const labels =
+Object.keys(bancos);
+
+const valores =
+Object.values(bancos);
+
+if(grafico){
+grafico.destroy();
+}
+
+grafico =
+new Chart(
+document.getElementById("grafico"),
+{
+
+type:"bar",
+
+data:{
+
+labels:labels,
+
+datasets:[{
+
+label:"Total por banco",
+
+data:valores
+
+}]
+
+}
+
+});
+
+}
+
+function limpar(){
+
+document.getElementById("nome").value = "";
+document.getElementById("valor").value = "";
+document.getElementById("bancoCampo").value = "";
+document.getElementById("observacao").value = "";
+
+}
+
+window.onload = function(){
+
+const salvo =
+localStorage.getItem("usuarioLogado");
+
+if(salvo){
+
+usuarioLogado =
+JSON.parse(salvo);
+
+document.getElementById("loginTela")
+.style.display = "none";
+
+document.getElementById("usuarioInfo")
+.innerHTML =
+"Usuário: <b>" +
+usuarioLogado.login +
+"</b><br>Tipo: <b>" +
+usuarioLogado.tipo +
+"</b>";
+
+if(usuarioLogado.tipo == "admin"){
+document.getElementById("btnAdmin")
+.style.display = "block";
+}
+
+configurarPermissoes();
+
+carregarRelatorios();
+
+carregarUsuarios();
+
+}
+
+};
+
+</script>
+
+</body>
+</html>
