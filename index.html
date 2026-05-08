@@ -22,18 +22,17 @@ body{background:#f5f2fb;display:flex;min-height:100vh;color:#4d4694}
 .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px}
 .total h2{font-size:35px;margin-top:10px}
 .inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-top:20px}
-input,select{padding:15px;border:none;border-radius:15px;background:#f5f2fb;outline:none;width:100%}
-.salvar{margin-top:20px;background:#5a4fa3;color:white;border:none;padding:15px 25px;border-radius:15px;cursor:pointer}
-.cancelar{margin-top:20px;background:#999;color:white;border:none;padding:15px 25px;border-radius:15px;cursor:pointer}
+input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outline:none;width:100%}
+.salvar{margin-top:20px;background:#5a4fa3;color:white;border:none;padding:14px 22px;border-radius:14px;cursor:pointer}
 table{width:100%;border-collapse:collapse;margin-top:20px}
-th,td{padding:15px;border-bottom:1px solid #eee;text-align:left}
+th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
 .status{padding:8px 15px;border-radius:20px;font-size:12px;color:white}
 .andamento{background:#f0ad4e}
 .finalizado{background:#5cb85c}
-.editar,.finalizar,.excluir{border:none;padding:10px 15px;border-radius:10px;color:white;cursor:pointer;margin:3px}
-.editar{background:#3498db}
-.finalizar{background:#5a4fa3}
-.excluir{background:#c0392b}
+.btn{border:none;padding:10px 14px;border-radius:10px;color:white;cursor:pointer;margin:3px}
+.azul{background:#3498db}
+.roxo{background:#5a4fa3}
+.vermelho{background:#c0392b}
 .login{position:fixed;inset:0;background:#f5f2fb;display:flex;justify-content:center;align-items:center;z-index:999}
 .login-box{background:white;padding:40px;border-radius:30px;width:350px;box-shadow:0 0 20px rgba(0,0,0,.08)}
 .login-box h1{text-align:center;font-size:40px;font-style:italic;font-weight:300;color:#5a4fa3}
@@ -51,10 +50,8 @@ th,td{padding:15px;border-bottom:1px solid #eee;text-align:left}
   <div class="login-box">
     <h1>Sofisticatto</h1>
     <p>COSMÉTICOS</p>
-
     <input type="text" id="login" placeholder="Login">
     <input type="password" id="senha" placeholder="Senha">
-
     <button class="entrar" onclick="entrar()">Entrar</button>
   </div>
 </div>
@@ -102,20 +99,15 @@ th,td{padding:15px;border-bottom:1px solid #eee;text-align:left}
 
   <div id="relatorios" style="display:none;">
 
-    <div class="card">
-      <h2 id="tituloFormulario">Novo Relatório</h2>
+    <div class="card" id="boxNovoRelatorio">
+      <h2>Novo Relatório</h2>
 
       <div class="inputs">
         <input type="text" id="nome" placeholder="Nome do cliente">
         <input type="number" id="valor" placeholder="Valor">
-        <select id="bancoCampo">
-          <option value="">Selecione o banco</option>
-        </select>
-        <input type="text" id="observacao" placeholder="Observação">
       </div>
 
       <button class="salvar" onclick="salvarRelatorio()">Salvar Relatório</button>
-      <button class="cancelar" onclick="limpar()">Cancelar Edição</button>
     </div>
 
     <div class="card">
@@ -143,7 +135,6 @@ th,td{padding:15px;border-bottom:1px solid #eee;text-align:left}
   <div id="historico" style="display:none;">
     <div class="card">
       <h2>Histórico Finalizado</h2>
-
       <table>
         <thead>
           <tr>
@@ -181,7 +172,7 @@ th,td{padding:15px;border-bottom:1px solid #eee;text-align:left}
       <h2>Cadastrar Banco</h2>
 
       <div class="inputs">
-        <input type="text" id="novoBanco" placeholder="Nome do banco. Ex: Bradesco">
+        <input type="text" id="novoBanco" placeholder="Ex: Bradesco, Banco do Brasil, Caixa">
       </div>
 
       <button class="salvar" onclick="criarBanco()">Cadastrar Banco</button>
@@ -224,7 +215,7 @@ const banco = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let usuarioLogado = null;
 let grafico = null;
-let editandoId = null;
+let listaBancos = [];
 
 async function entrar(){
   const loginDigitado = document.getElementById("login").value.trim();
@@ -243,9 +234,7 @@ async function entrar(){
   }
 
   usuarioLogado = resposta.data;
-
   localStorage.setItem("usuarioLogado", JSON.stringify(usuarioLogado));
-
   iniciarSistema();
 }
 
@@ -255,44 +244,16 @@ function iniciarSistema(){
   document.getElementById("usuarioInfo").innerHTML =
     "Usuário: <b>" + usuarioLogado.login + "</b><br>Tipo: <b>" + usuarioLogado.tipo + "</b>";
 
-  if(usuarioLogado.tipo == "admin"){
-    document.getElementById("btnAdmin").style.display = "block";
-  }else{
-    document.getElementById("btnAdmin").style.display = "none";
-  }
+  document.getElementById("btnAdmin").style.display =
+    usuarioLogado.tipo == "admin" ? "block" : "none";
 
-  configurarPermissoes();
+  document.getElementById("boxNovoRelatorio").style.display =
+    usuarioLogado.tipo == "banco" ? "none" : "block";
+
   carregarBancos();
   carregarRelatorios();
   carregarUsuarios();
-
   mostrarSecao("dashboard");
-}
-
-function configurarPermissoes(){
-  document.getElementById("nome").disabled = false;
-  document.getElementById("valor").disabled = false;
-  document.getElementById("bancoCampo").disabled = false;
-  document.getElementById("observacao").disabled = false;
-
-  if(usuarioLogado.tipo == "financeiro"){
-    document.getElementById("bancoCampo").disabled = true;
-    document.getElementById("observacao").disabled = true;
-  }
-
-  if(usuarioLogado.tipo == "banco"){
-    document.getElementById("nome").disabled = true;
-    document.getElementById("valor").disabled = true;
-    document.getElementById("bancoCampo").disabled = false;
-    document.getElementById("observacao").disabled = false;
-  }
-
-  if(usuarioLogado.tipo == "admin"){
-    document.getElementById("nome").disabled = false;
-    document.getElementById("valor").disabled = false;
-    document.getElementById("bancoCampo").disabled = false;
-    document.getElementById("observacao").disabled = false;
-  }
 }
 
 function mostrarSecao(secao){
@@ -320,26 +281,60 @@ async function carregarBancos(){
     return;
   }
 
-  const select = document.getElementById("bancoCampo");
-  const tabelaBancos = document.getElementById("tabelaBancos");
+  listaBancos = resposta.data || [];
 
-  select.innerHTML = "<option value=''>Selecione o banco</option>";
+  const tabelaBancos = document.getElementById("tabelaBancos");
 
   if(tabelaBancos){
     tabelaBancos.innerHTML = "";
-  }
 
-  resposta.data.forEach(function(item){
-    select.innerHTML += "<option value='" + item.nome + "'>" + item.nome + "</option>";
-
-    if(tabelaBancos){
+    listaBancos.forEach(function(item){
       tabelaBancos.innerHTML +=
         "<tr>" +
         "<td>" + item.nome + "</td>" +
-        "<td><button class='excluir' onclick='excluirBanco(\"" + item.id + "\")'>Excluir</button></td>" +
+        "<td><button class='btn vermelho' onclick='excluirBanco(\"" + item.id + "\")'>Excluir</button></td>" +
         "</tr>";
-    }
+    });
+  }
+}
+
+function montarSelectBanco(id, bancoAtual){
+  let html = "<select id='banco_" + id + "'>";
+
+  html += "<option value=''>Selecione</option>";
+
+  listaBancos.forEach(function(b){
+    html += "<option value='" + b.nome + "' " + (b.nome == bancoAtual ? "selected" : "") + ">" + b.nome + "</option>";
   });
+
+  html += "</select>";
+
+  return html;
+}
+
+async function salvarBancoLinha(id){
+  const bancoEscolhido = document.getElementById("banco_" + id).value;
+  const observacao = document.getElementById("obs_" + id).value;
+
+  if(bancoEscolhido == ""){
+    alert("Selecione um banco");
+    return;
+  }
+
+  const resposta = await banco
+    .from("boletos")
+    .update({
+      banco: bancoEscolhido,
+      observacao: observacao
+    })
+    .eq("id", id);
+
+  if(resposta.error){
+    alert(resposta.error.message);
+  }else{
+    alert("Banco salvo para este cliente!");
+    carregarRelatorios();
+  }
 }
 
 async function criarBanco(){
@@ -369,10 +364,6 @@ async function criarBanco(){
 }
 
 async function excluirBanco(id){
-  if(usuarioLogado.tipo != "admin"){
-    return;
-  }
-
   if(!confirm("Excluir este banco?")){
     return;
   }
@@ -386,49 +377,16 @@ async function excluirBanco(id){
 }
 
 async function salvarRelatorio(){
-  const nome = document.getElementById("nome").value;
-  const valor = document.getElementById("valor").value;
-  const bancoCampo = document.getElementById("bancoCampo").value;
-  const observacao = document.getElementById("observacao").value;
-
-  if(editandoId){
-    let dadosAtualizar = {};
-
-    if(usuarioLogado.tipo == "financeiro"){
-      dadosAtualizar.nome = nome;
-      dadosAtualizar.valor = valor;
-    }
-
-    if(usuarioLogado.tipo == "banco"){
-      dadosAtualizar.banco = bancoCampo;
-      dadosAtualizar.observacao = observacao;
-    }
-
-    if(usuarioLogado.tipo == "admin"){
-      dadosAtualizar.nome = nome;
-      dadosAtualizar.valor = valor;
-      dadosAtualizar.banco = bancoCampo;
-      dadosAtualizar.observacao = observacao;
-    }
-
-    const respostaUpdate = await banco
-      .from("boletos")
-      .update(dadosAtualizar)
-      .eq("id", editandoId);
-
-    if(respostaUpdate.error){
-      alert(respostaUpdate.error.message);
-    }else{
-      alert("Relatório atualizado!");
-      limpar();
-      carregarRelatorios();
-    }
-
+  if(usuarioLogado.tipo == "banco"){
+    alert("Usuário banco não cria relatório. Ele apenas escolhe o banco dos clientes.");
     return;
   }
 
-  if(usuarioLogado.tipo == "banco"){
-    alert("Usuário do tipo banco deve clicar em Editar em um relatório existente para colocar o banco.");
+  const nome = document.getElementById("nome").value.trim();
+  const valor = document.getElementById("valor").value;
+
+  if(nome == "" || valor == ""){
+    alert("Preencha nome e valor");
     return;
   }
 
@@ -437,8 +395,8 @@ async function salvarRelatorio(){
     .insert([{
       nome: nome,
       valor: valor,
-      banco: bancoCampo,
-      observacao: observacao,
+      banco: "",
+      observacao: "",
       status: "Em andamento",
       data_finalizacao: new Date(),
       criado_por: usuarioLogado.login
@@ -448,12 +406,15 @@ async function salvarRelatorio(){
     alert(resposta.error.message);
   }else{
     alert("Relatório salvo!");
-    limpar();
+    document.getElementById("nome").value = "";
+    document.getElementById("valor").value = "";
     carregarRelatorios();
   }
 }
 
 async function carregarRelatorios(){
+  await carregarBancos();
+
   const resposta = await banco
     .from("boletos")
     .select("*")
@@ -465,7 +426,6 @@ async function carregarRelatorios(){
   }
 
   const dados = resposta.data || [];
-
   const tabela = document.getElementById("tabela");
   const historico = document.getElementById("tabelaHistorico");
 
@@ -486,36 +446,42 @@ async function carregarRelatorios(){
       bancosGrafico[item.banco] += Number(item.valor || 0);
     }
 
-    let podeExcluir = false;
+    let bancoColuna = "";
+    let observacaoColuna = "";
+    let acaoColuna = "";
+
+    if(usuarioLogado.tipo == "banco"){
+      bancoColuna = montarSelectBanco(item.id, item.banco || "");
+      observacaoColuna = "<input id='obs_" + item.id + "' value='" + (item.observacao || "") + "' placeholder='Observação'>";
+      acaoColuna = "<button class='btn azul' onclick='salvarBancoLinha(\"" + item.id + "\")'>Salvar Banco</button>";
+    }else{
+      bancoColuna = item.banco || "";
+      observacaoColuna = item.observacao || "";
+    }
+
+    if(usuarioLogado.tipo == "financeiro"){
+      acaoColuna += "<button class='btn roxo' onclick='finalizar(\"" + item.id + "\")'>Finalizar</button>";
+
+      if(item.criado_por == usuarioLogado.login){
+        acaoColuna += "<button class='btn vermelho' onclick='excluirRelatorio(\"" + item.id + "\")'>Excluir</button>";
+      }
+    }
 
     if(usuarioLogado.tipo == "admin"){
-      podeExcluir = true;
-    }
-
-    if(usuarioLogado.tipo == "financeiro" && item.criado_por == usuarioLogado.login){
-      podeExcluir = true;
-    }
-
-    let podeFinalizar = false;
-
-    if(usuarioLogado.tipo == "admin" || usuarioLogado.tipo == "banco"){
-      podeFinalizar = true;
+      acaoColuna += "<button class='btn roxo' onclick='finalizar(\"" + item.id + "\")'>Finalizar</button>";
+      acaoColuna += "<button class='btn vermelho' onclick='excluirRelatorio(\"" + item.id + "\")'>Excluir</button>";
     }
 
     tabela.innerHTML +=
       "<tr>" +
       "<td>" + (item.nome || "") + "</td>" +
       "<td>R$ " + Number(item.valor || 0).toLocaleString("pt-BR") + "</td>" +
-      "<td>" + (item.banco || "") + "</td>" +
-      "<td>" + (item.observacao || "") + "</td>" +
+      "<td>" + bancoColuna + "</td>" +
+      "<td>" + observacaoColuna + "</td>" +
       "<td>" + (item.criado_por || "") + "</td>" +
       "<td><span class='status " + (item.status == "Finalizado" ? "finalizado" : "andamento") + "'>" + (item.status || "Em andamento") + "</span></td>" +
       "<td>" + (item.data_finalizacao ? new Date(item.data_finalizacao).toLocaleDateString("pt-BR") : "") + "</td>" +
-      "<td>" +
-      "<button class='editar' onclick='editarRelatorio(\"" + item.id + "\")'>Editar</button>" +
-      (item.status != "Finalizado" && podeFinalizar ? "<button class='finalizar' onclick='finalizar(\"" + item.id + "\")'>Finalizar</button>" : "") +
-      (podeExcluir ? "<button class='excluir' onclick='excluirRelatorio(\"" + item.id + "\")'>Excluir</button>" : "") +
-      "</td>" +
+      "<td>" + acaoColuna + "</td>" +
       "</tr>";
 
     if(item.status == "Finalizado"){
@@ -534,33 +500,6 @@ async function carregarRelatorios(){
     "R$ " + total.toLocaleString("pt-BR");
 
   atualizarGrafico(bancosGrafico);
-}
-
-async function editarRelatorio(id){
-  const resposta = await banco
-    .from("boletos")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if(resposta.error){
-    alert(resposta.error.message);
-    return;
-  }
-
-  const item = resposta.data;
-
-  editandoId = id;
-
-  document.getElementById("tituloFormulario").innerHTML = "Editando Relatório";
-
-  document.getElementById("nome").value = item.nome || "";
-  document.getElementById("valor").value = item.valor || "";
-  document.getElementById("bancoCampo").value = item.banco || "";
-  document.getElementById("observacao").value = item.observacao || "";
-
-  configurarPermissoes();
-  mostrarSecao("relatorios");
 }
 
 async function finalizar(id){
@@ -639,7 +578,6 @@ async function carregarUsuarios(){
   }
 
   const tabela = document.getElementById("tabelaUsuarios");
-
   tabela.innerHTML = "";
 
   resposta.data.forEach(function(usuario){
@@ -669,19 +607,6 @@ function atualizarGrafico(bancosGrafico){
       }]
     }
   });
-}
-
-function limpar(){
-  editandoId = null;
-
-  document.getElementById("tituloFormulario").innerHTML = "Novo Relatório";
-
-  document.getElementById("nome").value = "";
-  document.getElementById("valor").value = "";
-  document.getElementById("bancoCampo").value = "";
-  document.getElementById("observacao").value = "";
-
-  configurarPermissoes();
 }
 
 banco
