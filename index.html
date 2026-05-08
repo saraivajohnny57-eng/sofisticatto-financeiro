@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sofisticatto Financeiro</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial, sans-serif;
+}
+
+body{
+    background:#f5f2fb;
+    display:flex;
+    min-height:100vh;
+    color:#4d4694;
+}
+
+.sidebar{
+    width:260px;
+    background:white;
+    padding:25px;
+    box-shadow:0 0 20px rgba(0,0,0,0.08);
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+}
+
+.logo{
+    text-align:center;
+    margin-bottom:40px;
+}
+
+.logo h1{
+    font-size:40px;
+    font-style:italic;
+    font-weight:300;
+    color:#5a4fa3;
+}
+
+.logo p{
+    letter-spacing:8px;
+    text-transform:uppercase;
+    font-size:12px;
+    margin-top:8px;
+    color:#8b84c7;
+}
+
+.menu button{
+    width:100%;
+    padding:15px;
+    border:none;
+    border-radius:15px;
+    margin-bottom:10px;
+    cursor:pointer;
+    background:#ede9fb;
+    color:#4d4694;
+    font-size:16px;
+    transition:0.3s;
+}
+
+.menu button:hover{
+    background:#dcd4ff;
+}
+
+.logout{
+    background:#5a4fa3 !important;
+    color:white !important;
+}
+
+.main{
+    flex:1;
+    padding:30px;
+    overflow:auto;
+}
+
+.top{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:30px;
+}
+
+.card{
+    background:white;
+    padding:25px;
+    border-radius:25px;
+    box-shadow:0 0 15px rgba(0,0,0,0.05);
+}
+
+.total{
+    min-width:250px;
+}
+
+.total h2{
+    margin-top:10px;
+    font-size:35px;
+}
+
+.formulario{
+    margin-bottom:30px;
+}
+
+.inputs{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:15px;
+    margin-top:20px;
+}
+
+input{
+    padding:15px;
+    border:none;
+    border-radius:15px;
+    background:#f5f2fb;
+    outline:none;
+}
+
+.salvar{
+    margin-top:20px;
+    background:#5a4fa3;
+    color:white;
+    border:none;
+    padding:15px 25px;
+    border-radius:15px;
+    cursor:pointer;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:20px;
+}
+
+th,td{
+    padding:15px;
+    border-bottom:1px solid #eee;
+    text-align:left;
+}
+
+.status{
+    padding:8px 15px;
+    border-radius:20px;
+    color:white;
+    font-size:12px;
+}
+
+.andamento{
+    background:#f0ad4e;
+}
+
+.finalizado{
+    background:#5cb85c;
+}
+
+.finalizar{
+    background:#5a4fa3;
+    color:white;
+    border:none;
+    padding:10px 15px;
+    border-radius:10px;
+    cursor:pointer;
+}
+
+.login{
+    position:fixed;
+    inset:0;
+    background:#f5f2fb;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.login-box{
+    background:white;
+    padding:40px;
+    border-radius:30px;
+    width:350px;
+    box-shadow:0 0 20px rgba(0,0,0,0.08);
+}
+
+.login-box h1{
+    text-align:center;
+    font-size:40px;
+    font-style:italic;
+    color:#5a4fa3;
+    font-weight:300;
+}
+
+.login-box p{
+    text-align:center;
+    margin-bottom:30px;
+    color:#8b84c7;
+    letter-spacing:5px;
+    font-size:12px;
+}
+
+.login-box input{
+    width:100%;
+    margin-bottom:15px;
+}
+
+.login-box button{
+    width:100%;
+    padding:15px;
+    border:none;
+    border-radius:15px;
+    margin-top:10px;
+    cursor:pointer;
+}
+
+.entrar{
+    background:#5a4fa3;
+    color:white;
+}
+
+.criar{
+    background:#ede9fb;
+    color:#4d4694;
+}
+
+.grafico{
+    margin-top:30px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="login" class="login">
+
+<div class="login-box">
+
+<h1>Sofisticatto</h1>
+<p>COSMÉTICOS</p>
+
+<input type="email" id="email" placeholder="Email">
+<input type="password" id="senha" placeholder="Senha">
+
+<button class="entrar" onclick="login()">Entrar</button>
+<button class="criar" onclick="cadastrar()">Criar Conta</button>
+
+</div>
+</div>
+
+<div class="sidebar">
+
+<div>
+
+<div class="logo">
+<h1>Sofisticatto</h1>
+<p>COSMÉTICOS</p>
+</div>
+
+<div class="menu">
+<button>Dashboard</button>
+<button>Relatórios</button>
+<button>Histórico</button>
+</div>
+
+</div>
+
+<button class="logout" onclick="logout()">Sair</button>
+
+</div>
+
+<div class="main">
+
+<div class="top">
+
+<div>
+<h1>Painel Financeiro</h1>
+<p>Sistema online integrado com Supabase</p>
+</div>
+
+<div class="card total">
+<p>Valor Total</p>
+<h2 id="total">R$ 0</h2>
+</div>
+
+</div>
+
+<div class="card formulario">
+
+<h2>Novo Relatório</h2>
+
+<div class="inputs">
+
+<input type="text" id="nome" placeholder="Nome do Cliente">
+
+<input type="number" id="valor" placeholder="Valor do boleto">
+
+<input type="text" id="banco" placeholder="Banco">
+
+<input type="text" id="observacao" placeholder="Observação">
+
+</div>
+
+<button class="salvar" onclick="salvarRelatorio()">
+Salvar Relatório
+</button>
+
+</div>
+
+<div class="card">
+
+<h2>Histórico de Relatórios</h2>
+
+<table>
+
+<thead>
+
+<tr>
+<th>Cliente</th>
+<th>Valor</th>
+<th>Banco</th>
+<th>Observação</th>
+<th>Status</th>
+<th>Data</th>
+<th>Ação</th>
+</tr>
+
+</thead>
+
+<tbody id="tabela">
+
+</tbody>
+
+</table>
+
+</div>
+
+<div class="card grafico">
+
+<h2>Total por Banco</h2>
+
+<canvas id="grafico"></canvas>
+
+</div>
+
+</div>
+
+<script>
+
+const SUPABASE_URL = "https://drtgtwwsbxrmqcaabzcs.supabase.co";
+
+const SUPABASE_KEY = "sb_publishable_yiTEjwaD0gPFz3nHb22bJQ_kTa-DWjS";
+
+const supabase = window.supabase.createClient(
+SUPABASE_URL,
+SUPABASE_KEY
+);
+
+let usuario = null;
+let chart = null;
+
+async function cadastrar(){
+
+const email = document.getElementById("email").value;
+const senha = document.getElementById("senha").value;
+
+const { error } = await supabase.auth.signUp({
+email,
+password: senha
+});
+
+if(error){
+alert(error.message);
+}else{
+alert("Conta criada com sucesso!");
+}
+
+}
+
+async function login(){
+
+const email = document.getElementById("email").value;
+const senha = document.getElementById("senha").value;
+
+const { data, error } = await supabase.auth.signInWithPassword({
+email,
+password: senha
+});
+
+if(error){
+alert(error.message);
+}else{
+
+usuario = data.user;
+
+document.getElementById("login").style.display = "none";
+
+carregarRelatorios();
+
+}
+
+}
+
+async function logout(){
+
+await supabase.auth.signOut();
+
+location.reload();
+
+}
+
+async function salvarRelatorio(){
+
+const nome = document.getElementById("nome").value;
+const valor = document.getElementById("valor").value;
+const banco = document.getElementById("banco").value;
+const observacao = document.getElementById("observacao").value;
+
+const { error } = await supabase
+.from("boletos")
+.insert([
+{
+nome,
+valor,
+banco,
+observacao,
+status:"Em andamento",
+data_finalizacao:new Date()
+}
+]);
+
+if(error){
+
+alert(error.message);
+
+}else{
+
+alert("Relatório salvo!");
+
+carregarRelatorios();
+
+limpar();
+
+}
+
+}
+
+async function finalizar(id){
+
+await supabase
+.from("boletos")
+.update({
+status:"Finalizado"
+})
+.eq("id",id);
+
+carregarRelatorios();
+
+}
+
+async function carregarRelatorios(){
+
+const { data } = await supabase
+.from("boletos")
+.select("*")
+.order("id",{ascending:false});
+
+const tabela = document.getElementById("tabela");
+
+tabela.innerHTML = "";
+
+let total = 0;
+
+const bancos = {};
+
+data.forEach(item=>{
+
+total += Number(item.valor);
+
+if(!bancos[item.banco]){
+bancos[item.banco] = 0;
+}
+
+bancos[item.banco] += Number(item.valor);
+
+tabela.innerHTML += `
+<tr>
+
+<td>${item.nome}</td>
+
+<td>
+R$ ${Number(item.valor).toLocaleString("pt-BR")}
+</td>
+
+<td>${item.banco}</td>
+
+<td>${item.observacao}</td>
+
+<td>
+<span class="status ${
+item.status == "Finalizado"
+? "finalizado"
+: "andamento"
+}">
+${item.status}
+</span>
+</td>
+
+<td>
+${new Date(item.data_finalizacao)
+.toLocaleDateString("pt-BR")}
+</td>
+
+<td>
+
+${
+item.status != "Finalizado"
+?
+`<button class="finalizar"
+onclick="finalizar('${item.id}')">
+Finalizar
+</button>`
+:
+""
+}
+
+</td>
+
+</tr>
+`;
+
+});
+
+document.getElementById("total").innerHTML =
+"R$ " + total.toLocaleString("pt-BR");
+
+atualizarGrafico(bancos);
+
+}
+
+function atualizarGrafico(bancos){
+
+const labels = Object.keys(bancos);
+const valores = Object.values(bancos);
+
+if(chart){
+chart.destroy();
+}
+
+chart = new Chart(
+document.getElementById("grafico"),
+{
+type:"bar",
+
+data:{
+labels:labels,
+
+datasets:[{
+label:"Total por banco",
+data:valores
+}]
+}
+
+}
+);
+
+}
+
+function limpar(){
+
+document.getElementById("nome").value = "";
+document.getElementById("valor").value = "";
+document.getElementById("banco").value = "";
+document.getElementById("observacao").value = "";
+
+}
+
+supabase
+.channel("tempo-real")
+.on(
+"postgres_changes",
+{
+event:"*",
+schema:"public",
+table:"boletos"
+},
+payload=>{
+carregarRelatorios();
+}
+)
+.subscribe();
+
+</script>
+
+</body>
+</html>
