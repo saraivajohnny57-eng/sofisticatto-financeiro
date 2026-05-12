@@ -3,271 +3,639 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Sofisticatto Financeiro</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
-body{background:#f5f2fb;display:flex;min-height:100vh;color:#4d4694}
-.sidebar{width:250px;background:white;padding:25px;box-shadow:0 0 15px rgba(0,0,0,.08);display:flex;flex-direction:column;justify-content:space-between}
-.logo{text-align:center;margin-bottom:30px}
-.logo h1{font-size:38px;font-style:italic;font-weight:300;color:#5a4fa3}
-.logo p{font-size:12px;letter-spacing:6px;color:#9c92d9}
-.menu button{width:100%;padding:15px;border:none;border-radius:15px;background:#ede9fb;margin-bottom:10px;cursor:pointer;color:#4d4694}
-.logout{background:#5a4fa3!important;color:white!important;border:none;padding:15px;border-radius:15px}
-.main{flex:1;padding:30px;overflow:auto}
-.card{background:white;padding:25px;border-radius:25px;box-shadow:0 0 15px rgba(0,0,0,.05);margin-bottom:25px}
-.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px;gap:15px}
-.total h2{font-size:35px;margin-top:10px}
-.inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-top:20px}
-input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outline:none;width:100%}
-.salvar{margin-top:20px;background:#5a4fa3;color:white;border:none;padding:14px 22px;border-radius:14px;cursor:pointer}
-.table-wrap{width:100%;overflow-x:auto}
-table{width:100%;border-collapse:collapse;margin-top:20px;min-width:850px}
-th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
-.status{padding:8px 15px;border-radius:20px;font-size:12px;color:white;white-space:nowrap}
-.andamento{background:#f0ad4e}
-.finalizado{background:#5cb85c}
-.btn{border:none;padding:10px 14px;border-radius:10px;color:white;cursor:pointer;margin:3px;white-space:nowrap}
-.azul{background:#3498db}
-.roxo{background:#5a4fa3}
-.vermelho{background:#c0392b}
-.verde{background:#27ae60}
-.login{position:fixed;inset:0;background:#f5f2fb;display:flex;justify-content:center;align-items:center;z-index:999;padding:20px}
-.login-box{background:white;padding:40px;border-radius:30px;width:350px;max-width:100%;box-shadow:0 0 20px rgba(0,0,0,.08)}
-.login-box h1{text-align:center;font-size:40px;font-style:italic;font-weight:300;color:#5a4fa3}
-.login-box p{text-align:center;letter-spacing:5px;font-size:12px;margin-bottom:30px;color:#9c92d9}
-.login-box input{margin-bottom:15px}
-.login-box button{width:100%;padding:15px;border:none;border-radius:15px;margin-top:10px;cursor:pointer}
-.entrar{background:#5a4fa3;color:white}
-.usuario-logado{font-size:14px;background:#ede9fb;padding:12px;border-radius:15px;margin-bottom:20px}
-.cor-box{width:35px;height:25px;border-radius:8px;border:1px solid #ddd}
-.mobile-title{display:none}
-.grafico-box{position:relative;width:100%;height:350px}
-.filtros-datas{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}
-.filtro-data{border:none;background:#ede9fb;color:#4d4694;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:bold}
-.filtro-data.ativo{background:#5a4fa3;color:white}
-.notificacao-box{margin-top:15px;background:#ede9fb;padding:15px;border-radius:15px}
-.notificacao-item{background:white;padding:10px;border-radius:10px;margin-bottom:8px;border-left:5px solid #5a4fa3;font-size:13px}
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Arial,sans-serif;
+}
+
+body{
+background:#f5f2fb;
+display:flex;
+min-height:100vh;
+color:#4d4694;
+}
+
+.sidebar{
+width:250px;
+background:white;
+padding:25px;
+box-shadow:0 0 15px rgba(0,0,0,.08);
+display:flex;
+flex-direction:column;
+justify-content:space-between;
+}
+
+.logo{
+text-align:center;
+margin-bottom:30px;
+}
+
+.logo h1{
+font-size:38px;
+font-style:italic;
+font-weight:300;
+color:#5a4fa3;
+}
+
+.logo p{
+font-size:12px;
+letter-spacing:6px;
+color:#9c92d9;
+}
+
+.menu button{
+width:100%;
+padding:15px;
+border:none;
+border-radius:15px;
+background:#ede9fb;
+margin-bottom:10px;
+cursor:pointer;
+color:#4d4694;
+}
+
+.logout{
+background:#5a4fa3!important;
+color:white!important;
+border:none;
+padding:15px;
+border-radius:15px;
+}
+
+.main{
+flex:1;
+padding:30px;
+overflow:auto;
+}
+
+.card{
+background:white;
+padding:25px;
+border-radius:25px;
+box-shadow:0 0 15px rgba(0,0,0,.05);
+margin-bottom:25px;
+}
+
+.top{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:25px;
+gap:15px;
+}
+
+.total h2{
+font-size:35px;
+margin-top:10px;
+}
+
+.inputs{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+gap:15px;
+margin-top:20px;
+}
+
+input,
+select{
+padding:12px;
+border:none;
+border-radius:12px;
+background:#f5f2fb;
+outline:none;
+width:100%;
+}
+
+.salvar{
+margin-top:20px;
+background:#5a4fa3;
+color:white;
+border:none;
+padding:14px 22px;
+border-radius:14px;
+cursor:pointer;
+}
+
+.table-wrap{
+width:100%;
+overflow-x:auto;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:20px;
+min-width:900px;
+}
+
+th,
+td{
+padding:12px;
+border-bottom:1px solid #eee;
+text-align:left;
+}
+
+.status{
+padding:8px 15px;
+border-radius:20px;
+font-size:12px;
+color:white;
+white-space:nowrap;
+}
+
+.andamento{
+background:#f0ad4e;
+}
+
+.finalizado{
+background:#5cb85c;
+}
+
+.btn{
+border:none;
+padding:10px 14px;
+border-radius:10px;
+color:white;
+cursor:pointer;
+margin:3px;
+white-space:nowrap;
+}
+
+.azul{
+background:#3498db;
+}
+
+.roxo{
+background:#5a4fa3;
+}
+
+.vermelho{
+background:#c0392b;
+}
+
+.verde{
+background:#27ae60;
+}
+
+.login{
+position:fixed;
+inset:0;
+background:#f5f2fb;
+display:flex;
+justify-content:center;
+align-items:center;
+z-index:999;
+padding:20px;
+}
+
+.login-box{
+background:white;
+padding:40px;
+border-radius:30px;
+width:350px;
+max-width:100%;
+box-shadow:0 0 20px rgba(0,0,0,.08);
+}
+
+.login-box h1{
+text-align:center;
+font-size:40px;
+font-style:italic;
+font-weight:300;
+color:#5a4fa3;
+}
+
+.login-box p{
+text-align:center;
+letter-spacing:5px;
+font-size:12px;
+margin-bottom:30px;
+color:#9c92d9;
+}
+
+.login-box input{
+margin-bottom:15px;
+}
+
+.login-box button{
+width:100%;
+padding:15px;
+border:none;
+border-radius:15px;
+margin-top:10px;
+cursor:pointer;
+}
+
+.entrar{
+background:#5a4fa3;
+color:white;
+}
+
+.usuario-logado{
+font-size:14px;
+background:#ede9fb;
+padding:12px;
+border-radius:15px;
+margin-bottom:20px;
+}
+
+.cor-box{
+width:35px;
+height:25px;
+border-radius:8px;
+border:1px solid #ddd;
+}
+
+.grafico-box{
+position:relative;
+width:100%;
+height:350px;
+}
+
+.notificacao-box{
+margin-top:15px;
+background:#ede9fb;
+padding:15px;
+border-radius:15px;
+}
+
+.notificacao-item{
+background:white;
+padding:10px;
+border-radius:10px;
+margin-bottom:8px;
+border-left:5px solid #5a4fa3;
+font-size:13px;
+}
+
+.filtros-datas{
+display:flex;
+flex-wrap:wrap;
+gap:8px;
+margin-top:15px;
+}
+
+.filtro-data{
+border:none;
+background:#ede9fb;
+color:#4d4694;
+padding:10px 14px;
+border-radius:12px;
+cursor:pointer;
+font-weight:bold;
+}
+
+.filtro-data.ativo{
+background:#5a4fa3;
+color:white;
+}
 
 @media(max-width:768px){
-body{display:block}
-.sidebar{width:100%;padding:15px;position:sticky;top:0;z-index:10}
-.logo h1{font-size:30px}
-.logo p{letter-spacing:4px}
-.menu{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.menu button{margin-bottom:0;padding:12px;font-size:14px}
-.logout{margin-top:10px;width:100%}
-.main{padding:15px}
-.top{display:block}
-.top h1{font-size:26px;margin-bottom:5px}
-.card{padding:18px;border-radius:20px}
-.total{margin-top:15px}
-.total h2{font-size:28px}
-.inputs{grid-template-columns:1fr}
-table{min-width:760px}
-.login-box{padding:30px}
-.login-box h1{font-size:34px}
-.mobile-title{display:block;font-size:13px;color:#8b84c7;margin-bottom:8px}
-.grafico-box{height:280px}
+
+body{
+display:block;
 }
+
+.sidebar{
+width:100%;
+padding:15px;
+position:sticky;
+top:0;
+z-index:10;
+}
+
+.logo h1{
+font-size:30px;
+}
+
+.logo p{
+letter-spacing:4px;
+}
+
+.menu{
+display:grid;
+grid-template-columns:repeat(2,1fr);
+gap:8px;
+}
+
+.menu button{
+margin-bottom:0;
+padding:12px;
+font-size:14px;
+}
+
+.logout{
+margin-top:10px;
+width:100%;
+}
+
+.main{
+padding:15px;
+}
+
+.top{
+display:block;
+}
+
+.top h1{
+font-size:26px;
+margin-bottom:5px;
+}
+
+.card{
+padding:18px;
+border-radius:20px;
+}
+
+.total{
+margin-top:15px;
+}
+
+.total h2{
+font-size:28px;
+}
+
+.inputs{
+grid-template-columns:1fr;
+}
+
+table{
+min-width:850px;
+}
+
+.login-box{
+padding:30px;
+}
+
+.login-box h1{
+font-size:34px;
+}
+
+.grafico-box{
+height:280px;
+}
+
+}
+
 </style>
 </head>
 
 <body>
 
 <div id="loginTela" class="login">
-  <div class="login-box">
-    <h1>Sofisticatto</h1>
-    <p>COSMÉTICOS</p>
-    <input type="text" id="login" placeholder="Login">
-    <input type="password" id="senha" placeholder="Senha">
-    <button class="entrar" onclick="entrar()">Entrar</button>
-  </div>
+
+<div class="login-box">
+
+<h1>Sofisticatto</h1>
+<p>COSMÉTICOS</p>
+
+<input type="text" id="login" placeholder="Login">
+
+<input type="password" id="senha" placeholder="Senha">
+
+<button class="entrar" onclick="entrar()">Entrar</button>
+
+</div>
+
 </div>
 
 <div class="sidebar">
-  <div>
-    <div class="logo">
-      <h1>Sofisticatto</h1>
-      <p>COSMÉTICOS</p>
-    </div>
 
-    <div id="usuarioInfo" class="usuario-logado"></div>
+<div>
 
-    <div class="notificacao-box">
-      <h3>🔔 Notificações</h3>
-      <div id="listaNotificacoes" style="max-height:230px;overflow:auto;margin-top:10px;"></div>
-    </div>
+<div class="logo">
 
-    <div class="menu" style="margin-top:15px;">
-      <button onclick="mostrarSecao('dashboard')">Dashboard</button>
-      <button onclick="mostrarSecao('relatorios')">Relatórios</button>
-      <button onclick="mostrarSecao('historico')">Histórico</button>
-      <button id="btnAdmin" onclick="mostrarSecao('admin')" style="display:none;">Admin</button>
-    </div>
-  </div>
+<h1>Sofisticatto</h1>
+<p>COSMÉTICOS</p>
 
-  <button class="logout" onclick="sair()">Sair</button>
+</div>
+
+<div id="usuarioInfo" class="usuario-logado"></div>
+
+<div class="notificacao-box">
+
+<h3>🔔 Notificações</h3>
+
+<div id="listaNotificacoes"
+style="max-height:230px;overflow:auto;margin-top:10px;">
+</div>
+
+</div>
+
+<div class="menu" style="margin-top:15px;">
+
+<button onclick="mostrarSecao('dashboard')">
+Dashboard
+</button>
+
+<button onclick="mostrarSecao('relatorios')">
+Relatórios
+</button>
+
+<button onclick="mostrarSecao('historico')">
+Histórico
+</button>
+
+<button id="btnAdmin"
+onclick="mostrarSecao('admin')"
+style="display:none;">
+Admin
+</button>
+
+</div>
+
+</div>
+
+<button class="logout" onclick="sair()">
+Sair
+</button>
+
 </div>
 
 <div class="main">
 
-  <div id="dashboard">
-    <div class="top">
-      <div>
-        <h1>Painel Financeiro</h1>
-        <p>Sistema Online Sofisticatto</p>
-        <div id="filtrosDatas" class="filtros-datas"></div>
-      </div>
+<div id="dashboard">
 
-      <div class="card total">
-        <p id="tituloTotal">Total Finalizado</p>
-        <h2 id="total">R$ 0,00</h2>
-      </div>
+<div class="top">
+
+<div>
+
+<h1>Painel Financeiro</h1>
+
+<p>Sistema Online Sofisticatto</p>
+
+<div id="filtrosDatas" class="filtros-datas"></div>
+
+</div>
+
+<div class="card total">
+
+<p id="tituloTotal">Total Finalizado</p>
+
+<h2 id="total">R$ 0,00</h2>
+
+</div>
+
+</div>
+
+<div class="card">
+
+<h2>Total por Banco</h2>
+
+<div class="grafico-box">
+
+<canvas id="grafico"></canvas>
+
+</div>
+
+</div>
+
+</div>
+<div id="relatorios" style="display:none;">
+
+  <div class="card" id="boxNovoRelatorio">
+    <h2>Novo Relatório</h2>
+
+    <div class="inputs">
+      <input type="text" id="nome" placeholder="Nome do cliente">
+      <input type="number" id="valor" placeholder="Valor">
     </div>
 
-    <div class="card">
-      <h2>Total por Banco</h2>
-      <div class="grafico-box">
-        <canvas id="grafico"></canvas>
-      </div>
+    <button class="salvar" onclick="salvarRelatorio()">Salvar Relatório</button>
+  </div>
+
+  <div class="card">
+    <h2>Relatórios em Andamento</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Valor</th>
+            <th>Banco</th>
+            <th>Observação</th>
+            <th>Criado por</th>
+            <th>Status</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="tabela"></tbody>
+      </table>
     </div>
   </div>
 
-  <div id="relatorios" style="display:none;">
-    <div class="card" id="boxNovoRelatorio">
-      <h2>Novo Relatório</h2>
+</div>
 
-      <div class="inputs">
-        <input type="text" id="nome" placeholder="Nome do cliente">
-        <input type="number" id="valor" placeholder="Valor">
-      </div>
+<div id="historico" style="display:none;">
 
-      <button class="salvar" onclick="salvarRelatorio()">Salvar Relatório</button>
+  <div class="card">
+    <h2>Histórico Finalizado</h2>
+
+    <div class="inputs">
+      <select id="filtroHistorico" onchange="montarHistorico(todosBoletos)">
+        <option value="todos">Todos</option>
+        <option value="hoje">Hoje</option>
+        <option value="ontem">Ontem</option>
+        <option value="7dias">Últimos 7 dias</option>
+        <option value="30dias">Últimos 30 dias</option>
+        <option value="personalizado">Data específica</option>
+      </select>
+
+      <input type="date" id="dataHistorico" onchange="montarHistorico(todosBoletos)">
     </div>
 
-    <div class="card">
-      <h2>Relatórios em Andamento</h2>
-      <p class="mobile-title">No celular, arraste a tabela para o lado.</p>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Valor</th>
-              <th>Banco</th>
-              <th>Observação</th>
-              <th>Criado por</th>
-              <th>Status</th>
-              <th>Ação</th>
-            </tr>
-          </thead>
-          <tbody id="tabela"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div id="historico" style="display:none;">
-    <div class="card">
-      <h2>Histórico Finalizado</h2>
-
-      <div class="inputs">
-        <select id="filtroHistorico" onchange="montarHistorico(todosBoletos)">
-          <option value="todos">Todos</option>
-          <option value="hoje">Hoje</option>
-          <option value="ontem">Ontem</option>
-          <option value="7dias">Últimos 7 dias</option>
-          <option value="30dias">Últimos 30 dias</option>
-          <option value="personalizado">Data específica</option>
-        </select>
-
-        <input type="date" id="dataHistorico" onchange="montarHistorico(todosBoletos)">
-      </div>
-
-      <p class="mobile-title">No celular, arraste a tabela para o lado.</p>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Valor</th>
-              <th>Banco</th>
-              <th>Observação</th>
-              <th>Data Finalização</th>
-              <th>Editado por</th>
-              <th>Última edição</th>
-              <th>Ação</th>
-            </tr>
-          </thead>
-          <tbody id="tabelaHistorico"></tbody>
-        </table>
-      </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Valor</th>
+            <th>Banco</th>
+            <th>Observação</th>
+            <th>Data Finalização</th>
+            <th>Editado por</th>
+            <th>Última edição</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaHistorico"></tbody>
+      </table>
     </div>
   </div>
 
-  <div id="admin" style="display:none;">
-    <div class="card">
-      <h2>Criar Usuário</h2>
+</div>
 
-      <div class="inputs">
-        <input type="text" id="novoLogin" placeholder="Login">
-        <input type="text" id="novaSenha" placeholder="Senha">
-        <select id="novoTipo">
-          <option value="financeiro">Financeiro</option>
-          <option value="banco">Banco</option>
-          <option value="admin">Admin</option>
-        </select>
-      </div>
+<div id="admin" style="display:none;">
 
-      <button class="salvar" onclick="criarUsuario()">Criar Usuário</button>
+  <div class="card">
+    <h2>Criar Usuário</h2>
+
+    <div class="inputs">
+      <input type="text" id="novoLogin" placeholder="Login">
+      <input type="text" id="novaSenha" placeholder="Senha">
+
+      <select id="novoTipo">
+        <option value="financeiro">Financeiro</option>
+        <option value="banco">Banco</option>
+        <option value="admin">Admin</option>
+      </select>
     </div>
 
-    <div class="card">
-      <h2>Cadastrar Banco</h2>
+    <button class="salvar" onclick="criarUsuario()">Criar Usuário</button>
+  </div>
 
-      <div class="inputs">
-        <input type="text" id="novoBanco" placeholder="Ex: Bradesco, Banco do Brasil, Caixa">
-        <input type="color" id="corBanco" value="#5a4fa3">
-      </div>
+  <div class="card">
+    <h2>Cadastrar Banco</h2>
 
-      <button class="salvar" onclick="criarBanco()">Cadastrar Banco</button>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Banco</th>
-              <th>Cor</th>
-              <th>Ação</th>
-            </tr>
-          </thead>
-          <tbody id="tabelaBancos"></tbody>
-        </table>
-      </div>
+    <div class="inputs">
+      <input type="text" id="novoBanco" placeholder="Ex: Bradesco, Banco do Brasil, Caixa">
+      <input type="color" id="corBanco" value="#5a4fa3">
     </div>
 
-    <div class="card">
-      <h2>Usuários</h2>
+    <button class="salvar" onclick="criarBanco()">Cadastrar Banco</button>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Login</th>
-              <th>Tipo</th>
-            </tr>
-          </thead>
-          <tbody id="tabelaUsuarios"></tbody>
-        </table>
-      </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Banco</th>
+            <th>Cor</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaBancos"></tbody>
+      </table>
     </div>
   </div>
+
+  <div class="card">
+    <h2>Usuários</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Login</th>
+            <th>Tipo</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaUsuarios"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
 
 </div>
 
@@ -311,10 +679,10 @@ function iniciarSistema(){
     "Usuário: <b>" + usuarioLogado.login + "</b><br>Tipo: <b>" + usuarioLogado.tipo + "</b>";
 
   document.getElementById("btnAdmin").style.display =
-    usuarioLogado.tipo == "admin" ? "block" : "none";
+    usuarioLogado.tipo === "admin" ? "block" : "none";
 
   document.getElementById("boxNovoRelatorio").style.display =
-    usuarioLogado.tipo == "banco" ? "none" : "block";
+    usuarioLogado.tipo === "banco" ? "none" : "block";
 
   solicitarPermissaoNotificacao();
   carregarBancos();
@@ -325,10 +693,10 @@ function iniciarSistema(){
 }
 
 function mostrarSecao(secao){
-  document.getElementById("dashboard").style.display = "none";
-  document.getElementById("relatorios").style.display = "none";
-  document.getElementById("historico").style.display = "none";
-  document.getElementById("admin").style.display = "none";
+  ["dashboard", "relatorios", "historico", "admin"].forEach(function(id){
+    document.getElementById(id).style.display = "none";
+  });
+
   document.getElementById(secao).style.display = "block";
 }
 
@@ -380,8 +748,6 @@ async function carregarNotificacoes(){
   if(resposta.error) return;
 
   const lista = document.getElementById("listaNotificacoes");
-  if(!lista) return;
-
   lista.innerHTML = "";
 
   resposta.data.forEach(function(item){
@@ -438,7 +804,7 @@ async function salvarBancoLinha(id){
   const bancoEscolhido = document.getElementById("banco_" + id).value;
   const observacao = document.getElementById("obs_" + id).value;
 
-  if(bancoEscolhido == ""){
+  if(bancoEscolhido === ""){
     alert("Selecione um banco");
     return;
   }
@@ -463,6 +829,34 @@ async function salvarBancoLinha(id){
     );
 
     alert("Banco salvo!");
+    carregarRelatorios();
+  }
+}
+
+async function salvarEdicaoRelatorio(id){
+  let dadosAtualizar = {};
+
+  if(usuarioLogado.tipo === "financeiro"){
+    dadosAtualizar.nome = document.getElementById("edit_nome_" + id).value;
+    dadosAtualizar.valor = document.getElementById("edit_valor_" + id).value;
+  }
+
+  if(usuarioLogado.tipo === "admin"){
+    dadosAtualizar.nome = document.getElementById("edit_nome_" + id).value;
+    dadosAtualizar.valor = document.getElementById("edit_valor_" + id).value;
+    dadosAtualizar.banco = document.getElementById("banco_" + id).value;
+    dadosAtualizar.observacao = document.getElementById("obs_" + id).value;
+  }
+
+  const resposta = await banco
+    .from("boletos")
+    .update(dadosAtualizar)
+    .eq("id", id);
+
+  if(resposta.error){
+    alert(resposta.error.message);
+  }else{
+    alert("Relatório editado com sucesso!");
     carregarRelatorios();
   }
 }
@@ -494,7 +888,7 @@ async function salvarEdicaoHistorico(id){
 }
 
 async function criarBanco(){
-  if(usuarioLogado.tipo != "admin"){
+  if(usuarioLogado.tipo !== "admin"){
     alert("Somente admin pode cadastrar banco");
     return;
   }
@@ -502,7 +896,7 @@ async function criarBanco(){
   const nomeBanco = document.getElementById("novoBanco").value.trim();
   const corBanco = document.getElementById("corBanco").value;
 
-  if(nomeBanco == ""){
+  if(nomeBanco === ""){
     alert("Digite o nome do banco");
     return;
   }
@@ -532,7 +926,7 @@ async function excluirBanco(id){
 }
 
 async function salvarRelatorio(){
-  if(usuarioLogado.tipo == "banco"){
+  if(usuarioLogado.tipo === "banco"){
     alert("Usuário banco não cria relatório.");
     return;
   }
@@ -540,7 +934,7 @@ async function salvarRelatorio(){
   const nome = document.getElementById("nome").value.trim();
   const valor = document.getElementById("valor").value;
 
-  if(nome == "" || valor == ""){
+  if(nome === "" || valor === ""){
     alert("Preencha nome e valor");
     return;
   }
@@ -597,41 +991,53 @@ function montarTabelaRelatorios(dados){
   const tabela = document.getElementById("tabela");
   tabela.innerHTML = "";
 
-  const emAndamento = dados.filter(item => item.status != "Finalizado");
+  const emAndamento = dados.filter(item => item.status !== "Finalizado");
 
   emAndamento.forEach(function(item){
-    let bancoColuna = "";
-    let observacaoColuna = "";
+    let nomeColuna = item.nome || "";
+    let valorColuna = "R$ " + Number(item.valor || 0).toLocaleString("pt-BR");
+    let bancoColuna = item.banco || "";
+    let observacaoColuna = item.observacao || "";
     let acaoColuna = "";
 
-    if(usuarioLogado.tipo == "banco"){
-      bancoColuna = montarSelectBanco(item.id, item.banco || "");
-      observacaoColuna = "<input id='obs_" + item.id + "' value='" + (item.observacao || "") + "' placeholder='Observação'>";
-      acaoColuna = "<button class='btn azul' onclick='salvarBancoLinha(\"" + item.id + "\")'>Salvar Banco</button>";
-    }else{
-      bancoColuna = item.banco || "";
-      observacaoColuna = item.observacao || "";
-    }
+    if(usuarioLogado.tipo === "financeiro"){
+      nomeColuna = "<input id='edit_nome_" + item.id + "' value='" + (item.nome || "") + "'>";
+      valorColuna = "<input type='number' id='edit_valor_" + item.id + "' value='" + (item.valor || 0) + "'>";
 
-    if(usuarioLogado.tipo == "financeiro"){
-      if(item.banco && item.banco != ""){
+      acaoColuna += "<button class='btn azul' onclick='salvarEdicaoRelatorio(\"" + item.id + "\")'>Editar</button>";
+
+      if(item.banco && item.banco !== ""){
         acaoColuna += "<button class='btn roxo' onclick='finalizar(\"" + item.id + "\")'>Finalizar</button>";
       }
 
-      if(item.criado_por == usuarioLogado.login){
-        acaoColuna += "<button class='btn vermelho' onclick='excluirRelatorio(\"" + item.id + "\")'>Excluir</button>";
-      }
+      acaoColuna += "<button class='btn vermelho' onclick='excluirRelatorio(\"" + item.id + "\")'>Excluir</button>";
     }
 
-    if(usuarioLogado.tipo == "admin"){
-      acaoColuna += "<button class='btn roxo' onclick='finalizar(\"" + item.id + "\")'>Finalizar</button>";
+    if(usuarioLogado.tipo === "banco"){
+      bancoColuna = montarSelectBanco(item.id, item.banco || "");
+      observacaoColuna = "<input id='obs_" + item.id + "' value='" + (item.observacao || "") + "' placeholder='Observação'>";
+      acaoColuna = "<button class='btn azul' onclick='salvarBancoLinha(\"" + item.id + "\")'>Salvar Banco</button>";
+    }
+
+    if(usuarioLogado.tipo === "admin"){
+      nomeColuna = "<input id='edit_nome_" + item.id + "' value='" + (item.nome || "") + "'>";
+      valorColuna = "<input type='number' id='edit_valor_" + item.id + "' value='" + (item.valor || 0) + "'>";
+      bancoColuna = montarSelectBanco(item.id, item.banco || "");
+      observacaoColuna = "<input id='obs_" + item.id + "' value='" + (item.observacao || "") + "' placeholder='Observação'>";
+
+      acaoColuna += "<button class='btn azul' onclick='salvarEdicaoRelatorio(\"" + item.id + "\")'>Editar</button>";
+
+      if(item.banco && item.banco !== ""){
+        acaoColuna += "<button class='btn roxo' onclick='finalizar(\"" + item.id + "\")'>Finalizar</button>";
+      }
+
       acaoColuna += "<button class='btn vermelho' onclick='excluirRelatorio(\"" + item.id + "\")'>Excluir</button>";
     }
 
     tabela.innerHTML +=
       "<tr>" +
-      "<td>" + (item.nome || "") + "</td>" +
-      "<td>R$ " + Number(item.valor || 0).toLocaleString("pt-BR") + "</td>" +
+      "<td>" + nomeColuna + "</td>" +
+      "<td>" + valorColuna + "</td>" +
       "<td>" + bancoColuna + "</td>" +
       "<td>" + observacaoColuna + "</td>" +
       "<td>" + (item.criado_por || "") + "</td>" +
@@ -642,7 +1048,7 @@ function montarTabelaRelatorios(dados){
 }
 
 function filtrarHistorico(dados){
-  let finalizados = dados.filter(item => item.status == "Finalizado");
+  let finalizados = dados.filter(item => item.status === "Finalizado");
 
   const filtro = document.getElementById("filtroHistorico").value;
   const dataEscolhida = document.getElementById("dataHistorico").value;
@@ -656,32 +1062,32 @@ function filtrarHistorico(dados){
     const dataItem = new Date(item.data_finalizacao);
     dataItem.setHours(0,0,0,0);
 
-    if(filtro == "todos") return true;
+    if(filtro === "todos") return true;
 
-    if(filtro == "hoje"){
-      return dataItem.getTime() == hoje.getTime();
+    if(filtro === "hoje"){
+      return dataItem.getTime() === hoje.getTime();
     }
 
-    if(filtro == "ontem"){
+    if(filtro === "ontem"){
       const ontem = new Date(hoje);
       ontem.setDate(ontem.getDate() - 1);
-      return dataItem.getTime() == ontem.getTime();
+      return dataItem.getTime() === ontem.getTime();
     }
 
-    if(filtro == "7dias"){
+    if(filtro === "7dias"){
       const limite = new Date(hoje);
       limite.setDate(limite.getDate() - 7);
       return dataItem >= limite;
     }
 
-    if(filtro == "30dias"){
+    if(filtro === "30dias"){
       const limite = new Date(hoje);
       limite.setDate(limite.getDate() - 30);
       return dataItem >= limite;
     }
 
-    if(filtro == "personalizado"){
-      return dataISO(item.data_finalizacao) == dataEscolhida;
+    if(filtro === "personalizado"){
+      return dataISO(item.data_finalizacao) === dataEscolhida;
     }
 
     return true;
@@ -695,7 +1101,7 @@ function montarHistorico(dados){
   const finalizados = filtrarHistorico(dados);
 
   finalizados.forEach(function(item){
-    const podeEditar = usuarioLogado.tipo == "financeiro" || usuarioLogado.tipo == "admin";
+    const podeEditar = usuarioLogado.tipo === "financeiro" || usuarioLogado.tipo === "admin";
 
     let bancoHtml = item.banco || "";
     let obsHtml = item.observacao || "";
@@ -729,7 +1135,7 @@ function montarFiltrosDatas(dados){
   const area = document.getElementById("filtrosDatas");
   area.innerHTML = "";
 
-  const finalizados = dados.filter(item => item.status == "Finalizado" && item.data_finalizacao);
+  const finalizados = dados.filter(item => item.status === "Finalizado" && item.data_finalizacao);
   const datas = [];
 
   finalizados.forEach(function(item){
@@ -738,11 +1144,11 @@ function montarFiltrosDatas(dados){
   });
 
   area.innerHTML +=
-    "<button class='filtro-data " + (dataSelecionada == "todos" ? "ativo" : "") + "' onclick='selecionarData(\"todos\")'>Todos</button>";
+    "<button class='filtro-data " + (dataSelecionada === "todos" ? "ativo" : "") + "' onclick='selecionarData(\"todos\")'>Todos</button>";
 
   datas.forEach(function(data){
     area.innerHTML +=
-      "<button class='filtro-data " + (dataSelecionada == data ? "ativo" : "") + "' onclick='selecionarData(\"" + data + "\")'>" + data + "</button>";
+      "<button class='filtro-data " + (dataSelecionada === data ? "ativo" : "") + "' onclick='selecionarData(\"" + data + "\")'>" + data + "</button>";
   });
 }
 
@@ -753,10 +1159,10 @@ function selecionarData(data){
 }
 
 function atualizarDashboard(dados){
-  let finalizados = dados.filter(item => item.status == "Finalizado");
+  let finalizados = dados.filter(item => item.status === "Finalizado");
 
-  if(dataSelecionada != "todos"){
-    finalizados = finalizados.filter(item => formatarData(item.data_finalizacao) == dataSelecionada);
+  if(dataSelecionada !== "todos"){
+    finalizados = finalizados.filter(item => formatarData(item.data_finalizacao) === dataSelecionada);
   }
 
   let total = 0;
@@ -772,7 +1178,7 @@ function atualizarDashboard(dados){
   });
 
   document.getElementById("tituloTotal").innerHTML =
-    dataSelecionada == "todos" ? "Total Finalizado" : "Total do dia " + dataSelecionada;
+    dataSelecionada === "todos" ? "Total Finalizado" : "Total do dia " + dataSelecionada;
 
   document.getElementById("total").innerHTML =
     "R$ " + total.toLocaleString("pt-BR");
@@ -781,7 +1187,7 @@ function atualizarDashboard(dados){
 }
 
 function buscarCorBanco(nomeBanco){
-  const encontrado = listaBancos.find(b => b.nome == nomeBanco);
+  const encontrado = listaBancos.find(b => b.nome === nomeBanco);
   return encontrado && encontrado.cor ? encontrado.cor : "#5a4fa3";
 }
 
@@ -812,7 +1218,7 @@ function atualizarGrafico(bancosGrafico){
 }
 
 async function finalizar(id){
-  if(usuarioLogado.tipo != "financeiro" && usuarioLogado.tipo != "admin"){
+  if(usuarioLogado.tipo !== "financeiro" && usuarioLogado.tipo !== "admin"){
     alert("Somente o financeiro pode finalizar.");
     return;
   }
@@ -843,7 +1249,10 @@ async function finalizar(id){
 async function excluirRelatorio(id){
   if(!confirm("Excluir este relatório?")) return;
 
-  const resposta = await banco.from("boletos").delete().eq("id", id);
+  const resposta = await banco
+    .from("boletos")
+    .delete()
+    .eq("id", id);
 
   if(resposta.error){
     alert(resposta.error.message);
@@ -853,7 +1262,7 @@ async function excluirRelatorio(id){
 }
 
 async function criarUsuario(){
-  if(usuarioLogado.tipo != "admin"){
+  if(usuarioLogado.tipo !== "admin"){
     alert("Somente admin pode criar usuário");
     return;
   }
@@ -877,9 +1286,12 @@ async function criarUsuario(){
 }
 
 async function carregarUsuarios(){
-  if(!usuarioLogado || usuarioLogado.tipo != "admin") return;
+  if(!usuarioLogado || usuarioLogado.tipo !== "admin") return;
 
-  const resposta = await banco.from("usuarios").select("*").order("login", { ascending:true });
+  const resposta = await banco
+    .from("usuarios")
+    .select("*")
+    .order("login", { ascending:true });
 
   if(resposta.error) return;
 
@@ -918,7 +1330,7 @@ banco
 
     const nova = payload.new;
 
-    if(nova && nova.tipo_destino == usuarioLogado.tipo){
+    if(nova && nova.tipo_destino === usuarioLogado.tipo){
       alertaNavegador(nova.mensagem);
     }
   }
