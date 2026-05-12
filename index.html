@@ -9,265 +9,718 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
-body{background:#f5f2fb;display:flex;min-height:100vh;color:#4d4694}
-.sidebar{width:250px;background:white;padding:25px;box-shadow:0 0 15px rgba(0,0,0,.08);display:flex;flex-direction:column;justify-content:space-between}
-.logo{text-align:center;margin-bottom:30px}
-.logo h1{font-size:38px;font-style:italic;font-weight:300;color:#5a4fa3}
-.logo p{font-size:12px;letter-spacing:6px;color:#9c92d9}
-.menu button{width:100%;padding:15px;border:none;border-radius:15px;background:#ede9fb;margin-bottom:10px;cursor:pointer;color:#4d4694}
-.logout{background:#5a4fa3!important;color:white!important;border:none;padding:15px;border-radius:15px;cursor:pointer}
-.main{flex:1;padding:30px;overflow:auto}
-.card{background:white;padding:25px;border-radius:25px;box-shadow:0 0 15px rgba(0,0,0,.05);margin-bottom:25px}
-.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px;gap:15px}
-.total h2{font-size:35px;margin-top:10px}
-.inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-top:20px}
-input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outline:none;width:100%}
-.salvar{margin-top:20px;background:#5a4fa3;color:white;border:none;padding:14px 22px;border-radius:14px;cursor:pointer}
-.table-wrap{width:100%;overflow-x:auto}
-table{width:100%;border-collapse:collapse;margin-top:20px;min-width:900px}
-th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
-.status{padding:8px 15px;border-radius:20px;font-size:12px;color:white;white-space:nowrap}
-.andamento{background:#f0ad4e}
-.finalizado{background:#5cb85c}
-.btn{border:none;padding:10px 14px;border-radius:10px;color:white;cursor:pointer;margin:3px;white-space:nowrap}
-.azul{background:#3498db}
-.roxo{background:#5a4fa3}
-.vermelho{background:#c0392b}
-.verde{background:#27ae60}
-.login{position:fixed;inset:0;background:#f5f2fb;display:flex;justify-content:center;align-items:center;z-index:999;padding:20px}
-.login-box{background:white;padding:40px;border-radius:30px;width:350px;max-width:100%;box-shadow:0 0 20px rgba(0,0,0,.08)}
-.login-box h1{text-align:center;font-size:40px;font-style:italic;font-weight:300;color:#5a4fa3}
-.login-box p{text-align:center;letter-spacing:5px;font-size:12px;margin-bottom:30px;color:#9c92d9}
-.login-box input{margin-bottom:15px}
-.login-box button{width:100%;padding:15px;border:none;border-radius:15px;margin-top:10px;cursor:pointer}
-.entrar{background:#5a4fa3;color:white}
-.usuario-logado{font-size:14px;background:#ede9fb;padding:12px;border-radius:15px;margin-bottom:20px}
-.cor-box{width:35px;height:25px;border-radius:8px;border:1px solid #ddd}
-.grafico-box{position:relative;width:100%;height:350px}
-.notificacao-box{margin-top:15px;background:#ede9fb;padding:15px;border-radius:15px}
-.notificacao-item{background:white;padding:12px;border-radius:12px;margin-bottom:8px;border-left:5px solid #5a4fa3;font-size:13px;cursor:pointer}
-.notificacao-item:hover{background:#faf8ff}
-.notificacao-vazio{background:white;padding:12px;border-radius:12px;font-size:13px;color:#777}
-.badge{display:inline-block;background:#5a4fa3;color:white;border-radius:999px;padding:3px 9px;font-size:12px;margin-left:5px}
-.filtros-datas{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}
-.filtro-data{border:none;background:#ede9fb;color:#4d4694;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:bold}
-.filtro-data.ativo{background:#5a4fa3;color:white}
-
-@media(max-width:768px){
-body{display:block}
-.sidebar{width:100%;padding:15px;position:sticky;top:0;z-index:10}
-.logo h1{font-size:30px}
-.logo p{letter-spacing:4px}
-.menu{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.menu button{margin-bottom:0;padding:12px;font-size:14px}
-.logout{margin-top:10px;width:100%}
-.main{padding:15px}
-.top{display:block}
-.top h1{font-size:26px;margin-bottom:5px}
-.card{padding:18px;border-radius:20px}
-.total{margin-top:15px}
-.total h2{font-size:28px}
-.inputs{grid-template-columns:1fr}
-table{min-width:850px}
-.login-box{padding:30px}
-.login-box h1{font-size:34px}
-.grafico-box{height:280px}
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Arial,sans-serif;
 }
+
+body{
+background:#f5f2fb;
+display:flex;
+min-height:100vh;
+color:#4d4694;
+}
+
+.sidebar{
+width:250px;
+background:white;
+padding:25px;
+box-shadow:0 0 15px rgba(0,0,0,.08);
+display:flex;
+flex-direction:column;
+justify-content:space-between;
+}
+
+.logo{
+text-align:center;
+margin-bottom:30px;
+}
+
+.logo h1{
+font-size:38px;
+font-style:italic;
+font-weight:300;
+color:#5a4fa3;
+}
+
+.logo p{
+font-size:12px;
+letter-spacing:6px;
+color:#9c92d9;
+}
+
+.menu button{
+width:100%;
+padding:15px;
+border:none;
+border-radius:15px;
+background:#ede9fb;
+margin-bottom:10px;
+cursor:pointer;
+color:#4d4694;
+}
+
+.logout{
+background:#5a4fa3!important;
+color:white!important;
+border:none;
+padding:15px;
+border-radius:15px;
+cursor:pointer;
+}
+
+.main{
+flex:1;
+padding:30px;
+overflow:auto;
+}
+
+.card{
+background:white;
+padding:25px;
+border-radius:25px;
+box-shadow:0 0 15px rgba(0,0,0,.05);
+margin-bottom:25px;
+}
+
+.top{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:25px;
+gap:15px;
+}
+
+.total h2{
+font-size:35px;
+margin-top:10px;
+}
+
+.inputs{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+gap:15px;
+margin-top:20px;
+}
+
+input,select{
+padding:12px;
+border:none;
+border-radius:12px;
+background:#f5f2fb;
+outline:none;
+width:100%;
+}
+
+.salvar{
+margin-top:20px;
+background:#5a4fa3;
+color:white;
+border:none;
+padding:14px 22px;
+border-radius:14px;
+cursor:pointer;
+}
+
+.table-wrap{
+width:100%;
+overflow-x:auto;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:20px;
+min-width:900px;
+}
+
+th,td{
+padding:12px;
+border-bottom:1px solid #eee;
+text-align:left;
+}
+
+.status{
+padding:8px 15px;
+border-radius:20px;
+font-size:12px;
+color:white;
+white-space:nowrap;
+}
+
+.andamento{
+background:#f0ad4e;
+}
+
+.finalizado{
+background:#5cb85c;
+}
+
+.btn{
+border:none;
+padding:10px 14px;
+border-radius:10px;
+color:white;
+cursor:pointer;
+margin:3px;
+white-space:nowrap;
+}
+
+.azul{
+background:#3498db;
+}
+
+.roxo{
+background:#5a4fa3;
+}
+
+.vermelho{
+background:#c0392b;
+}
+
+.verde{
+background:#27ae60;
+}
+
+.login{
+position:fixed;
+inset:0;
+background:#f5f2fb;
+display:flex;
+justify-content:center;
+align-items:center;
+z-index:999;
+padding:20px;
+}
+
+.login-box{
+background:white;
+padding:40px;
+border-radius:30px;
+width:350px;
+max-width:100%;
+box-shadow:0 0 20px rgba(0,0,0,.08);
+}
+
+.login-box h1{
+text-align:center;
+font-size:40px;
+font-style:italic;
+font-weight:300;
+color:#5a4fa3;
+}
+
+.login-box p{
+text-align:center;
+letter-spacing:5px;
+font-size:12px;
+margin-bottom:30px;
+color:#9c92d9;
+}
+
+.login-box input{
+margin-bottom:15px;
+}
+
+.login-box button{
+width:100%;
+padding:15px;
+border:none;
+border-radius:15px;
+margin-top:10px;
+cursor:pointer;
+}
+
+.entrar{
+background:#5a4fa3;
+color:white;
+}
+
+.usuario-logado{
+font-size:14px;
+background:#ede9fb;
+padding:12px;
+border-radius:15px;
+margin-bottom:20px;
+}
+
+.cor-box{
+width:35px;
+height:25px;
+border-radius:8px;
+border:1px solid #ddd;
+}
+
+.grafico-box{
+position:relative;
+width:100%;
+height:350px;
+}
+
+.notificacao-box{
+margin-top:15px;
+background:#ede9fb;
+padding:15px;
+border-radius:15px;
+}
+
+.notificacao-item{
+background:white;
+padding:12px;
+border-radius:12px;
+margin-bottom:8px;
+border-left:5px solid #5a4fa3;
+font-size:13px;
+cursor:pointer;
+}
+
+.badge{
+display:inline-block;
+background:#5a4fa3;
+color:white;
+border-radius:999px;
+padding:3px 9px;
+font-size:12px;
+margin-left:5px;
+}
+
+.filtros-datas{
+display:flex;
+flex-wrap:wrap;
+gap:8px;
+margin-top:15px;
+}
+
+.filtro-data{
+border:none;
+background:#ede9fb;
+color:#4d4694;
+padding:10px 14px;
+border-radius:12px;
+cursor:pointer;
+font-weight:bold;
+}
+
+.filtro-data.ativo{
+background:#5a4fa3;
+color:white;
+}
+  @media(max-width:768px){
+
+body{
+display:block;
+}
+
+.sidebar{
+width:100%;
+padding:15px;
+position:sticky;
+top:0;
+z-index:10;
+}
+
+.logo h1{
+font-size:30px;
+}
+
+.logo p{
+letter-spacing:4px;
+}
+
+.menu{
+display:grid;
+grid-template-columns:repeat(2,1fr);
+gap:8px;
+}
+
+.menu button{
+margin-bottom:0;
+padding:12px;
+font-size:14px;
+}
+
+.logout{
+margin-top:10px;
+width:100%;
+}
+
+.main{
+padding:15px;
+}
+
+.top{
+display:block;
+}
+
+.top h1{
+font-size:26px;
+margin-bottom:5px;
+}
+
+.card{
+padding:18px;
+border-radius:20px;
+}
+
+.total{
+margin-top:15px;
+}
+
+.total h2{
+font-size:28px;
+}
+
+.inputs{
+grid-template-columns:1fr;
+}
+
+table{
+min-width:850px;
+}
+
+.login-box{
+padding:30px;
+}
+
+.login-box h1{
+font-size:34px;
+}
+
+.grafico-box{
+height:280px;
+}
+}
+
 </style>
 </head>
 
 <body>
 
 <div id="loginTela" class="login">
-  <div class="login-box">
-    <h1>Sofisticatto</h1>
-    <p>COSMÉTICOS</p>
-    <input type="text" id="login" placeholder="Login">
-    <input type="password" id="senha" placeholder="Senha">
-    <button class="entrar" onclick="entrar()">Entrar</button>
-  </div>
+
+<div class="login-box">
+
+<h1>Sofisticatto</h1>
+<p>COSMÉTICOS</p>
+
+<input type="text" id="login" placeholder="Login">
+
+<input type="password" id="senha" placeholder="Senha">
+
+<button class="entrar" onclick="entrar()">
+Entrar
+</button>
+
+</div>
 </div>
 
 <div class="sidebar">
-  <div>
-    <div class="logo">
-      <h1>Sofisticatto</h1>
-      <p>COSMÉTICOS</p>
-    </div>
 
-    <div id="usuarioInfo" class="usuario-logado"></div>
+<div>
 
-    <div class="notificacao-box">
-      <h3>🔔 Notificações <span id="contadorNotificacoes" class="badge">0</span></h3>
-      <div id="listaNotificacoes" style="max-height:230px;overflow:auto;margin-top:10px;"></div>
-    </div>
+<div class="logo">
+<h1>Sofisticatto</h1>
+<p>COSMÉTICOS</p>
+</div>
 
-    <div class="menu" style="margin-top:15px;">
-      <button onclick="mostrarSecao('dashboard')">Dashboard</button>
-      <button onclick="mostrarSecao('relatorios')">Relatórios</button>
-      <button onclick="mostrarSecao('historico')">Histórico</button>
-      <button id="btnAdmin" onclick="mostrarSecao('admin')" style="display:none;">Admin</button>
-    </div>
-  </div>
+<div id="usuarioInfo" class="usuario-logado"></div>
 
-  <button class="logout" onclick="sair()">Sair</button>
+<div class="notificacao-box">
+
+<h3>
+🔔 Notificações
+<span id="contadorNotificacoes" class="badge">0</span>
+</h3>
+
+<div id="listaNotificacoes"
+style="max-height:230px;overflow:auto;margin-top:10px;">
+</div>
+
+</div>
+
+<div class="menu" style="margin-top:15px;">
+
+<button onclick="mostrarSecao('dashboard')">
+Dashboard
+</button>
+
+<button onclick="mostrarSecao('relatorios')">
+Relatórios
+</button>
+
+<button onclick="mostrarSecao('historico')">
+Histórico
+</button>
+
+<button id="btnAdmin"
+onclick="mostrarSecao('admin')"
+style="display:none;">
+Admin
+</button>
+
+</div>
+</div>
+
+<button class="logout" onclick="sair()">
+Sair
+</button>
+
 </div>
 
 <div class="main">
 
-  <div id="dashboard">
-    <div class="top">
-      <div>
-        <h1>Painel Financeiro</h1>
-        <p>Sistema Online Sofisticatto</p>
-        <div id="filtrosDatas" class="filtros-datas"></div>
-      </div>
+<div id="dashboard">
 
-      <div class="card total">
-        <p id="tituloTotal">Total Finalizado</p>
-        <h2 id="total">R$ 0,00</h2>
-      </div>
-    </div>
+<div class="top">
 
-    <div class="card">
-      <h2>Total por Banco</h2>
-      <div class="grafico-box">
-        <canvas id="grafico"></canvas>
-      </div>
-    </div>
-  </div>
+<div>
 
-  <div id="relatorios" style="display:none;">
-    <div class="card" id="boxNovoRelatorio">
-      <h2>Novo Relatório</h2>
+<h1>Painel Financeiro</h1>
 
-      <div class="inputs">
-        <input type="text" id="nome" placeholder="Nome do cliente">
-        <input type="number" id="valor" placeholder="Valor">
-      </div>
+<p>Sistema Online Sofisticatto</p>
 
-      <button class="salvar" onclick="salvarRelatorio()">Salvar Relatório</button>
-    </div>
-
-    <div class="card">
-      <h2>Relatórios em Andamento</h2>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Valor</th>
-              <th>Banco</th>
-              <th>Observação</th>
-              <th>Criado por</th>
-              <th>Status</th>
-              <th>Ação</th>
-            </tr>
-          </thead>
-          <tbody id="tabela"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div id="historico" style="display:none;">
-    <div class="card">
-      <h2>Histórico Finalizado</h2>
-
-      <div class="inputs">
-        <select id="filtroHistorico" onchange="montarHistorico(todosBoletos)">
-          <option value="todos">Todos</option>
-          <option value="hoje">Hoje</option>
-          <option value="ontem">Ontem</option>
-          <option value="7dias">Últimos 7 dias</option>
-          <option value="30dias">Últimos 30 dias</option>
-          <option value="personalizado">Data específica</option>
-        </select>
-
-        <input type="date" id="dataHistorico" onchange="montarHistorico(todosBoletos)">
-      </div>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Valor</th>
-              <th>Banco</th>
-              <th>Observação</th>
-              <th>Data Finalização</th>
-              <th>Editado por</th>
-              <th>Última edição</th>
-              <th>Ação</th>
-            </tr>
-          </thead>
-          <tbody id="tabelaHistorico"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div id="admin" style="display:none;">
-    <div class="card">
-      <h2>Criar Usuário</h2>
-
-      <div class="inputs">
-        <input type="text" id="novoLogin" placeholder="Login">
-        <input type="text" id="novaSenha" placeholder="Senha">
-        <select id="novoTipo">
-          <option value="financeiro">Financeiro</option>
-          <option value="banco">Banco</option>
-          <option value="admin">Admin</option>
-        </select>
-      </div>
-
-      <button class="salvar" onclick="criarUsuario()">Criar Usuário</button>
-    </div>
-
-    <div class="card">
-      <h2>Cadastrar Banco</h2>
-
-      <div class="inputs">
-        <input type="text" id="novoBanco" placeholder="Ex: Bradesco, Banco do Brasil, Caixa">
-        <input type="color" id="corBanco" value="#5a4fa3">
-      </div>
-
-      <button class="salvar" onclick="criarBanco()">Cadastrar Banco</button>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Banco</th>
-              <th>Cor</th>
-              <th>Ação</th>
-            </tr>
-          </thead>
-          <tbody id="tabelaBancos"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Usuários</h2>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Login</th>
-              <th>Tipo</th>
-            </tr>
-          </thead>
-          <tbody id="tabelaUsuarios"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+<div id="filtrosDatas"
+class="filtros-datas"></div>
 
 </div>
+
+<div class="card total">
+
+<p id="tituloTotal">
+Total Finalizado
+</p>
+
+<h2 id="total">
+R$ 0,00
+</h2>
+
+</div>
+
+</div>
+
+<div class="card">
+
+<h2>Total por Banco</h2>
+
+<div class="grafico-box">
+<canvas id="grafico"></canvas>
+</div>
+
+</div>
+</div>
+
+<div id="relatorios" style="display:none;">
+
+<div class="card" id="boxNovoRelatorio">
+
+<h2>Novo Relatório</h2>
+
+<div class="inputs">
+
+<input type="text"
+id="nome"
+placeholder="Nome do cliente">
+
+<input type="number"
+id="valor"
+placeholder="Valor">
+
+</div>
+
+<button class="salvar"
+onclick="salvarRelatorio()">
+
+Salvar Relatório
+
+</button>
+
+</div>
+
+<div class="card">
+
+<h2>Relatórios em Andamento</h2>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+
+<tr>
+
+<th>Cliente</th>
+<th>Valor</th>
+<th>Banco</th>
+<th>Observação</th>
+<th>Criado por</th>
+<th>Status</th>
+<th>Ação</th>
+
+</tr>
+
+</thead>
+
+<tbody id="tabela"></tbody>
+
+</table>
+
+</div>
+</div>
+</div>
+
+<div id="historico" style="display:none;">
+
+<div class="card">
+
+<h2>Histórico Finalizado</h2>
+
+<div class="inputs">
+
+<select id="filtroHistorico">
+
+<option value="todos">
+Todos
+</option>
+
+<option value="hoje">
+Hoje
+</option>
+
+<option value="7dias">
+Últimos 7 dias
+</option>
+
+<option value="30dias">
+Últimos 30 dias
+</option>
+
+</select>
+
+</div>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+
+<tr>
+
+<th>Cliente</th>
+<th>Valor</th>
+<th>Banco</th>
+<th>Observação</th>
+<th>Data</th>
+<th>Ação</th>
+
+</tr>
+
+</thead>
+
+<tbody id="tabelaHistorico"></tbody>
+
+</table>
+
+</div>
+
+</div>
+</div>
+
+<div id="admin" style="display:none;">
+
+<div class="card">
+
+<h2>Criar Usuário</h2>
+
+<div class="inputs">
+
+<input type="text"
+id="novoLogin"
+placeholder="Login">
+
+<input type="text"
+id="novaSenha"
+placeholder="Senha">
+
+<select id="novoTipo">
+
+<option value="financeiro">
+Financeiro
+</option>
+
+<option value="banco">
+Banco
+</option>
+
+<option value="admin">
+Admin
+</option>
+
+</select>
+
+</div>
+
+<button class="salvar"
+onclick="criarUsuario()">
+
+Criar Usuário
+
+</button>
+
+</div>
+
+<div class="card">
+
+<h2>Cadastrar Banco</h2>
+
+<div class="inputs">
+
+<input type="text"
+id="novoBanco"
+placeholder="Nome do banco">
+
+<input type="color"
+id="corBanco"
+value="#5a4fa3">
+
+</div>
+
+<button class="salvar"
+onclick="criarBanco()">
+
+Cadastrar Banco
+
+</button>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+
+<tr>
+
+<th>Banco</th>
+<th>Cor</th>
+<th>Ação</th>
+
+</tr>
+
+</thead>
+
+<tbody id="tabelaBancos"></tbody>
+
+</table>
+
+</div>
+
+</div>
+</div>
+
+</div>
+
 <script>
 
 const SUPABASE_URL =
@@ -278,8 +731,8 @@ const SUPABASE_KEY =
 
 const banco =
 supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_KEY
+SUPABASE_URL,
+SUPABASE_KEY
 );
 
 let usuarioLogado = null;
@@ -290,655 +743,726 @@ let dataSelecionada = "todos";
 
 async function entrar(){
 
-  const loginDigitado =
-  document.getElementById("login").value.trim();
+const login =
+document.getElementById("login").value;
 
-  const senhaDigitada =
-  document.getElementById("senha").value.trim();
+const senha =
+document.getElementById("senha").value;
 
-  const resposta =
-  await banco
-  .from("usuarios")
-  .select("*")
-  .eq("login", loginDigitado)
-  .eq("senha", senhaDigitada)
-  .single();
+const resposta =
+await banco
+.from("usuarios")
+.select("*")
+.eq("login",login)
+.eq("senha",senha)
+.single();
 
-  if(resposta.error || !resposta.data){
-    alert("Login ou senha inválidos");
-    return;
-  }
+if(resposta.error || !resposta.data){
 
-  usuarioLogado = resposta.data;
+alert("Login ou senha inválidos");
+return;
 
-  localStorage.setItem(
-    "usuarioLogado",
-    JSON.stringify(usuarioLogado)
-  );
-
-  iniciarSistema();
 }
 
-function iniciarSistema(){
+usuarioLogado = resposta.data;
 
-  document.getElementById("loginTela")
-  .style.display = "none";
+localStorage.setItem(
+"usuarioLogado",
+JSON.stringify(usuarioLogado)
+);
 
-  document.getElementById("usuarioInfo")
-  .innerHTML =
-  "Usuário: <b>" +
-  usuarioLogado.login +
-  "</b><br>Tipo: <b>" +
-  usuarioLogado.tipo +
-  "</b>";
+iniciarSistema();
 
-  document.getElementById("btnAdmin")
-  .style.display =
-  usuarioLogado.tipo === "admin"
-  ? "block"
-  : "none";
+}
+  function iniciarSistema(){
 
-  document.getElementById("boxNovoRelatorio")
-  .style.display =
-  usuarioLogado.tipo === "banco"
-  ? "none"
-  : "block";
+document.getElementById("loginTela").style.display = "none";
 
-  carregarBancos();
-  carregarRelatorios();
-  carregarUsuarios();
+document.getElementById("usuarioInfo").innerHTML =
+"Usuário: <b>" + usuarioLogado.login +
+"</b><br>Tipo: <b>" + usuarioLogado.tipo + "</b>";
 
-  solicitarPermissaoNotificacao();
+if(usuarioLogado.tipo === "admin"){
+document.getElementById("btnAdmin").style.display = "block";
+}
 
-  mostrarSecao("dashboard");
+if(usuarioLogado.tipo === "banco"){
+document.getElementById("boxNovoRelatorio").style.display = "none";
+}
+
+mostrarSecao("dashboard");
+
+carregarBancos();
+carregarRelatorios();
+carregarUsuarios();
+
 }
 
 function mostrarSecao(secao){
 
-  [
-    "dashboard",
-    "relatorios",
-    "historico",
-    "admin"
-  ]
-  .forEach(function(id){
+document.getElementById("dashboard").style.display = "none";
+document.getElementById("relatorios").style.display = "none";
+document.getElementById("historico").style.display = "none";
+document.getElementById("admin").style.display = "none";
 
-    document.getElementById(id)
-    .style.display = "none";
+document.getElementById(secao).style.display = "block";
 
-  });
-
-  document.getElementById(secao)
-  .style.display = "block";
 }
 
 function sair(){
 
-  localStorage.removeItem(
-    "usuarioLogado"
-  );
-
-  location.reload();
-}
-
-function formatarData(data){
-
-  if(!data) return "";
-
-  return new Date(data)
-  .toLocaleDateString("pt-BR");
-}
-
-function dataISO(data){
-
-  if(!data) return "";
-
-  return new Date(data)
-  .toISOString()
-  .split("T")[0];
-}
-
-function solicitarPermissaoNotificacao(){
-
-  if(
-    "Notification" in window &&
-    Notification.permission !== "granted"
-  ){
-    Notification.requestPermission();
-  }
-}
-
-function alertaNavegador(mensagem){
-
-  if(
-    "Notification" in window &&
-    Notification.permission === "granted"
-  ){
-
-    new Notification(
-      "Sofisticatto Financeiro",
-      {
-        body: mensagem
-      }
-    );
-
-  }
-}
-
-async function carregarNotificacoes(){
-
-  if(!usuarioLogado) return;
-
-  const lista =
-  document.getElementById(
-    "listaNotificacoes"
-  );
-
-  const contador =
-  document.getElementById(
-    "contadorNotificacoes"
-  );
-
-  lista.innerHTML = "";
-
-  let total = 0;
-
-  if(usuarioLogado.tipo === "banco"){
-
-    const pendentes =
-    todosBoletos.filter(function(item){
-
-      return (
-        item.status !== "Finalizado" &&
-        (!item.banco || item.banco === "")
-      );
-
-    });
-
-    total = pendentes.length;
-
-    contador.innerHTML = total;
-
-    if(total === 0){
-
-      lista.innerHTML =
-      "<div class='notificacao-vazio'>" +
-      "Nenhum boleto aguardando banco." +
-      "</div>";
-
-      return;
-    }
-
-    lista.innerHTML =
-    "<div class='notificacao-item' onclick=\"mostrarSecao('relatorios')\">" +
-    "🔔 Existem <b>" +
-    total +
-    "</b> boletos aguardando seleção de banco." +
-    "</div>";
-
-  }
-
-  if(
-    usuarioLogado.tipo === "financeiro" ||
-    usuarioLogado.tipo === "admin"
-  ){
-
-    const aguardando =
-    todosBoletos.filter(function(item){
-
-      return (
-        item.status !== "Finalizado" &&
-        item.banco &&
-        item.banco !== ""
-      );
-
-    });
-
-    total = aguardando.length;
-
-    contador.innerHTML = total;
-
-    if(total === 0){
-
-      lista.innerHTML =
-      "<div class='notificacao-vazio'>" +
-      "Nenhum boleto aguardando finalização." +
-      "</div>";
-
-      return;
-    }
-
-    lista.innerHTML =
-    "<div class='notificacao-item' onclick=\"mostrarSecao('relatorios')\">" +
-    "🔔 Existem <b>" +
-    total +
-    "</b> boletos aguardando finalização." +
-    "</div>";
-
-  }
+localStorage.removeItem("usuarioLogado");
+location.reload();
 
 }
 
 async function carregarBancos(){
 
-  const resposta =
-  await banco
-  .from("bancos")
-  .select("*")
-  .order("nome",{ascending:true});
+const resposta =
+await banco
+.from("bancos")
+.select("*")
+.order("nome",{ascending:true});
 
-  if(resposta.error){
-    console.log(resposta.error);
-    return;
-  }
+if(resposta.error) return;
 
-  listaBancos =
-  resposta.data || [];
+listaBancos = resposta.data || [];
 
-  const tabelaBancos =
-  document.getElementById(
-    "tabelaBancos"
-  );
+const tabela =
+document.getElementById("tabelaBancos");
 
-  if(tabelaBancos){
+if(!tabela) return;
 
-    tabelaBancos.innerHTML = "";
+tabela.innerHTML = "";
 
-    listaBancos.forEach(function(item){
+listaBancos.forEach(item=>{
 
-      tabelaBancos.innerHTML +=
-      "<tr>" +
-      "<td>" + item.nome + "</td>" +
+tabela.innerHTML += `
+<tr>
+<td>${item.nome}</td>
 
-      "<td>" +
-      "<div class='cor-box' style='background:" +
-      (item.cor || "#5a4fa3") +
-      "'></div>" +
-      "</td>" +
+<td>
+<div class="cor-box"
+style="background:${item.cor || "#5a4fa3"}">
+</div>
+</td>
 
-      "<td>" +
-      "<button class='btn vermelho' onclick='excluirBanco(\"" +
-      item.id +
-      "\")'>Excluir</button>" +
-      "</td>" +
+<td>
+<button class="btn vermelho"
+onclick="excluirBanco('${item.id}')">
+Excluir
+</button>
+</td>
 
-      "</tr>";
+</tr>
+`;
 
-    });
-
-  }
-
-}
-
-function montarSelectBanco(id,bancoAtual){
-
-  let html =
-  "<select id='banco_" + id + "'>";
-
-  html +=
-  "<option value=''>Selecione</option>";
-
-  listaBancos.forEach(function(b){
-
-    html +=
-    "<option value='" +
-    b.nome +
-    "' " +
-    (b.nome == bancoAtual
-      ? "selected"
-      : "") +
-    ">" +
-    b.nome +
-    "</option>";
-
-  });
-
-  html += "</select>";
-
-  return html;
-}
-
-async function salvarBancoLinha(id){
-
-  const bancoEscolhido =
-  document.getElementById(
-    "banco_" + id
-  ).value;
-
-  const observacao =
-  document.getElementById(
-    "obs_" + id
-  ).value;
-
-  if(bancoEscolhido === ""){
-    alert("Selecione um banco");
-    return;
-  }
-
-  const resposta =
-  await banco
-  .from("boletos")
-  .update({
-    banco: bancoEscolhido,
-    observacao: observacao
-  })
-  .eq("id", id);
-
-  if(resposta.error){
-
-    alert(resposta.error.message);
-
-  }else{
-
-    alert("Banco salvo!");
-    carregarRelatorios();
-
-  }
-
-}
-
-async function salvarRelatorio(){
-
-  if(usuarioLogado.tipo === "banco"){
-    alert("Usuário banco não cria relatório.");
-    return;
-  }
-
-  const nome =
-  document.getElementById("nome")
-  .value.trim();
-
-  const valor =
-  document.getElementById("valor")
-  .value;
-
-  if(nome === "" || valor === ""){
-    alert("Preencha nome e valor");
-    return;
-  }
-
-  const resposta =
-  await banco
-  .from("boletos")
-  .insert([{
-    nome:nome,
-    valor:valor,
-    banco:"",
-    observacao:"",
-    status:"Em andamento",
-    data_finalizacao:null,
-    criado_por:usuarioLogado.login
-  }]);
-
-  if(resposta.error){
-
-    alert(resposta.error.message);
-
-  }else{
-
-    alert("Relatório salvo!");
-
-    document.getElementById("nome")
-    .value = "";
-
-    document.getElementById("valor")
-    .value = "";
-
-    carregarRelatorios();
-
-  }
+});
 
 }
 
 async function carregarRelatorios(){
 
-  await carregarBancos();
+await carregarBancos();
 
-  const resposta =
-  await banco
-  .from("boletos")
-  .select("*")
-  .order("id",{ascending:false});
+const resposta =
+await banco
+.from("boletos")
+.select("*")
+.order("id",{ascending:false});
 
-  if(resposta.error){
-    console.log(resposta.error);
-    return;
-  }
+if(resposta.error) return;
 
-  todosBoletos =
-  resposta.data || [];
+todosBoletos = resposta.data || [];
 
-  montarTabelaRelatorios(
-    todosBoletos
-  );
+montarTabela();
+montarHistorico();
+atualizarDashboard();
+carregarNotificacoes();
 
-  montarHistorico(
-    todosBoletos
-  );
-
-  montarFiltrosDatas(
-    todosBoletos
-  );
-
-  atualizarDashboard(
-    todosBoletos
-  );
-
-  carregarNotificacoes();
 }
 
-function montarTabelaRelatorios(dados){
+function montarTabela(){
 
-  const tabela =
-  document.getElementById("tabela");
+const tabela =
+document.getElementById("tabela");
 
-  tabela.innerHTML = "";
+tabela.innerHTML = "";
 
-  const emAndamento =
-  dados.filter(function(item){
+const andamento =
+todosBoletos.filter(
+item => item.status !== "Finalizado"
+);
 
-    return item.status !== "Finalizado";
+andamento.forEach(item=>{
 
-  });
+let bancoSelect = "";
 
-  emAndamento.forEach(function(item){
+if(usuarioLogado.tipo === "banco"
+|| usuarioLogado.tipo === "admin"){
 
-    let nomeColuna =
-    item.nome || "";
+bancoSelect =
+`<select id="banco_${item.id}">
 
-    let valorColuna =
-    "R$ " +
-    Number(item.valor || 0)
-    .toLocaleString("pt-BR");
+<option value="">
+Selecione
+</option>
 
-    let bancoColuna =
-    item.banco || "";
+${listaBancos.map(b=>
+`<option value="${b.nome}"
+${item.banco===b.nome?"selected":""}>
+${b.nome}
+</option>`
+).join("")}
 
-    let observacaoColuna =
-    item.observacao || "";
+</select>`;
 
-    let acaoColuna = "";
+}else{
 
-    if(usuarioLogado.tipo === "financeiro"){
+bancoSelect = item.banco || "";
 
-      nomeColuna =
-      "<input id='edit_nome_" +
-      item.id +
-      "' value='" +
-      (item.nome || "") +
-      "'>";
+}
 
-      valorColuna =
-      "<input type='number' id='edit_valor_" +
-      item.id +
-      "' value='" +
-      (item.valor || 0) +
-      "'>";
+let botoes = "";
 
-      acaoColuna +=
-      "<button class='btn azul' onclick='salvarEdicaoRelatorio(\"" +
-      item.id +
-      "\")'>Editar</button>";
+if(usuarioLogado.tipo === "financeiro"
+|| usuarioLogado.tipo === "admin"){
 
-      if(item.banco && item.banco !== ""){
+botoes += `
+<button class="btn azul"
+onclick="editar('${item.id}')">
+Editar
+</button>
+`;
 
-        acaoColuna +=
-        "<button class='btn roxo' onclick='finalizar(\"" +
-        item.id +
-        "\")'>Finalizar</button>";
+if(item.banco){
 
-      }
+botoes += `
+<button class="btn roxo"
+onclick="finalizar('${item.id}')">
+Finalizar
+</button>
+`;
 
-      acaoColuna +=
-      "<button class='btn vermelho' onclick='excluirRelatorio(\"" +
-      item.id +
-      "\")'>Excluir</button>";
-    }
+}
 
-    if(usuarioLogado.tipo === "banco"){
+botoes += `
+<button class="btn vermelho"
+onclick="excluir('${item.id}')">
+Excluir
+</button>
+`;
 
-      bancoColuna =
-      montarSelectBanco(
-        item.id,
-        item.banco || ""
-      );
+}
 
-      observacaoColuna =
-      "<input id='obs_" +
-      item.id +
-      "' value='" +
-      (item.observacao || "") +
-      "' placeholder='Observação'>";
+if(usuarioLogado.tipo === "banco"){
 
-      acaoColuna =
-      "<button class='btn azul' onclick='salvarBancoLinha(\"" +
-      item.id +
-      "\")'>Salvar Banco</button>";
-    }
+botoes += `
+<button class="btn verde"
+onclick="salvarBanco('${item.id}')">
+Salvar Banco
+</button>
+`;
 
-    if(usuarioLogado.tipo === "admin"){
+}
 
-      nomeColuna =
-      "<input id='edit_nome_" +
-      item.id +
-      "' value='" +
-      (item.nome || "") +
-      "'>";
+tabela.innerHTML += `
+<tr>
 
-      valorColuna =
-      "<input type='number' id='edit_valor_" +
-      item.id +
-      "' value='" +
-      (item.valor || 0) +
-      "'>";
+<td>${item.nome}</td>
 
-      bancoColuna =
-      montarSelectBanco(
-        item.id,
-        item.banco || ""
-      );
+<td>
+R$ ${Number(item.valor || 0)
+.toLocaleString("pt-BR")}
+</td>
 
-      observacaoColuna =
-      "<input id='obs_" +
-      item.id +
-      "' value='" +
-      (item.observacao || "") +
-      "' placeholder='Observação'>";
+<td>${bancoSelect}</td>
 
-      acaoColuna +=
-      "<button class='btn azul' onclick='salvarEdicaoRelatorio(\"" +
-      item.id +
-      "\")'>Editar</button>";
+<td>${item.observacao || ""}</td>
 
-      if(item.banco && item.banco !== ""){
+<td>${item.criado_por || ""}</td>
 
-        acaoColuna +=
-        "<button class='btn roxo' onclick='finalizar(\"" +
-        item.id +
-        "\")'>Finalizar</button>";
+<td>
+<span class="status andamento">
+Em andamento
+</span>
+</td>
 
-      }
+<td>${botoes}</td>
 
-      acaoColuna +=
-      "<button class='btn vermelho' onclick='excluirRelatorio(\"" +
-      item.id +
-      "\")'>Excluir</button>";
-    }
+</tr>
+`;
 
-    tabela.innerHTML +=
-    "<tr>" +
+});
 
-    "<td>" +
-    nomeColuna +
-    "</td>" +
+}
 
-    "<td>" +
-    valorColuna +
-    "</td>" +
+function montarHistorico(){
 
-    "<td>" +
-    bancoColuna +
-    "</td>" +
+const tabela =
+document.getElementById("tabelaHistorico");
 
-    "<td>" +
-    observacaoColuna +
-    "</td>" +
+tabela.innerHTML = "";
 
-    "<td>" +
-    (item.criado_por || "") +
-    "</td>" +
+const finalizados =
+todosBoletos.filter(
+item => item.status === "Finalizado"
+);
 
-    "<td>" +
-    "<span class='status andamento'>Em andamento</span>" +
-    "</td>" +
+finalizados.forEach(item=>{
 
-    "<td>" +
-    acaoColuna +
-    "</td>" +
+let botoes = "";
 
-    "</tr>";
+if(usuarioLogado.tipo === "financeiro"
+|| usuarioLogado.tipo === "admin"){
 
-  });
+botoes =
+`
+<button class="btn azul"
+onclick="editar('${item.id}')">
+Editar
+</button>
+`;
+
+}
+
+tabela.innerHTML += `
+<tr>
+
+<td>${item.nome}</td>
+
+<td>
+R$ ${Number(item.valor || 0)
+.toLocaleString("pt-BR")}
+</td>
+
+<td>${item.banco || ""}</td>
+
+<td>${item.observacao || ""}</td>
+
+<td>
+${new Date(item.data_finalizacao)
+.toLocaleDateString("pt-BR")}
+</td>
+
+<td>${botoes}</td>
+
+</tr>
+`;
+
+});
+
+}
+
+function carregarNotificacoes(){
+
+const lista =
+document.getElementById("listaNotificacoes");
+
+const contador =
+document.getElementById("contadorNotificacoes");
+
+if(!lista || !contador) return;
+
+lista.innerHTML = "";
+
+let total = 0;
+
+if(usuarioLogado.tipo === "banco"){
+
+const pendentes =
+todosBoletos.filter(
+item =>
+item.status !== "Finalizado"
+&& !item.banco
+);
+
+total = pendentes.length;
+
+contador.innerHTML = total;
+
+if(total > 0){
+
+lista.innerHTML =
+`
+<div class="notificacao-item"
+onclick="mostrarSecao('relatorios')">
+
+🔔 Existem
+<b>${total}</b>
+boletos aguardando banco.
+
+</div>
+`;
+
+}else{
+
+lista.innerHTML =
+`
+<div class="notificacao-item">
+Nenhum boleto aguardando banco.
+</div>
+`;
+
+}
+
+}
+
+if(usuarioLogado.tipo === "financeiro"
+|| usuarioLogado.tipo === "admin"){
+
+const aguardando =
+todosBoletos.filter(
+item =>
+item.status !== "Finalizado"
+&& item.banco
+);
+
+total = aguardando.length;
+
+contador.innerHTML = total;
+
+if(total > 0){
+
+lista.innerHTML =
+`
+<div class="notificacao-item"
+onclick="mostrarSecao('relatorios')">
+
+🔔 Existem
+<b>${total}</b>
+boletos aguardando finalização.
+
+</div>
+`;
+
+}else{
+
+lista.innerHTML =
+`
+<div class="notificacao-item">
+Nenhum boleto aguardando finalização.
+</div>
+`;
+
+}
+
+}
+
+}
+
+async function salvarRelatorio(){
+
+const nome =
+document.getElementById("nome").value;
+
+const valor =
+document.getElementById("valor").value;
+
+if(!nome || !valor){
+
+alert("Preencha nome e valor");
+return;
+
+}
+
+await banco
+.from("boletos")
+.insert([{
+nome:nome,
+valor:valor,
+status:"Em andamento",
+criado_por:usuarioLogado.login
+}]);
+
+document.getElementById("nome").value = "";
+document.getElementById("valor").value = "";
+
+carregarRelatorios();
+
+}
+
+async function salvarBanco(id){
+
+const bancoSelecionado =
+document.getElementById("banco_" + id).value;
+
+if(!bancoSelecionado){
+
+alert("Selecione um banco");
+return;
+
+}
+
+await banco
+.from("boletos")
+.update({
+banco:bancoSelecionado
+})
+.eq("id",id);
+
+carregarRelatorios();
+
+}
+
+async function finalizar(id){
+
+await banco
+.from("boletos")
+.update({
+status:"Finalizado",
+data_finalizacao:new Date()
+})
+.eq("id",id);
+
+carregarRelatorios();
+
+}
+
+async function excluir(id){
+
+if(!confirm("Excluir relatório?")) return;
+
+await banco
+.from("boletos")
+.delete()
+.eq("id",id);
+
+carregarRelatorios();
+
+}
+
+async function editar(id){
+
+const nome = prompt("Novo nome:");
+const valor = prompt("Novo valor:");
+
+if(!nome || !valor) return;
+
+await banco
+.from("boletos")
+.update({
+nome:nome,
+valor:valor
+})
+.eq("id",id);
+
+carregarRelatorios();
+
+}
+
+function atualizarDashboard(){
+
+const finalizados =
+todosBoletos.filter(
+item => item.status === "Finalizado"
+);
+
+let total = 0;
+let bancosGrafico = {};
+
+finalizados.forEach(item=>{
+
+total += Number(item.valor || 0);
+
+if(item.banco){
+
+if(!bancosGrafico[item.banco]){
+bancosGrafico[item.banco] = 0;
+}
+
+bancosGrafico[item.banco] +=
+Number(item.valor || 0);
+
+}
+
+});
+
+document.getElementById("total").innerHTML =
+"R$ " + total.toLocaleString("pt-BR");
+
+const labels =
+Object.keys(bancosGrafico);
+
+const valores =
+Object.values(bancosGrafico);
+
+const cores =
+labels.map(nomeBanco=>{
+
+const encontrado =
+listaBancos.find(
+b=>b.nome===nomeBanco
+);
+
+return encontrado?.cor || "#5a4fa3";
+
+});
+
+if(grafico){
+grafico.destroy();
+}
+
+grafico =
+new Chart(
+document.getElementById("grafico"),
+{
+type:"bar",
+
+data:{
+labels:labels,
+
+datasets:[{
+label:"Total por banco",
+data:valores,
+backgroundColor:cores,
+borderColor:cores,
+borderWidth:1
+}]
+},
+
+options:{
+responsive:true,
+maintainAspectRatio:false
+}
+
+}
+);
+
+}
+
+async function criarBanco(){
+
+const nome =
+document.getElementById("novoBanco").value;
+
+const cor =
+document.getElementById("corBanco").value;
+
+if(!nome){
+
+alert("Digite o nome");
+return;
+
+}
+
+await banco
+.from("bancos")
+.insert([{
+nome:nome,
+cor:cor
+}]);
+
+document.getElementById("novoBanco").value = "";
+
+carregarBancos();
+carregarRelatorios();
+
+}
+
+async function excluirBanco(id){
+
+await banco
+.from("bancos")
+.delete()
+.eq("id",id);
+
+carregarBancos();
+carregarRelatorios();
+
+}
+
+async function criarUsuario(){
+
+const login =
+document.getElementById("novoLogin").value;
+
+const senha =
+document.getElementById("novaSenha").value;
+
+const tipo =
+document.getElementById("novoTipo").value;
+
+await banco
+.from("usuarios")
+.insert([{
+login:login,
+senha:senha,
+tipo:tipo
+}]);
+
+alert("Usuário criado!");
+
+document.getElementById("novoLogin").value = "";
+document.getElementById("novaSenha").value = "";
+
+carregarUsuarios();
+
+}
+
+async function carregarUsuarios(){
+
+if(usuarioLogado.tipo !== "admin") return;
+
+const resposta =
+await banco
+.from("usuarios")
+.select("*");
+
+if(resposta.error) return;
+
+const tabela =
+document.getElementById("tabelaUsuarios");
+
+tabela.innerHTML = "";
+
+resposta.data.forEach(user=>{
+
+tabela.innerHTML += `
+<tr>
+
+<td>${user.login}</td>
+<td>${user.tipo}</td>
+
+</tr>
+`;
+
+});
 
 }
 
 banco
-.channel("tempo-real-boletos")
+.channel("tempo-real")
 .on(
-  "postgres_changes",
-  {
-    event: "*",
-    schema: "public",
-    table: "boletos"
-  },
-  function(){
-
-    if(usuarioLogado){
-      carregarRelatorios();
-    }
-
-  }
+"postgres_changes",
+{
+event:"*",
+schema:"public",
+table:"boletos"
+},
+()=>{
+if(usuarioLogado){
+carregarRelatorios();
+}
+}
 )
 .subscribe();
 
 window.onload = function(){
 
-  const salvo =
-  localStorage.getItem(
-    "usuarioLogado"
-  );
+const salvo =
+localStorage.getItem("usuarioLogado");
 
-  if(salvo){
+if(salvo){
 
-    usuarioLogado =
-    JSON.parse(salvo);
+usuarioLogado = JSON.parse(salvo);
 
-    iniciarSistema();
-  }
+iniciarSistema();
 
-};
+}
+
+}
 
 </script>
-
 </body>
 </html>
