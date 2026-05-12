@@ -902,6 +902,265 @@ function montarTabelaRelatorios(dados){
 
 }
 
+<script>
+function filtrarHistorico(dados){
+  let finalizados = dados.filter(item => item.status === "Finalizado");
+  const filtro = document.getElementById("filtroHistorico").value;
+  const dataEscolhida = document.getElementById("dataHistorico").value;
+  const hoje = new Date();
+  hoje.setHours(0,0,0,0);
+
+  return finalizados.filter(item => {
+    if(!item.data_finalizacao) return false;
+    const dataItem = new Date(item.data_finalizacao);
+    dataItem.setHours(0,0,0,0);
+
+    if(filtro === "todos") return true;
+    if(filtro === "hoje") return dataItem.getTime() === hoje.getTime();
+
+    if(filtro === "ontem"){
+      const ontem = new Date(hoje);
+      ontem.setDate(ontem.getDate() - 1);
+      return dataItem.getTime() === ontem.getTime();
+    }
+
+    if(filtro === "7dias"){
+      const limite = new Date(hoje);
+      limite.setDate(limite.getDate() - 7);
+      return dataItem >= limite;
+    }
+
+    if(filtro === "30dias"){
+      const limite = new Date(hoje);
+      limite.setDate(limite.getDate() - 30);
+      return dataItem >= limite;
+    }
+
+    if(filtro === "personalizado"){
+      return dataISO(item.data_finalizacao) === dataEscolhida;
+    }
+
+    return true;
+  });
+}
+
+function montarHistorico(dados){
+  const historico = document.getElementById("tabelaHistorico");
+  historico.innerHTML = "";
+
+  const finalizados = filtrarHistorico(dados);
+
+  finalizados.forEach(function(item){
+    historico.innerHTML +=
+      "<tr>" +
+      "<td>" + (item.nome || "") + "</td>" +
+      "<td>R$ " + Number(item.valor || 0).toLocaleString("pt-BR") + "</td>" +
+      "<td>" + (item.banco || "") + "</td>" +
+      "<td>" + (item.observacao || "") + "</td>" +
+      "<td>" + formatarData(item.data_finalizacao) + "</td>" +
+      "<td>" + (item.editado_por || "") + "</td>" +
+      "<td>" + (item.data_edicao ? new Date(item.data_edicao).toLocaleString("pt-BR") : "") + "</td>" +
+      "<td></td>" +
+      "</tr>";
+  });
+}
+
+function montarFiltrosDatas(dados){
+  const area = document.getElementById("filtrosDatas");
+  area.innerHTML = "";
+
+  const finalizados = dados.filter(item => item.status === "Finalizado" && item.data_finalizacao);
+  const datas = [];
+
+  finalizados.forEach(item => {
+    const data = formatarData(item.data_finalizacao);
+    if(data && !datas.includes(data)) datas.push(data);
+  });
+
+  area.innerHTML +=
+    "<button class='filtro-data " + (dataSelecionada === "todos" ? "ativo" : "") + "' onclick='selecionarData(\"todos\")'>Todos</button>";
+
+  datas.forEach(data => {
+    area.innerHTML +=
+      "<button class='filtro-data " + (dataSelecionada === data ? "ativo" : "") + "' onclick='selecionarData(\"" + data + "\")'>" + data + "</button>";
+  });
+}
+
+function selecionarData(data){
+  dataSelecionada = data;
+  montarFiltrosDatas(todosBoletos);
+  atualizarDashboard(todosBoletos);
+}
+
+function atualizarDashboard(dados){
+  let finalizados = dados.filter(item => item.status === "Finalizado");
+
+  if(dataSelecionada !== "todos"){
+    finalizados = finalizados.filter(item => formatarData(item.data_finalizacao) === dataSelecionada);
+  }
+
+  let total = 0;
+  let bancosGrafico = {};
+
+  finalizados.forEach(item => {
+    total += Number(item.valor || 0);
+
+    if(item.banco){
+      if(!bancosGrafico[item.banco]) bancosGrafico[item.banco] = 0;
+      bancosGrafico[item.banco] += Number(item.valor || 0);
+    }
+  });
+
+  document.getElementById("tituloTotal").innerHTML =
+    dataSelecionada === "todos" ? "Total Finalizado" : "Total do dia " + dataSelecionada;
+
+  document.getElementById("total").innerHTML =
+    "R$ " + total.toLocaleString("pt-BR");
+
+  atualizarGrafico(bancosGrafico);
+}
+
+function buscarCorBanco(nomeBanco){
+  const encontrado = listaBancos.find(b => b.nome === nomeBanco);
+  return encontrado && encontrado.cor ? encontrado.cor : "#5a4fa3";
+}
+
+function atualizarGrafico(bancosGrafico){
+  const labels = Object.keys(bancosGrafico);
+  const valores = Object.values(bancosGrafico);
+  const cores = labels.map(nomeBanco => buscarCorBanco(nomeBanco));
+
+  if(grafico) grafico.destroy();
+
+  grafico = new Chart(document.getElementById("grafico"), {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Total por banco",
+        data: valores,
+        backgroundColor: cores,
+        borderColor: cores,
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false
+    }
+  });
+}
+
+async function salvarEdicaoRelatorio(id){
+  let dadosAtualizar = {};
+
+  if(usuarioLogado.tipo === "financeiro"){
+    dadosAtualizar.nome = document.getElementById("edit_nome_" + id).value;
+    dadosAtualizar.valor = document.getElementById("edit_valor_" + id).value;
+  }
+
+  if(usuarioLogado.tipo === "admin"){
+    dadosAtualizar.nome = document.getElementById("edit_nome_" + id).value;
+    dadosAtualizar.valor = document.getElementById("edit_valor_" + id).value;
+    dadosAtualizar.banco = document.getElementById("banco_" + id).value;
+    dadosAtualizar.observacao = document.getElementById("obs_" + id).value;
+  }
+
+  const resposta = await banco.from("boletos").update(dadosAtualizar).eq("id", id);
+
+  if(resposta.error){
+    alert(resposta.error.message);
+  }else{
+    alert("Relatório editado!");
+    carregarRelatorios();
+  }
+}
+
+async function finalizar(id){
+  const resposta = await banco
+    .from("boletos")
+    .update({
+      status: "Finalizado",
+      data_finalizacao: new Date()
+    })
+    .eq("id", id);
+
+  if(resposta.error){
+    alert(resposta.error.message);
+  }else{
+    carregarRelatorios();
+  }
+}
+
+async function excluirRelatorio(id){
+  if(!confirm("Excluir este relatório?")) return;
+
+  const resposta = await banco.from("boletos").delete().eq("id", id);
+
+  if(resposta.error){
+    alert(resposta.error.message);
+  }else{
+    carregarRelatorios();
+  }
+}
+
+async function criarUsuario(){
+  const loginNovo = document.getElementById("novoLogin").value;
+  const senhaNova = document.getElementById("novaSenha").value;
+  const tipoNovo = document.getElementById("novoTipo").value;
+
+  const resposta = await banco.from("usuarios").insert([{
+    login: loginNovo,
+    senha: senhaNova,
+    tipo: tipoNovo
+  }]);
+
+  if(resposta.error){
+    alert(resposta.error.message);
+  }else{
+    alert("Usuário criado!");
+    carregarUsuarios();
+  }
+}
+
+async function carregarUsuarios(){
+  if(!usuarioLogado || usuarioLogado.tipo !== "admin") return;
+
+  const resposta = await banco.from("usuarios").select("*").order("login");
+
+  if(resposta.error) return;
+
+  const tabela = document.getElementById("tabelaUsuarios");
+  tabela.innerHTML = "";
+
+  resposta.data.forEach(usuario => {
+    tabela.innerHTML +=
+      "<tr>" +
+      "<td>" + usuario.login + "</td>" +
+      "<td>" + usuario.tipo + "</td>" +
+      "</tr>";
+  });
+}
+
+banco
+.channel("tempo-real-boletos")
+.on(
+  "postgres_changes",
+  { event: "*", schema: "public", table: "boletos" },
+  function(){
+    if(usuarioLogado) carregarRelatorios();
+  }
+)
+.subscribe();
+
+window.onload = function(){
+  const salvo = localStorage.getItem("usuarioLogado");
+
+  if(salvo){
+    usuarioLogado = JSON.parse(salvo);
+    iniciarSistema();
+  }
+};
 </script>
 
 </body>
