@@ -1161,6 +1161,42 @@ window.onload = function(){
     iniciarSistema();
   }
 };
+banco
+.channel("tempo-real-boletos")
+.on(
+  "postgres_changes",
+  {
+    event: "*",
+    schema: "public",
+    table: "boletos"
+  },
+  function(){
+
+    if(usuarioLogado){
+      carregarRelatorios();
+    }
+
+  }
+)
+.subscribe();
+
+window.onload = function(){
+
+  const salvo =
+  localStorage.getItem(
+    "usuarioLogado"
+  );
+
+  if(salvo){
+
+    usuarioLogado =
+    JSON.parse(salvo);
+
+    iniciarSistema();
+  }
+
+};
+
 </script>
 
 </body>
