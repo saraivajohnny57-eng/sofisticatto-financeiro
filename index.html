@@ -51,6 +51,28 @@ th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
   height:350px;
 }
 
+.filtros-datas{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:15px;
+}
+
+.filtro-data{
+  border:none;
+  background:#ede9fb;
+  color:#4d4694;
+  padding:10px 14px;
+  border-radius:12px;
+  cursor:pointer;
+  font-weight:bold;
+}
+
+.filtro-data.ativo{
+  background:#5a4fa3;
+  color:white;
+}
+
 @media(max-width:768px){
 body{display:block}
 .sidebar{width:100%;padding:15px;position:sticky;top:0;z-index:10}
@@ -114,10 +136,12 @@ table{min-width:760px}
       <div>
         <h1>Painel Financeiro</h1>
         <p>Sistema Online Sofisticatto</p>
+
+        <div id="filtrosDatas" class="filtros-datas"></div>
       </div>
 
       <div class="card total">
-        <p>Total Geral</p>
+        <p id="tituloTotal">Total Finalizado</p>
         <h2 id="total">R$ 0,00</h2>
       </div>
     </div>
@@ -143,7 +167,7 @@ table{min-width:760px}
     </div>
 
     <div class="card">
-      <h2>Relatórios</h2>
+      <h2>Relatórios em Andamento</h2>
       <p class="mobile-title">No celular, arraste a tabela para o lado.</p>
 
       <div class="table-wrap">
@@ -179,7 +203,7 @@ table{min-width:760px}
               <th>Valor</th>
               <th>Banco</th>
               <th>Observação</th>
-              <th>Data</th>
+              <th>Data Finalização</th>
             </tr>
           </thead>
           <tbody id="tabelaHistorico"></tbody>
@@ -251,13 +275,15 @@ table{min-width:760px}
 <script>
 const SUPABASE_URL = "https://drtgtwwsbxrmqcaabzcs.supabase.co";
 
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRydGd0d3dzYnhybXFjYWFiemNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwODYyMDQsImV4cCI6MjA5MzY2MjIwNH0.7TIaXvrFPaCNLlTrFmsaVbTnbvxL2uVckdPN3L9tBbY";
+const SUPABASE_KEY = "SUA_CHAVE_SUPABASE_AQUI";
 
 const banco = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let usuarioLogado = null;
 let grafico = null;
 let listaBancos = [];
+let todosBoletos = [];
+let dataSelecionada = "todos";
 
 async function entrar(){
   const loginDigitado = document.getElementById("login").value.trim();
@@ -309,6 +335,11 @@ function mostrarSecao(secao){
 function sair(){
   localStorage.removeItem("usuarioLogado");
   location.reload();
+}
+
+function formatarData(data){
+  if(!data) return "";
+  return new Date(data).toLocaleDateString("pt-BR");
 }
 
 async function carregarBancos(){
@@ -445,7 +476,7 @@ async function salvarRelatorio(){
       banco: "",
       observacao: "",
       status: "Em andamento",
-      data_finalizacao: new Date(),
+      data_finalizacao: null,
       criado_por: usuarioLogado.login
     }]);
 
@@ -472,26 +503,23 @@ async function carregarRelatorios(){
     return;
   }
 
-  const dados = resposta.data || [];
+  todosBoletos = resposta.data || [];
+
+  montarTabelaRelatorios(todosBoletos);
+  montarHistorico(todosBoletos);
+  montarFiltrosDatas(todosBoletos);
+  atualizarDashboard(todosBoletos);
+}
+
+function montarTabelaRelatorios(dados){
   const tabela = document.getElementById("tabela");
-  const historico = document.getElementById("tabelaHistorico");
-
   tabela.innerHTML = "";
-  historico.innerHTML = "";
 
-  let total = 0;
-  let bancosGrafico = {};
+  const emAndamento = dados.filter(function(item){
+    return item.status != "Finalizado";
+  });
 
-  dados.forEach(function(item){
-    total += Number(item.valor || 0);
-
-    if(item.banco){
-      if(!bancosGrafico[item.banco]){
-        bancosGrafico[item.banco] = 0;
-      }
-      bancosGrafico[item.banco] += Number(item.valor || 0);
-    }
-
+  emAndamento.forEach(function(item){
     let bancoColuna = "";
     let observacaoColuna = "";
     let acaoColuna = "";
@@ -506,20 +534,17 @@ async function carregarRelatorios(){
     }
 
     if(usuarioLogado.tipo == "financeiro"){
-      if(item.banco && item.banco != "" && item.status != "Finalizado"){
+      if(item.banco && item.banco != ""){
         acaoColuna += "<button class='btn roxo' onclick='finalizar(\"" + item.id + "\")'>Finalizar</button>";
       }
 
-      if(item.criado_por == usuarioLogado.login && item.status != "Finalizado"){
+      if(item.criado_por == usuarioLogado.login){
         acaoColuna += "<button class='btn vermelho' onclick='excluirRelatorio(\"" + item.id + "\")'>Excluir</button>";
       }
     }
 
     if(usuarioLogado.tipo == "admin"){
-      if(item.status != "Finalizado"){
-        acaoColuna += "<button class='btn roxo' onclick='finalizar(\"" + item.id + "\")'>Finalizar</button>";
-      }
-
+      acaoColuna += "<button class='btn roxo' onclick='finalizar(\"" + item.id + "\")'>Finalizar</button>";
       acaoColuna += "<button class='btn vermelho' onclick='excluirRelatorio(\"" + item.id + "\")'>Excluir</button>";
     }
 
@@ -530,22 +555,94 @@ async function carregarRelatorios(){
       "<td>" + bancoColuna + "</td>" +
       "<td>" + observacaoColuna + "</td>" +
       "<td>" + (item.criado_por || "") + "</td>" +
-      "<td><span class='status " + (item.status == "Finalizado" ? "finalizado" : "andamento") + "'>" + (item.status || "Em andamento") + "</span></td>" +
-      "<td>" + (item.data_finalizacao ? new Date(item.data_finalizacao).toLocaleDateString("pt-BR") : "") + "</td>" +
+      "<td><span class='status andamento'>Em andamento</span></td>" +
+      "<td>-</td>" +
       "<td>" + acaoColuna + "</td>" +
       "</tr>";
+  });
+}
 
-    if(item.status == "Finalizado"){
-      historico.innerHTML +=
-        "<tr>" +
-        "<td>" + (item.nome || "") + "</td>" +
-        "<td>R$ " + Number(item.valor || 0).toLocaleString("pt-BR") + "</td>" +
-        "<td>" + (item.banco || "") + "</td>" +
-        "<td>" + (item.observacao || "") + "</td>" +
-        "<td>" + (item.data_finalizacao ? new Date(item.data_finalizacao).toLocaleDateString("pt-BR") : "") + "</td>" +
-        "</tr>";
+function montarHistorico(dados){
+  const historico = document.getElementById("tabelaHistorico");
+  historico.innerHTML = "";
+
+  const finalizados = dados.filter(function(item){
+    return item.status == "Finalizado";
+  });
+
+  finalizados.forEach(function(item){
+    historico.innerHTML +=
+      "<tr>" +
+      "<td>" + (item.nome || "") + "</td>" +
+      "<td>R$ " + Number(item.valor || 0).toLocaleString("pt-BR") + "</td>" +
+      "<td>" + (item.banco || "") + "</td>" +
+      "<td>" + (item.observacao || "") + "</td>" +
+      "<td>" + formatarData(item.data_finalizacao) + "</td>" +
+      "</tr>";
+  });
+}
+
+function montarFiltrosDatas(dados){
+  const area = document.getElementById("filtrosDatas");
+  area.innerHTML = "";
+
+  const finalizados = dados.filter(function(item){
+    return item.status == "Finalizado" && item.data_finalizacao;
+  });
+
+  const datas = [];
+
+  finalizados.forEach(function(item){
+    const data = formatarData(item.data_finalizacao);
+
+    if(data && !datas.includes(data)){
+      datas.push(data);
     }
   });
+
+  area.innerHTML +=
+    "<button class='filtro-data " + (dataSelecionada == "todos" ? "ativo" : "") + "' onclick='selecionarData(\"todos\")'>Todos</button>";
+
+  datas.forEach(function(data){
+    area.innerHTML +=
+      "<button class='filtro-data " + (dataSelecionada == data ? "ativo" : "") + "' onclick='selecionarData(\"" + data + "\")'>" + data + "</button>";
+  });
+}
+
+function selecionarData(data){
+  dataSelecionada = data;
+  montarFiltrosDatas(todosBoletos);
+  atualizarDashboard(todosBoletos);
+}
+
+function atualizarDashboard(dados){
+  let finalizados = dados.filter(function(item){
+    return item.status == "Finalizado";
+  });
+
+  if(dataSelecionada != "todos"){
+    finalizados = finalizados.filter(function(item){
+      return formatarData(item.data_finalizacao) == dataSelecionada;
+    });
+  }
+
+  let total = 0;
+  let bancosGrafico = {};
+
+  finalizados.forEach(function(item){
+    total += Number(item.valor || 0);
+
+    if(item.banco){
+      if(!bancosGrafico[item.banco]){
+        bancosGrafico[item.banco] = 0;
+      }
+
+      bancosGrafico[item.banco] += Number(item.valor || 0);
+    }
+  });
+
+  document.getElementById("tituloTotal").innerHTML =
+    dataSelecionada == "todos" ? "Total Finalizado" : "Total do dia " + dataSelecionada;
 
   document.getElementById("total").innerHTML =
     "R$ " + total.toLocaleString("pt-BR");
