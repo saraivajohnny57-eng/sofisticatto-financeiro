@@ -10,256 +10,51 @@
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
-
-body{
-background:#f5f2fb;
-display:flex;
-min-height:100vh;
-color:#4d4694;
-}
-
-.sidebar{
-width:250px;
-background:white;
-padding:25px;
-box-shadow:0 0 15px rgba(0,0,0,.08);
-display:flex;
-flex-direction:column;
-justify-content:space-between;
-}
-
+body{background:#f5f2fb;display:flex;min-height:100vh;color:#4d4694}
+.sidebar{width:250px;background:white;padding:25px;box-shadow:0 0 15px rgba(0,0,0,.08);display:flex;flex-direction:column;justify-content:space-between}
 .logo{text-align:center;margin-bottom:30px}
 .logo h1{font-size:38px;font-style:italic;font-weight:300;color:#5a4fa3}
 .logo p{font-size:12px;letter-spacing:6px;color:#9c92d9}
-
-.menu button{
-width:100%;
-padding:15px;
-border:none;
-border-radius:15px;
-background:#ede9fb;
-margin-bottom:10px;
-cursor:pointer;
-color:#4d4694;
-}
-
-.logout{
-background:#5a4fa3!important;
-color:white!important;
-border:none;
-padding:15px;
-border-radius:15px;
-cursor:pointer;
-}
-
-.main{
-flex:1;
-padding:30px;
-overflow:auto;
-}
-
-.card{
-background:white;
-padding:25px;
-border-radius:25px;
-box-shadow:0 0 15px rgba(0,0,0,.05);
-margin-bottom:25px;
-}
-
-.top{
-display:flex;
-justify-content:space-between;
-align-items:center;
-margin-bottom:25px;
-gap:15px;
-}
-
+.menu button{width:100%;padding:15px;border:none;border-radius:15px;background:#ede9fb;margin-bottom:10px;cursor:pointer;color:#4d4694}
+.logout{background:#5a4fa3!important;color:white!important;border:none;padding:15px;border-radius:15px;cursor:pointer}
+.main{flex:1;padding:30px;overflow:auto}
+.card{background:white;padding:25px;border-radius:25px;box-shadow:0 0 15px rgba(0,0,0,.05);margin-bottom:25px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px;gap:15px}
 .total h2{font-size:35px;margin-top:10px}
-
-.inputs{
-display:grid;
-grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
-gap:15px;
-margin-top:20px;
-}
-
-input,select{
-padding:12px;
-border:none;
-border-radius:12px;
-background:#f5f2fb;
-outline:none;
-width:100%;
-}
-
-.salvar{
-margin-top:20px;
-background:#5a4fa3;
-color:white;
-border:none;
-padding:14px 22px;
-border-radius:14px;
-cursor:pointer;
-}
-
-.buscar{
-background:#5a4fa3;
-color:white;
-border:none;
-padding:12px 18px;
-border-radius:12px;
-cursor:pointer;
-font-weight:bold;
-}
-
-.table-wrap{
-width:100%;
-overflow-x:auto;
-}
-
-table{
-width:100%;
-border-collapse:collapse;
-margin-top:20px;
-min-width:900px;
-}
-
-th,td{
-padding:12px;
-border-bottom:1px solid #eee;
-text-align:left;
-}
-
-.status{
-padding:8px 15px;
-border-radius:20px;
-font-size:12px;
-color:white;
-white-space:nowrap;
-}
-
+.inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-top:20px}
+input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outline:none;width:100%}
+.salvar{margin-top:20px;background:#5a4fa3;color:white;border:none;padding:14px 22px;border-radius:14px;cursor:pointer}
+.table-wrap{width:100%;overflow-x:auto}
+table{width:100%;border-collapse:collapse;margin-top:20px;min-width:900px}
+th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
+.status{padding:8px 15px;border-radius:20px;font-size:12px;color:white;white-space:nowrap}
 .andamento{background:#f0ad4e}
 .finalizado{background:#5cb85c}
-
-.btn{
-border:none;
-padding:10px 14px;
-border-radius:10px;
-color:white;
-cursor:pointer;
-margin:3px;
-white-space:nowrap;
-}
-
+.btn{border:none;padding:10px 14px;border-radius:10px;color:white;cursor:pointer;margin:3px;white-space:nowrap}
 .azul{background:#3498db}
 .roxo{background:#5a4fa3}
 .vermelho{background:#c0392b}
 .verde{background:#27ae60}
-
-.login{
-position:fixed;
-inset:0;
-background:#f5f2fb;
-display:flex;
-justify-content:center;
-align-items:center;
-z-index:999;
-padding:20px;
-}
-
-.login-box{
-background:white;
-padding:40px;
-border-radius:30px;
-width:350px;
-max-width:100%;
-box-shadow:0 0 20px rgba(0,0,0,.08);
-}
-
-.login-box h1{
-text-align:center;
-font-size:40px;
-font-style:italic;
-font-weight:300;
-color:#5a4fa3;
-}
-
-.login-box p{
-text-align:center;
-letter-spacing:5px;
-font-size:12px;
-margin-bottom:30px;
-color:#9c92d9;
-}
-
+.login{position:fixed;inset:0;background:#f5f2fb;display:flex;justify-content:center;align-items:center;z-index:999;padding:20px}
+.login-box{background:white;padding:40px;border-radius:30px;width:350px;max-width:100%;box-shadow:0 0 20px rgba(0,0,0,.08)}
+.login-box h1{text-align:center;font-size:40px;font-style:italic;font-weight:300;color:#5a4fa3}
+.login-box p{text-align:center;letter-spacing:5px;font-size:12px;margin-bottom:30px;color:#9c92d9}
 .login-box input{margin-bottom:15px}
-
-.login-box button{
-width:100%;
-padding:15px;
-border:none;
-border-radius:15px;
-margin-top:10px;
-cursor:pointer;
-}
-
+.login-box button{width:100%;padding:15px;border:none;border-radius:15px;margin-top:10px;cursor:pointer}
 .entrar{background:#5a4fa3;color:white}
+.usuario-logado{font-size:14px;background:#ede9fb;padding:12px;border-radius:15px;margin-bottom:20px}
+.cor-box{width:35px;height:25px;border-radius:8px;border:1px solid #ddd}
+.grafico-box{position:relative;width:100%;height:350px}
+.notificacao-box{margin-top:15px;background:#ede9fb;padding:15px;border-radius:15px}
+.notificacao-item{background:white;padding:12px;border-radius:12px;margin-bottom:8px;border-left:5px solid #5a4fa3;font-size:13px;cursor:pointer}
+.badge{display:inline-block;background:#5a4fa3;color:white;border-radius:999px;padding:3px 9px;font-size:12px;margin-left:5px}
 
-.usuario-logado{
-font-size:14px;
-background:#ede9fb;
-padding:12px;
-border-radius:15px;
-margin-bottom:20px;
-}
-
-.cor-box{
-width:35px;
-height:25px;
-border-radius:8px;
-border:1px solid #ddd;
-}
-
-.grafico-box{
-position:relative;
-width:100%;
-height:350px;
-}
-
-.notificacao-box{
-margin-top:15px;
-background:#ede9fb;
-padding:15px;
-border-radius:15px;
-}
-
-.notificacao-item{
-background:white;
-padding:12px;
-border-radius:12px;
-margin-bottom:8px;
-border-left:5px solid #5a4fa3;
-font-size:13px;
-cursor:pointer;
-}
-
-.badge{
-display:inline-block;
-background:#5a4fa3;
-color:white;
-border-radius:999px;
-padding:3px 9px;
-font-size:12px;
-margin-left:5px;
-}
-
-.filtro-box{
-margin-top:15px;
-display:grid;
-grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
-gap:10px;
-align-items:end;
-}
+.filtro-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}
+.filtro-tabs button{border:none;background:#ede9fb;color:#4d4694;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:bold}
+.filtro-tabs button.ativo{background:#5a4fa3;color:white}
+.filtro-data-box{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.filtro-data-box input{max-width:220px}
+.buscar{background:#5a4fa3;color:white;border:none;padding:12px 18px;border-radius:12px;cursor:pointer;font-weight:bold}
 
 @media(max-width:768px){
 body{display:block}
@@ -283,1105 +78,968 @@ table{min-width:850px}
 }
 </style>
 </head>
-
 <body>
 
 <div id="loginTela" class="login">
-<div class="login-box">
-<h1>Sofisticatto</h1>
-<p>COSMÉTICOS</p>
-<input type="text" id="login" placeholder="Login">
-<input type="password" id="senha" placeholder="Senha">
-<button class="entrar" onclick="entrar()">Entrar</button>
-</div>
+  <div class="login-box">
+    <h1>Sofisticatto</h1>
+    <p>COSMÉTICOS</p>
+    <input type="text" id="login" placeholder="Login">
+    <input type="password" id="senha" placeholder="Senha">
+    <button class="entrar" onclick="entrar()">Entrar</button>
+  </div>
 </div>
 
 <div class="sidebar">
-<div>
-<div class="logo">
-<h1>Sofisticatto</h1>
-<p>COSMÉTICOS</p>
-</div>
+  <div>
+    <div class="logo">
+      <h1>Sofisticatto</h1>
+      <p>COSMÉTICOS</p>
+    </div>
 
-<div id="usuarioInfo" class="usuario-logado"></div>
+    <div id="usuarioInfo" class="usuario-logado"></div>
 
-<div class="notificacao-box">
-<h3>🔔 Notificações <span id="contadorNotificacoes" class="badge">0</span></h3>
-<div id="listaNotificacoes" style="max-height:230px;overflow:auto;margin-top:10px;"></div>
-</div>
+    <div class="notificacao-box">
+      <h3>🔔 Notificações <span id="contadorNotificacoes" class="badge">0</span></h3>
+      <div id="listaNotificacoes" style="max-height:230px;overflow:auto;margin-top:10px;"></div>
+    </div>
 
-<div class="menu" style="margin-top:15px;">
-<button onclick="mostrarSecao('dashboard')">Dashboard</button>
-<button onclick="mostrarSecao('relatorios')">Relatórios</button>
-<button onclick="mostrarSecao('historico')">Histórico</button>
-<button id="btnAdmin" onclick="mostrarSecao('admin')" style="display:none;">Admin</button>
-</div>
-</div>
+    <div class="menu" style="margin-top:15px;">
+      <button onclick="mostrarSecao('dashboard')">Dashboard</button>
+      <button onclick="mostrarSecao('relatorios')">Relatórios</button>
+      <button onclick="mostrarSecao('historico')">Histórico</button>
+      <button id="btnAdmin" onclick="mostrarSecao('admin')" style="display:none;">Admin</button>
+    </div>
+  </div>
 
-<button class="logout" onclick="sair()">Sair</button>
+  <button class="logout" onclick="sair()">Sair</button>
 </div>
 
 <div class="main">
 
 <div id="dashboard">
+  <div class="top">
+    <div>
+      <h1>Painel Financeiro</h1>
+      <p>Sistema Online Sofisticatto</p>
 
-<div class="top">
-<div>
-<h1>Painel Financeiro</h1>
-<p>Sistema Online Sofisticatto</p>
+      <div class="filtro-tabs">
+        <button id="dash_semana" onclick="setFiltroDashboard('semana')">Semana</button>
+        <button id="dash_mes" onclick="setFiltroDashboard('mes')">Mês</button>
+        <button id="dash_ano" onclick="setFiltroDashboard('ano')">Ano</button>
+        <button id="dash_todos" onclick="setFiltroDashboard('todos')">Todos</button>
+      </div>
 
-<div class="filtro-box">
-<select id="filtroDashboard">
-<option value="todos">Todos</option>
-<option value="hoje">Hoje</option>
-<option value="semana">Semana</option>
-<option value="mes">Mês</option>
-<option value="ano">Ano</option>
-<option value="data">Data específica</option>
-</select>
+      <div class="filtro-data-box">
+        <input type="date" id="dataDashboard">
+        <button class="buscar" onclick="buscarDataDashboard()">Buscar</button>
+      </div>
+    </div>
 
-<input type="date" id="dataDashboard">
+    <div class="card total">
+      <p id="tituloTotal">Total Finalizado</p>
+      <h2 id="total">R$ 0,00</h2>
+    </div>
+  </div>
 
-<button class="buscar" onclick="atualizarDashboard()">
-Buscar
-</button>
-</div>
-
-</div>
-
-<div class="card total">
-<p id="tituloTotal">Total Finalizado</p>
-<h2 id="total">R$ 0,00</h2>
-</div>
-</div>
-
-<div class="card">
-<h2>Total por Banco</h2>
-<div class="grafico-box">
-<canvas id="grafico"></canvas>
-</div>
-</div>
-
+  <div class="card">
+    <h2>Total por Banco</h2>
+    <div class="grafico-box">
+      <canvas id="grafico"></canvas>
+    </div>
+  </div>
 </div>
 <div id="relatorios" style="display:none;">
 
-<div class="card" id="boxNovoRelatorio">
-<h2>Novo Relatório</h2>
+  <div class="card" id="boxNovoRelatorio">
+    <h2>Novo Relatório</h2>
 
-<div class="inputs">
-<input type="text" id="nome" placeholder="Nome do cliente">
-<input type="number" id="valor" placeholder="Valor">
-</div>
+    <div class="inputs">
+      <input type="text" id="nome" placeholder="Nome do cliente">
+      <input type="number" id="valor" placeholder="Valor">
+    </div>
 
-<button class="salvar" onclick="salvarRelatorio()">
-Salvar Relatório
-</button>
-</div>
+    <button class="salvar" onclick="salvarRelatorio()">Salvar Relatório</button>
+  </div>
 
-<div class="card">
-<h2>Relatórios em Andamento</h2>
+  <div class="card">
+    <h2>Relatórios em Andamento</h2>
 
-<div class="table-wrap">
-<table>
-<thead>
-<tr>
-<th>Cliente</th>
-<th>Valor</th>
-<th>Banco</th>
-<th>Observação</th>
-<th>Criado por</th>
-<th>Status</th>
-<th>Ação</th>
-</tr>
-</thead>
-<tbody id="tabela"></tbody>
-</table>
-</div>
-</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Valor</th>
+            <th>Banco</th>
+            <th>Observação</th>
+            <th>Criado por</th>
+            <th>Status</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="tabela"></tbody>
+      </table>
+    </div>
+  </div>
 
 </div>
 
 <div id="historico" style="display:none;">
 
-<div class="card">
-<h2>Histórico Finalizado</h2>
+  <div class="card">
+    <h2>Histórico Finalizado</h2>
 
-<div class="filtro-box">
-<select id="filtroHistorico">
-<option value="todos">Todos</option>
-<option value="hoje">Hoje</option>
-<option value="semana">Semana</option>
-<option value="mes">Mês</option>
-<option value="ano">Ano</option>
-<option value="data">Data específica</option>
-</select>
+    <div class="filtro-tabs">
+      <button id="hist_semana" onclick="setFiltroHistorico('semana')">Semana</button>
+      <button id="hist_mes" onclick="setFiltroHistorico('mes')">Mês</button>
+      <button id="hist_ano" onclick="setFiltroHistorico('ano')">Ano</button>
+      <button id="hist_todos" onclick="setFiltroHistorico('todos')">Todos</button>
+    </div>
 
-<input type="date" id="dataHistorico">
+    <div class="filtro-data-box">
+      <input type="date" id="dataHistorico">
+      <button class="buscar" onclick="buscarDataHistorico()">Buscar</button>
+    </div>
 
-<button class="buscar" onclick="montarHistorico()">
-Buscar
-</button>
-</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Valor</th>
+            <th>Banco</th>
+            <th>Observação</th>
+            <th>Data</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaHistorico"></tbody>
+      </table>
+    </div>
+  </div>
 
-<div class="table-wrap">
-<table>
-<thead>
-<tr>
-<th>Cliente</th>
-<th>Valor</th>
-<th>Banco</th>
-<th>Observação</th>
-<th>Data</th>
-<th>Ação</th>
-</tr>
-</thead>
-<tbody id="tabelaHistorico"></tbody>
-</table>
-</div>
-
-</div>
 </div>
 
 <div id="admin" style="display:none;">
 
-<div class="card">
-<h2>Criar Usuário</h2>
+  <div class="card">
+    <h2>Criar Usuário</h2>
 
-<div class="inputs">
-<input type="text" id="novoLogin" placeholder="Login">
-<input type="text" id="novaSenha" placeholder="Senha">
+    <div class="inputs">
+      <input type="text" id="novoLogin" placeholder="Login">
+      <input type="text" id="novaSenha" placeholder="Senha">
 
-<select id="novoTipo">
-<option value="financeiro">Financeiro</option>
-<option value="banco">Banco</option>
-<option value="admin">Admin</option>
-</select>
-</div>
+      <select id="novoTipo">
+        <option value="financeiro">Financeiro</option>
+        <option value="banco">Banco</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
 
-<button class="salvar" onclick="criarUsuario()">
-Criar Usuário
-</button>
-</div>
+    <button class="salvar" onclick="criarUsuario()">Criar Usuário</button>
+  </div>
 
-<div class="card">
-<h2>Cadastrar Banco</h2>
+  <div class="card">
+    <h2>Cadastrar Banco</h2>
 
-<div class="inputs">
-<input type="text" id="novoBanco" placeholder="Nome do banco">
-<input type="color" id="corBanco" value="#5a4fa3">
-</div>
+    <div class="inputs">
+      <input type="text" id="novoBanco" placeholder="Nome do banco">
+      <input type="color" id="corBanco" value="#5a4fa3">
+    </div>
 
-<button class="salvar" onclick="criarBanco()">
-Cadastrar Banco
-</button>
+    <button class="salvar" onclick="criarBanco()">Cadastrar Banco</button>
 
-<div class="table-wrap">
-<table>
-<thead>
-<tr>
-<th>Banco</th>
-<th>Cor</th>
-<th>Ação</th>
-</tr>
-</thead>
-<tbody id="tabelaBancos"></tbody>
-</table>
-</div>
-</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Banco</th>
+            <th>Cor</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaBancos"></tbody>
+      </table>
+    </div>
+  </div>
 
-<div class="card">
-<h2>Usuários</h2>
+  <div class="card">
+    <h2>Usuários</h2>
 
-<div class="table-wrap">
-<table>
-<thead>
-<tr>
-<th>Login</th>
-<th>Tipo</th>
-</tr>
-</thead>
-<tbody id="tabelaUsuarios"></tbody>
-</table>
-</div>
-</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Login</th>
+            <th>Tipo</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaUsuarios"></tbody>
+      </table>
+    </div>
+  </div>
 
 </div>
 
 </div>
 
 <script>
+const SUPABASE_URL = "https://drtgtwwsbxrmqcaabzcs.supabase.co";
+const SUPABASE_KEY = "sb_publishable_h0Ep974nBED88dimAY0BGQ_KLqoQ7po";
 
-const SUPABASE_URL =
-"https://drtgtwwsbxrmqcaabzcs.supabase.co";
-
-const SUPABASE_KEY =
-"sb_publishable_h0Ep974nBED88dimAY0BGQ_KLqoQ7po";
-
-const banco =
-supabase.createClient(
-SUPABASE_URL,
-SUPABASE_KEY
-);
+const banco = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let usuarioLogado = null;
 let grafico = null;
 let listaBancos = [];
 let todosBoletos = [];
 
+let filtroDashboard = "semana";
+let filtroHistorico = "semana";
+let dataDashboardEspecifica = "";
+let dataHistoricoEspecifica = "";
+
 async function entrar(){
+  const login = document.getElementById("login").value.trim();
+  const senha = document.getElementById("senha").value.trim();
 
-const login =
-document.getElementById("login").value.trim();
+  const resposta = await banco
+    .from("usuarios")
+    .select("*")
+    .eq("login", login)
+    .eq("senha", senha)
+    .single();
 
-const senha =
-document.getElementById("senha").value.trim();
+  if(resposta.error || !resposta.data){
+    alert("Login ou senha inválidos");
+    return;
+  }
 
-const resposta =
-await banco
-.from("usuarios")
-.select("*")
-.eq("login", login)
-.eq("senha", senha)
-.single();
+  usuarioLogado = resposta.data;
 
-if(resposta.error || !resposta.data){
-alert("Login ou senha inválidos");
-return;
-}
+  localStorage.setItem(
+    "usuarioLogado",
+    JSON.stringify(usuarioLogado)
+  );
 
-usuarioLogado = resposta.data;
-
-localStorage.setItem(
-"usuarioLogado",
-JSON.stringify(usuarioLogado)
-);
-
-iniciarSistema();
-
+  iniciarSistema();
 }
 
 function iniciarSistema(){
+  document.getElementById("loginTela").style.display = "none";
 
-document.getElementById("loginTela").style.display = "none";
+  document.getElementById("usuarioInfo").innerHTML =
+    "Usuário: <b>" + usuarioLogado.login +
+    "</b><br>Tipo: <b>" + usuarioLogado.tipo + "</b>";
 
-document.getElementById("usuarioInfo").innerHTML =
-"Usuário: <b>" + usuarioLogado.login +
-"</b><br>Tipo: <b>" + usuarioLogado.tipo + "</b>";
+  document.getElementById("btnAdmin").style.display =
+    usuarioLogado.tipo === "admin" ? "block" : "none";
 
-document.getElementById("btnAdmin").style.display =
-usuarioLogado.tipo === "admin" ? "block" : "none";
+  document.getElementById("boxNovoRelatorio").style.display =
+    usuarioLogado.tipo === "banco" ? "none" : "block";
 
-document.getElementById("boxNovoRelatorio").style.display =
-usuarioLogado.tipo === "banco" ? "none" : "block";
+  mostrarSecao("dashboard");
 
-mostrarSecao("dashboard");
-
-carregarBancos();
-carregarRelatorios();
-carregarUsuarios();
-
+  carregarBancos();
+  carregarRelatorios();
+  carregarUsuarios();
 }
 
 function mostrarSecao(secao){
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("relatorios").style.display = "none";
+  document.getElementById("historico").style.display = "none";
+  document.getElementById("admin").style.display = "none";
 
-document.getElementById("dashboard").style.display = "none";
-document.getElementById("relatorios").style.display = "none";
-document.getElementById("historico").style.display = "none";
-document.getElementById("admin").style.display = "none";
-
-document.getElementById(secao).style.display = "block";
-
+  document.getElementById(secao).style.display = "block";
 }
 
 function sair(){
-
-localStorage.removeItem("usuarioLogado");
-location.reload();
-
+  localStorage.removeItem("usuarioLogado");
+  location.reload();
 }
 
 async function carregarBancos(){
+  const resposta = await banco
+    .from("bancos")
+    .select("*")
+    .order("nome", { ascending:true });
 
-const resposta =
-await banco
-.from("bancos")
-.select("*")
-.order("nome",{ascending:true});
+  if(resposta.error) return;
 
-if(resposta.error) return;
+  listaBancos = resposta.data || [];
 
-listaBancos = resposta.data || [];
+  const tabela = document.getElementById("tabelaBancos");
 
-const tabela =
-document.getElementById("tabelaBancos");
+  if(!tabela) return;
 
-if(!tabela) return;
+  tabela.innerHTML = "";
 
-tabela.innerHTML = "";
-
-listaBancos.forEach(item=>{
-
-tabela.innerHTML += `
-<tr>
-<td>${item.nome || ""}</td>
-<td>
-<div class="cor-box" style="background:${item.cor || "#5a4fa3"}"></div>
-</td>
-<td>
-<button class="btn vermelho" onclick="excluirBanco('${item.id}')">
-Excluir
-</button>
-</td>
-</tr>
-`;
-
-});
-
+  listaBancos.forEach(item => {
+    tabela.innerHTML += `
+      <tr>
+        <td>${item.nome || ""}</td>
+        <td>
+          <div class="cor-box" style="background:${item.cor || "#5a4fa3"}"></div>
+        </td>
+        <td>
+          <button class="btn vermelho" onclick="excluirBanco('${item.id}')">
+            Excluir
+          </button>
+        </td>
+      </tr>
+    `;
+  });
 }
 
 async function carregarRelatorios(){
+  await carregarBancos();
 
-await carregarBancos();
+  const resposta = await banco
+    .from("boletos")
+    .select("*")
+    .order("id", { ascending:false });
 
-const resposta =
-await banco
-.from("boletos")
-.select("*")
-.order("id",{ascending:false});
+  if(resposta.error) return;
 
-if(resposta.error) return;
+  todosBoletos = resposta.data || [];
 
-todosBoletos = resposta.data || [];
-
-montarTabela();
-montarHistorico();
-atualizarDashboard();
-carregarNotificacoes();
-
+  montarTabela();
+  montarHistorico();
+  atualizarDashboard();
+  carregarNotificacoes();
 }
 
 function montarSelectBanco(id,bancoAtual){
+  let html = <select id="banco_${id}">;
+  html += <option value="">Selecione</option>;
 
-let html = <select id="banco_${id}">;
+  listaBancos.forEach(b => {
+    html += `
+      <option value="${b.nome}" ${b.nome === bancoAtual ? "selected" : ""}>
+        ${b.nome}
+      </option>
+    `;
+  });
 
-html += <option value="">Selecione</option>;
-
-listaBancos.forEach(b=>{
-
-html += `
-<option value="${b.nome}" ${b.nome === bancoAtual ? "selected" : ""}>
-${b.nome}
-</option>
-`;
-
-});
-
-html += </select>;
-
-return html;
-
+  html += </select>;
+  return html;
 }
 
 function montarTabela(){
+  const tabela = document.getElementById("tabela");
+  tabela.innerHTML = "";
 
-const tabela =
-document.getElementById("tabela");
+  const andamento = todosBoletos.filter(
+    item => item.status !== "Finalizado"
+  );
 
-tabela.innerHTML = "";
+  andamento.forEach(item => {
+    let bancoCampo = item.banco || "";
+    let observacaoCampo = item.observacao || "";
+    let botoes = "";
+    let nomeCampo = item.nome || "";
+    let valorCampo = "R$ " + Number(item.valor || 0).toLocaleString("pt-BR");
 
-const andamento =
-todosBoletos.filter(
-item => item.status !== "Finalizado"
-);
+    if(usuarioLogado.tipo === "financeiro"){
+      nomeCampo = <input id="edit_nome_${item.id}" value="${item.nome || ""}">;
+      valorCampo = <input type="number" id="edit_valor_${item.id}" value="${item.valor || 0}">;
 
-andamento.forEach(item=>{
+      botoes += `
+        <button class="btn azul" onclick="editarRelatorio('${item.id}')">
+          Editar
+        </button>
+      `;
 
-let bancoCampo = item.banco || "";
-let observacaoCampo = item.observacao || "";
-let botoes = "";
-let nomeCampo = item.nome || "";
-let valorCampo =
-"R$ " + Number(item.valor || 0).toLocaleString("pt-BR");
+      if(item.banco){
+        botoes += `
+          <button class="btn roxo" onclick="finalizar('${item.id}')">
+            Finalizar
+          </button>
+        `;
+      }
 
-if(usuarioLogado.tipo === "financeiro"){
+      botoes += `
+        <button class="btn vermelho" onclick="excluir('${item.id}')">
+          Excluir
+        </button>
+      `;
+    }
 
-nomeCampo =
-<input id="edit_nome_${item.id}" value="${item.nome || ""}">;
+    if(usuarioLogado.tipo === "banco"){
+      bancoCampo = montarSelectBanco(item.id, item.banco || "");
+      observacaoCampo = <input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação">;
 
-valorCampo =
-<input type="number" id="edit_valor_${item.id}" value="${item.valor || 0}">;
+      botoes += `
+        <button class="btn verde" onclick="salvarBanco('${item.id}')">
+          Salvar Banco
+        </button>
+      `;
+    }
 
-botoes += `
-<button class="btn azul" onclick="editarRelatorio('${item.id}')">
-Editar
-</button>
-`;
+    if(usuarioLogado.tipo === "admin"){
+      nomeCampo = <input id="edit_nome_${item.id}" value="${item.nome || ""}">;
+      valorCampo = <input type="number" id="edit_valor_${item.id}" value="${item.valor || 0}">;
+      bancoCampo = montarSelectBanco(item.id, item.banco || "");
+      observacaoCampo = <input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação">;
 
-if(item.banco){
+      botoes += `
+        <button class="btn azul" onclick="editarRelatorio('${item.id}')">
+          Editar
+        </button>
+      `;
 
-botoes += `
-<button class="btn roxo" onclick="finalizar('${item.id}')">
-Finalizar
-</button>
-`;
+      if(item.banco){
+        botoes += `
+          <button class="btn roxo" onclick="finalizar('${item.id}')">
+            Finalizar
+          </button>
+        `;
+      }
 
+      botoes += `
+        <button class="btn vermelho" onclick="excluir('${item.id}')">
+          Excluir
+        </button>
+      `;
+    }
+
+    tabela.innerHTML += `
+      <tr>
+        <td>${nomeCampo}</td>
+        <td>${valorCampo}</td>
+        <td>${bancoCampo}</td>
+        <td>${observacaoCampo}</td>
+        <td>${item.criado_por || ""}</td>
+        <td><span class="status andamento">Em andamento</span></td>
+        <td>${botoes}</td>
+      </tr>
+    `;
+  });
+}
+  function inicioDoDia(data){
+  const d = new Date(data);
+  d.setHours(0,0,0,0);
+  return d;
 }
 
-botoes += `
-<button class="btn vermelho" onclick="excluir('${item.id}')">
-Excluir
-</button>
-`;
+function filtrarPorPeriodo(lista, filtro, dataEspecifica){
+  const hoje = inicioDoDia(new Date());
 
+  return lista.filter(item => {
+    if(!item.data_finalizacao) return false;
+
+    const dataItem = inicioDoDia(item.data_finalizacao);
+
+    if(filtro === "todos"){
+      return true;
+    }
+
+    if(filtro === "semana"){
+      const semanaAtras = new Date(hoje);
+      semanaAtras.setDate(hoje.getDate() - 7);
+      return dataItem >= semanaAtras && dataItem <= hoje;
+    }
+
+    if(filtro === "mes"){
+      return (
+        dataItem.getMonth() === hoje.getMonth() &&
+        dataItem.getFullYear() === hoje.getFullYear()
+      );
+    }
+
+    if(filtro === "ano"){
+      return dataItem.getFullYear() === hoje.getFullYear();
+    }
+
+    if(filtro === "data"){
+      if(!dataEspecifica) return true;
+      const dataDigitada = inicioDoDia(dataEspecifica + "T00:00:00");
+      return dataItem.getTime() === dataDigitada.getTime();
+    }
+
+    return true;
+  });
 }
 
-if(usuarioLogado.tipo === "banco"){
-
-bancoCampo =
-montarSelectBanco(
-item.id,
-item.banco || ""
-);
-
-observacaoCampo =
-<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação">;
-
-botoes += `
-<button class="btn verde" onclick="salvarBanco('${item.id}')">
-Salvar Banco
-</button>
-`;
-
+function atualizarAbasFiltro(prefixo, filtroAtual){
+  ["semana","mes","ano","todos"].forEach(tipo => {
+    const botao = document.getElementById(prefixo + "_" + tipo);
+    if(botao){
+      botao.classList.remove("ativo");
+      if(tipo === filtroAtual){
+        botao.classList.add("ativo");
+      }
+    }
+  });
 }
 
-if(usuarioLogado.tipo === "admin"){
-
-nomeCampo =
-<input id="edit_nome_${item.id}" value="${item.nome || ""}">;
-
-valorCampo =
-<input type="number" id="edit_valor_${item.id}" value="${item.valor || 0}">;
-
-bancoCampo =
-montarSelectBanco(
-item.id,
-item.banco || ""
-);
-
-observacaoCampo =
-<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação">;
-
-botoes += `
-<button class="btn azul" onclick="editarRelatorio('${item.id}')">
-Editar
-</button>
-`;
-
-if(item.banco){
-
-botoes += `
-<button class="btn roxo" onclick="finalizar('${item.id}')">
-Finalizar
-</button>
-`;
-
+function setFiltroDashboard(tipo){
+  filtroDashboard = tipo;
+  dataDashboardEspecifica = "";
+  document.getElementById("dataDashboard").value = "";
+  atualizarAbasFiltro("dash", filtroDashboard);
+  atualizarDashboard();
 }
 
-botoes += `
-<button class="btn vermelho" onclick="excluir('${item.id}')">
-Excluir
-</button>
-`;
+function buscarDataDashboard(){
+  const data = document.getElementById("dataDashboard").value;
 
+  if(!data){
+    alert("Escolha uma data para buscar");
+    return;
+  }
+
+  filtroDashboard = "data";
+  dataDashboardEspecifica = data;
+  atualizarAbasFiltro("dash", "");
+  atualizarDashboard();
 }
 
-tabela.innerHTML += `
-<tr>
-<td>${nomeCampo}</td>
-<td>${valorCampo}</td>
-<td>${bancoCampo}</td>
-<td>${observacaoCampo}</td>
-<td>${item.criado_por || ""}</td>
-<td>
-<span class="status andamento">Em andamento</span>
-</td>
-<td>${botoes}</td>
-</tr>
-`;
-
-});
-
-}
-  function filtrarPorPeriodo(lista, filtro, dataEspecifica){
-
-const hoje = new Date();
-
-return lista.filter(item=>{
-
-if(!item.data_finalizacao) return false;
-
-const dataItem = new Date(item.data_finalizacao);
-
-if(filtro === "todos"){
-return true;
+function setFiltroHistorico(tipo){
+  filtroHistorico = tipo;
+  dataHistoricoEspecifica = "";
+  document.getElementById("dataHistorico").value = "";
+  atualizarAbasFiltro("hist", filtroHistorico);
+  montarHistorico();
 }
 
-if(filtro === "hoje"){
+function buscarDataHistorico(){
+  const data = document.getElementById("dataHistorico").value;
 
-return dataItem.toDateString() === hoje.toDateString();
+  if(!data){
+    alert("Escolha uma data para buscar");
+    return;
+  }
 
-}
-
-if(filtro === "semana"){
-
-const semanaAtras = new Date();
-semanaAtras.setDate(hoje.getDate() - 7);
-
-return dataItem >= semanaAtras;
-
-}
-
-if(filtro === "mes"){
-
-return (
-dataItem.getMonth() === hoje.getMonth()
-&&
-dataItem.getFullYear() === hoje.getFullYear()
-);
-
-}
-
-if(filtro === "ano"){
-
-return (
-dataItem.getFullYear() === hoje.getFullYear()
-);
-
-}
-
-if(filtro === "data"){
-
-if(!dataEspecifica) return true;
-
-return (
-dataItem.toISOString().split("T")[0]
-===
-dataEspecifica
-);
-
-}
-
-return true;
-
-});
-
+  filtroHistorico = "data";
+  dataHistoricoEspecifica = data;
+  atualizarAbasFiltro("hist", "");
+  montarHistorico();
 }
 
 function montarHistorico(){
+  const tabela = document.getElementById("tabelaHistorico");
+  tabela.innerHTML = "";
 
-const tabela =
-document.getElementById("tabelaHistorico");
+  const finalizados = filtrarPorPeriodo(
+    todosBoletos.filter(item => item.status === "Finalizado"),
+    filtroHistorico,
+    dataHistoricoEspecifica
+  );
 
-tabela.innerHTML = "";
+  finalizados.forEach(item => {
+    let botoes = "";
 
-const filtro =
-document.getElementById("filtroHistorico").value;
+    if(usuarioLogado.tipo === "financeiro" || usuarioLogado.tipo === "admin"){
+      botoes += `
+        <button class="btn azul" onclick="editarHistorico('${item.id}')">
+          Editar
+        </button>
+      `;
+    }
 
-const dataEspecifica =
-document.getElementById("dataHistorico").value;
-
-const finalizados =
-filtrarPorPeriodo(
-todosBoletos.filter(
-item => item.status === "Finalizado"
-),
-filtro,
-dataEspecifica
-);
-
-finalizados.forEach(item=>{
-
-let botoes = "";
-
-if(
-usuarioLogado.tipo === "financeiro"
-||
-usuarioLogado.tipo === "admin"
-){
-
-botoes += `
-<button class="btn azul"
-onclick="editarRelatorio('${item.id}')">
-Editar
-</button>
-`;
-
-}
-
-tabela.innerHTML += `
-<tr>
-
-<td>${item.nome || ""}</td>
-
-<td>
-R$ ${Number(item.valor || 0)
-.toLocaleString("pt-BR")}
-</td>
-
-<td>${item.banco || ""}</td>
-
-<td>${item.observacao || ""}</td>
-
-<td>
-${new Date(item.data_finalizacao)
-.toLocaleDateString("pt-BR")}
-</td>
-
-<td>${botoes}</td>
-
-</tr>
-`;
-
-});
-
+    tabela.innerHTML += `
+      <tr>
+        <td>${item.nome || ""}</td>
+        <td>R$ ${Number(item.valor || 0).toLocaleString("pt-BR")}</td>
+        <td>${item.banco || ""}</td>
+        <td>${item.observacao || ""}</td>
+        <td>${item.data_finalizacao ? new Date(item.data_finalizacao).toLocaleDateString("pt-BR") : ""}</td>
+        <td>${botoes}</td>
+      </tr>
+    `;
+  });
 }
 
 function atualizarDashboard(){
+  const finalizados = filtrarPorPeriodo(
+    todosBoletos.filter(item => item.status === "Finalizado"),
+    filtroDashboard,
+    dataDashboardEspecifica
+  );
 
-const filtro =
-document.getElementById("filtroDashboard").value;
+  let total = 0;
+  let bancosGrafico = {};
 
-const dataEspecifica =
-document.getElementById("dataDashboard").value;
+  finalizados.forEach(item => {
+    total += Number(item.valor || 0);
 
-const finalizados =
-filtrarPorPeriodo(
-todosBoletos.filter(
-item => item.status === "Finalizado"
-),
-filtro,
-dataEspecifica
-);
+    if(item.banco){
+      if(!bancosGrafico[item.banco]){
+        bancosGrafico[item.banco] = 0;
+      }
 
-let total = 0;
-let bancosGrafico = {};
+      bancosGrafico[item.banco] += Number(item.valor || 0);
+    }
+  });
 
-finalizados.forEach(item=>{
+  let titulo = "Total Finalizado";
 
-total += Number(item.valor || 0);
+  if(filtroDashboard === "semana"){
+    titulo = "Total da Semana";
+  }
 
-if(item.banco){
+  if(filtroDashboard === "mes"){
+    titulo = "Total do Mês";
+  }
 
-if(!bancosGrafico[item.banco]){
-bancosGrafico[item.banco] = 0;
-}
+  if(filtroDashboard === "ano"){
+    titulo = "Total do Ano";
+  }
 
-bancosGrafico[item.banco] +=
-Number(item.valor || 0);
+  if(filtroDashboard === "todos"){
+    titulo = "Total Geral Finalizado";
+  }
 
-}
+  if(filtroDashboard === "data"){
+    titulo = "Total da Data";
+  }
 
-});
+  document.getElementById("tituloTotal").innerHTML = titulo;
 
-document.getElementById("total").innerHTML =
-"R$ " + total.toLocaleString("pt-BR");
+  document.getElementById("total").innerHTML =
+    "R$ " + total.toLocaleString("pt-BR");
 
-const labels =
-Object.keys(bancosGrafico);
+  const labels = Object.keys(bancosGrafico);
+  const valores = Object.values(bancosGrafico);
 
-const valores =
-Object.values(bancosGrafico);
+  const cores = labels.map(nomeBanco => {
+    const encontrado = listaBancos.find(b => b.nome === nomeBanco);
+    return encontrado?.cor || "#5a4fa3";
+  });
 
-const cores =
-labels.map(nomeBanco=>{
+  if(grafico){
+    grafico.destroy();
+  }
 
-const encontrado =
-listaBancos.find(
-b=>b.nome===nomeBanco
-);
+  grafico = new Chart(
+    document.getElementById("grafico"),
+    {
+      type:"bar",
+      data:{
+        labels:labels,
+        datasets:[{
+          label:"Total por banco",
+          data:valores,
+          backgroundColor:cores,
+          borderColor:cores,
+          borderWidth:1
+        }]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false
+      }
+    }
+  );
 
-return encontrado?.cor || "#5a4fa3";
-
-});
-
-if(grafico){
-grafico.destroy();
-}
-
-grafico =
-new Chart(
-document.getElementById("grafico"),
-{
-type:"bar",
-
-data:{
-labels:labels,
-
-datasets:[{
-label:"Total por banco",
-data:valores,
-backgroundColor:cores,
-borderColor:cores,
-borderWidth:1
-}]
-},
-
-options:{
-responsive:true,
-maintainAspectRatio:false
-}
-
-}
-);
-
+  atualizarAbasFiltro("dash", filtroDashboard);
 }
 
 function carregarNotificacoes(){
+  const lista = document.getElementById("listaNotificacoes");
+  const contador = document.getElementById("contadorNotificacoes");
 
-const lista =
-document.getElementById("listaNotificacoes");
+  if(!lista || !contador || !usuarioLogado) return;
 
-const contador =
-document.getElementById("contadorNotificacoes");
+  lista.innerHTML = "";
 
-if(!lista || !contador) return;
+  let total = 0;
 
-lista.innerHTML = "";
+  if(usuarioLogado.tipo === "banco"){
+    const pendentes = todosBoletos.filter(
+      item => item.status !== "Finalizado" && !item.banco
+    );
 
-let total = 0;
+    total = pendentes.length;
+    contador.innerHTML = total;
 
-if(usuarioLogado.tipo === "banco"){
+    if(total > 0){
+      lista.innerHTML = `
+        <div class="notificacao-item" onclick="mostrarSecao('relatorios')">
+          🔔 Existem <b>${total}</b> boletos aguardando banco.
+        </div>
+      `;
+    }else{
+      lista.innerHTML = `
+        <div class="notificacao-item">
+          Nenhum boleto aguardando banco.
+        </div>
+      `;
+    }
+  }
 
-const pendentes =
-todosBoletos.filter(
-item =>
-item.status !== "Finalizado"
-&& !item.banco
-);
+  if(usuarioLogado.tipo === "financeiro" || usuarioLogado.tipo === "admin"){
+    const aguardando = todosBoletos.filter(
+      item => item.status !== "Finalizado" && item.banco
+    );
 
-total = pendentes.length;
+    total = aguardando.length;
+    contador.innerHTML = total;
 
-contador.innerHTML = total;
-
-if(total > 0){
-
-lista.innerHTML =
-`
-<div class="notificacao-item"
-onclick="mostrarSecao('relatorios')">
-
-🔔 Existem
-<b>${total}</b>
-boletos aguardando banco.
-
-</div>
-`;
-
-}else{
-
-lista.innerHTML =
-`
-<div class="notificacao-item">
-Nenhum boleto aguardando banco.
-</div>
-`;
-
-}
-
-}
-
-if(
-usuarioLogado.tipo === "financeiro"
-||
-usuarioLogado.tipo === "admin"
-){
-
-const aguardando =
-todosBoletos.filter(
-item =>
-item.status !== "Finalizado"
-&& item.banco
-);
-
-total = aguardando.length;
-
-contador.innerHTML = total;
-
-if(total > 0){
-
-lista.innerHTML =
-`
-<div class="notificacao-item"
-onclick="mostrarSecao('relatorios')">
-
-🔔 Existem
-<b>${total}</b>
-boletos aguardando finalização.
-
-</div>
-`;
-
-}else{
-
-lista.innerHTML =
-`
-<div class="notificacao-item">
-Nenhum boleto aguardando finalização.
-</div>
-`;
-
-}
-
-}
-
+    if(total > 0){
+      lista.innerHTML = `
+        <div class="notificacao-item" onclick="mostrarSecao('relatorios')">
+          🔔 Existem <b>${total}</b> boletos aguardando finalização.
+        </div>
+      `;
+    }else{
+      lista.innerHTML = `
+        <div class="notificacao-item">
+          Nenhum boleto aguardando finalização.
+        </div>
+      `;
+    }
+  }
 }
 
 async function salvarRelatorio(){
+  const nome = document.getElementById("nome").value.trim();
+  const valor = document.getElementById("valor").value;
 
-const nome =
-document.getElementById("nome").value;
+  if(!nome || !valor){
+    alert("Preencha nome e valor");
+    return;
+  }
 
-const valor =
-document.getElementById("valor").value;
+  await banco
+    .from("boletos")
+    .insert([{
+      nome:nome,
+      valor:valor,
+      status:"Em andamento",
+      banco:"",
+      observacao:"",
+      criado_por:usuarioLogado.login
+    }]);
 
-if(!nome || !valor){
+  document.getElementById("nome").value = "";
+  document.getElementById("valor").value = "";
 
-alert("Preencha nome e valor");
-return;
-
-}
-
-await banco
-.from("boletos")
-.insert([{
-nome:nome,
-valor:valor,
-status:"Em andamento",
-criado_por:usuarioLogado.login
-}]);
-
-document.getElementById("nome").value = "";
-document.getElementById("valor").value = "";
-
-carregarRelatorios();
-
+  carregarRelatorios();
 }
 
 async function salvarBanco(id){
+  const bancoSelecionado = document.getElementById("banco_" + id).value;
 
-const bancoSelecionado =
-document.getElementById("banco_" + id).value;
+  const observacao = document.getElementById("obs_" + id)
+    ? document.getElementById("obs_" + id).value
+    : "";
 
-const observacao =
-document.getElementById("obs_" + id)
-? document.getElementById("obs_" + id).value
-: "";
+  if(!bancoSelecionado){
+    alert("Selecione um banco");
+    return;
+  }
 
-if(!bancoSelecionado){
+  await banco
+    .from("boletos")
+    .update({
+      banco:bancoSelecionado,
+      observacao:observacao
+    })
+    .eq("id",id);
 
-alert("Selecione um banco");
-return;
-
-}
-
-await banco
-.from("boletos")
-.update({
-banco:bancoSelecionado,
-observacao:observacao
-})
-.eq("id",id);
-
-carregarRelatorios();
-
+  carregarRelatorios();
 }
 
 async function finalizar(id){
+  await banco
+    .from("boletos")
+    .update({
+      status:"Finalizado",
+      data_finalizacao:new Date()
+    })
+    .eq("id",id);
 
-await banco
-.from("boletos")
-.update({
-status:"Finalizado",
-data_finalizacao:new Date()
-})
-.eq("id",id);
-
-carregarRelatorios();
-
+  carregarRelatorios();
 }
 
 async function excluir(id){
+  if(!confirm("Excluir relatório?")) return;
 
-if(!confirm("Excluir relatório?")) return;
+  await banco
+    .from("boletos")
+    .delete()
+    .eq("id",id);
 
-await banco
-.from("boletos")
-.delete()
-.eq("id",id);
-
-carregarRelatorios();
-
+  carregarRelatorios();
 }
 
 async function editarRelatorio(id){
+  const nomeInput = document.getElementById("edit_nome_" + id);
+  const valorInput = document.getElementById("edit_valor_" + id);
 
-const nomeInput =
-document.getElementById("edit_nome_" + id);
+  if(!nomeInput || !valorInput){
+    alert("Campos não encontrados");
+    return;
+  }
 
-const valorInput =
-document.getElementById("edit_valor_" + id);
+  let dados = {
+    nome:nomeInput.value,
+    valor:valorInput.value
+  };
 
-if(!nomeInput || !valorInput){
+  if(usuarioLogado.tipo === "admin"){
+    const bancoInput = document.getElementById("banco_" + id);
+    const obsInput = document.getElementById("obs_" + id);
 
-alert("Campos não encontrados");
-return;
+    dados.banco = bancoInput ? bancoInput.value : "";
+    dados.observacao = obsInput ? obsInput.value : "";
+  }
 
+  await banco
+    .from("boletos")
+    .update(dados)
+    .eq("id",id);
+
+  alert("Relatório atualizado!");
+
+  carregarRelatorios();
 }
 
-await banco
-.from("boletos")
-.update({
-nome:nomeInput.value,
-valor:valorInput.value
-})
-.eq("id",id);
+async function editarHistorico(id){
+  const item = todosBoletos.find(b => b.id == id);
 
-alert("Relatório atualizado!");
+  if(!item){
+    alert("Registro não encontrado");
+    return;
+  }
 
-carregarRelatorios();
+  const novoNome = prompt("Nome do cliente:", item.nome || "");
+  if(novoNome === null) return;
 
+  const novoValor = prompt("Valor:", item.valor || "");
+  if(novoValor === null) return;
+
+  const novaObservacao = prompt("Observação:", item.observacao || "");
+  if(novaObservacao === null) return;
+
+  await banco
+    .from("boletos")
+    .update({
+      nome:novoNome,
+      valor:novoValor,
+      observacao:novaObservacao,
+      editado_por:usuarioLogado.login,
+      data_edicao:new Date()
+    })
+    .eq("id",id);
+
+  alert("Histórico atualizado!");
+
+  carregarRelatorios();
 }
 
 async function criarBanco(){
+  const nome = document.getElementById("novoBanco").value.trim();
+  const cor = document.getElementById("corBanco").value;
 
-const nome =
-document.getElementById("novoBanco").value;
+  if(!nome){
+    alert("Digite o nome do banco");
+    return;
+  }
 
-const cor =
-document.getElementById("corBanco").value;
+  await banco
+    .from("bancos")
+    .insert([{
+      nome:nome,
+      cor:cor
+    }]);
 
-if(!nome){
+  document.getElementById("novoBanco").value = "";
 
-alert("Digite o nome");
-return;
-
-}
-
-await banco
-.from("bancos")
-.insert([{
-nome:nome,
-cor:cor
-}]);
-
-document.getElementById("novoBanco").value = "";
-
-carregarBancos();
-carregarRelatorios();
-
+  carregarBancos();
+  carregarRelatorios();
 }
 
 async function excluirBanco(id){
+  if(!confirm("Excluir este banco?")) return;
 
-await banco
-.from("bancos")
-.delete()
-.eq("id",id);
+  await banco
+    .from("bancos")
+    .delete()
+    .eq("id",id);
 
-carregarBancos();
-carregarRelatorios();
-
+  carregarBancos();
+  carregarRelatorios();
 }
 
 async function criarUsuario(){
+  const login = document.getElementById("novoLogin").value.trim();
+  const senha = document.getElementById("novaSenha").value.trim();
+  const tipo = document.getElementById("novoTipo").value;
 
-const login =
-document.getElementById("novoLogin").value;
+  if(!login || !senha){
+    alert("Preencha login e senha");
+    return;
+  }
 
-const senha =
-document.getElementById("novaSenha").value;
+  await banco
+    .from("usuarios")
+    .insert([{
+      login:login,
+      senha:senha,
+      tipo:tipo
+    }]);
 
-const tipo =
-document.getElementById("novoTipo").value;
+  alert("Usuário criado!");
 
-await banco
-.from("usuarios")
-.insert([{
-login:login,
-senha:senha,
-tipo:tipo
-}]);
+  document.getElementById("novoLogin").value = "";
+  document.getElementById("novaSenha").value = "";
 
-alert("Usuário criado!");
-
-document.getElementById("novoLogin").value = "";
-document.getElementById("novaSenha").value = "";
-
-carregarUsuarios();
-
+  carregarUsuarios();
 }
 
 async function carregarUsuarios(){
+  if(!usuarioLogado || usuarioLogado.tipo !== "admin") return;
 
-if(usuarioLogado.tipo !== "admin") return;
+  const resposta = await banco
+    .from("usuarios")
+    .select("*")
+    .order("login",{ascending:true});
 
-const resposta =
-await banco
-.from("usuarios")
-.select("*");
+  if(resposta.error) return;
 
-if(resposta.error) return;
+  const tabela = document.getElementById("tabelaUsuarios");
+  tabela.innerHTML = "";
 
-const tabela =
-document.getElementById("tabelaUsuarios");
-
-tabela.innerHTML = "";
-
-resposta.data.forEach(user=>{
-
-tabela.innerHTML += `
-<tr>
-<td>${user.login}</td>
-<td>${user.tipo}</td>
-</tr>
-`;
-
-});
-
+  resposta.data.forEach(user => {
+    tabela.innerHTML += `
+      <tr>
+        <td>${user.login}</td>
+        <td>${user.tipo}</td>
+      </tr>
+    `;
+  });
 }
 
 banco
 .channel("tempo-real")
 .on(
-"postgres_changes",
-{
-event:"*",
-schema:"public",
-table:"boletos"
-},
-()=>{
-if(usuarioLogado){
-carregarRelatorios();
-}
-}
+  "postgres_changes",
+  {
+    event:"*",
+    schema:"public",
+    table:"boletos"
+  },
+  () => {
+    if(usuarioLogado){
+      carregarRelatorios();
+    }
+  }
 )
 .subscribe();
 
 window.onload = function(){
+  const salvo = localStorage.getItem("usuarioLogado");
 
-const salvo =
-localStorage.getItem("usuarioLogado");
-
-if(salvo){
-
-usuarioLogado = JSON.parse(salvo);
-
-iniciarSistema();
-
-}
-
-}
-
+  if(salvo){
+    usuarioLogado = JSON.parse(salvo);
+    iniciarSistema();
+  }
+};
 </script>
 
 </body>
