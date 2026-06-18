@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sofisticatto Financeiro</title>
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=TgZKGimscWPJj3lEsXR29BWe4exDfWVL4VWyZ5g7A2wsryh-fM4Oa3FG4_NtJMO4I77lppBbsqfgyF-3ZrInKMqdDyRZ9vdOqmJU1UUJ2hyEtPci-mDY0AdUoXpDQI6lFDjkySbvVxeRcKNq5NlEGhTzQRqxQZ4UsBeqVJgy-IS2ifTcUtU1uFffdW9KLN11J5Jal55Nn17jSP02PIYDXZr9kAO3tRJzGwE13nxGcLjJryg_-vgK2TYnEk6iQi5C1pSyBsaHeJnu9t_tVERqvhnK1pnWi5nfOOAubmvf6Fms4WDtNLp79gDEn1RUsZNSs3VxGqi5eZULTr2cRO4rtA" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=3v_PQ1M91EYLq3zdtOtgwzgr8mq2Lmy8HIYiiKzglrrgm76jDnUmh2bBRR1g7yY5nsq1AnAt4NU3NINZR0G5wGNduiXRttiH9xXz2Sb5oad0qvbBDoGBWFvBzuRh_64sRx2rIZBRCu6-kgLNOA9LeovJlkJ0eDu4wKxBOLCs56HB8AEU3DdSgHMUZhevmFFDsnZdPUIYyUwAC5siU1bpTu9PZHTkfyiUJ8OgzaCzwhFF0K1bq7dx-Ac0zszDsWqybQSVv195XgICUNSDnx--CZXTYQkFXX8QHqH5rUoFJmVt7TUFXvqEAaNZDMo8gY5Dlm7kPDSAtseNCvrvug6CiHisdpLfX-s_w1d-Y0ZKbkg" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
@@ -115,7 +115,14 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
         <button id="hist_ano" onclick="setFiltroHistorico('ano')">Ano</button>
         <button id="hist_todos" onclick="setFiltroHistorico('todos')">Todos</button>
       </div>
-      <div class="filtro-data-box"><input type="date" id="dataHistorico"><button class="buscar" onclick="buscarDataHistorico()">Buscar</button></div>
+      <div class="filtro-data-box">
+        <input type="date" id="dataHistorico">
+        <button class="buscar" onclick="buscarDataHistorico()">Buscar</button>
+      </div>
+      <div class="filtro-data-box">
+        <input type="text" id="buscaNomeHistorico" placeholder="Buscar por nome do cliente" oninput="buscarNomeHistorico()">
+        <button class="buscar" onclick="limparBuscaNomeHistorico()">Limpar Nome</button>
+      </div>
       <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Valor</th><th>Banco</th><th>Observação</th><th>Data Finalização</th><th>Editado por</th><th>Última edição</th><th>Ação</th></tr></thead><tbody id="tabelaHistorico"></tbody></table></div>
     </div>
   </div>
@@ -154,6 +161,7 @@ let dataDashboardEspecifica = formatarDataInput(new Date());
 let dataDashboardInicio = formatarDataInput(new Date());
 let dataDashboardFim = formatarDataInput(new Date());
 let dataHistoricoEspecifica = "";
+let filtroNomeHistorico = "";
 
 async function entrar(){
   const login = document.getElementById("login").value.trim();
@@ -424,10 +432,25 @@ function buscarDataHistorico(){
   montarHistorico();
 }
 
+function buscarNomeHistorico(){
+  filtroNomeHistorico = document.getElementById("buscaNomeHistorico").value.trim().toLowerCase();
+  montarHistorico();
+}
+
+function limparBuscaNomeHistorico(){
+  filtroNomeHistorico = "";
+  document.getElementById("buscaNomeHistorico").value = "";
+  montarHistorico();
+}
+
 function montarHistorico(){
   const tabela = document.getElementById("tabelaHistorico");
   tabela.innerHTML = "";
-  const finalizados = filtrarPorPeriodo(todosBoletos.filter(item => item.status === "Finalizado"), filtroHistorico, dataHistoricoEspecifica);
+  let finalizados = filtrarPorPeriodo(todosBoletos.filter(item => item.status === "Finalizado"), filtroHistorico, dataHistoricoEspecifica);
+
+  if(filtroNomeHistorico){
+    finalizados = finalizados.filter(item => String(item.nome || "").toLowerCase().includes(filtroNomeHistorico));
+  }
 
   finalizados.forEach(item => {
     let botoes = "";
