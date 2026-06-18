@@ -6,7 +6,7 @@
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=OCP2OB3O6GwLRx-n-2TFrLm2eynB-LxS01z4rtkjD76iyRmDWOrScH-9QQEKJRxmpCUELikBUUEVYs9EeIJOzXI5CUDQqtgBoUCwSyDkgdPbBu1g08eeLneNPg121FRIsdIYbNa3aNmc-OXY9QsbZMVyP4LHmh17_G1nDJM2-itGOw4VnxUbULPYez4oOXqUSwHtalID5zkpcRhh-cuAy7hldWZgrT2TR4_ccBfE1fmloIHN6xbmaNDhW4ui_TJSqdSp9Uqk9P8EucD6xQ0cnYSiOmbp3hyuUYXbbILXOJy2GqTq1k7uci5GmTUR0v8L" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
@@ -189,6 +189,7 @@ let intervaloSincronizacao = null;
 let bancosJaCarregados = false;
 let notificacoesRecebidas = new Set();
 let atualizacaoPendenteEnquantoEdita = false;
+let formularioRelatorioAlterado = false;
 
 async function entrar(){
   const login = document.getElementById("login").value.trim();
@@ -271,7 +272,7 @@ async function carregarRelatorios(){
 }
 
 function montarSelectBanco(id, bancoAtual){
-  let html = `<select id="banco_${id}"><option value="">Selecione</option>`;
+  let html = `<select id="banco_${id}" onchange="marcarEdicaoRelatorio()"><option value="">Selecione</option>`;
   listaBancos.forEach(b => html += `<option value="${b.nome}" ${b.nome === bancoAtual ? "selected" : ""}>${b.nome}</option>`);
   html += `</select>`;
   return html;
@@ -290,8 +291,8 @@ function montarTabela(){
     let valorCampo = "R$ " + valorParaNumero(item.valor || 0).toLocaleString("pt-BR");
 
     if(usuarioLogado.tipo === "financeiro"){
-      nomeCampo = `<input id="edit_nome_${item.id}" value="${item.nome || ""}">`;
-      valorCampo = `<input type="text" id="edit_valor_${item.id}" value="${valorParaInput(item.valor || 0)}" inputmode="decimal" oninput="mascaraValor(this)">`;
+      nomeCampo = `<input id="edit_nome_${item.id}" value="${item.nome || ""}" oninput="marcarEdicaoRelatorio()">`;
+      valorCampo = `<input type="text" id="edit_valor_${item.id}" value="${valorParaInput(item.valor || 0)}" inputmode="decimal" oninput="mascaraValor(this);marcarEdicaoRelatorio()">`;
       botoes += `<button class="btn azul" onclick="editarRelatorio('${item.id}')">Editar</button>`;
       if(item.banco){ botoes += `<button class="btn roxo" onclick="finalizar('${item.id}')">Finalizar</button>`; }
       botoes += `<button class="btn vermelho" onclick="excluir('${item.id}')">Excluir</button>`;
@@ -299,15 +300,15 @@ function montarTabela(){
 
     if(usuarioLogado.tipo === "banco"){
       bancoCampo = montarSelectBanco(item.id, item.banco || "");
-      observacaoCampo = `<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação">`;
+      observacaoCampo = `<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação" oninput="marcarEdicaoRelatorio()">`;
       botoes += `<button class="btn verde" onclick="salvarBanco('${item.id}')">Salvar Banco</button>`;
     }
 
     if(usuarioLogado.tipo === "admin"){
-      nomeCampo = `<input id="edit_nome_${item.id}" value="${item.nome || ""}">`;
-      valorCampo = `<input type="text" id="edit_valor_${item.id}" value="${valorParaInput(item.valor || 0)}" inputmode="decimal" oninput="mascaraValor(this)">`;
+      nomeCampo = `<input id="edit_nome_${item.id}" value="${item.nome || ""}" oninput="marcarEdicaoRelatorio()">`;
+      valorCampo = `<input type="text" id="edit_valor_${item.id}" value="${valorParaInput(item.valor || 0)}" inputmode="decimal" oninput="mascaraValor(this);marcarEdicaoRelatorio()">`;
       bancoCampo = montarSelectBanco(item.id, item.banco || "");
-      observacaoCampo = `<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação">`;
+      observacaoCampo = `<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação" oninput="marcarEdicaoRelatorio()">`;
       botoes += `<button class="btn azul" onclick="editarRelatorio('${item.id}')">Editar</button>`;
       if(item.banco){ botoes += `<button class="btn roxo" onclick="finalizar('${item.id}')">Finalizar</button>`; }
       botoes += `<button class="btn vermelho" onclick="excluir('${item.id}')">Excluir</button>`;
@@ -866,7 +867,7 @@ async function salvarBanco(id){
   if(!bancoSelecionado){ alert("Selecione um banco"); return; }
 
   await banco.from("boletos").update({banco:bancoSelecionado,observacao:observacao}).eq("id",id);
-  atualizacaoPendenteEnquantoEdita = false;
+  limparEdicaoRelatorio();
   mostrarBalaoSistema("Banco salvo", "O financeiro já pode ver essa autorização.");
   carregarRelatorios();
 }
@@ -897,6 +898,7 @@ async function editarRelatorio(id){
   }
 
   await banco.from("boletos").update(dados).eq("id",id);
+  limparEdicaoRelatorio();
   alert("Relatório atualizado!");
   carregarRelatorios();
 }
@@ -960,7 +962,18 @@ async function carregarUsuarios(){
   });
 }
 
+function marcarEdicaoRelatorio(){
+  formularioRelatorioAlterado = true;
+}
+
+function limparEdicaoRelatorio(){
+  formularioRelatorioAlterado = false;
+  atualizacaoPendenteEnquantoEdita = false;
+}
+
 function usuarioEstaEditandoRelatorio(){
+  if(formularioRelatorioAlterado) return true;
+
   const ativo = document.activeElement;
   if(!ativo) return false;
 
@@ -1014,13 +1027,7 @@ function atualizarTempoRealComDebounce(payload){
     return;
   }
 
-  if(timerAtualizacaoTempoReal){
-    clearTimeout(timerAtualizacaoTempoReal);
-  }
-
-  timerAtualizacaoTempoReal = setTimeout(() => {
-    carregarRelatorios();
-  }, 250);
+  carregarRelatorios();
 }
 
 function iniciarSincronizacaoAutomatica(){
@@ -1032,7 +1039,7 @@ function iniciarSincronizacaoAutomatica(){
     if(usuarioLogado && !document.hidden && !usuarioEstaEditandoRelatorio()){
       carregarRelatorios();
     }
-  }, 60000);
+  }, 5000);
 }
 
 banco
