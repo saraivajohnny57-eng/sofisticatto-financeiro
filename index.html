@@ -6,7 +6,7 @@
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
 
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=OCP2OB3O6GwLRx-n-2TFrLm2eynB-LxS01z4rtkjD76iyRmDWOrScH-9QQEKJRxmpCUELikBUUEVYs9EeIJOzXI5CUDQqtgBoUCwSyDkgdPbBu1g08eeLneNPg121FRIsdIYbNa3aNmc-OXY9QsbZMVyP4LHmh17_G1nDJM2-itGOw4VnxUbULPYez4oOXqUSwHtalID5zkpcRhh-cuAy7hldWZgrT2TR4_ccBfE1fmloIHN6xbmaNDhW4ui_TJSqdSp9Uqk9P8EucD6xQ0cnYSiOmbp3hyuUYXbbILXOJy2GqTq1k7uci5GmTUR0v8L" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=iKnQxXVKA9W6qhinJ8CpXfIyOpfvSeNkoTT352UU0aV5mt2V0tvpODkwzFjDRXG8cGv4V0eEE3HZK7CmYLTbz4JPjnNDY-SrdRRU7aHiGWG18Bzef-SFLZBxkvQ2hs7EKRMCP19WURurdnsbsOLBIQFgcMDovXwp4UAv1O6ISjF-fSb2djnRCas0o-WuyktiBKxuWRiWy4PddG0ScXltR76xSKekxwbdYcDXlVjaUPLxYNY2KBeHJNhvqOV5niwFeoU68YSAGyl_bss_k65mD-UZ8HURTDPdwYlTc43TX0fG1G3qq9OL4fsk-l9fW1Kf" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
@@ -216,7 +216,6 @@ function iniciarSistema(){
   mostrarSecao("dashboard");
   carregarRelatorios();
   carregarUsuarios();
-  iniciarSincronizacaoAutomatica();
 }
 
 function mostrarSecao(secao){
@@ -242,9 +241,9 @@ async function carregarBancos(){
   });
 }
 
-async function carregarRelatorios(){
+async function carregarRelatorios(silencioso = false){
   try{
-    mostrarCarregando("Atualizando dados...");
+    if(!silencioso) mostrarCarregando("Atualizando dados...");
 
     if(!bancosJaCarregados){
       await carregarBancos();
@@ -267,7 +266,7 @@ async function carregarRelatorios(){
     console.error("Erro geral ao carregar relatórios:", erro);
     mostrarToastSistema("Erro no carregamento", "Confira sua internet e tente abrir novamente.");
   }finally{
-    esconderCarregando();
+    if(!silencioso) esconderCarregando();
   }
 }
 
@@ -1027,20 +1026,14 @@ function atualizarTempoRealComDebounce(payload){
     return;
   }
 
-  carregarRelatorios();
+  carregarRelatorios(true);
 }
 
 function iniciarSincronizacaoAutomatica(){
-  if(intervaloSincronizacao) clearInterval(intervaloSincronizacao);
-
-  // Segurança leve: não atualiza enquanto alguém está preenchendo a tabela.
-  // O principal fica por Realtime do Supabase.
-  intervaloSincronizacao = setInterval(() => {
-    if(usuarioLogado && !document.hidden && !usuarioEstaEditandoRelatorio()){
-      carregarRelatorios();
-    }
-  }, 5000);
+  // Desativado para não deixar o celular pesado.
+  // A atualização instantânea fica pelo Realtime do Supabase.
 }
+
 
 banco
 .channel("tempo-real")
