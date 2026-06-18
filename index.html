@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sofisticatto Financeiro</title>
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=HfqJxdgny0LVyb3Mvy4HojpZENXW78HVSFbKTPtn8J02VzVMv5gZHLurJ5-0Q0Y9Fsbua_xn_OYnyCsw7uevba7YrdO0OKLJtvqqwltNHX9-yyZ6AKSSH_CFem7WKbWQultDIr0pBFv_eEqKrxI08r3Sriy8XPWl129u5nc5KFsgDPmpstmaXtcRkheesYFrgaCRxPggoee_vcYHwbqTs6PZ4FCboNSfHavK-O-F4U17ql9fu7Ixyc1Z3NWYYAMn53kS93zHw6MuKymhnX_ACSX48oa2KiogrbN9TzMd-8gOradeZm-eRxUKH_zaqmxX7-fhTPwnrPtsggrUFs4MIuHe7wNr5BBM8NBpSeLFu60" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=ipQ7gjV-NpfwbM9G-LFYVuMbJtDapkLekevXkFeRL6Mw8ivO4pQloulaSXwb3V3j19fbue9wuTvq27N7kKCgxc7x8g1CUk3lZuTgdqtKzFc5kALFzFTjX3_AkATL99GyAhlCoSVCJHRbyO93bfqq1hsIPOlW31m8PNGRwz3DHffldMTA5bl8KgqQCn10I_brkIX5gUDLXos8xbT60si4Yin38eva8nsRU02cO89i20W4QdLOojOKLA36RWHJIqwMODpn9iuxA5Hw_JAM7thHJPrlmOduShV_spdkFtUJeicM5i-svEEHlMzVCNgmztz9r9A3xgEorKCU6yCkZQJ80L-f1X2V7o-vNrhJe9Pdd7o" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
@@ -322,13 +322,29 @@ function mascaraValor(input){
 }
 
 function valorParaNumero(valor){
-  const limpo = String(valor || "")
+  if(typeof valor === "number"){
+    return isNaN(valor) ? 0 : valor;
+  }
+
+  let texto = String(valor || "")
     .replace(/R\$\s?/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".")
     .trim();
 
-  const numero = Number(limpo);
+  if(!texto) return 0;
+
+  // Quando o usuário digita no padrão brasileiro: 797,20 ou 1.050,20
+  if(texto.includes(",")){
+    texto = texto.replace(/\./g, "").replace(",", ".");
+  }else{
+    // Quando vem como milhar: 1.050 / 10.000 / 100.000
+    // Mas preserva números decimais do banco, como 797.2
+    const pareceMilhar = /^-?\d{1,3}(\.\d{3})+$/.test(texto);
+    if(pareceMilhar){
+      texto = texto.replace(/\./g, "");
+    }
+  }
+
+  const numero = Number(texto);
   return isNaN(numero) ? 0 : numero;
 }
 
