@@ -6,7 +6,7 @@
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
 
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=R7uysBZKDn05jthtC5sMTT9wx0b9x-dwEBNV7ArtfDx3Q_FS4sYAwmLjMSF-oJG4AqJ3sFuBtfNYOggnOu8EjcYa6zHLhWAf_HeP5h-k8r4QY8BjaH9WWkFUx80ZbmVvcgiP_MWsRIjazfNmRm3gcnFdvI97q9TF2oLNVTKv_4j6Kw2XLkDyGdDLE4tojnwAwiuRRH7cHeG8iVDm4z19jpA4z7_aQPVogxdsw-dAaEOJDzrJRAbtnYmsUfmYM8WC-2XHzcuHNP47n_9ENgceEvdi7UMyPhgcjcjTXB0Yc7MpmH0YIYbp2lPDflFgUN-z" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
@@ -188,6 +188,7 @@ let timerAtualizacaoTempoReal = null;
 let intervaloSincronizacao = null;
 let bancosJaCarregados = false;
 let notificacoesRecebidas = new Set();
+let atualizacaoPendenteEnquantoEdita = false;
 
 async function entrar(){
   const login = document.getElementById("login").value.trim();
@@ -251,7 +252,7 @@ async function carregarRelatorios(){
     const resposta = await banco.from("boletos").select("*").order("id",{ascending:false});
     if(resposta.error){
       console.error("Erro ao carregar boletos:", resposta.error);
-      mostrarBalaoSistema("Erro ao carregar", "Não foi possível buscar os relatórios agora. Tente novamente.");
+      mostrarToastSistema("Erro ao carregar", "Não foi possível buscar os relatórios agora. Tente novamente.");
       return;
     }
 
@@ -263,7 +264,7 @@ async function carregarRelatorios(){
     sistemaJaCarregado = true;
   }catch(erro){
     console.error("Erro geral ao carregar relatórios:", erro);
-    mostrarBalaoSistema("Erro no carregamento", "Confira sua internet e tente abrir novamente.");
+    mostrarToastSistema("Erro no carregamento", "Confira sua internet e tente abrir novamente.");
   }finally{
     esconderCarregando();
   }
@@ -770,6 +771,10 @@ function mostrarBalaoSistema(titulo, mensagem){
   }, 7000);
 }
 
+function mostrarToastSistema(titulo, mensagem){
+  mostrarBalaoSistema(titulo, mensagem);
+}
+
 function notificarChrome(titulo, mensagem){
   mostrarBalaoSistema(titulo, mensagem);
 
@@ -848,6 +853,7 @@ async function salvarRelatorio(){
   if(!nome || !valorTexto){ alert("Preencha nome e valor"); return; }
 
   await banco.from("boletos").insert([{nome:nome,valor:valor,status:"Em andamento",banco:"",observacao:"",data_finalizacao:null,criado_por:usuarioLogado.login}]);
+  mostrarBalaoSistema("Relatório lançado", "O usuário banco já pode ver esse novo relatório.");
   document.getElementById("nome").value = "";
   document.getElementById("valor").value = "";
   carregarRelatorios();
@@ -860,6 +866,8 @@ async function salvarBanco(id){
   if(!bancoSelecionado){ alert("Selecione um banco"); return; }
 
   await banco.from("boletos").update({banco:bancoSelecionado,observacao:observacao}).eq("id",id);
+  atualizacaoPendenteEnquantoEdita = false;
+  mostrarBalaoSistema("Banco salvo", "O financeiro já pode ver essa autorização.");
   carregarRelatorios();
 }
 
@@ -952,28 +960,79 @@ async function carregarUsuarios(){
   });
 }
 
+function usuarioEstaEditandoRelatorio(){
+  const ativo = document.activeElement;
+  if(!ativo) return false;
+
+  const id = ativo.id || "";
+  const tag = (ativo.tagName || "").toLowerCase();
+
+  // Protege principalmente o usuário banco enquanto ele está escolhendo banco/observação.
+  if(id.startsWith("banco_") || id.startsWith("obs_") || id.startsWith("edit_nome_") || id.startsWith("edit_valor_")) return true;
+
+  // Se estiver dentro da tabela de relatórios em andamento, não redesenha a tela no meio da digitação.
+  const tabelaRelatorio = document.getElementById("tabela");
+  if(tabelaRelatorio && tabelaRelatorio.contains(ativo) && (tag === "input" || tag === "select" || tag === "textarea")) return true;
+
+  return false;
+}
+
+function deveAtualizarTelaPorTempoReal(payload){
+  if(!usuarioLogado || !payload || !payload.new) return false;
+
+  const novo = payload.new;
+  const evento = payload.eventType;
+
+  // Banco só precisa receber automaticamente quando o financeiro lançar um novo relatório
+  // ou quando algum item sair/finalizar. Isso evita apagar o banco selecionado antes de salvar.
+  if(usuarioLogado.tipo === "banco"){
+    if(evento === "INSERT" && novo.status !== "Finalizado" && !novo.banco) return true;
+    if(evento === "DELETE") return true;
+    if(evento === "UPDATE" && novo.status === "Finalizado") return true;
+    return false;
+  }
+
+  // Financeiro/admin precisa atualizar quando o banco salvar a autorização,
+  // quando entrar relatório novo, finalizar, editar ou excluir.
+  if(usuarioLogado.tipo === "financeiro" || usuarioLogado.tipo === "admin"){
+    return evento === "INSERT" || evento === "UPDATE" || evento === "DELETE";
+  }
+
+  return false;
+}
+
 function atualizarTempoRealComDebounce(payload){
   if(!usuarioLogado) return;
 
   processarNotificacaoTempoReal(payload);
 
-  // Atualiza a tela imediatamente quando o Supabase avisa que houve alteração.
-  carregarRelatorios();
+  if(!deveAtualizarTelaPorTempoReal(payload)) return;
+
+  if(usuarioEstaEditandoRelatorio()){
+    atualizacaoPendenteEnquantoEdita = true;
+    mostrarBalaoSistema("Atualização recebida", "Tem alteração nova, mas a tela não foi atualizada para não apagar o que você está preenchendo.");
+    return;
+  }
+
+  if(timerAtualizacaoTempoReal){
+    clearTimeout(timerAtualizacaoTempoReal);
+  }
+
+  timerAtualizacaoTempoReal = setTimeout(() => {
+    carregarRelatorios();
+  }, 250);
 }
 
 function iniciarSincronizacaoAutomatica(){
   if(intervaloSincronizacao) clearInterval(intervaloSincronizacao);
 
-  // No celular, atualizar a cada 5 segundos pesa muito e pode travar o carregamento.
-  // O Realtime continua atualizando na hora; esta conferência é só uma segurança extra.
-  const ehCelular = window.matchMedia && window.matchMedia("(max-width: 768px)").matches;
-  const tempo = ehCelular ? 30000 : 12000;
-
+  // Segurança leve: não atualiza enquanto alguém está preenchendo a tabela.
+  // O principal fica por Realtime do Supabase.
   intervaloSincronizacao = setInterval(() => {
-    if(usuarioLogado && !document.hidden){
+    if(usuarioLogado && !document.hidden && !usuarioEstaEditandoRelatorio()){
       carregarRelatorios();
     }
-  }, tempo);
+  }, 60000);
 }
 
 banco
