@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sofisticatto Financeiro</title>
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=3v_PQ1M91EYLq3zdtOtgwzgr8mq2Lmy8HIYiiKzglrrgm76jDnUmh2bBRR1g7yY5nsq1AnAt4NU3NINZR0G5wGNduiXRttiH9xXz2Sb5oad0qvbBDoGBWFvBzuRh_64sRx2rIZBRCu6-kgLNOA9LeovJlkJ0eDu4wKxBOLCs56HB8AEU3DdSgHMUZhevmFFDsnZdPUIYyUwAC5siU1bpTu9PZHTkfyiUJ8OgzaCzwhFF0K1bq7dx-Ac0zszDsWqybQSVv195XgICUNSDnx--CZXTYQkFXX8QHqH5rUoFJmVt7TUFXvqEAaNZDMo8gY5Dlm7kPDSAtseNCvrvug6CiHisdpLfX-s_w1d-Y0ZKbkg" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=SrTYPgdUhs3qYWFXQ3vJJISp3nfc0oTjxMAgyco2YShdIfKZlEIb99MHKGakAMXui-GZRFLx_BgNjAPiZQJIczpMy_YwqEdt8wT1CewjaublCYTwULT29nrq1G9fzIdMXveLZcBzBWK7O6mfRha8dVYmh_C7Ai0XF0DjSpuysWnAnmIpC59RnPaLjK8F1reDayngV4dmtk22g3pGUa6gW9OgNmADTUh7UAyO76HCJ2zL4VP_LlMVXmqmn-JWDqJ15o0w-i0cudaGmkWkMgE_TLEcD-3RNwULx3tDWrXNKPfmABJxNBOi0D4ycuXLZNxRI4T1m-Kzat7ogdq2uO7BltRQDwDM06t-Si9jl378qfg" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
@@ -123,6 +123,7 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
         <input type="text" id="buscaNomeHistorico" placeholder="Buscar por nome do cliente" oninput="buscarNomeHistorico()">
         <button class="buscar" onclick="limparBuscaNomeHistorico()">Limpar Nome</button>
       </div>
+      <div id="resumoHistoricoClientes" class="resumo-grid" style="margin-top:20px;"></div>
       <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Valor</th><th>Banco</th><th>Observação</th><th>Data Finalização</th><th>Editado por</th><th>Última edição</th><th>Ação</th></tr></thead><tbody id="tabelaHistorico"></tbody></table></div>
     </div>
   </div>
@@ -301,6 +302,14 @@ function formatarMoeda(valor){
   return "R$ " + Number(valor || 0).toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
+function normalizarTexto(texto){
+  return String(texto || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
 function formatarDataInput(data){
   const d = new Date(data);
   const ano = d.getFullYear();
@@ -433,7 +442,7 @@ function buscarDataHistorico(){
 }
 
 function buscarNomeHistorico(){
-  filtroNomeHistorico = document.getElementById("buscaNomeHistorico").value.trim().toLowerCase();
+  filtroNomeHistorico = normalizarTexto(document.getElementById("buscaNomeHistorico").value);
   montarHistorico();
 }
 
@@ -443,14 +452,73 @@ function limparBuscaNomeHistorico(){
   montarHistorico();
 }
 
+function atualizarResumoHistoricoClientes(finalizados){
+  const box = document.getElementById("resumoHistoricoClientes");
+  if(!box) return;
+
+  if(!filtroNomeHistorico){
+    box.innerHTML = `<div class="resumo-card"><p>Resumo por Cliente</p><div class="texto-vazio">Digite um nome ou parte do nome para ver o total individual dos clientes pesquisados.</div></div>`;
+    return;
+  }
+
+  if(finalizados.length === 0){
+    box.innerHTML = `<div class="resumo-card"><p>Resumo por Cliente</p><div class="texto-vazio">Nenhum cliente encontrado com essa pesquisa.</div></div>`;
+    return;
+  }
+
+  const clientes = {};
+
+  finalizados.forEach(item => {
+    const nomeOriginal = String(item.nome || "Cliente sem nome").trim() || "Cliente sem nome";
+    const chave = normalizarTexto(nomeOriginal);
+    const valor = Number(item.valor || 0);
+    const nomeBanco = item.banco || "Sem banco";
+
+    if(!clientes[chave]){
+      clientes[chave] = {nome:nomeOriginal,total:0,bancos:{}};
+    }
+
+    clientes[chave].total += valor;
+    if(!clientes[chave].bancos[nomeBanco]) clientes[chave].bancos[nomeBanco] = 0;
+    clientes[chave].bancos[nomeBanco] += valor;
+  });
+
+  const listaClientes = Object.values(clientes).sort((a,b) => a.nome.localeCompare(b.nome, "pt-BR"));
+
+  const totalClientesHtml = listaClientes.map(cliente =>
+    `<li><span>${cliente.nome}</span><b>${formatarMoeda(cliente.total)}</b></li>`
+  ).join("");
+
+  const totalBancosHtml = listaClientes.map(cliente => {
+    const bancosHtml = Object.keys(cliente.bancos).sort().map(nomeBanco =>
+      `<li><span>${nomeBanco}</span><b>${formatarMoeda(cliente.bancos[nomeBanco])}</b></li>`
+    ).join("");
+
+    return `<div style="margin-bottom:14px;"><b>${cliente.nome}</b><ul>${bancosHtml}</ul></div>`;
+  }).join("");
+
+  box.innerHTML = `
+    <div class="resumo-card">
+      <p>Total comprado por cliente pesquisado</p>
+      <ul>${totalClientesHtml}</ul>
+    </div>
+    <div class="resumo-card">
+      <p>Total por banco de cada cliente</p>
+      ${totalBancosHtml}
+    </div>
+  `;
+}
+
 function montarHistorico(){
   const tabela = document.getElementById("tabelaHistorico");
   tabela.innerHTML = "";
   let finalizados = filtrarPorPeriodo(todosBoletos.filter(item => item.status === "Finalizado"), filtroHistorico, dataHistoricoEspecifica);
 
   if(filtroNomeHistorico){
-    finalizados = finalizados.filter(item => String(item.nome || "").toLowerCase().includes(filtroNomeHistorico));
+    finalizados = finalizados.filter(item => normalizarTexto(item.nome).includes(filtroNomeHistorico));
   }
+
+  atualizarResumoHistoricoClientes(finalizados);
 
   finalizados.forEach(item => {
     let botoes = "";
@@ -458,7 +526,7 @@ function montarHistorico(){
       botoes = `<button class="btn azul" onclick="editarHistorico('${item.id}')">Editar</button>`;
     }
 
-    tabela.innerHTML += `<tr><td>${item.nome || ""}</td><td>R$ ${Number(item.valor || 0).toLocaleString("pt-BR")}</td><td>${item.banco || ""}</td><td>${item.observacao || ""}</td><td>${item.data_finalizacao ? new Date(item.data_finalizacao).toLocaleDateString("pt-BR") : ""}</td><td>${item.editado_por || ""}</td><td>${item.data_edicao ? new Date(item.data_edicao).toLocaleString("pt-BR") : ""}</td><td>${botoes}</td></tr>`;
+    tabela.innerHTML += `<tr><td>${item.nome || ""}</td><td>${formatarMoeda(item.valor || 0)}</td><td>${item.banco || ""}</td><td>${item.observacao || ""}</td><td>${item.data_finalizacao ? new Date(item.data_finalizacao).toLocaleDateString("pt-BR") : ""}</td><td>${item.editado_por || ""}</td><td>${item.data_edicao ? new Date(item.data_edicao).toLocaleString("pt-BR") : ""}</td><td>${botoes}</td></tr>`;
   });
 
   atualizarAbasFiltro("hist", filtroHistorico);
