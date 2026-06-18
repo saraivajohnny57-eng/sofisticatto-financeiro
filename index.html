@@ -6,7 +6,7 @@
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
 
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=VunKBZJXZ4-JywS1obRcCDPGwt9mlaQsEPtrw1f7iiHVoWprjzqy3xPqDw3U25Q59Xq8Q6OHljtge2VRJK45lFQ8YEZJE8171CetieQHzBgA4lm-erpURP9L4jmAbWnyIXg9ovEC66lc6QYPiTycCQ1Lcm5YHfinFG_PNWK15akPxVPip7d3-DKFGaBCXTyNTj1Hh-IDMISpiV7sru9SsNFumqfNwuwWTfxNEfwdmypToEiwdttZwK7GuAt0m4Y2u9L4UMoOTuucjdp0aZIXtIF7NAbEyyEiJ4PmlrZZ6LO591H-alUtoxQe-TibJi0K" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=T3QJ0r5CRv1edmk3BCqCUh15yBTXC1CyKIbyUsDVKvSxC0vFiPyl_l0J8Wr1PPSwz6tQmuzKXnhINjH6N-u00GbCp5OVRfaqEFiv_xNSiWJtdyp0rsyQAV27EDKyz0N_qRst6tVnIblF87Ov_InZ0nFmjZ7jMuzJT1GEB-T9ELIbe6YNY-__r1rBvPaWQPWdSptTIe8ikh-DFM72v2ocTlVv_k-lrU7nnlES21YDufo6rrLGkbdM4G7Q8AfT_DvaoDNzWYQ-wTGIC37Xmjut67L5NrPmKp4k_Dv8LjWvMm4sFqeGuC-lTOILxUiZBi3R" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
@@ -171,6 +171,7 @@ let dataHistoricoEspecifica = "";
 let filtroNomeHistorico = "";
 let sistemaJaCarregado = false;
 let timerAtualizacaoTempoReal = null;
+let intervaloSincronizacao = null;
 let bancosJaCarregados = false;
 let notificacoesRecebidas = new Set();
 
@@ -199,6 +200,7 @@ function iniciarSistema(){
   mostrarSecao("dashboard");
   carregarRelatorios();
   carregarUsuarios();
+  iniciarSincronizacaoAutomatica();
 }
 
 function mostrarSecao(secao){
@@ -889,13 +891,20 @@ function atualizarTempoRealComDebounce(payload){
 
   processarNotificacaoTempoReal(payload);
 
-  if(timerAtualizacaoTempoReal){
-    clearTimeout(timerAtualizacaoTempoReal);
-  }
+  // Atualiza a tela imediatamente quando o Supabase avisa que houve alteração.
+  carregarRelatorios();
+}
 
-  timerAtualizacaoTempoReal = setTimeout(() => {
-    carregarRelatorios();
-  }, 700);
+function iniciarSincronizacaoAutomatica(){
+  if(intervaloSincronizacao) clearInterval(intervaloSincronizacao);
+
+  // Segurança extra: se o Realtime do Supabase falhar ou o celular pausar a aba,
+  // o sistema ainda confere alterações sozinho sem precisar atualizar a página.
+  intervaloSincronizacao = setInterval(() => {
+    if(usuarioLogado){
+      carregarRelatorios();
+    }
+  }, 5000);
 }
 
 banco
