@@ -697,7 +697,7 @@ function atualizarDashboard(){
     return encontrado?.cor || "#5a4fa3";
   });
 
-  montarGraficoFallback(labels, valores);
+  montarGraficoFallback(labels, valores, cores);
 
   if(typeof Chart === "undefined"){
     const canvas = document.getElementById("grafico");
@@ -720,7 +720,7 @@ function atualizarDashboard(){
   atualizarAbasFiltro("dash", filtroDashboard);
 }
 
-function montarGraficoFallback(labels, valores){
+function montarGraficoFallback(labels, valores, cores = []){
   const boxGrafico = document.querySelector(".grafico-box");
   if(!boxGrafico) return;
 
@@ -741,7 +741,8 @@ function montarGraficoFallback(labels, valores){
   fallback.innerHTML = labels.map((nome, i) => {
     const valor = valores[i] || 0;
     const largura = Math.max(4, Math.round((valor / maior) * 100));
-    return `<div class="grafico-linha"><div class="grafico-nome">${nome}</div><div class="grafico-barra"><div class="grafico-preenchido" style="width:${largura}%"></div></div><div class="grafico-valor">${formatarMoeda(valor)}</div></div>`;
+    const cor = cores[i] || "#5a4fa3";
+    return `<div class="grafico-linha"><div class="grafico-nome">${nome}</div><div class="grafico-barra"><div class="grafico-preenchido" style="width:${largura}%;background:${cor}"></div></div><div class="grafico-valor">${formatarMoeda(valor)}</div></div>`;
   }).join("");
 }
 
