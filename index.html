@@ -6,7 +6,7 @@
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
 
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=5ags8mElYO5JRtVr5HCSnQoKjPUr-ejGfMYfCiGDy5itCoqVkCZBIAxsC57c3eDP-DG-dGaIn5xus6aaoRmFN0koOWWTjY_Y6L783rUqIQgSTTa_yvykG3LFhdRywE6BxbGA25JGYrVcEl0jsZCyCuYcUXCQfM6XW9hiYIP_2ui7XZnY-ex5DjKLLcoastrJapsBozTS9UXp7LHoBvrGlm3MItTqQAZuxieugWlVMr6tn88tSjBuHmCbUJN7o2b-2i-5-pjh3VixZSreMInIT8bf_gSJ63uP0y-lSRekkvBoQUCn5oKg9Tdh5ugS2vir" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=VunKBZJXZ4-JywS1obRcCDPGwt9mlaQsEPtrw1f7iiHVoWprjzqy3xPqDw3U25Q59Xq8Q6OHljtge2VRJK45lFQ8YEZJE8171CetieQHzBgA4lm-erpURP9L4jmAbWnyIXg9ovEC66lc6QYPiTycCQ1Lcm5YHfinFG_PNWK15akPxVPip7d3-DKFGaBCXTyNTj1Hh-IDMISpiV7sru9SsNFumqfNwuwWTfxNEfwdmypToEiwdttZwK7GuAt0m4Y2u9L4UMoOTuucjdp0aZIXtIF7NAbEyyEiJ4PmlrZZ6LO591H-alUtoxQe-TibJi0K" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
@@ -27,7 +27,8 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
 .usuario-logado{font-size:14px;background:#ede9fb;padding:12px;border-radius:15px;margin-bottom:20px}.cor-box{width:35px;height:25px;border-radius:8px;border:1px solid #ddd}.grafico-box{position:relative;width:100%;height:350px}
 .notificacao-box{margin-top:15px;background:#ede9fb;padding:15px;border-radius:15px}.notificacao-item{background:white;padding:12px;border-radius:12px;margin-bottom:8px;border-left:5px solid #5a4fa3;font-size:13px;cursor:pointer}.badge{display:inline-block;background:#5a4fa3;color:white;border-radius:999px;padding:3px 9px;font-size:12px;margin-left:5px}
 .filtro-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}.filtro-tabs button{border:none;background:#ede9fb;color:#4d4694;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:bold}.filtro-tabs button.ativo{background:#5a4fa3;color:white}.filtro-data-box{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:end}.filtro-data-box input{max-width:220px}.campo-data{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:bold;color:#4d4694}.resumo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px;margin-bottom:25px}.resumo-card{background:white;padding:18px;border-radius:20px;box-shadow:0 0 15px rgba(0,0,0,.05);border-left:6px solid #5a4fa3}.resumo-card p{font-size:13px;color:#7d73bd;margin-bottom:8px}.resumo-card h2{font-size:28px;color:#4d4694}.resumo-card ul{list-style:none;margin-top:6px}.resumo-card li{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #eee;font-size:14px}.resumo-card li:last-child{border-bottom:none}.texto-vazio{color:#999;font-size:14px;margin-top:6px}
-@media(max-width:768px){body{display:block}.sidebar{width:100%;padding:15px;position:sticky;top:0;z-index:10}.logo h1{font-size:30px}.logo p{letter-spacing:4px}.menu{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.menu button{margin-bottom:0;padding:12px;font-size:14px}.logout{margin-top:10px;width:100%}.main{padding:15px}.top{display:block}.top h1{font-size:26px;margin-bottom:5px}.card{padding:18px;border-radius:20px}.total{margin-top:15px}.total h2{font-size:28px}.inputs{grid-template-columns:1fr}table{min-width:850px}.login-box{padding:30px}.login-box h1{font-size:34px}.grafico-box{height:280px}}
+.toast-container{position:fixed;right:20px;bottom:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;max-width:360px}.toast-notificacao{background:white;color:#4d4694;padding:15px 18px;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.18);border-left:6px solid #5a4fa3;animation:toastEntrar .25s ease;font-size:14px}.toast-notificacao b{display:block;margin-bottom:5px;font-size:15px}.toast-notificacao small{color:#7d73bd}@keyframes toastEntrar{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:768px){.toast-container{left:15px;right:15px;bottom:15px;max-width:none}body{display:block}.sidebar{width:100%;padding:15px;position:sticky;top:0;z-index:10}.logo h1{font-size:30px}.logo p{letter-spacing:4px}.menu{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.menu button{margin-bottom:0;padding:12px;font-size:14px}.logout{margin-top:10px;width:100%}.main{padding:15px}.top{display:block}.top h1{font-size:26px;margin-bottom:5px}.card{padding:18px;border-radius:20px}.total{margin-top:15px}.total h2{font-size:28px}.inputs{grid-template-columns:1fr}table{min-width:850px}.login-box{padding:30px}.login-box h1{font-size:34px}.grafico-box{height:280px}}
 </style>
 </head>
 <body>
@@ -150,6 +151,8 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
   </div>
 </div>
 
+<div id="toastContainer" class="toast-container"></div>
+
 <script>
 const SUPABASE_URL = "https://drtgtwwsbxrmqcaabzcs.supabase.co";
 const SUPABASE_KEY = "sb_publishable_h0Ep974nBED88dimAY0BGQ_KLqoQ7po";
@@ -169,6 +172,7 @@ let filtroNomeHistorico = "";
 let sistemaJaCarregado = false;
 let timerAtualizacaoTempoReal = null;
 let bancosJaCarregados = false;
+let notificacoesRecebidas = new Set();
 
 async function entrar(){
   const login = document.getElementById("login").value.trim();
@@ -627,17 +631,6 @@ function atualizarDashboard(){
     return encontrado?.cor || "#5a4fa3";
   });
 
-  const canvasGrafico = document.getElementById("grafico");
-  if(!canvasGrafico) return;
-
-  if(typeof Chart === "undefined"){
-    const boxGrafico = canvasGrafico.parentElement;
-    if(boxGrafico){
-      boxGrafico.innerHTML = "<div class='texto-vazio'>Não foi possível carregar o gráfico. Verifique sua internet e atualize a página.</div><canvas id='grafico'></canvas>";
-    }
-    return;
-  }
-
   if(grafico) grafico.destroy();
 
   grafico = new Chart(document.getElementById("grafico"), {
@@ -667,7 +660,7 @@ function atualizarBotaoNotificacao(){
   }
 
   if(Notification.permission === "denied"){
-    botao.innerHTML = "Notificação bloqueada no Chrome";
+    botao.innerHTML = "Notificação do Chrome bloqueada";
     botao.disabled = true;
     return;
   }
@@ -692,13 +685,32 @@ async function solicitarPermissaoNotificacao(){
   }
 }
 
+function mostrarBalaoSistema(titulo, mensagem){
+  const container = document.getElementById("toastContainer");
+  if(!container) return;
+
+  const item = document.createElement("div");
+  item.className = "toast-notificacao";
+  item.innerHTML = `<b>🔔 ${titulo}</b><span>${mensagem}</span><br><small>Agora</small>`;
+  container.appendChild(item);
+
+  setTimeout(() => {
+    item.style.opacity = "0";
+    item.style.transform = "translateY(15px)";
+    item.style.transition = ".25s";
+    setTimeout(() => item.remove(), 300);
+  }, 7000);
+}
+
 function notificarChrome(titulo, mensagem){
+  mostrarBalaoSistema(titulo, mensagem);
+
   if(!("Notification" in window)) return;
   if(Notification.permission !== "granted") return;
 
   new Notification(titulo, {
     body: mensagem,
-    tag: "sofisticatto-financeiro",
+    tag: "sofisticatto-financeiro-" + Date.now(),
     requireInteraction: false
   });
 }
@@ -707,22 +719,32 @@ function processarNotificacaoTempoReal(payload){
   if(!usuarioLogado || !sistemaJaCarregado || !payload || !payload.new) return;
 
   const novo = payload.new;
-  const antigo = payload.old || {};
+  const chaveEvento = `${payload.eventType}_${novo.id || "semid"}_${novo.status || ""}_${novo.banco || ""}_${novo.valor || ""}`;
+
+  if(notificacoesRecebidas.has(chaveEvento)) return;
+  notificacoesRecebidas.add(chaveEvento);
+  setTimeout(() => notificacoesRecebidas.delete(chaveEvento), 30000);
 
   if(usuarioLogado.tipo === "banco"){
     if(payload.eventType === "INSERT" && novo.status !== "Finalizado" && !novo.banco){
       notificarChrome("Novo relatório lançado", `Cliente: ${novo.nome || "Sem nome"} | Valor: ${formatarMoeda(novo.valor || 0)}`);
     }
+
+    if(payload.eventType === "UPDATE" && novo.status !== "Finalizado" && !novo.banco){
+      notificarChrome("Relatório alterado", `Cliente: ${novo.nome || "Sem nome"} | Valor: ${formatarMoeda(novo.valor || 0)}`);
+    }
   }
 
   if(usuarioLogado.tipo === "financeiro" || usuarioLogado.tipo === "admin"){
-    const bancoFoiAutorizado = novo.status !== "Finalizado" && novo.banco && antigo.banco !== novo.banco;
-    if(payload.eventType === "UPDATE" && bancoFoiAutorizado){
+    if(payload.eventType === "UPDATE" && novo.status !== "Finalizado" && novo.banco){
       notificarChrome("Banco autorizado", `${novo.banco} autorizado para ${novo.nome || "cliente"} | Valor: ${formatarMoeda(novo.valor || 0)}`);
+    }
+
+    if(payload.eventType === "UPDATE" && novo.status === "Finalizado"){
+      notificarChrome("Relatório finalizado", `${novo.nome || "cliente"} foi finalizado | Valor: ${formatarMoeda(novo.valor || 0)}`);
     }
   }
 }
-
 function carregarNotificacoes(){
   const lista = document.getElementById("listaNotificacoes");
   const contador = document.getElementById("contadorNotificacoes");
