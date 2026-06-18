@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sofisticatto Financeiro</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=TgZKGimscWPJj3lEsXR29BWe4exDfWVL4VWyZ5g7A2wsryh-fM4Oa3FG4_NtJMO4I77lppBbsqfgyF-3ZrInKMqdDyRZ9vdOqmJU1UUJ2hyEtPci-mDY0AdUoXpDQI6lFDjkySbvVxeRcKNq5NlEGhTzQRqxQZ4UsBeqVJgy-IS2ifTcUtU1uFffdW9KLN11J5Jal55Nn17jSP02PIYDXZr9kAO3tRJzGwE13nxGcLjJryg_-vgK2TYnEk6iQi5C1pSyBsaHeJnu9t_tVERqvhnK1pnWi5nfOOAubmvf6Fms4WDtNLp79gDEn1RUsZNSs3VxGqi5eZULTr2cRO4rtA" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
@@ -24,7 +24,7 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
 .login-box h1{text-align:center;font-size:40px;font-style:italic;font-weight:300;color:#5a4fa3}.login-box p{text-align:center;letter-spacing:5px;font-size:12px;margin-bottom:30px;color:#9c92d9}.login-box input{margin-bottom:15px}.login-box button{width:100%;padding:15px;border:none;border-radius:15px;margin-top:10px;cursor:pointer}.entrar{background:#5a4fa3;color:white}
 .usuario-logado{font-size:14px;background:#ede9fb;padding:12px;border-radius:15px;margin-bottom:20px}.cor-box{width:35px;height:25px;border-radius:8px;border:1px solid #ddd}.grafico-box{position:relative;width:100%;height:350px}
 .notificacao-box{margin-top:15px;background:#ede9fb;padding:15px;border-radius:15px}.notificacao-item{background:white;padding:12px;border-radius:12px;margin-bottom:8px;border-left:5px solid #5a4fa3;font-size:13px;cursor:pointer}.badge{display:inline-block;background:#5a4fa3;color:white;border-radius:999px;padding:3px 9px;font-size:12px;margin-left:5px}
-.filtro-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}.filtro-tabs button{border:none;background:#ede9fb;color:#4d4694;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:bold}.filtro-tabs button.ativo{background:#5a4fa3;color:white}.filtro-data-box{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.filtro-data-box input{max-width:220px}
+.filtro-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}.filtro-tabs button{border:none;background:#ede9fb;color:#4d4694;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:bold}.filtro-tabs button.ativo{background:#5a4fa3;color:white}.filtro-data-box{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:end}.filtro-data-box input{max-width:220px}.campo-data{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:bold;color:#4d4694}.resumo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px;margin-bottom:25px}.resumo-card{background:white;padding:18px;border-radius:20px;box-shadow:0 0 15px rgba(0,0,0,.05);border-left:6px solid #5a4fa3}.resumo-card p{font-size:13px;color:#7d73bd;margin-bottom:8px}.resumo-card h2{font-size:28px;color:#4d4694}.resumo-card ul{list-style:none;margin-top:6px}.resumo-card li{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #eee;font-size:14px}.resumo-card li:last-child{border-bottom:none}.texto-vazio{color:#999;font-size:14px;margin-top:6px}
 @media(max-width:768px){body{display:block}.sidebar{width:100%;padding:15px;position:sticky;top:0;z-index:10}.logo h1{font-size:30px}.logo p{letter-spacing:4px}.menu{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.menu button{margin-bottom:0;padding:12px;font-size:14px}.logout{margin-top:10px;width:100%}.main{padding:15px}.top{display:block}.top h1{font-size:26px;margin-bottom:5px}.card{padding:18px;border-radius:20px}.total{margin-top:15px}.total h2{font-size:28px}.inputs{grid-template-columns:1fr}table{min-width:850px}.login-box{padding:30px}.login-box h1{font-size:34px}.grafico-box{height:280px}}
 </style>
 </head>
@@ -69,8 +69,14 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
           <button id="dash_todos" onclick="setFiltroDashboard('todos')">Todos</button>
         </div>
         <div class="filtro-data-box">
-          <input type="date" id="dataDashboard">
-          <button class="buscar" onclick="buscarDataDashboard()">Buscar</button>
+          <label class="campo-data">Data inicial
+            <input type="date" id="dataDashboardInicio">
+          </label>
+          <label class="campo-data">Data final
+            <input type="date" id="dataDashboardFim">
+          </label>
+          <button class="buscar" onclick="buscarPeriodoDashboard()">Buscar período</button>
+          <button class="buscar" onclick="mostrarDashboardHoje()">Hoje</button>
         </div>
       </div>
       <div class="card total"><p id="tituloTotal">Total Finalizado</p><h2 id="total">R$ 0,00</h2></div>
@@ -79,6 +85,16 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
   </div>
 
   <div id="relatorios" style="display:none;">
+    <div class="resumo-grid">
+      <div class="resumo-card">
+        <p>Total lançado em aberto</p>
+        <h2 id="totalLancadoRelatorio">R$ 0,00</h2>
+      </div>
+      <div class="resumo-card">
+        <p>Total autorizado por banco</p>
+        <div id="totalAutorizadoBancos"><div class="texto-vazio">Nenhum banco autorizado.</div></div>
+      </div>
+    </div>
     <div class="card" id="boxNovoRelatorio">
       <h2>Novo Relatório</h2>
       <div class="inputs"><input type="text" id="nome" placeholder="Nome do cliente"><input type="number" id="valor" placeholder="Valor"></div>
@@ -132,9 +148,11 @@ let usuarioLogado = null;
 let grafico = null;
 let listaBancos = [];
 let todosBoletos = [];
-let filtroDashboard = "semana";
+let filtroDashboard = "data";
 let filtroHistorico = "semana";
-let dataDashboardEspecifica = "";
+let dataDashboardEspecifica = formatarDataInput(new Date());
+let dataDashboardInicio = formatarDataInput(new Date());
+let dataDashboardFim = formatarDataInput(new Date());
 let dataHistoricoEspecifica = "";
 
 async function entrar(){
@@ -157,6 +175,7 @@ function iniciarSistema(){
   document.getElementById("usuarioInfo").innerHTML = "Usuário: <b>" + usuarioLogado.login + "</b><br>Tipo: <b>" + usuarioLogado.tipo + "</b>";
   document.getElementById("btnAdmin").style.display = usuarioLogado.tipo === "admin" ? "block" : "none";
   document.getElementById("boxNovoRelatorio").style.display = usuarioLogado.tipo === "banco" ? "none" : "block";
+  mostrarDashboardHoje();
   mostrarSecao("dashboard");
   carregarBancos();
   carregarRelatorios();
@@ -241,15 +260,54 @@ function montarTabela(){
 
     tabela.innerHTML += `<tr><td>${nomeCampo}</td><td>${valorCampo}</td><td>${bancoCampo}</td><td>${observacaoCampo}</td><td>${item.criado_por || ""}</td><td><span class="status andamento">Em andamento</span></td><td>${botoes}</td></tr>`;
   });
+
+  atualizarResumoRelatorios(andamento);
+}
+
+function atualizarResumoRelatorios(andamento){
+  const totalLancado = andamento.reduce((soma, item) => soma + Number(item.valor || 0), 0);
+  const totalLancadoEl = document.getElementById("totalLancadoRelatorio");
+  const totalBancosEl = document.getElementById("totalAutorizadoBancos");
+
+  if(totalLancadoEl) totalLancadoEl.innerHTML = formatarMoeda(totalLancado);
+  if(!totalBancosEl) return;
+
+  const totaisPorBanco = {};
+  andamento.forEach(item => {
+    if(item.banco){
+      if(!totaisPorBanco[item.banco]) totaisPorBanco[item.banco] = 0;
+      totaisPorBanco[item.banco] += Number(item.valor || 0);
+    }
+  });
+
+  const bancos = Object.keys(totaisPorBanco).sort();
+  if(bancos.length === 0){
+    totalBancosEl.innerHTML = `<div class="texto-vazio">Nenhum banco autorizado.</div>`;
+    return;
+  }
+
+  totalBancosEl.innerHTML = `<ul>${bancos.map(nome => `<li><span>${nome}</span><b>${formatarMoeda(totaisPorBanco[nome])}</b></li>`).join("")}</ul>`;
+}
+
+function formatarMoeda(valor){
+  return "R$ " + Number(valor || 0).toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function formatarDataInput(data){
+  const d = new Date(data);
+  const ano = d.getFullYear();
+  const mes = String(d.getMonth() + 1).padStart(2,"0");
+  const dia = String(d.getDate()).padStart(2,"0");
+  return `${ano}-${mes}-${dia}`;
 }
 
 function inicioDoDia(data){
-  const d = new Date(data);
+  const d = data instanceof Date ? new Date(data) : new Date(String(data).includes("T") ? data : String(data) + "T00:00:00");
   d.setHours(0,0,0,0);
   return d;
 }
 
-function filtrarPorPeriodo(lista, filtro, dataEspecifica){
+function filtrarPorPeriodo(lista, filtro, dataEspecifica, dataInicio, dataFim){
   const hoje = inicioDoDia(new Date());
   return lista.filter(item => {
     if(!item.data_finalizacao) return false;
@@ -273,8 +331,15 @@ function filtrarPorPeriodo(lista, filtro, dataEspecifica){
 
     if(filtro === "data"){
       if(!dataEspecifica) return true;
-      const dataDigitada = inicioDoDia(dataEspecifica + "T00:00:00");
+      const dataDigitada = inicioDoDia(dataEspecifica);
       return dataItem.getTime() === dataDigitada.getTime();
+    }
+
+    if(filtro === "periodo"){
+      if(!dataInicio || !dataFim) return true;
+      const inicio = inicioDoDia(dataInicio);
+      const fim = inicioDoDia(dataFim);
+      return dataItem >= inicio && dataItem <= fim;
     }
 
     return true;
@@ -291,22 +356,56 @@ function atualizarAbasFiltro(prefixo, filtroAtual){
   });
 }
 
+function preencherDatasDashboard(inicio, fim){
+  const inputInicio = document.getElementById("dataDashboardInicio");
+  const inputFim = document.getElementById("dataDashboardFim");
+  if(inputInicio) inputInicio.value = inicio || "";
+  if(inputFim) inputFim.value = fim || "";
+}
+
 function setFiltroDashboard(tipo){
   filtroDashboard = tipo;
   dataDashboardEspecifica = "";
-  document.getElementById("dataDashboard").value = "";
+  dataDashboardInicio = "";
+  dataDashboardFim = "";
+  preencherDatasDashboard("", "");
   atualizarAbasFiltro("dash", filtroDashboard);
   atualizarDashboard();
 }
 
-function buscarDataDashboard(){
-  const data = document.getElementById("dataDashboard").value;
-  if(!data){ alert("Escolha uma data para buscar"); return; }
+function mostrarDashboardHoje(){
+  const hoje = formatarDataInput(new Date());
   filtroDashboard = "data";
-  dataDashboardEspecifica = data;
+  dataDashboardEspecifica = hoje;
+  dataDashboardInicio = hoje;
+  dataDashboardFim = hoje;
+  preencherDatasDashboard(hoje, hoje);
   atualizarAbasFiltro("dash", "");
   atualizarDashboard();
 }
+
+function buscarPeriodoDashboard(){
+  const inicio = document.getElementById("dataDashboardInicio").value;
+  const fim = document.getElementById("dataDashboardFim").value;
+
+  if(!inicio || !fim){ alert("Escolha a data inicial e a data final"); return; }
+  if(inicioDoDia(inicio) > inicioDoDia(fim)){ alert("A data inicial não pode ser maior que a data final"); return; }
+
+  dataDashboardInicio = inicio;
+  dataDashboardFim = fim;
+
+  if(inicio === fim){
+    filtroDashboard = "data";
+    dataDashboardEspecifica = inicio;
+  }else{
+    filtroDashboard = "periodo";
+    dataDashboardEspecifica = "";
+  }
+
+  atualizarAbasFiltro("dash", "");
+  atualizarDashboard();
+}
+
 
 function setFiltroHistorico(tipo){
   filtroHistorico = tipo;
@@ -343,7 +442,7 @@ function montarHistorico(){
 }
 
 function atualizarDashboard(){
-  const finalizados = filtrarPorPeriodo(todosBoletos.filter(item => item.status === "Finalizado"), filtroDashboard, dataDashboardEspecifica);
+  const finalizados = filtrarPorPeriodo(todosBoletos.filter(item => item.status === "Finalizado"), filtroDashboard, dataDashboardEspecifica, dataDashboardInicio, dataDashboardFim);
   let total = 0;
   let bancosGrafico = {};
 
@@ -360,10 +459,11 @@ function atualizarDashboard(){
   if(filtroDashboard === "mes") titulo = "Total do Mês";
   if(filtroDashboard === "ano") titulo = "Total do Ano";
   if(filtroDashboard === "todos") titulo = "Total Geral Finalizado";
-  if(filtroDashboard === "data") titulo = "Total da Data";
+  if(filtroDashboard === "data") titulo = "Total de Hoje";
+  if(filtroDashboard === "periodo") titulo = "Total do Período";
 
   document.getElementById("tituloTotal").innerHTML = titulo;
-  document.getElementById("total").innerHTML = "R$ " + total.toLocaleString("pt-BR");
+  document.getElementById("total").innerHTML = formatarMoeda(total);
 
   const labels = Object.keys(bancosGrafico);
   const valores = Object.values(bancosGrafico);
