@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sofisticatto Financeiro</title>
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=SrTYPgdUhs3qYWFXQ3vJJISp3nfc0oTjxMAgyco2YShdIfKZlEIb99MHKGakAMXui-GZRFLx_BgNjAPiZQJIczpMy_YwqEdt8wT1CewjaublCYTwULT29nrq1G9fzIdMXveLZcBzBWK7O6mfRha8dVYmh_C7Ai0XF0DjSpuysWnAnmIpC59RnPaLjK8F1reDayngV4dmtk22g3pGUa6gW9OgNmADTUh7UAyO76HCJ2zL4VP_LlMVXmqmn-JWDqJ15o0w-i0cudaGmkWkMgE_TLEcD-3RNwULx3tDWrXNKPfmABJxNBOi0D4ycuXLZNxRI4T1m-Kzat7ogdq2uO7BltRQDwDM06t-Si9jl378qfg" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=HfqJxdgny0LVyb3Mvy4HojpZENXW78HVSFbKTPtn8J02VzVMv5gZHLurJ5-0Q0Y9Fsbua_xn_OYnyCsw7uevba7YrdO0OKLJtvqqwltNHX9-yyZ6AKSSH_CFem7WKbWQultDIr0pBFv_eEqKrxI08r3Sriy8XPWl129u5nc5KFsgDPmpstmaXtcRkheesYFrgaCRxPggoee_vcYHwbqTs6PZ4FCboNSfHavK-O-F4U17ql9fu7Ixyc1Z3NWYYAMn53kS93zHw6MuKymhnX_ACSX48oa2KiogrbN9TzMd-8gOradeZm-eRxUKH_zaqmxX7-fhTPwnrPtsggrUFs4MIuHe7wNr5BBM8NBpSeLFu60" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
@@ -97,7 +97,7 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
     </div>
     <div class="card" id="boxNovoRelatorio">
       <h2>Novo Relatório</h2>
-      <div class="inputs"><input type="text" id="nome" placeholder="Nome do cliente"><input type="number" id="valor" placeholder="Valor"></div>
+      <div class="inputs"><input type="text" id="nome" placeholder="Nome do cliente"><input type="text" id="valor" placeholder="Valor" inputmode="decimal" oninput="mascaraValor(this)"></div>
       <button class="salvar" onclick="salvarRelatorio()">Salvar Relatório</button>
     </div>
     <div class="card">
@@ -241,11 +241,11 @@ function montarTabela(){
     let observacaoCampo = item.observacao || "";
     let botoes = "";
     let nomeCampo = item.nome || "";
-    let valorCampo = "R$ " + Number(item.valor || 0).toLocaleString("pt-BR");
+    let valorCampo = "R$ " + valorParaNumero(item.valor || 0).toLocaleString("pt-BR");
 
     if(usuarioLogado.tipo === "financeiro"){
       nomeCampo = `<input id="edit_nome_${item.id}" value="${item.nome || ""}">`;
-      valorCampo = `<input type="number" id="edit_valor_${item.id}" value="${item.valor || 0}">`;
+      valorCampo = `<input type="text" id="edit_valor_${item.id}" value="${valorParaInput(item.valor || 0)}" inputmode="decimal" oninput="mascaraValor(this)">`;
       botoes += `<button class="btn azul" onclick="editarRelatorio('${item.id}')">Editar</button>`;
       if(item.banco){ botoes += `<button class="btn roxo" onclick="finalizar('${item.id}')">Finalizar</button>`; }
       botoes += `<button class="btn vermelho" onclick="excluir('${item.id}')">Excluir</button>`;
@@ -259,7 +259,7 @@ function montarTabela(){
 
     if(usuarioLogado.tipo === "admin"){
       nomeCampo = `<input id="edit_nome_${item.id}" value="${item.nome || ""}">`;
-      valorCampo = `<input type="number" id="edit_valor_${item.id}" value="${item.valor || 0}">`;
+      valorCampo = `<input type="text" id="edit_valor_${item.id}" value="${valorParaInput(item.valor || 0)}" inputmode="decimal" oninput="mascaraValor(this)">`;
       bancoCampo = montarSelectBanco(item.id, item.banco || "");
       observacaoCampo = `<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação">`;
       botoes += `<button class="btn azul" onclick="editarRelatorio('${item.id}')">Editar</button>`;
@@ -274,7 +274,7 @@ function montarTabela(){
 }
 
 function atualizarResumoRelatorios(andamento){
-  const totalLancado = andamento.reduce((soma, item) => soma + Number(item.valor || 0), 0);
+  const totalLancado = andamento.reduce((soma, item) => soma + valorParaNumero(item.valor || 0), 0);
   const totalLancadoEl = document.getElementById("totalLancadoRelatorio");
   const totalBancosEl = document.getElementById("totalAutorizadoBancos");
 
@@ -285,7 +285,7 @@ function atualizarResumoRelatorios(andamento){
   andamento.forEach(item => {
     if(item.banco){
       if(!totaisPorBanco[item.banco]) totaisPorBanco[item.banco] = 0;
-      totaisPorBanco[item.banco] += Number(item.valor || 0);
+      totaisPorBanco[item.banco] += valorParaNumero(item.valor || 0);
     }
   });
 
@@ -298,8 +298,46 @@ function atualizarResumoRelatorios(andamento){
   totalBancosEl.innerHTML = `<ul>${bancos.map(nome => `<li><span>${nome}</span><b>${formatarMoeda(totaisPorBanco[nome])}</b></li>`).join("")}</ul>`;
 }
 
+function formatarValorDigitado(valor){
+  valor = String(valor || "").replace(/R\$\s?/g, "").trim();
+  valor = valor.replace(/[^0-9,]/g, "");
+
+  const partes = valor.split(",");
+  let inteiro = partes[0].replace(/\D/g, "");
+  let centavos = partes.length > 1 ? partes.slice(1).join("").replace(/\D/g, "").slice(0, 2) : null;
+
+  inteiro = inteiro.replace(/^0+(?=\d)/, "");
+  inteiro = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+  if(centavos !== null){
+    return inteiro + "," + centavos;
+  }
+
+  return inteiro;
+}
+
+function mascaraValor(input){
+  if(!input) return;
+  input.value = formatarValorDigitado(input.value);
+}
+
+function valorParaNumero(valor){
+  const limpo = String(valor || "")
+    .replace(/R\$\s?/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".")
+    .trim();
+
+  const numero = Number(limpo);
+  return isNaN(numero) ? 0 : numero;
+}
+
+function valorParaInput(valor){
+  return valorParaNumero(valor).toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
 function formatarMoeda(valor){
-  return "R$ " + Number(valor || 0).toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2});
+  return "R$ " + valorParaNumero(valor).toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
 function normalizarTexto(texto){
@@ -471,7 +509,7 @@ function atualizarResumoHistoricoClientes(finalizados){
   finalizados.forEach(item => {
     const nomeOriginal = String(item.nome || "Cliente sem nome").trim() || "Cliente sem nome";
     const chave = normalizarTexto(nomeOriginal);
-    const valor = Number(item.valor || 0);
+    const valor = valorParaNumero(item.valor || 0);
     const nomeBanco = item.banco || "Sem banco";
 
     if(!clientes[chave]){
@@ -538,10 +576,10 @@ function atualizarDashboard(){
   let bancosGrafico = {};
 
   finalizados.forEach(item => {
-    total += Number(item.valor || 0);
+    total += valorParaNumero(item.valor || 0);
     if(item.banco){
       if(!bancosGrafico[item.banco]) bancosGrafico[item.banco] = 0;
-      bancosGrafico[item.banco] += Number(item.valor || 0);
+      bancosGrafico[item.banco] += valorParaNumero(item.valor || 0);
     }
   });
 
@@ -603,9 +641,10 @@ function carregarNotificacoes(){
 
 async function salvarRelatorio(){
   const nome = document.getElementById("nome").value.trim();
-  const valor = document.getElementById("valor").value;
+  const valorTexto = document.getElementById("valor").value.trim();
+  const valor = valorParaNumero(valorTexto);
 
-  if(!nome || !valor){ alert("Preencha nome e valor"); return; }
+  if(!nome || !valorTexto){ alert("Preencha nome e valor"); return; }
 
   await banco.from("boletos").insert([{nome:nome,valor:valor,status:"Em andamento",banco:"",observacao:"",data_finalizacao:null,criado_por:usuarioLogado.login}]);
   document.getElementById("nome").value = "";
@@ -639,7 +678,7 @@ async function editarRelatorio(id){
   const valorInput = document.getElementById("edit_valor_" + id);
   if(!nomeInput || !valorInput){ alert("Campos não encontrados"); return; }
 
-  let dados = {nome:nomeInput.value,valor:valorInput.value};
+  let dados = {nome:nomeInput.value,valor:valorParaNumero(valorInput.value)};
 
   if(usuarioLogado.tipo === "admin"){
     const bancoInput = document.getElementById("banco_" + id);
@@ -659,12 +698,12 @@ async function editarHistorico(id){
 
   const novoNome = prompt("Nome do cliente:", item.nome || "");
   if(novoNome === null) return;
-  const novoValor = prompt("Valor:", item.valor || "");
+  const novoValor = prompt("Valor:", valorParaInput(item.valor || 0));
   if(novoValor === null) return;
   const novaObservacao = prompt("Observação:", item.observacao || "");
   if(novaObservacao === null) return;
 
-  await banco.from("boletos").update({nome:novoNome,valor:novoValor,observacao:novaObservacao,editado_por:usuarioLogado.login,data_edicao:new Date()}).eq("id",id);
+  await banco.from("boletos").update({nome:novoNome,valor:valorParaNumero(novoValor),observacao:novaObservacao,editado_por:usuarioLogado.login,data_edicao:new Date()}).eq("id",id);
   alert("Histórico atualizado!");
   carregarRelatorios();
 }
