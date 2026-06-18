@@ -6,7 +6,7 @@
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
 
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=T3QJ0r5CRv1edmk3BCqCUh15yBTXC1CyKIbyUsDVKvSxC0vFiPyl_l0J8Wr1PPSwz6tQmuzKXnhINjH6N-u00GbCp5OVRfaqEFiv_xNSiWJtdyp0rsyQAV27EDKyz0N_qRst6tVnIblF87Ov_InZ0nFmjZ7jMuzJT1GEB-T9ELIbe6YNY-__r1rBvPaWQPWdSptTIe8ikh-DFM72v2ocTlVv_k-lrU7nnlES21YDufo6rrLGkbdM4G7Q8AfT_DvaoDNzWYQ-wTGIC37Xmjut67L5NrPmKp4k_Dv8LjWvMm4sFqeGuC-lTOILxUiZBi3R" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=R7uysBZKDn05jthtC5sMTT9wx0b9x-dwEBNV7ArtfDx3Q_FS4sYAwmLjMSF-oJG4AqJ3sFuBtfNYOggnOu8EjcYa6zHLhWAf_HeP5h-k8r4QY8BjaH9WWkFUx80ZbmVvcgiP_MWsRIjazfNmRm3gcnFdvI97q9TF2oLNVTKv_4j6Kw2XLkDyGdDLE4tojnwAwiuRRH7cHeG8iVDm4z19jpA4z7_aQPVogxdsw-dAaEOJDzrJRAbtnYmsUfmYM8WC-2XHzcuHNP47n_9ENgceEvdi7UMyPhgcjcjTXB0Yc7MpmH0YIYbp2lPDflFgUN-z" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
@@ -28,10 +28,12 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
 .notificacao-box{margin-top:15px;background:#ede9fb;padding:15px;border-radius:15px}.notificacao-item{background:white;padding:12px;border-radius:12px;margin-bottom:8px;border-left:5px solid #5a4fa3;font-size:13px;cursor:pointer}.badge{display:inline-block;background:#5a4fa3;color:white;border-radius:999px;padding:3px 9px;font-size:12px;margin-left:5px}
 .filtro-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}.filtro-tabs button{border:none;background:#ede9fb;color:#4d4694;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:bold}.filtro-tabs button.ativo{background:#5a4fa3;color:white}.filtro-data-box{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:end}.filtro-data-box input{max-width:220px}.campo-data{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:bold;color:#4d4694}.resumo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px;margin-bottom:25px}.resumo-card{background:white;padding:18px;border-radius:20px;box-shadow:0 0 15px rgba(0,0,0,.05);border-left:6px solid #5a4fa3}.resumo-card p{font-size:13px;color:#7d73bd;margin-bottom:8px}.resumo-card h2{font-size:28px;color:#4d4694}.resumo-card ul{list-style:none;margin-top:6px}.resumo-card li{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #eee;font-size:14px}.resumo-card li:last-child{border-bottom:none}.texto-vazio{color:#999;font-size:14px;margin-top:6px}
 .toast-container{position:fixed;right:20px;bottom:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;max-width:360px}.toast-notificacao{background:white;color:#4d4694;padding:15px 18px;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.18);border-left:6px solid #5a4fa3;animation:toastEntrar .25s ease;font-size:14px}.toast-notificacao b{display:block;margin-bottom:5px;font-size:15px}.toast-notificacao small{color:#7d73bd}@keyframes toastEntrar{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
+.grafico-fallback{margin-top:15px}.grafico-linha{display:flex;align-items:center;gap:10px;margin:10px 0}.grafico-nome{width:120px;font-weight:bold;font-size:13px}.grafico-barra{flex:1;background:#ede9fb;border-radius:999px;overflow:hidden;height:18px}.grafico-preenchido{height:100%;background:#5a4fa3;border-radius:999px}.grafico-valor{width:105px;text-align:right;font-size:13px;font-weight:bold}.carregando-sistema{position:fixed;left:50%;top:20px;transform:translateX(-50%);background:white;color:#4d4694;padding:12px 18px;border-radius:16px;box-shadow:0 8px 25px rgba(0,0,0,.12);z-index:10000;font-weight:bold;display:none}
 @media(max-width:768px){.toast-container{left:15px;right:15px;bottom:15px;max-width:none}body{display:block}.sidebar{width:100%;padding:15px;position:sticky;top:0;z-index:10}.logo h1{font-size:30px}.logo p{letter-spacing:4px}.menu{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.menu button{margin-bottom:0;padding:12px;font-size:14px}.logout{margin-top:10px;width:100%}.main{padding:15px}.top{display:block}.top h1{font-size:26px;margin-bottom:5px}.card{padding:18px;border-radius:20px}.total{margin-top:15px}.total h2{font-size:28px}.inputs{grid-template-columns:1fr}table{min-width:850px}.login-box{padding:30px}.login-box h1{font-size:34px}.grafico-box{height:280px}}
 </style>
 </head>
 <body>
+<div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
 
 <div id="loginTela" class="login">
   <div class="login-box">
@@ -158,6 +160,18 @@ const SUPABASE_URL = "https://drtgtwwsbxrmqcaabzcs.supabase.co";
 const SUPABASE_KEY = "sb_publishable_h0Ep974nBED88dimAY0BGQ_KLqoQ7po";
 const banco = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+function mostrarCarregando(texto){
+  const box = document.getElementById("carregandoSistema");
+  if(!box) return;
+  box.innerHTML = texto || "Carregando...";
+  box.style.display = "block";
+}
+
+function esconderCarregando(){
+  const box = document.getElementById("carregandoSistema");
+  if(box) box.style.display = "none";
+}
+
 let usuarioLogado = null;
 let grafico = null;
 let listaBancos = [];
@@ -227,17 +241,32 @@ async function carregarBancos(){
 }
 
 async function carregarRelatorios(){
-  if(!bancosJaCarregados){
-    await carregarBancos();
+  try{
+    mostrarCarregando("Atualizando dados...");
+
+    if(!bancosJaCarregados){
+      await carregarBancos();
+    }
+
+    const resposta = await banco.from("boletos").select("*").order("id",{ascending:false});
+    if(resposta.error){
+      console.error("Erro ao carregar boletos:", resposta.error);
+      mostrarBalaoSistema("Erro ao carregar", "Não foi possível buscar os relatórios agora. Tente novamente.");
+      return;
+    }
+
+    todosBoletos = resposta.data || [];
+    montarTabela();
+    montarHistorico();
+    atualizarDashboard();
+    carregarNotificacoes();
+    sistemaJaCarregado = true;
+  }catch(erro){
+    console.error("Erro geral ao carregar relatórios:", erro);
+    mostrarBalaoSistema("Erro no carregamento", "Confira sua internet e tente abrir novamente.");
+  }finally{
+    esconderCarregando();
   }
-  const resposta = await banco.from("boletos").select("*").order("id",{ascending:false});
-  if(resposta.error) return;
-  todosBoletos = resposta.data || [];
-  montarTabela();
-  montarHistorico();
-  atualizarDashboard();
-  carregarNotificacoes();
-  sistemaJaCarregado = true;
 }
 
 function montarSelectBanco(id, bancoAtual){
@@ -633,6 +662,18 @@ function atualizarDashboard(){
     return encontrado?.cor || "#5a4fa3";
   });
 
+  montarGraficoFallback(labels, valores);
+
+  if(typeof Chart === "undefined"){
+    const canvas = document.getElementById("grafico");
+    if(canvas) canvas.style.display = "none";
+    atualizarAbasFiltro("dash", filtroDashboard);
+    return;
+  }
+
+  const canvas = document.getElementById("grafico");
+  if(canvas) canvas.style.display = "block";
+
   if(grafico) grafico.destroy();
 
   grafico = new Chart(document.getElementById("grafico"), {
@@ -642,6 +683,31 @@ function atualizarDashboard(){
   });
 
   atualizarAbasFiltro("dash", filtroDashboard);
+}
+
+function montarGraficoFallback(labels, valores){
+  const boxGrafico = document.querySelector(".grafico-box");
+  if(!boxGrafico) return;
+
+  let fallback = document.getElementById("graficoFallback");
+  if(!fallback){
+    fallback = document.createElement("div");
+    fallback.id = "graficoFallback";
+    fallback.className = "grafico-fallback";
+    boxGrafico.appendChild(fallback);
+  }
+
+  if(labels.length === 0){
+    fallback.innerHTML = `<div class="texto-vazio">Nenhum valor finalizado nesse período.</div>`;
+    return;
+  }
+
+  const maior = Math.max(...valores, 1);
+  fallback.innerHTML = labels.map((nome, i) => {
+    const valor = valores[i] || 0;
+    const largura = Math.max(4, Math.round((valor / maior) * 100));
+    return `<div class="grafico-linha"><div class="grafico-nome">${nome}</div><div class="grafico-barra"><div class="grafico-preenchido" style="width:${largura}%"></div></div><div class="grafico-valor">${formatarMoeda(valor)}</div></div>`;
+  }).join("");
 }
 
 
@@ -898,13 +964,16 @@ function atualizarTempoRealComDebounce(payload){
 function iniciarSincronizacaoAutomatica(){
   if(intervaloSincronizacao) clearInterval(intervaloSincronizacao);
 
-  // Segurança extra: se o Realtime do Supabase falhar ou o celular pausar a aba,
-  // o sistema ainda confere alterações sozinho sem precisar atualizar a página.
+  // No celular, atualizar a cada 5 segundos pesa muito e pode travar o carregamento.
+  // O Realtime continua atualizando na hora; esta conferência é só uma segurança extra.
+  const ehCelular = window.matchMedia && window.matchMedia("(max-width: 768px)").matches;
+  const tempo = ehCelular ? 30000 : 12000;
+
   intervaloSincronizacao = setInterval(() => {
-    if(usuarioLogado){
+    if(usuarioLogado && !document.hidden){
       carregarRelatorios();
     }
-  }, 5000);
+  }, tempo);
 }
 
 banco
@@ -915,10 +984,16 @@ banco
 .subscribe();
 
 window.onload = function(){
-  const salvo = localStorage.getItem("usuarioLogado");
-  if(salvo){
-    usuarioLogado = JSON.parse(salvo);
-    iniciarSistema();
+  try{
+    const salvo = localStorage.getItem("usuarioLogado");
+    if(salvo){
+      usuarioLogado = JSON.parse(salvo);
+      iniciarSistema();
+    }
+  }catch(erro){
+    console.error("Erro ao recuperar login salvo:", erro);
+    localStorage.removeItem("usuarioLogado");
+    esconderCarregando();
   }
 };
 </script>
