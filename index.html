@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sofisticatto Financeiro</title>
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=ipQ7gjV-NpfwbM9G-LFYVuMbJtDapkLekevXkFeRL6Mw8ivO4pQloulaSXwb3V3j19fbue9wuTvq27N7kKCgxc7x8g1CUk3lZuTgdqtKzFc5kALFzFTjX3_AkATL99GyAhlCoSVCJHRbyO93bfqq1hsIPOlW31m8PNGRwz3DHffldMTA5bl8KgqQCn10I_brkIX5gUDLXos8xbT60si4Yin38eva8nsRU02cO89i20W4QdLOojOKLA36RWHJIqwMODpn9iuxA5Hw_JAM7thHJPrlmOduShV_spdkFtUJeicM5i-svEEHlMzVCNgmztz9r9A3xgEorKCU6yCkZQJ80L-f1X2V7o-vNrhJe9Pdd7o" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=uscuQ-qddqly8YoIqviA_UKboKbWer_4s7XtZdn-8MoVEo6um06-abuB7PYTX8N9MYL3-Q7uVCPpAZOvUqEuqyCRRcrwgUXIo15Df2pMptfP2mHVEC_jd2fHCL5k1oXC9u0Mhvst6n3T5uvnqtyZNmyr4FYDG6K-5J8VBVteOAc1tkzAPgW6xQ3Wr-izZyVCMtmZg5GLZh1FOKKZN614JamjvG0ZqCSGGRYMIXUkeq17GfE0GIXPxpe7lhXPT05KDTJoEBfiNWWtQsJATPPDQ6P7cRXUYsy9yXy2zwRSqiuES_8MP-3iEnNRB_57sA4Ci-D5w9NjSoQBLhllPdkteEUU1AYItUuUujo_QEIIvSg" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
@@ -45,6 +45,7 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
     <div id="usuarioInfo" class="usuario-logado"></div>
     <div class="notificacao-box">
       <h3>🔔 Notificações <span id="contadorNotificacoes" class="badge">0</span></h3>
+      <button id="btnPermitirNotificacao" class="buscar" style="width:100%;margin-top:10px;padding:10px;font-size:12px;" onclick="solicitarPermissaoNotificacao()">Ativar notificação no Chrome</button>
       <div id="listaNotificacoes" style="max-height:230px;overflow:auto;margin-top:10px;"></div>
     </div>
     <div class="menu" style="margin-top:15px;">
@@ -163,6 +164,7 @@ let dataDashboardInicio = formatarDataInput(new Date());
 let dataDashboardFim = formatarDataInput(new Date());
 let dataHistoricoEspecifica = "";
 let filtroNomeHistorico = "";
+let sistemaJaCarregado = false;
 
 async function entrar(){
   const login = document.getElementById("login").value.trim();
@@ -182,6 +184,7 @@ async function entrar(){
 function iniciarSistema(){
   document.getElementById("loginTela").style.display = "none";
   document.getElementById("usuarioInfo").innerHTML = "Usuário: <b>" + usuarioLogado.login + "</b><br>Tipo: <b>" + usuarioLogado.tipo + "</b>";
+  atualizarBotaoNotificacao();
   document.getElementById("btnAdmin").style.display = usuarioLogado.tipo === "admin" ? "block" : "none";
   document.getElementById("boxNovoRelatorio").style.display = usuarioLogado.tipo === "banco" ? "none" : "block";
   mostrarDashboardHoje();
@@ -222,6 +225,7 @@ async function carregarRelatorios(){
   montarHistorico();
   atualizarDashboard();
   carregarNotificacoes();
+  sistemaJaCarregado = true;
 }
 
 function montarSelectBanco(id, bancoAtual){
@@ -628,6 +632,80 @@ function atualizarDashboard(){
   atualizarAbasFiltro("dash", filtroDashboard);
 }
 
+
+function atualizarBotaoNotificacao(){
+  const botao = document.getElementById("btnPermitirNotificacao");
+  if(!botao) return;
+
+  if(!("Notification" in window)){
+    botao.innerHTML = "Notificação não suportada";
+    botao.disabled = true;
+    return;
+  }
+
+  if(Notification.permission === "granted"){
+    botao.innerHTML = "Notificação ativada ✅";
+    botao.disabled = true;
+    return;
+  }
+
+  if(Notification.permission === "denied"){
+    botao.innerHTML = "Notificação bloqueada no Chrome";
+    botao.disabled = true;
+    return;
+  }
+
+  botao.innerHTML = "Ativar notificação no Chrome";
+  botao.disabled = false;
+}
+
+async function solicitarPermissaoNotificacao(){
+  if(!("Notification" in window)){
+    alert("Este navegador não suporta notificação.");
+    return;
+  }
+
+  const permissao = await Notification.requestPermission();
+  atualizarBotaoNotificacao();
+
+  if(permissao === "granted"){
+    notificarChrome("Sofisticatto Financeiro", "Notificações ativadas com sucesso.");
+  }else{
+    alert("A notificação não foi liberada. Verifique as permissões do Chrome.");
+  }
+}
+
+function notificarChrome(titulo, mensagem){
+  if(!("Notification" in window)) return;
+  if(Notification.permission !== "granted") return;
+
+  new Notification(titulo, {
+    body: mensagem,
+    tag: "sofisticatto-financeiro",
+    requireInteraction: false
+  });
+}
+
+function processarNotificacaoTempoReal(payload){
+  if(!usuarioLogado || !sistemaJaCarregado || !payload || !payload.new) return;
+
+  const novo = payload.new;
+  const antigo = payload.old || {};
+
+  if(usuarioLogado.tipo === "banco"){
+    if(payload.eventType === "INSERT" && novo.status !== "Finalizado" && !novo.banco){
+      notificarChrome("Novo relatório lançado", `Cliente: ${novo.nome || "Sem nome"} | Valor: ${formatarMoeda(novo.valor || 0)}`);
+    }
+  }
+
+  if(usuarioLogado.tipo === "financeiro" || usuarioLogado.tipo === "admin"){
+    const bancoFoiAutorizado = novo.status !== "Finalizado" && novo.banco && antigo.banco !== novo.banco;
+    if(payload.eventType === "UPDATE" && bancoFoiAutorizado){
+      notificarChrome("Banco autorizado", `${novo.banco} autorizado para ${novo.nome || "cliente"} | Valor: ${formatarMoeda(novo.valor || 0)}`);
+    }
+  }
+}
+
 function carregarNotificacoes(){
   const lista = document.getElementById("listaNotificacoes");
   const contador = document.getElementById("contadorNotificacoes");
@@ -771,8 +849,11 @@ async function carregarUsuarios(){
 
 banco
 .channel("tempo-real")
-.on("postgres_changes",{event:"*",schema:"public",table:"boletos"},() => {
-  if(usuarioLogado) carregarRelatorios();
+.on("postgres_changes",{event:"*",schema:"public",table:"boletos"},(payload) => {
+  if(usuarioLogado){
+    processarNotificacaoTempoReal(payload);
+    carregarRelatorios();
+  }
 })
 .subscribe();
 
