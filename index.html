@@ -6,7 +6,7 @@
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
 
-<style>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=tzMs3vYe4IMO5a6u6Qcgegrdf27f8-Os__o_1pnXVYgRKPT9ywYgvR6sOCg6B0Yy6dfqmezjYFmmrLPIpYi2t27OgPbvFBnKKth0g_8vLlzmZ1_Ogxv_iyqhUD7N_3YkBYUQHajado0jeY3ZcVkPeCqH9qgm6anxx2xcWcRySr0I9yCTN4Z7WRBFBcdsuCLBkOGEKFdQRg94mBa7kUbBdhQvgDkXVblF2ZmvAWIvWGi5GWv1sbLJjWOJaVNDDHo8l70wjyi-1EmO0EAiGYXg5Wjaa9owVgOZTk_srFsJJLB3e4ddfyGMxbpXgRpsGOmXvfbgm8zT5JgYjBzwF4hQLgp5PVhWlNOd_iMLo7c44Fw" charset="UTF-8"></script><style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
 body{background:#f5f2fb;display:flex;min-height:100vh;color:#4d4694}
 .sidebar{width:250px;background:white;padding:25px;box-shadow:0 0 15px rgba(0,0,0,.08);display:flex;flex-direction:column;justify-content:space-between}
@@ -158,6 +158,7 @@ const SUPABASE_URL = "https://drtgtwwsbxrmqcaabzcs.supabase.co";
 const SUPABASE_KEY = "sb_publishable_h0Ep974nBED88dimAY0BGQ_KLqoQ7po";
 let banco = null;
 let realtimeIniciado = false;
+let chartJsPromise = null;
 
 function carregarSupabase(){
   return new Promise((resolve, reject) => {
@@ -185,6 +186,52 @@ function carregarSupabase(){
       if(!banco) reject(new Error("Tempo limite ao carregar Supabase"));
     }, 15000);
   });
+}
+
+
+function carregarChartJS(){
+  return new Promise((resolve, reject) => {
+    if(window.Chart){
+      resolve();
+      return;
+    }
+
+    if(chartJsPromise){
+      chartJsPromise.then(resolve).catch(reject);
+      return;
+    }
+
+    chartJsPromise = new Promise((ok, erro) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/chart.js";
+      script.async = true;
+      script.onload = () => {
+        if(window.Chart){
+          ok();
+        }else{
+          erro(new Error("Chart.js não carregou"));
+        }
+      };
+      script.onerror = () => erro(new Error("Falha ao carregar Chart.js"));
+      document.head.appendChild(script);
+
+      setTimeout(() => {
+        if(!window.Chart) erro(new Error("Tempo limite ao carregar Chart.js"));
+      }, 12000);
+    });
+
+    chartJsPromise.then(resolve).catch(reject);
+  });
+}
+
+function atualizarDashboardComGrafico(){
+  atualizarDashboard();
+  carregarChartJS()
+    .then(() => atualizarDashboard())
+    .catch(() => {
+      const canvas = document.getElementById("grafico");
+      if(canvas) canvas.style.display = "none";
+    });
 }
 
 function bancoPronto(){
@@ -258,6 +305,10 @@ function mostrarSecao(secao){
   document.getElementById("historico").style.display = "none";
   document.getElementById("admin").style.display = "none";
   document.getElementById(secao).style.display = "block";
+
+  if(secao === "dashboard"){
+    setTimeout(() => atualizarDashboardComGrafico(), 50);
+  }
 }
 
 function sair(){ localStorage.removeItem("usuarioLogado"); location.reload(); }
@@ -706,12 +757,20 @@ function atualizarDashboard(){
     return;
   }
 
+  const fallback = document.getElementById("graficoFallback");
+  if(fallback) fallback.style.display = "none";
+
   const canvas = document.getElementById("grafico");
-  if(canvas) canvas.style.display = "block";
+  if(!canvas){
+    atualizarAbasFiltro("dash", filtroDashboard);
+    return;
+  }
+
+  canvas.style.display = "block";
 
   if(grafico) grafico.destroy();
 
-  grafico = new Chart(document.getElementById("grafico"), {
+  grafico = new Chart(canvas, {
     type:"bar",
     data:{labels:labels,datasets:[{label:"Total por banco",data:valores,backgroundColor:cores,borderColor:cores,borderWidth:1}]},
     options:{responsive:true,maintainAspectRatio:false}
@@ -731,6 +790,8 @@ function montarGraficoFallback(labels, valores){
     fallback.className = "grafico-fallback";
     boxGrafico.appendChild(fallback);
   }
+
+  fallback.style.display = "block";
 
   if(labels.length === 0){
     fallback.innerHTML = `<div class="texto-vazio">Nenhum valor finalizado nesse período.</div>`;
