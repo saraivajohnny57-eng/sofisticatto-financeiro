@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sofisticatto Financeiro</title>
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=uscuQ-qddqly8YoIqviA_UKboKbWer_4s7XtZdn-8MoVEo6um06-abuB7PYTX8N9MYL3-Q7uVCPpAZOvUqEuqyCRRcrwgUXIo15Df2pMptfP2mHVEC_jd2fHCL5k1oXC9u0Mhvst6n3T5uvnqtyZNmyr4FYDG6K-5J8VBVteOAc1tkzAPgW6xQ3Wr-izZyVCMtmZg5GLZh1FOKKZN614JamjvG0ZqCSGGRYMIXUkeq17GfE0GIXPxpe7lhXPT05KDTJoEBfiNWWtQsJATPPDQ6P7cRXUYsy9yXy2zwRSqiuES_8MP-3iEnNRB_57sA4Ci-D5w9NjSoQBLhllPdkteEUU1AYItUuUujo_QEIIvSg" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=dPWED4BLhNvwnD38oX63wyscVLWCXWm3IwInwNC7IkBjJaiS9dGe4ybhFxoT8clqx2ycABuuZufY0_fd2e4UdHrkPpxV8iU5favX_Azq75NCSrvtN_7cXVkYqgAq1qYSP02wVl08PDYO75mGLsJTJknlUYZGkcEW8STL5oynSsEUws_tJrJ8J-eLCSQ1DGa5zJTaa8cugB41_yEI3rKsTuvjEg8qB5RxLKQ92x3A8cCLVTPiPVgYgbwrLkXctuK-n4EF3ZzHh0iNX5Iz6g_Fo_Hc1PCdG-GAlD4cofa4FoKSb9zctuMEJhzBHs6cMRA1" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
@@ -165,6 +166,8 @@ let dataDashboardFim = formatarDataInput(new Date());
 let dataHistoricoEspecifica = "";
 let filtroNomeHistorico = "";
 let sistemaJaCarregado = false;
+let timerAtualizacaoTempoReal = null;
+let bancosJaCarregados = false;
 
 async function entrar(){
   const login = document.getElementById("login").value.trim();
@@ -189,7 +192,6 @@ function iniciarSistema(){
   document.getElementById("boxNovoRelatorio").style.display = usuarioLogado.tipo === "banco" ? "none" : "block";
   mostrarDashboardHoje();
   mostrarSecao("dashboard");
-  carregarBancos();
   carregarRelatorios();
   carregarUsuarios();
 }
@@ -208,6 +210,7 @@ async function carregarBancos(){
   const resposta = await banco.from("bancos").select("*").order("nome",{ascending:true});
   if(resposta.error) return;
   listaBancos = resposta.data || [];
+  bancosJaCarregados = true;
   const tabela = document.getElementById("tabelaBancos");
   if(!tabela) return;
   tabela.innerHTML = "";
@@ -217,7 +220,9 @@ async function carregarBancos(){
 }
 
 async function carregarRelatorios(){
-  await carregarBancos();
+  if(!bancosJaCarregados){
+    await carregarBancos();
+  }
   const resposta = await banco.from("boletos").select("*").order("id",{ascending:false});
   if(resposta.error) return;
   todosBoletos = resposta.data || [];
@@ -809,14 +814,12 @@ async function criarBanco(){
 
   await banco.from("bancos").insert([{nome:nome,cor:cor}]);
   document.getElementById("novoBanco").value = "";
-  carregarBancos();
   carregarRelatorios();
 }
 
 async function excluirBanco(id){
   if(!confirm("Excluir este banco?")) return;
   await banco.from("bancos").delete().eq("id",id);
-  carregarBancos();
   carregarRelatorios();
 }
 
@@ -847,13 +850,24 @@ async function carregarUsuarios(){
   });
 }
 
+function atualizarTempoRealComDebounce(payload){
+  if(!usuarioLogado) return;
+
+  processarNotificacaoTempoReal(payload);
+
+  if(timerAtualizacaoTempoReal){
+    clearTimeout(timerAtualizacaoTempoReal);
+  }
+
+  timerAtualizacaoTempoReal = setTimeout(() => {
+    carregarRelatorios();
+  }, 700);
+}
+
 banco
 .channel("tempo-real")
 .on("postgres_changes",{event:"*",schema:"public",table:"boletos"},(payload) => {
-  if(usuarioLogado){
-    processarNotificacaoTempoReal(payload);
-    carregarRelatorios();
-  }
+  atualizarTempoRealComDebounce(payload);
 })
 .subscribe();
 
