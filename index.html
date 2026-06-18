@@ -6,7 +6,7 @@
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
 
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=L8okJrYsVC0jhoFcW_0n8-hzqXTeuErIu2T5sFcDdrlwbFvpBCMxJ9J9JQfnoVeu6CH_-DOaejWFXiOd3ZFk4gUbBHNpCsUQmSE64DcRIQ7RXrw02Kch8g4jtA1zFNE9dydh8aKUMNvXeIluQnezVtsyZngxhdTCd5uWM35Tw-8mn8mXBeQKIR4JHIWWBGMP14ddmpkmXz97YL30HI261odRq08hATwDXGQvsyGFpnosDhgFPgfojIf6scpM8ILOjp-r4JuUo3WushllgoiBU-osXRAJ1coZqAF71LGNixE3BIG8ediLgHM_Y74Xcsp3" charset="UTF-8"></script><style>
+<style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
 body{background:#f5f2fb;display:flex;min-height:100vh;color:#4d4694}
 .sidebar{width:250px;background:white;padding:25px;box-shadow:0 0 15px rgba(0,0,0,.08);display:flex;flex-direction:column;justify-content:space-between}
@@ -22,12 +22,12 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
 .btn{border:none;padding:10px 14px;border-radius:10px;color:white;cursor:pointer;margin:3px;white-space:nowrap}.azul{background:#3498db}.roxo{background:#5a4fa3}.vermelho{background:#c0392b}.verde{background:#27ae60}
 .login{position:fixed;inset:0;background:#f5f2fb;display:flex;justify-content:center;align-items:center;z-index:999;padding:20px}.login-box{background:white;padding:40px;border-radius:30px;width:350px;max-width:100%;box-shadow:0 0 20px rgba(0,0,0,.08)}
 .login-box h1{text-align:center;font-size:40px;font-style:italic;font-weight:300;color:#5a4fa3}.login-box p{text-align:center;letter-spacing:5px;font-size:12px;margin-bottom:30px;color:#9c92d9}.login-box input{margin-bottom:15px}.login-box button{width:100%;padding:15px;border:none;border-radius:15px;margin-top:10px;cursor:pointer}.entrar{background:#5a4fa3;color:white}
-.usuario-logado{font-size:14px;background:#ede9fb;padding:12px;border-radius:15px;margin-bottom:20px}.cor-box{width:35px;height:25px;border-radius:8px;border:1px solid #ddd}.grafico-box{position:relative;width:100%;min-height:260px;height:auto}
+.usuario-logado{font-size:14px;background:#ede9fb;padding:12px;border-radius:15px;margin-bottom:20px}.cor-box{width:35px;height:25px;border-radius:8px;border:1px solid #ddd}.grafico-box{position:relative;width:100%;height:350px}
 .notificacao-box{margin-top:15px;background:#ede9fb;padding:15px;border-radius:15px}.notificacao-item{background:white;padding:12px;border-radius:12px;margin-bottom:8px;border-left:5px solid #5a4fa3;font-size:13px;cursor:pointer}.badge{display:inline-block;background:#5a4fa3;color:white;border-radius:999px;padding:3px 9px;font-size:12px;margin-left:5px}
 .filtro-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}.filtro-tabs button{border:none;background:#ede9fb;color:#4d4694;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:bold}.filtro-tabs button.ativo{background:#5a4fa3;color:white}.filtro-data-box{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:end}.filtro-data-box input{max-width:220px}.campo-data{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:bold;color:#4d4694}.resumo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px;margin-bottom:25px}.resumo-card{background:white;padding:18px;border-radius:20px;box-shadow:0 0 15px rgba(0,0,0,.05);border-left:6px solid #5a4fa3}.resumo-card p{font-size:13px;color:#7d73bd;margin-bottom:8px}.resumo-card h2{font-size:28px;color:#4d4694}.resumo-card ul{list-style:none;margin-top:6px}.resumo-card li{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #eee;font-size:14px}.resumo-card li:last-child{border-bottom:none}.texto-vazio{color:#999;font-size:14px;margin-top:6px}
 .toast-container{position:fixed;right:20px;bottom:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;max-width:360px}.toast-notificacao{background:white;color:#4d4694;padding:15px 18px;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.18);border-left:6px solid #5a4fa3;animation:toastEntrar .25s ease;font-size:14px}.toast-notificacao b{display:block;margin-bottom:5px;font-size:15px}.toast-notificacao small{color:#7d73bd}@keyframes toastEntrar{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
 .grafico-fallback{margin-top:15px}.grafico-linha{display:flex;align-items:center;gap:10px;margin:10px 0}.grafico-nome{width:120px;font-weight:bold;font-size:13px}.grafico-barra{flex:1;background:#ede9fb;border-radius:999px;overflow:hidden;height:18px}.grafico-preenchido{height:100%;background:#5a4fa3;border-radius:999px}.grafico-valor{width:105px;text-align:right;font-size:13px;font-weight:bold}.carregando-sistema{position:fixed;left:50%;top:20px;transform:translateX(-50%);background:white;color:#4d4694;padding:12px 18px;border-radius:16px;box-shadow:0 8px 25px rgba(0,0,0,.12);z-index:10000;font-weight:bold;display:none}
-@media(max-width:768px){.grafico-box{min-height:220px;height:auto}.toast-container{left:15px;right:15px;bottom:15px;max-width:none}body{display:block}.sidebar{width:100%;padding:15px;position:sticky;top:0;z-index:10}.logo h1{font-size:30px}.logo p{letter-spacing:4px}.menu{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.menu button{margin-bottom:0;padding:12px;font-size:14px}.logout{margin-top:10px;width:100%}.main{padding:15px}.top{display:block}.top h1{font-size:26px;margin-bottom:5px}.card{padding:18px;border-radius:20px}.total{margin-top:15px}.total h2{font-size:28px}.inputs{grid-template-columns:1fr}table{min-width:850px}.login-box{padding:30px}.login-box h1{font-size:34px}.grafico-box{height:280px}}
+@media(max-width:768px){.toast-container{left:15px;right:15px;bottom:15px;max-width:none}body{display:block}.sidebar{width:100%;padding:15px;position:sticky;top:0;z-index:10}.logo h1{font-size:30px}.logo p{letter-spacing:4px}.menu{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.menu button{margin-bottom:0;padding:12px;font-size:14px}.logout{margin-top:10px;width:100%}.main{padding:15px}.top{display:block}.top h1{font-size:26px;margin-bottom:5px}.card{padding:18px;border-radius:20px}.total{margin-top:15px}.total h2{font-size:28px}.inputs{grid-template-columns:1fr}table{min-width:850px}.login-box{padding:30px}.login-box h1{font-size:34px}.grafico-box{height:280px}}
 </style>
 </head>
 <body>
@@ -85,7 +85,7 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
       </div>
       <div class="card total"><p id="tituloTotal">Total Finalizado</p><h2 id="total">R$ 0,00</h2></div>
     </div>
-    <div class="card"><h2>Total por Banco</h2><div class="grafico-box"><div id="graficoFallback" class="grafico-fallback"></div></div></div>
+    <div class="card"><h2>Total por Banco</h2><div class="grafico-box"><canvas id="grafico"></canvas></div></div>
   </div>
 
   <div id="relatorios" style="display:none;">
@@ -697,11 +697,30 @@ function atualizarDashboard(){
     return encontrado?.cor || "#5a4fa3";
   });
 
-  montarGraficoFallback(labels, valores, cores);
+  montarGraficoFallback(labels, valores);
+
+  if(typeof Chart === "undefined"){
+    const canvas = document.getElementById("grafico");
+    if(canvas) canvas.style.display = "none";
+    atualizarAbasFiltro("dash", filtroDashboard);
+    return;
+  }
+
+  const canvas = document.getElementById("grafico");
+  if(canvas) canvas.style.display = "block";
+
+  if(grafico) grafico.destroy();
+
+  grafico = new Chart(document.getElementById("grafico"), {
+    type:"bar",
+    data:{labels:labels,datasets:[{label:"Total por banco",data:valores,backgroundColor:cores,borderColor:cores,borderWidth:1}]},
+    options:{responsive:true,maintainAspectRatio:false}
+  });
+
   atualizarAbasFiltro("dash", filtroDashboard);
 }
 
-function montarGraficoFallback(labels, valores, cores){
+function montarGraficoFallback(labels, valores){
   const boxGrafico = document.querySelector(".grafico-box");
   if(!boxGrafico) return;
 
@@ -722,8 +741,7 @@ function montarGraficoFallback(labels, valores, cores){
   fallback.innerHTML = labels.map((nome, i) => {
     const valor = valores[i] || 0;
     const largura = Math.max(4, Math.round((valor / maior) * 100));
-    const cor = cores && cores[i] ? cores[i] : "#5a4fa3";
-    return `<div class="grafico-linha"><div class="grafico-nome">${nome}</div><div class="grafico-barra"><div class="grafico-preenchido" style="width:${largura}%;background:${cor}"></div></div><div class="grafico-valor">${formatarMoeda(valor)}</div></div>`;
+    return `<div class="grafico-linha"><div class="grafico-nome">${nome}</div><div class="grafico-barra"><div class="grafico-preenchido" style="width:${largura}%"></div></div><div class="grafico-valor">${formatarMoeda(valor)}</div></div>`;
   }).join("");
 }
 
