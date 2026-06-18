@@ -6,7 +6,8 @@
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
 
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=tzMs3vYe4IMO5a6u6Qcgegrdf27f8-Os__o_1pnXVYgRKPT9ywYgvR6sOCg6B0Yy6dfqmezjYFmmrLPIpYi2t27OgPbvFBnKKth0g_8vLlzmZ1_Ogxv_iyqhUD7N_3YkBYUQHajado0jeY3ZcVkPeCqH9qgm6anxx2xcWcRySr0I9yCTN4Z7WRBFBcdsuCLBkOGEKFdQRg94mBa7kUbBdhQvgDkXVblF2ZmvAWIvWGi5GWv1sbLJjWOJaVNDDHo8l70wjyi-1EmO0EAiGYXg5Wjaa9owVgOZTk_srFsJJLB3e4ddfyGMxbpXgRpsGOmXvfbgm8zT5JgYjBzwF4hQLgp5PVhWlNOd_iMLo7c44Fw" charset="UTF-8"></script><style>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=7PoFncvuYGnQ9V5CEY4_0FOSGwWshwNKbKOi3v3e7xnUPEaj2a_1G20-lkxrYJFhsEH32nq4lrhAbOfIzO3sJQvv7QUKUcnAjfw7MddH0f_HYcFpOPVwiEebogjr2g74BzFGWrs-Z1k-xnYVng49BaICk5V0ZCUEOX8LafREZ-I5i0pVmFWdDgRkZSes9-YAMZ79gO508kc9yE4xbxb-99BjgK8s5kFr8-XO6zzZwPVqzVLjyy0nFiSjQC3vMGMffIwGqb79cSBD3qbfhkwr2zpUeXctPK2KAYzGW-YJGsdRuDTkkqG4btV1qgFsICB_" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+<style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
 body{background:#f5f2fb;display:flex;min-height:100vh;color:#4d4694}
 .sidebar{width:250px;background:white;padding:25px;box-shadow:0 0 15px rgba(0,0,0,.08);display:flex;flex-direction:column;justify-content:space-between}
@@ -748,17 +749,19 @@ function atualizarDashboard(){
     return encontrado?.cor || "#5a4fa3";
   });
 
-  montarGraficoFallback(labels, valores);
-
   if(typeof Chart === "undefined"){
     const canvas = document.getElementById("grafico");
     if(canvas) canvas.style.display = "none";
+    montarGraficoFallback(labels, valores);
     atualizarAbasFiltro("dash", filtroDashboard);
     return;
   }
 
   const fallback = document.getElementById("graficoFallback");
-  if(fallback) fallback.style.display = "none";
+  if(fallback){
+    fallback.innerHTML = "";
+    fallback.style.display = "none";
+  }
 
   const canvas = document.getElementById("grafico");
   if(!canvas){
@@ -773,7 +776,17 @@ function atualizarDashboard(){
   grafico = new Chart(canvas, {
     type:"bar",
     data:{labels:labels,datasets:[{label:"Total por banco",data:valores,backgroundColor:cores,borderColor:cores,borderWidth:1}]},
-    options:{responsive:true,maintainAspectRatio:false}
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:(ctx)=>formatarMoeda(ctx.raw || 0)}}
+      },
+      scales:{
+        y:{beginAtZero:true,ticks:{callback:(value)=>Number(value).toLocaleString("pt-BR")}}
+      }
+    }
   });
 
   atualizarAbasFiltro("dash", filtroDashboard);
