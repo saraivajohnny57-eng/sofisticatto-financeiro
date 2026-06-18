@@ -6,7 +6,7 @@
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
 
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=7PoFncvuYGnQ9V5CEY4_0FOSGwWshwNKbKOi3v3e7xnUPEaj2a_1G20-lkxrYJFhsEH32nq4lrhAbOfIzO3sJQvv7QUKUcnAjfw7MddH0f_HYcFpOPVwiEebogjr2g74BzFGWrs-Z1k-xnYVng49BaICk5V0ZCUEOX8LafREZ-I5i0pVmFWdDgRkZSes9-YAMZ79gO508kc9yE4xbxb-99BjgK8s5kFr8-XO6zzZwPVqzVLjyy0nFiSjQC3vMGMffIwGqb79cSBD3qbfhkwr2zpUeXctPK2KAYzGW-YJGsdRuDTkkqG4btV1qgFsICB_" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=3xsSgEKVyoKhx1lh6-CPOdBBeCSMLWKCbbVuAIaFf-Ojp9U6M3BtSvcsdW2Jvpm-IKL-gmQ7Tetc8Q6Ap_8rysOMfVhADqnY53T8Pj9k5oYyiXzRlvewr30XX290Xv0_OsnbrGJ7hNXomDL50fqGbnoyQS_-9M1_b-zV_3RxTzBgo_wIh6gKsFOVTf4uaks8S6l_LXsDwTWnmrvBe6IsQtFnevqx6gq2-KTTlaJr9Jt6C54EfFphQGz83ETf4fDAXeDOTvcjEiL8JEcWfZErRqR-apRstcSV2NdK7DaI4pJvMVw99pj6jI8FWioBTVVy" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
 body{background:#f5f2fb;display:flex;min-height:100vh;color:#4d4694}
@@ -157,89 +157,7 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
 <script>
 const SUPABASE_URL = "https://drtgtwwsbxrmqcaabzcs.supabase.co";
 const SUPABASE_KEY = "sb_publishable_h0Ep974nBED88dimAY0BGQ_KLqoQ7po";
-let banco = null;
-let realtimeIniciado = false;
-let chartJsPromise = null;
-
-function carregarSupabase(){
-  return new Promise((resolve, reject) => {
-    if(window.supabase){
-      banco = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      resolve();
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
-    script.async = true;
-    script.onload = () => {
-      if(window.supabase){
-        banco = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        resolve();
-      }else{
-        reject(new Error("Supabase não carregou"));
-      }
-    };
-    script.onerror = () => reject(new Error("Falha ao carregar Supabase"));
-    document.head.appendChild(script);
-
-    setTimeout(() => {
-      if(!banco) reject(new Error("Tempo limite ao carregar Supabase"));
-    }, 15000);
-  });
-}
-
-
-function carregarChartJS(){
-  return new Promise((resolve, reject) => {
-    if(window.Chart){
-      resolve();
-      return;
-    }
-
-    if(chartJsPromise){
-      chartJsPromise.then(resolve).catch(reject);
-      return;
-    }
-
-    chartJsPromise = new Promise((ok, erro) => {
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/chart.js";
-      script.async = true;
-      script.onload = () => {
-        if(window.Chart){
-          ok();
-        }else{
-          erro(new Error("Chart.js não carregou"));
-        }
-      };
-      script.onerror = () => erro(new Error("Falha ao carregar Chart.js"));
-      document.head.appendChild(script);
-
-      setTimeout(() => {
-        if(!window.Chart) erro(new Error("Tempo limite ao carregar Chart.js"));
-      }, 12000);
-    });
-
-    chartJsPromise.then(resolve).catch(reject);
-  });
-}
-
-function atualizarDashboardComGrafico(){
-  atualizarDashboard();
-  carregarChartJS()
-    .then(() => atualizarDashboard())
-    .catch(() => {
-      const canvas = document.getElementById("grafico");
-      if(canvas) canvas.style.display = "none";
-    });
-}
-
-function bancoPronto(){
-  if(banco) return true;
-  alert("O sistema ainda está conectando. Aguarde alguns segundos e tente novamente.");
-  return false;
-}
+const banco = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 function mostrarCarregando(texto){
   const box = document.getElementById("carregandoSistema");
@@ -273,7 +191,6 @@ let atualizacaoPendenteEnquantoEdita = false;
 let formularioRelatorioAlterado = false;
 
 async function entrar(){
-  if(!bancoPronto()) return;
   const login = document.getElementById("login").value.trim();
   const senha = document.getElementById("senha").value.trim();
   const resposta = await banco.from("usuarios").select("*").eq("login", login).eq("senha", senha).single();
@@ -298,6 +215,7 @@ function iniciarSistema(){
   mostrarSecao("dashboard");
   carregarRelatorios();
   carregarUsuarios();
+  iniciarSincronizacaoAutomatica();
 }
 
 function mostrarSecao(secao){
@@ -306,10 +224,6 @@ function mostrarSecao(secao){
   document.getElementById("historico").style.display = "none";
   document.getElementById("admin").style.display = "none";
   document.getElementById(secao).style.display = "block";
-
-  if(secao === "dashboard"){
-    setTimeout(() => atualizarDashboardComGrafico(), 50);
-  }
 }
 
 function sair(){ localStorage.removeItem("usuarioLogado"); location.reload(); }
@@ -327,9 +241,9 @@ async function carregarBancos(){
   });
 }
 
-async function carregarRelatorios(silencioso = false){
+async function carregarRelatorios(){
   try{
-    if(!silencioso) mostrarCarregando("Atualizando dados...");
+    mostrarCarregando("Atualizando dados...");
 
     if(!bancosJaCarregados){
       await carregarBancos();
@@ -352,7 +266,7 @@ async function carregarRelatorios(silencioso = false){
     console.error("Erro geral ao carregar relatórios:", erro);
     mostrarToastSistema("Erro no carregamento", "Confira sua internet e tente abrir novamente.");
   }finally{
-    if(!silencioso) esconderCarregando();
+    esconderCarregando();
   }
 }
 
@@ -749,50 +663,17 @@ function atualizarDashboard(){
     return encontrado?.cor || "#5a4fa3";
   });
 
-  if(typeof Chart === "undefined"){
-    const canvas = document.getElementById("grafico");
-    if(canvas) canvas.style.display = "none";
-    montarGraficoFallback(labels, valores);
-    atualizarAbasFiltro("dash", filtroDashboard);
-    return;
-  }
-
-  const fallback = document.getElementById("graficoFallback");
-  if(fallback){
-    fallback.innerHTML = "";
-    fallback.style.display = "none";
-  }
+  // Gráfico leve sem biblioteca externa: carrega rápido no celular
+  // e usa as cores cadastradas em cada banco.
+  montarGraficoFallback(labels, valores, cores);
 
   const canvas = document.getElementById("grafico");
-  if(!canvas){
-    atualizarAbasFiltro("dash", filtroDashboard);
-    return;
-  }
-
-  canvas.style.display = "block";
-
-  if(grafico) grafico.destroy();
-
-  grafico = new Chart(canvas, {
-    type:"bar",
-    data:{labels:labels,datasets:[{label:"Total por banco",data:valores,backgroundColor:cores,borderColor:cores,borderWidth:1}]},
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{
-        legend:{display:false},
-        tooltip:{callbacks:{label:(ctx)=>formatarMoeda(ctx.raw || 0)}}
-      },
-      scales:{
-        y:{beginAtZero:true,ticks:{callback:(value)=>Number(value).toLocaleString("pt-BR")}}
-      }
-    }
-  });
+  if(canvas) canvas.style.display = "none";
 
   atualizarAbasFiltro("dash", filtroDashboard);
 }
 
-function montarGraficoFallback(labels, valores){
+function montarGraficoFallback(labels, valores, cores){
   const boxGrafico = document.querySelector(".grafico-box");
   if(!boxGrafico) return;
 
@@ -804,8 +685,6 @@ function montarGraficoFallback(labels, valores){
     boxGrafico.appendChild(fallback);
   }
 
-  fallback.style.display = "block";
-
   if(labels.length === 0){
     fallback.innerHTML = `<div class="texto-vazio">Nenhum valor finalizado nesse período.</div>`;
     return;
@@ -815,7 +694,8 @@ function montarGraficoFallback(labels, valores){
   fallback.innerHTML = labels.map((nome, i) => {
     const valor = valores[i] || 0;
     const largura = Math.max(4, Math.round((valor / maior) * 100));
-    return `<div class="grafico-linha"><div class="grafico-nome">${nome}</div><div class="grafico-barra"><div class="grafico-preenchido" style="width:${largura}%"></div></div><div class="grafico-valor">${formatarMoeda(valor)}</div></div>`;
+    const cor = (cores && cores[i]) ? cores[i] : "#5a4fa3";
+    return `<div class="grafico-linha"><div class="grafico-nome">${nome}</div><div class="grafico-barra"><div class="grafico-preenchido" style="width:${largura}%;background:${cor}"></div></div><div class="grafico-valor">${formatarMoeda(valor)}</div></div>`;
   }).join("");
 }
 
@@ -1134,47 +1014,41 @@ function atualizarTempoRealComDebounce(payload){
     return;
   }
 
-  carregarRelatorios(true);
+  carregarRelatorios();
 }
 
 function iniciarSincronizacaoAutomatica(){
-  // Desativado para não deixar o celular pesado.
-  // A atualização instantânea fica pelo Realtime do Supabase.
+  if(intervaloSincronizacao) clearInterval(intervaloSincronizacao);
+
+  // Segurança leve: não atualiza enquanto alguém está preenchendo a tabela.
+  // O principal fica por Realtime do Supabase.
+  intervaloSincronizacao = setInterval(() => {
+    if(usuarioLogado && !document.hidden && !usuarioEstaEditandoRelatorio()){
+      carregarRelatorios();
+    }
+  }, 5000);
 }
 
+banco
+.channel("tempo-real")
+.on("postgres_changes",{event:"*",schema:"public",table:"boletos"},(payload) => {
+  atualizarTempoRealComDebounce(payload);
+})
+.subscribe();
 
-function iniciarRealtime(){
-  if(realtimeIniciado || !banco) return;
-  realtimeIniciado = true;
-
-  banco
-  .channel("tempo-real")
-  .on("postgres_changes",{event:"*",schema:"public",table:"boletos"},(payload) => {
-    atualizarTempoRealComDebounce(payload);
-  })
-  .subscribe();
-}
-
-document.addEventListener("DOMContentLoaded", async function(){
+window.onload = function(){
   try{
-    mostrarCarregando("Conectando...");
-    await carregarSupabase();
-    iniciarRealtime();
-    esconderCarregando();
-
     const salvo = localStorage.getItem("usuarioLogado");
     if(salvo){
       usuarioLogado = JSON.parse(salvo);
       iniciarSistema();
-    }else{
-      atualizarBotaoNotificacao();
     }
   }catch(erro){
-    console.error("Erro ao iniciar sistema:", erro);
+    console.error("Erro ao recuperar login salvo:", erro);
+    localStorage.removeItem("usuarioLogado");
     esconderCarregando();
-    mostrarBalaoSistema("Erro de conexão", "Não foi possível conectar agora. Verifique a internet e atualize a página.");
   }
-});
+};
 </script>
 
 </body>
