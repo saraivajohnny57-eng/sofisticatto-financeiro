@@ -1573,7 +1573,7 @@ async function enviarLogoAssinaturaStorage(){
   if(!arquivo) return emailLogoTemporariaDataUrl || null;
   const extensao=(arquivo.name.split(".").pop()||"png").toLowerCase();
   const caminho=`assinatura/logo-${Date.now()}.${extensao}`;
-  const envio=await banco.storage.from("email-assinaturas").upload(caminho,arquivo,{upsert:true,contentType:arquivo.type});
+  const envio=await banco.storage.from("email-assinaturas").upload(caminho,arquivo,{upsert:false,contentType:arquivo.type});
   if(envio.error) throw new Error("Erro ao enviar logo: "+envio.error.message);
   return banco.storage.from("email-assinaturas").getPublicUrl(caminho).data.publicUrl;
 }
