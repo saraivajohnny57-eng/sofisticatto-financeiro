@@ -16,7 +16,7 @@ body{background:#f5f2fb;display:flex;min-height:100vh;color:#4d4694}
 .main{flex:1;padding:30px;overflow:auto}.card{background:white;padding:25px;border-radius:25px;box-shadow:0 0 15px rgba(0,0,0,.05);margin-bottom:25px}
 .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px;gap:15px}.total h2{font-size:35px;margin-top:10px}
 .inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-top:20px}
-input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outline:none;width:100%}
+input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outline:none;width:100%}textarea{resize:vertical;min-height:90px}
 .table-wrap{width:100%;overflow-x:auto}table{width:100%;border-collapse:collapse;margin-top:20px;min-width:900px}th,td{padding:12px;border-bottom:1px solid #eee;text-align:left}
 .status{padding:8px 15px;border-radius:20px;font-size:12px;color:white;white-space:nowrap}.andamento{background:#f0ad4e}.finalizado{background:#5cb85c}
 .btn{border:none;padding:10px 14px;border-radius:10px;color:white;cursor:pointer;margin:3px;white-space:nowrap}.azul{background:#3498db}.roxo{background:#5a4fa3}.vermelho{background:#c0392b}.verde{background:#27ae60}
@@ -28,6 +28,26 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
 .toast-container{position:fixed;right:20px;bottom:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;max-width:360px}.toast-notificacao{background:white;color:#4d4694;padding:15px 18px;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.18);border-left:6px solid #5a4fa3;animation:toastEntrar .25s ease;font-size:14px}.toast-notificacao b{display:block;margin-bottom:5px;font-size:15px}.toast-notificacao small{color:#7d73bd}@keyframes toastEntrar{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
 .grafico-fallback{margin-top:15px}.grafico-linha{display:flex;align-items:center;gap:10px;margin:10px 0}.grafico-nome{width:120px;font-weight:bold;font-size:13px}.grafico-barra{flex:1;background:#ede9fb;border-radius:999px;overflow:hidden;height:18px}.grafico-preenchido{height:100%;background:#5a4fa3;border-radius:999px}.grafico-valor{width:105px;text-align:right;font-size:13px;font-weight:bold}.carregando-sistema{position:fixed;left:50%;top:20px;transform:translateX(-50%);background:white;color:#4d4694;padding:12px 18px;border-radius:16px;box-shadow:0 8px 25px rgba(0,0,0,.12);z-index:10000;font-weight:bold;display:none}
 @media(max-width:768px){.toast-container{left:15px;right:15px;bottom:15px;max-width:none}body{display:block}.sidebar{width:100%;padding:15px;position:sticky;top:0;z-index:10}.logo h1{font-size:30px}.logo p{letter-spacing:4px}.menu{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.menu button{margin-bottom:0;padding:12px;font-size:14px}.logout{margin-top:10px;width:100%}.main{padding:15px}.top{display:block}.top h1{font-size:26px;margin-bottom:5px}.card{padding:18px;border-radius:20px}.total{margin-top:15px}.total h2{font-size:28px}.inputs{grid-template-columns:1fr}table{min-width:850px}.login-box{padding:30px}.login-box h1{font-size:34px}.grafico-box{height:280px}}
+
+.email-abas{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.email-abas button{border:none;background:#ede9fb;color:#4d4694;padding:11px 15px;border-radius:12px;cursor:pointer;font-weight:bold}
+.email-abas button.ativo{background:#5a4fa3;color:white}
+.email-subsecao{display:none}.email-subsecao.ativa{display:block}
+.email-modos{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}
+.email-modos button{border:1px solid #d9d3ef;background:white;color:#4d4694;padding:11px 14px;border-radius:12px;cursor:pointer;font-weight:bold}
+.email-modos button.ativo{background:#5a4fa3;color:white;border-color:#5a4fa3}
+.email-drop{border:2px dashed #bfb5df;border-radius:18px;padding:28px;text-align:center;background:#faf8ff;cursor:pointer;margin-top:18px}
+.email-drop.arrastando{background:#eee9fb;border-color:#5a4fa3}
+.email-drop input{display:none}
+.email-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
+.email-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0}
+.email-kpi{background:#f8f6fd;padding:15px;border-radius:16px;border-left:5px solid #5a4fa3}
+.email-kpi b{display:block;font-size:24px}.email-kpi span{font-size:12px;color:#7d73bd}
+.email-arquivos{font-size:12px;line-height:1.55;min-width:220px}
+.email-status-ok{color:#198754;font-weight:bold}.email-status-erro{color:#c0392b;font-weight:bold}
+.email-aviso{background:#fff5d8;border:1px solid #eed28b;color:#775600;padding:13px;border-radius:14px;margin:12px 0;font-size:13px}
+.email-sucesso{background:#e7f7ee;border-color:#b7dfc8;color:#17683d}
+
 </style>
 </head>
 <body>
@@ -55,6 +75,7 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
       <button onclick="mostrarSecao('dashboard')">Dashboard</button>
       <button onclick="mostrarSecao('relatorios')">Relatórios</button>
       <button onclick="mostrarSecao('historico')">Histórico</button>
+      <button id="btnEnvioDocumentos" onclick="mostrarSecao('envioDocumentos')" style="display:none;">Envio de Documentos</button>
       <button id="btnAdmin" onclick="mostrarSecao('admin')" style="display:none;">Admin</button>
     </div>
   </div>
@@ -129,6 +150,114 @@ input,select{padding:12px;border:none;border-radius:12px;background:#f5f2fb;outl
       </div>
       <div id="resumoHistoricoClientes" class="resumo-grid" style="margin-top:20px;"></div>
       <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Valor</th><th>Banco</th><th>Observação</th><th>Data Finalização</th><th>Editado por</th><th>Última edição</th><th>Ação</th></tr></thead><tbody id="tabelaHistorico"></tbody></table></div>
+    </div>
+  </div>
+
+
+  <div id="envioDocumentos" style="display:none;">
+    <div class="top">
+      <div><h1>Envio de Documentos</h1><p>Boletos, relatórios, notas fiscais, XML e romaneios</p></div>
+    </div>
+
+    <div class="email-abas">
+      <button id="emailAbaPreparar" class="ativo" onclick="mostrarAbaEmail('preparar')">Preparar Envios</button>
+      <button id="emailAbaClientes" onclick="mostrarAbaEmail('clientes')">Clientes</button>
+      <button id="emailAbaVendedoras" onclick="mostrarAbaEmail('vendedoras')">Vendedoras</button>
+      <button id="emailAbaHistorico" onclick="mostrarAbaEmail('historico')">Histórico</button>
+    </div>
+
+    <div id="emailSubPreparar" class="email-subsecao ativa">
+      <div class="card">
+        <h2>Tipo de envio</h2>
+        <div class="email-modos">
+          <button id="emailModoBoleto" class="ativo" onclick="selecionarModoEmail('boleto')">Boleto</button>
+          <button id="emailModoCompleto" onclick="selecionarModoEmail('completo')">Boleto / Relatório / NF / XML</button>
+          <button id="emailModoSemBoleto" onclick="selecionarModoEmail('sem_boleto')">Relatório / NF / XML</button>
+        </div>
+
+        <div id="emailDrop" class="email-drop" onclick="document.getElementById('emailArquivos').click()">
+          <input id="emailArquivos" type="file" multiple accept=".pdf,.xml,.doc,.docx">
+          <b>Selecione ou arraste os documentos para cá</b>
+          <p style="margin-top:7px;color:#7d73bd;font-size:13px;">O nome antes de “ - ” será usado para localizar o cliente.</p>
+        </div>
+
+        <div class="email-acoes">
+          <button class="buscar" onclick="document.getElementById('emailArquivos').click()">Selecionar arquivos</button>
+          <button class="btn vermelho" onclick="limparArquivosEmail()">Limpar</button>
+          <span id="emailQtdSelecionados" class="badge">0 arquivo(s)</span>
+        </div>
+      </div>
+
+      <div class="email-kpis">
+        <div class="email-kpi"><b id="emailKpiArquivos">0</b><span>Arquivos válidos</span></div>
+        <div class="email-kpi"><b id="emailKpiClientes">0</b><span>Clientes identificados</span></div>
+        <div class="email-kpi"><b id="emailKpiProntos">0</b><span>Envios prontos</span></div>
+        <div class="email-kpi"><b id="emailKpiPendentes">0</b><span>Cadastros pendentes</span></div>
+      </div>
+
+      <div class="card">
+        <div class="top">
+          <div><h2>Prévia dos envios</h2><p>Confira destinatários, vendedora e anexos antes de enviar.</p></div>
+          <div class="email-acoes">
+            <button class="buscar" onclick="prepararEnviosEmail()">Atualizar prévia</button>
+            <button class="salvar" onclick="enviarTodosEmails()">Enviar todos</button>
+          </div>
+        </div>
+        <div id="emailAvisoEnvio" class="email-aviso" style="display:none;"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cliente / Assunto</th><th>Para</th><th>CC Vendedora</th><th>Anexos</th><th>Status</th><th>Ação</th></tr></thead>
+            <tbody id="emailTabelaPrevia"><tr><td colspan="6">Nenhum arquivo selecionado.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="emailSubClientes" class="email-subsecao">
+      <div class="card">
+        <h2>Cadastro de Cliente</h2>
+        <input type="hidden" id="emailClienteId">
+        <div class="inputs">
+          <input id="emailClienteNome" placeholder="Nome do cliente">
+          <textarea id="emailClienteEmails" placeholder="E-mails separados por ponto e vírgula, vírgula ou uma linha para cada e-mail"></textarea>
+          <select id="emailClienteVendedora" onchange="atualizarEmailVendedoraAutomatico()"><option value="">Selecione a vendedora</option></select>
+          <input id="emailVendedoraAutomatico" placeholder="E-mail da vendedora (automático)" readonly>
+        </div>
+        <div class="email-acoes">
+          <button class="salvar" onclick="salvarClienteEmail()">Salvar Cliente</button>
+          <button id="emailCancelarCliente" class="btn azul" style="display:none;" onclick="cancelarEdicaoClienteEmail()">Cancelar edição</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Clientes cadastrados</h2>
+        <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>E-mails</th><th>Vendedora</th><th>E-mail vendedora</th><th>Ações</th></tr></thead><tbody id="emailTabelaClientes"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="emailSubVendedoras" class="email-subsecao">
+      <div class="card">
+        <h2>Cadastro de Vendedora</h2>
+        <input type="hidden" id="emailVendedoraId">
+        <div class="inputs">
+          <input id="emailVendedoraNome" placeholder="Nome">
+          <input id="emailVendedoraEmail" type="email" placeholder="E-mail">
+        </div>
+        <div class="email-acoes">
+          <button class="salvar" onclick="salvarVendedoraEmail()">Salvar Vendedora</button>
+          <button id="emailCancelarVendedora" class="btn azul" style="display:none;" onclick="cancelarEdicaoVendedoraEmail()">Cancelar edição</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Vendedoras cadastradas</h2>
+        <div class="table-wrap"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Ações</th></tr></thead><tbody id="emailTabelaVendedoras"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="emailSubHistorico" class="email-subsecao">
+      <div class="card">
+        <div class="top"><div><h2>Histórico de Envios</h2><p>Registros dos documentos enviados pelo sistema.</p></div><button class="buscar" onclick="carregarHistoricoEmail()">Atualizar</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Data</th><th>Cliente</th><th>Tipo</th><th>Destinatários</th><th>CC</th><th>Anexos</th><th>Status</th><th>Enviado por</th></tr></thead><tbody id="emailTabelaHistorico"></tbody></table></div>
+      </div>
     </div>
   </div>
 
@@ -245,6 +374,7 @@ function iniciarSistema(){
   document.getElementById("usuarioInfo").innerHTML = "Usuário: <b>" + usuarioLogado.login + "</b><br>Tipo: <b>" + usuarioLogado.tipo + "</b>";
   atualizarBotaoNotificacao();
   document.getElementById("btnAdmin").style.display = usuarioLogado.tipo === "admin" ? "block" : "none";
+  document.getElementById("btnEnvioDocumentos").style.display = usuarioLogado.tipo === "financeiro" ? "block" : "none";
   document.getElementById("boxNovoRelatorio").style.display = usuarioLogado.tipo === "banco" ? "none" : "block";
   mostrarDashboardHoje();
   mostrarSecao("dashboard");
@@ -257,7 +387,15 @@ function mostrarSecao(secao){
   document.getElementById("relatorios").style.display = "none";
   document.getElementById("historico").style.display = "none";
   document.getElementById("admin").style.display = "none";
+  document.getElementById("envioDocumentos").style.display = "none";
+
+  if(secao === "envioDocumentos" && (!usuarioLogado || usuarioLogado.tipo !== "financeiro")){
+    alert("Somente o usuário Financeiro pode acessar esta área.");
+    secao = "dashboard";
+  }
+
   document.getElementById(secao).style.display = "block";
+  if(secao === "envioDocumentos") carregarModuloEmail();
 }
 
 function sair(){ localStorage.removeItem("usuarioLogado"); location.reload(); }
@@ -1081,6 +1219,514 @@ function iniciarRealtime(){
   })
   .subscribe();
 }
+
+
+/* =========================================================
+   MÓDULO DE ENVIO DE DOCUMENTOS — SOMENTE FINANCEIRO
+   ========================================================= */
+let emailVendedoras = [];
+let emailClientes = [];
+let emailArquivosSelecionados = [];
+let emailEnviosPreparados = [];
+let emailModoAtual = "boleto";
+let emailModuloCarregado = false;
+
+function garantirFinanceiroEmail(){
+  if(!usuarioLogado || usuarioLogado.tipo !== "financeiro"){
+    alert("Somente o usuário Financeiro pode utilizar o envio de documentos.");
+    return false;
+  }
+  return true;
+}
+
+function normalizarNomeEmail(texto){
+  return String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+}
+
+function escaparHtmlEmail(texto){
+  return String(texto ?? "").replace(/[&<>"']/g, caractere => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[caractere]));
+}
+
+function separarEmailsEmail(texto){
+  return [...new Set(String(texto || "").split(/[;,\n]+/).map(item => item.trim()).filter(Boolean))];
+}
+
+function nomeClienteDoArquivoEmail(arquivo){
+  const semExtensao = arquivo.name.replace(/\.[^.]+$/,"").trim();
+  return semExtensao.includes(" - ") ? semExtensao.split(" - ")[0].trim() : semExtensao;
+}
+
+function arquivoCompativelModoEmail(arquivo){
+  const nome = normalizarNomeEmail(arquivo.name);
+  const extensao = arquivo.name.split(".").pop().toLowerCase();
+
+  if(emailModoAtual === "boleto"){
+    return extensao === "pdf" && !/(NFE|NOTA FISCAL|XML|ROMANEIO|RELATORIO)/.test(nome);
+  }
+
+  if(emailModoAtual === "completo"){
+    return ["pdf","xml","doc","docx"].includes(extensao);
+  }
+
+  return ["pdf","xml","doc","docx"].includes(extensao) && !/BOLETO/.test(nome);
+}
+
+function textoCorpoEmail(){
+  if(emailModoAtual === "boleto"){
+    return "Bom dia!\n\nSegue em anexo Boleto, por favor, confirmar o recebimento deste.\n\nObrigado.";
+  }
+  if(emailModoAtual === "completo"){
+    return "Bom dia!\n\nSegue em anexo Boleto, Relatório, NF e XML, por favor, confirmar o recebimento deste.\n\nObrigado.";
+  }
+  return "Bom dia!\n\nSegue em anexo Romaneio, NF e XML, por favor, confirmar o recebimento deste.\n\nObrigado.";
+}
+
+function descricaoModoEmail(){
+  if(emailModoAtual === "boleto") return "Boleto";
+  if(emailModoAtual === "completo") return "Boleto / Relatório / NF / XML";
+  return "Relatório / NF / XML";
+}
+
+async function carregarModuloEmail(){
+  if(!garantirFinanceiroEmail() || !bancoPronto()) return;
+  await Promise.all([carregarVendedorasEmail(), carregarClientesEmail(), carregarHistoricoEmail()]);
+  emailModuloCarregado = true;
+  prepararEnviosEmail();
+}
+
+function mostrarAbaEmail(aba){
+  if(!garantirFinanceiroEmail()) return;
+  ["Preparar","Clientes","Vendedoras","Historico"].forEach(nome => {
+    document.getElementById("emailSub" + nome).classList.remove("ativa");
+    document.getElementById("emailAba" + nome).classList.remove("ativo");
+  });
+  const mapa = {preparar:"Preparar",clientes:"Clientes",vendedoras:"Vendedoras",historico:"Historico"};
+  const nome = mapa[aba];
+  document.getElementById("emailSub" + nome).classList.add("ativa");
+  document.getElementById("emailAba" + nome).classList.add("ativo");
+  if(aba === "historico") carregarHistoricoEmail();
+}
+
+function selecionarModoEmail(modo){
+  emailModoAtual = modo;
+  ["Boleto","Completo","SemBoleto"].forEach(nome => document.getElementById("emailModo" + nome).classList.remove("ativo"));
+  const id = modo === "boleto" ? "emailModoBoleto" : modo === "completo" ? "emailModoCompleto" : "emailModoSemBoleto";
+  document.getElementById(id).classList.add("ativo");
+  prepararEnviosEmail();
+}
+
+async function carregarVendedorasEmail(){
+  if(!garantirFinanceiroEmail()) return;
+  const resposta = await banco.from("email_vendedoras").select("*").order("nome",{ascending:true});
+  if(resposta.error){
+    console.error("Erro ao carregar vendedoras:", resposta.error);
+    return;
+  }
+  emailVendedoras = resposta.data || [];
+  montarTabelaVendedorasEmail();
+  montarSelectVendedorasEmail();
+}
+
+function montarTabelaVendedorasEmail(){
+  const tabela = document.getElementById("emailTabelaVendedoras");
+  if(!tabela) return;
+  tabela.innerHTML = emailVendedoras.length ? emailVendedoras.map(item => `
+    <tr>
+      <td>${escaparHtmlEmail(item.nome)}</td>
+      <td>${escaparHtmlEmail(item.email)}</td>
+      <td>
+        <button class="btn azul" onclick="editarVendedoraEmail('${item.id}')">Editar</button>
+        <button class="btn vermelho" onclick="excluirVendedoraEmail('${item.id}')">Excluir</button>
+      </td>
+    </tr>`).join("") : `<tr><td colspan="3">Nenhuma vendedora cadastrada.</td></tr>`;
+}
+
+function montarSelectVendedorasEmail(){
+  const select = document.getElementById("emailClienteVendedora");
+  if(!select) return;
+  const atual = select.value;
+  select.innerHTML = `<option value="">Selecione a vendedora</option>` + emailVendedoras.map(item =>
+    `<option value="${item.id}">${escaparHtmlEmail(item.nome)}</option>`
+  ).join("");
+  if(emailVendedoras.some(item => item.id === atual)) select.value = atual;
+  atualizarEmailVendedoraAutomatico();
+}
+
+function atualizarEmailVendedoraAutomatico(){
+  const item = emailVendedoras.find(v => v.id === document.getElementById("emailClienteVendedora").value);
+  document.getElementById("emailVendedoraAutomatico").value = item?.email || "";
+}
+
+async function salvarVendedoraEmail(){
+  if(!garantirFinanceiroEmail()) return;
+  const id = document.getElementById("emailVendedoraId").value;
+  const nome = document.getElementById("emailVendedoraNome").value.trim();
+  const email = document.getElementById("emailVendedoraEmail").value.trim();
+
+  if(!nome || !email){ alert("Preencha o nome e o e-mail da vendedora."); return; }
+
+  const dados = {nome,email,atualizado_em:new Date().toISOString()};
+  const resposta = id
+    ? await banco.from("email_vendedoras").update(dados).eq("id",id)
+    : await banco.from("email_vendedoras").insert([{...dados,criado_por:usuarioLogado.login}]);
+
+  if(resposta.error){ alert("Erro ao salvar vendedora: " + resposta.error.message); return; }
+  cancelarEdicaoVendedoraEmail();
+  await carregarVendedorasEmail();
+  await carregarClientesEmail();
+}
+
+function editarVendedoraEmail(id){
+  if(!garantirFinanceiroEmail()) return;
+  const item = emailVendedoras.find(v => v.id === id);
+  if(!item) return;
+  document.getElementById("emailVendedoraId").value = item.id;
+  document.getElementById("emailVendedoraNome").value = item.nome || "";
+  document.getElementById("emailVendedoraEmail").value = item.email || "";
+  document.getElementById("emailCancelarVendedora").style.display = "inline-block";
+  mostrarAbaEmail("vendedoras");
+}
+
+function cancelarEdicaoVendedoraEmail(){
+  document.getElementById("emailVendedoraId").value = "";
+  document.getElementById("emailVendedoraNome").value = "";
+  document.getElementById("emailVendedoraEmail").value = "";
+  document.getElementById("emailCancelarVendedora").style.display = "none";
+}
+
+async function excluirVendedoraEmail(id){
+  if(!garantirFinanceiroEmail() || !confirm("Excluir esta vendedora?")) return;
+  const resposta = await banco.from("email_vendedoras").delete().eq("id",id);
+  if(resposta.error){
+    alert("Não foi possível excluir. Verifique se existem clientes vinculados a esta vendedora.");
+    return;
+  }
+  await carregarVendedorasEmail();
+}
+
+async function carregarClientesEmail(){
+  if(!garantirFinanceiroEmail()) return;
+  const resposta = await banco.from("email_clientes").select("*").order("nome",{ascending:true});
+  if(resposta.error){
+    console.error("Erro ao carregar clientes de e-mail:", resposta.error);
+    return;
+  }
+  emailClientes = resposta.data || [];
+  montarTabelaClientesEmail();
+  prepararEnviosEmail();
+}
+
+function montarTabelaClientesEmail(){
+  const tabela = document.getElementById("emailTabelaClientes");
+  if(!tabela) return;
+  tabela.innerHTML = emailClientes.length ? emailClientes.map(item => {
+    const vendedora = emailVendedoras.find(v => v.id === item.vendedora_id);
+    return `<tr>
+      <td>${escaparHtmlEmail(item.nome)}</td>
+      <td>${(item.emails || []).map(escaparHtmlEmail).join("<br>")}</td>
+      <td>${escaparHtmlEmail(vendedora?.nome || "")}</td>
+      <td>${escaparHtmlEmail(vendedora?.email || "")}</td>
+      <td>
+        <button class="btn azul" onclick="editarClienteEmail('${item.id}')">Editar</button>
+        <button class="btn vermelho" onclick="excluirClienteEmail('${item.id}')">Excluir</button>
+      </td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="5">Nenhum cliente cadastrado.</td></tr>`;
+}
+
+async function salvarClienteEmail(){
+  if(!garantirFinanceiroEmail()) return;
+  const id = document.getElementById("emailClienteId").value;
+  const nome = document.getElementById("emailClienteNome").value.trim();
+  const emails = separarEmailsEmail(document.getElementById("emailClienteEmails").value);
+  const vendedora_id = document.getElementById("emailClienteVendedora").value;
+
+  if(!nome || !emails.length || !vendedora_id){
+    alert("Preencha o nome, pelo menos um e-mail e selecione a vendedora.");
+    return;
+  }
+
+  const dados = {nome,emails,vendedora_id,ativo:true,atualizado_em:new Date().toISOString()};
+  const resposta = id
+    ? await banco.from("email_clientes").update(dados).eq("id",id)
+    : await banco.from("email_clientes").insert([{...dados,criado_por:usuarioLogado.login}]);
+
+  if(resposta.error){ alert("Erro ao salvar cliente: " + resposta.error.message); return; }
+  cancelarEdicaoClienteEmail();
+  await carregarClientesEmail();
+}
+
+function editarClienteEmail(id){
+  if(!garantirFinanceiroEmail()) return;
+  const item = emailClientes.find(c => c.id === id);
+  if(!item) return;
+  document.getElementById("emailClienteId").value = item.id;
+  document.getElementById("emailClienteNome").value = item.nome || "";
+  document.getElementById("emailClienteEmails").value = (item.emails || []).join("; ");
+  document.getElementById("emailClienteVendedora").value = item.vendedora_id || "";
+  atualizarEmailVendedoraAutomatico();
+  document.getElementById("emailCancelarCliente").style.display = "inline-block";
+  mostrarAbaEmail("clientes");
+}
+
+function cancelarEdicaoClienteEmail(){
+  document.getElementById("emailClienteId").value = "";
+  document.getElementById("emailClienteNome").value = "";
+  document.getElementById("emailClienteEmails").value = "";
+  document.getElementById("emailClienteVendedora").value = "";
+  document.getElementById("emailVendedoraAutomatico").value = "";
+  document.getElementById("emailCancelarCliente").style.display = "none";
+}
+
+async function excluirClienteEmail(id){
+  if(!garantirFinanceiroEmail() || !confirm("Excluir este cliente?")) return;
+  const resposta = await banco.from("email_clientes").delete().eq("id",id);
+  if(resposta.error){ alert("Erro ao excluir cliente: " + resposta.error.message); return; }
+  await carregarClientesEmail();
+}
+
+function prepararEnviosEmail(){
+  const tabela = document.getElementById("emailTabelaPrevia");
+  if(!tabela) return;
+
+  const arquivosValidos = emailArquivosSelecionados.filter(arquivoCompativelModoEmail);
+  const grupos = new Map();
+
+  arquivosValidos.forEach(arquivo => {
+    const nome = nomeClienteDoArquivoEmail(arquivo);
+    const chave = normalizarNomeEmail(nome);
+    if(!grupos.has(chave)) grupos.set(chave,{nome,arquivos:[]});
+    grupos.get(chave).arquivos.push(arquivo);
+  });
+
+  emailEnviosPreparados = [...grupos.values()].map(grupo => {
+    const cliente = emailClientes.find(item => normalizarNomeEmail(item.nome) === normalizarNomeEmail(grupo.nome) && item.ativo !== false);
+    const vendedora = cliente ? emailVendedoras.find(item => item.id === cliente.vendedora_id) : null;
+    return {
+      clienteNome:grupo.nome,
+      cliente,
+      vendedora,
+      para:cliente?.emails || [],
+      cc:vendedora?.email ? [vendedora.email] : [],
+      assunto:grupo.nome,
+      corpo:textoCorpoEmail(),
+      arquivos:grupo.arquivos,
+      status:cliente && (cliente.emails || []).length ? "pronto" : "pendente"
+    };
+  });
+
+  document.getElementById("emailQtdSelecionados").innerHTML = emailArquivosSelecionados.length + " arquivo(s)";
+  document.getElementById("emailKpiArquivos").innerHTML = arquivosValidos.length;
+  document.getElementById("emailKpiClientes").innerHTML = emailEnviosPreparados.length;
+  document.getElementById("emailKpiProntos").innerHTML = emailEnviosPreparados.filter(item => item.status === "pronto").length;
+  document.getElementById("emailKpiPendentes").innerHTML = emailEnviosPreparados.filter(item => item.status !== "pronto").length;
+
+  tabela.innerHTML = emailEnviosPreparados.length ? emailEnviosPreparados.map((item,indice) => `
+    <tr>
+      <td><b>${escaparHtmlEmail(item.clienteNome)}</b><br><small>${escaparHtmlEmail(item.assunto)}</small></td>
+      <td>${item.para.length ? item.para.map(escaparHtmlEmail).join("<br>") : "—"}</td>
+      <td>${item.cc.length ? item.cc.map(escaparHtmlEmail).join("<br>") : "—"}</td>
+      <td class="email-arquivos">${item.arquivos.map(arquivo => "• " + escaparHtmlEmail(arquivo.name)).join("<br>")}</td>
+      <td class="${item.status === "pronto" ? "email-status-ok" : "email-status-erro"}">${item.status === "pronto" ? "Pronto" : "Cliente não cadastrado"}</td>
+      <td>${item.status === "pronto"
+        ? `<button class="btn verde" onclick="enviarEmailIndividual(${indice},this)">Enviar</button>`
+        : `<button class="btn azul" onclick="cadastrarClientePendenteEmail('${encodeURIComponent(item.clienteNome)}')">Cadastrar</button>`}
+      </td>
+    </tr>`).join("") : `<tr><td colspan="6">Nenhum arquivo compatível com o tipo escolhido.</td></tr>`;
+}
+
+function cadastrarClientePendenteEmail(nomeCodificado){
+  mostrarAbaEmail("clientes");
+  document.getElementById("emailClienteNome").value = decodeURIComponent(nomeCodificado);
+  document.getElementById("emailClienteEmails").focus();
+}
+
+function limparArquivosEmail(){
+  emailArquivosSelecionados = [];
+  document.getElementById("emailArquivos").value = "";
+  prepararEnviosEmail();
+}
+
+function arquivoParaBase64Email(arquivo){
+  return new Promise((resolve,reject) => {
+    const leitor = new FileReader();
+    leitor.onload = () => resolve(String(leitor.result).split(",")[1]);
+    leitor.onerror = reject;
+    leitor.readAsDataURL(arquivo);
+  });
+}
+
+async function montarPayloadEmail(item){
+  return {
+    remetente:"faturamento@sofisticatto1.com.br",
+    para:item.para,
+    cc:item.cc,
+    assunto:item.assunto,
+    texto:item.corpo,
+    html:item.corpo.replace(/\n/g,"<br>"),
+    cliente_id:item.cliente?.id || null,
+    enviado_por:usuarioLogado.login,
+    tipo_envio:emailModoAtual,
+    anexos:await Promise.all(item.arquivos.map(async arquivo => ({
+      nome:arquivo.name,
+      tipo:arquivo.type || "application/octet-stream",
+      conteudo_base64:await arquivoParaBase64Email(arquivo)
+    })))
+  };
+}
+
+async function registrarHistoricoEmail(item,status,erro=""){
+  const resposta = await banco.from("email_envios").insert([{
+    cliente_id:item.cliente?.id || null,
+    cliente_nome:item.clienteNome,
+    tipo_envio:emailModoAtual,
+    assunto:item.assunto,
+    corpo_email:item.corpo,
+    destinatarios:item.para,
+    copia:item.cc,
+    quantidade_anexos:item.arquivos.length,
+    nomes_arquivos:item.arquivos.map(arquivo => arquivo.name),
+    status,
+    erro:erro || null,
+    enviado_por:usuarioLogado.login,
+    enviado_em:status === "enviado" ? new Date().toISOString() : null
+  }]).select().single();
+
+  if(resposta.error) console.error("Erro ao registrar histórico de e-mail:",resposta.error);
+}
+
+async function executarEnvioEmail(item){
+  const payload = await montarPayloadEmail(item);
+  const resposta = await fetch(`${SUPABASE_URL}/functions/v1/enviar-email-documentos`,{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "Authorization":"Bearer " + SUPABASE_KEY,
+      "apikey":SUPABASE_KEY
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const texto = await resposta.text();
+  if(!resposta.ok) throw new Error(texto || "Falha no serviço de envio.");
+  return texto;
+}
+
+function mostrarAvisoEmail(mensagem,sucesso=false){
+  const aviso = document.getElementById("emailAvisoEnvio");
+  aviso.innerHTML = escaparHtmlEmail(mensagem);
+  aviso.className = "email-aviso" + (sucesso ? " email-sucesso" : "");
+  aviso.style.display = "block";
+}
+
+async function enviarEmailIndividual(indice,botao){
+  if(!garantirFinanceiroEmail()) return;
+  const item = emailEnviosPreparados[indice];
+  if(!item || item.status !== "pronto") return;
+
+  const textoOriginal = botao.innerHTML;
+  botao.disabled = true;
+  botao.innerHTML = "Enviando...";
+
+  try{
+    await executarEnvioEmail(item);
+    await registrarHistoricoEmail(item,"enviado");
+    item.status = "enviado";
+    botao.innerHTML = "Enviado";
+    botao.className = "btn verde";
+    mostrarAvisoEmail(`E-mail de ${item.clienteNome} enviado com sucesso.`,true);
+    carregarHistoricoEmail();
+  }catch(erro){
+    await registrarHistoricoEmail(item,"erro",erro.message);
+    botao.disabled = false;
+    botao.innerHTML = textoOriginal;
+    mostrarAvisoEmail(`Erro ao enviar para ${item.clienteNome}: ${erro.message}`);
+  }
+}
+
+async function enviarTodosEmails(){
+  if(!garantirFinanceiroEmail()) return;
+  const prontos = emailEnviosPreparados.filter(item => item.status === "pronto");
+  if(!prontos.length){ mostrarAvisoEmail("Nenhum envio está pronto."); return; }
+  if(!confirm(`Enviar ${prontos.length} e-mail(s) agora?`)) return;
+
+  let enviados = 0;
+  const erros = [];
+
+  for(const item of prontos){
+    try{
+      await executarEnvioEmail(item);
+      await registrarHistoricoEmail(item,"enviado");
+      item.status = "enviado";
+      enviados++;
+    }catch(erro){
+      await registrarHistoricoEmail(item,"erro",erro.message);
+      erros.push(`${item.clienteNome}: ${erro.message}`);
+    }
+  }
+
+  prepararEnviosEmail();
+  carregarHistoricoEmail();
+  mostrarAvisoEmail(erros.length
+    ? `${enviados} enviado(s). Falhas: ${erros.join(" | ")}`
+    : `${enviados} e-mail(s) enviado(s) com sucesso.`,erros.length === 0);
+}
+
+async function carregarHistoricoEmail(){
+  if(!garantirFinanceiroEmail() || !banco) return;
+  const resposta = await banco.from("email_envios").select("*").order("created_at",{ascending:false}).limit(300);
+  if(resposta.error){
+    console.error("Erro ao carregar histórico de e-mails:",resposta.error);
+    return;
+  }
+
+  const tabela = document.getElementById("emailTabelaHistorico");
+  if(!tabela) return;
+  tabela.innerHTML = (resposta.data || []).length ? resposta.data.map(item => `
+    <tr>
+      <td>${new Date(item.created_at).toLocaleString("pt-BR")}</td>
+      <td>${escaparHtmlEmail(item.cliente_nome || "")}</td>
+      <td>${escaparHtmlEmail(item.tipo_envio || "")}</td>
+      <td>${(item.destinatarios || []).map(escaparHtmlEmail).join("<br>")}</td>
+      <td>${(item.copia || []).map(escaparHtmlEmail).join("<br>")}</td>
+      <td class="email-arquivos">${(item.nomes_arquivos || []).map(nome => "• " + escaparHtmlEmail(nome)).join("<br>")}</td>
+      <td class="${item.status === "enviado" ? "email-status-ok" : "email-status-erro"}">${escaparHtmlEmail(item.status || "")}${item.erro ? "<br><small>"+escaparHtmlEmail(item.erro)+"</small>" : ""}</td>
+      <td>${escaparHtmlEmail(item.enviado_por || "")}</td>
+    </tr>`).join("") : `<tr><td colspan="8">Nenhum envio registrado.</td></tr>`;
+}
+
+/* Seleção e arraste de arquivos */
+document.addEventListener("change",evento => {
+  if(evento.target && evento.target.id === "emailArquivos"){
+    emailArquivosSelecionados = [...evento.target.files];
+    prepararEnviosEmail();
+  }
+});
+
+document.addEventListener("DOMContentLoaded",() => {
+  const area = document.getElementById("emailDrop");
+  if(!area) return;
+
+  ["dragenter","dragover"].forEach(nomeEvento => area.addEventListener(nomeEvento,evento => {
+    evento.preventDefault();
+    evento.stopPropagation();
+    area.classList.add("arrastando");
+  }));
+
+  ["dragleave","drop"].forEach(nomeEvento => area.addEventListener(nomeEvento,evento => {
+    evento.preventDefault();
+    evento.stopPropagation();
+    area.classList.remove("arrastando");
+  }));
+
+  area.addEventListener("drop",evento => {
+    emailArquivosSelecionados = [...evento.dataTransfer.files];
+    prepararEnviosEmail();
+  });
+});
+
 
 document.addEventListener("DOMContentLoaded", async function(){
   try{
