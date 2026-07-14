@@ -1320,14 +1320,26 @@ function arquivoCompativelModoEmail(arquivo){
   return ["pdf","xml","doc","docx"].includes(extensao) && !/BOLETO/.test(nome);
 }
 
+function obterSaudacaoAutomaticaEmail(){
+  const hora = new Date().getHours();
+
+  if(hora >= 6 && hora <= 11) return "Bom dia!";
+  if(hora >= 12 && hora <= 17) return "Boa tarde!";
+  return "Boa noite!";
+}
+
 function textoCorpoEmail(){
+  const saudacao = obterSaudacaoAutomaticaEmail();
+
   if(emailModoAtual === "boleto"){
-    return "Bom dia!\n\nSegue em anexo Boleto, por favor, confirmar o recebimento deste.\n\nObrigado.";
+    return `${saudacao}\n\nSegue em anexo Boleto, por favor, confirmar o recebimento deste.\n\nObrigado.`;
   }
+
   if(emailModoAtual === "completo"){
-    return "Bom dia!\n\nSegue em anexo Boleto, Relatório, NF e XML, por favor, confirmar o recebimento deste.\n\nObrigado.";
+    return `${saudacao}\n\nSegue em anexo Boleto, Relatório, NF e XML, por favor, confirmar o recebimento deste.\n\nObrigado.`;
   }
-  return "Bom dia!\n\nSegue em anexo Romaneio, NF e XML, por favor, confirmar o recebimento deste.\n\nObrigado.";
+
+  return `${saudacao}\n\nSegue em anexo Romaneio, NF e XML, por favor, confirmar o recebimento deste.\n\nObrigado.`;
 }
 
 function descricaoModoEmail(){
