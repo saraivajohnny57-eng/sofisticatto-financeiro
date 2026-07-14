@@ -186,6 +186,22 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
           <button id="emailModoSemBoleto" onclick="selecionarModoEmail('sem_boleto')">Relatório / NF / XML</button>
         </div>
 
+        <div style="margin-top:18px;">
+          <label style="display:block;margin-bottom:7px;font-weight:bold;">Texto principal do e-mail</label>
+          <textarea id="emailMensagemPrincipal" rows="3"
+            oninput="atualizarMensagemEmail()"
+            placeholder="Digite a mensagem que ficará entre a saudação e o agradecimento."></textarea>
+          <div class="email-acoes" style="margin-top:8px;">
+            <button type="button" class="btn azul" onclick="restaurarMensagemPadraoEmail()">Restaurar texto padrão</button>
+            <span style="font-size:12px;color:#7d73bd;">A saudação e o “Obrigado.” continuam automáticos.</span>
+          </div>
+        </div>
+
+        <div class="email-aviso email-sucesso" style="margin-top:14px;">
+          <b>Prévia da mensagem:</b>
+          <div id="emailPreviaMensagem" style="margin-top:9px;line-height:1.5;"></div>
+        </div>
+
         <div id="emailDrop" class="email-drop" onclick="document.getElementById('emailArquivos').click()">
           <input id="emailArquivos" type="file" multiple accept=".pdf,.xml,.doc,.docx">
           <b>Selecione ou arraste os documentos para cá</b>
@@ -1328,18 +1344,50 @@ function obterSaudacaoAutomaticaEmail(){
   return "Boa noite!";
 }
 
-function textoCorpoEmail(){
-  const saudacao = obterSaudacaoAutomaticaEmail();
-
+function mensagemPadraoModoEmail(){
   if(emailModoAtual === "boleto"){
-    return `${saudacao}\n\nSegue em anexo Boleto, por favor, confirmar o recebimento deste.\n\nObrigado.`;
+    return "Segue em anexo Boleto, por favor, confirmar o recebimento deste.";
   }
 
   if(emailModoAtual === "completo"){
-    return `${saudacao}\n\nSegue em anexo Boleto, Relatório, NF e XML, por favor, confirmar o recebimento deste.\n\nObrigado.`;
+    return "Segue em anexo Boleto, Relatório, NF e XML, por favor, confirmar o recebimento deste.";
   }
 
-  return `${saudacao}\n\nSegue em anexo Romaneio, NF e XML, por favor, confirmar o recebimento deste.\n\nObrigado.`;
+  return "Segue em anexo Romaneio, NF e XML, por favor, confirmar o recebimento deste.";
+}
+
+function obterMensagemPrincipalEmail(){
+  const campo = document.getElementById("emailMensagemPrincipal");
+  const texto = campo ? campo.value.trim() : "";
+  return texto || mensagemPadraoModoEmail();
+}
+
+function textoCorpoEmail(){
+  const saudacao = obterSaudacaoAutomaticaEmail();
+  const mensagem = obterMensagemPrincipalEmail();
+  return `${saudacao}\n${mensagem}\nObrigado.`;
+}
+
+function atualizarPreviaMensagemEmail(){
+  const previa = document.getElementById("emailPreviaMensagem");
+  if(!previa) return;
+
+  previa.innerHTML = `
+    <div style="margin:0 0 10px 0;">${escaparHtmlEmail(obterSaudacaoAutomaticaEmail())}</div>
+    <div style="margin:0 0 10px 0;white-space:pre-line;">${escaparHtmlEmail(obterMensagemPrincipalEmail())}</div>
+    <div style="margin:0;">Obrigado.</div>
+  `;
+}
+
+function atualizarMensagemEmail(){
+  atualizarPreviaMensagemEmail();
+  prepararEnviosEmail();
+}
+
+function restaurarMensagemPadraoEmail(){
+  const campo = document.getElementById("emailMensagemPrincipal");
+  if(campo) campo.value = mensagemPadraoModoEmail();
+  atualizarMensagemEmail();
 }
 
 function descricaoModoEmail(){
@@ -1352,6 +1400,13 @@ async function carregarModuloEmail(){
   if(!garantirFinanceiroEmail() || !bancoPronto()) return;
   await Promise.all([carregarVendedorasEmail(), carregarClientesEmail(), carregarAssinaturasEmail(), carregarHistoricoEmail()]);
   emailModuloCarregado = true;
+
+  const campoMensagem = document.getElementById("emailMensagemPrincipal");
+  if(campoMensagem && !campoMensagem.value.trim()){
+    campoMensagem.value = mensagemPadraoModoEmail();
+  }
+
+  atualizarPreviaMensagemEmail();
   prepararEnviosEmail();
 }
 
@@ -1374,6 +1429,11 @@ function selecionarModoEmail(modo){
   ["Boleto","Completo","SemBoleto"].forEach(nome => document.getElementById("emailModo" + nome).classList.remove("ativo"));
   const id = modo === "boleto" ? "emailModoBoleto" : modo === "completo" ? "emailModoCompleto" : "emailModoSemBoleto";
   document.getElementById(id).classList.add("ativo");
+
+  const campo = document.getElementById("emailMensagemPrincipal");
+  if(campo) campo.value = mensagemPadraoModoEmail();
+
+  atualizarPreviaMensagemEmail();
   prepararEnviosEmail();
 }
 
@@ -1618,7 +1678,19 @@ function cancelarEdicaoAssinaturaEmail(){document.getElementById("emailAssinatur
 
 function assinaturaFormularioOuAtiva(){const d=dadosFormularioAssinatura();return{...emailAssinaturaAtiva,...d,logo_url:emailLogoTemporariaDataUrl||emailAssinaturaAtiva?.logo_url||""}}
 function htmlAssinaturaEmail(assinatura=emailAssinaturaAtiva){if(!assinatura)return"";const linha=v=>v?`<div style="line-height:1.5;color:#222;">${escaparHtmlEmail(v)}</div>`:"";return`<div style="margin-top:28px;font-family:Arial,sans-serif;color:#222;">${assinatura.logo_url?`<img src="${escaparHtmlEmail(assinatura.logo_url)}" alt="Sofisticatto Cosméticos" style="display:block;max-width:220px;max-height:110px;object-fit:contain;margin:0 0 22px 0;">`:""}<div style="font-size:20px;font-weight:700;color:#111;">${escaparHtmlEmail(assinatura.nome_remetente||"")}</div>${assinatura.setor?`<div style="margin:3px 0 9px;color:#222;">${escaparHtmlEmail(assinatura.setor)}</div>`:""}${linha(assinatura.telefone_1)}${linha(assinatura.telefone_2)}${assinatura.whatsapp?linha("WhatsApp: "+assinatura.whatsapp):""}${linha(assinatura.email_exibido)}${linha(assinatura.site)}</div>`}
-function montarHtmlCompletoEmail(corpo){return `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111;line-height:1.5;">${escaparHtmlEmail(corpo).replace(/\n/g,"<br>")}${htmlAssinaturaEmail()}</div>`}
+function montarHtmlCompletoEmail(corpo){
+  const linhas = String(corpo || "").split("\n");
+  const saudacao = linhas.shift() || obterSaudacaoAutomaticaEmail();
+  const agradecimento = linhas.pop() || "Obrigado.";
+  const mensagem = linhas.join("\n").trim();
+
+  return `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111;line-height:1.45;">
+    <div style="margin:0 0 10px 0;">${escaparHtmlEmail(saudacao)}</div>
+    <div style="margin:0 0 10px 0;white-space:pre-line;">${escaparHtmlEmail(mensagem)}</div>
+    <div style="margin:0;">${escaparHtmlEmail(agradecimento)}</div>
+    ${htmlAssinaturaEmail()}
+  </div>`;
+}
 function atualizarPreviaAssinatura(){const box=document.getElementById("emailPreviaAssinatura");if(!box)return;box.innerHTML=`<div style="margin-bottom:22px;">Bom dia!<br><br>Segue em anexo Boleto, por favor, confirmar o recebimento deste.<br><br>Obrigado.</div>${htmlAssinaturaEmail(assinaturaFormularioOuAtiva())||'<div style="color:#999;">Preencha os dados para visualizar a assinatura.</div>'}`}
 
 function prepararEnviosEmail(){
