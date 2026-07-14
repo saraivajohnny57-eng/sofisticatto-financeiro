@@ -58,6 +58,18 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .email-logo-atual{max-width:180px;max-height:90px;object-fit:contain;background:white;border:1px solid #eee;border-radius:12px;padding:8px;margin-top:10px}
 @media(max-width:900px){.email-assinatura-grid{grid-template-columns:1fr}}
 
+
+.busca-clientes-box{display:flex;gap:10px;flex-wrap:wrap;margin:15px 0}
+.busca-clientes-box input{flex:1;min-width:240px}
+.sugestoes-relatorio{position:relative}
+.sugestoes-lista{position:absolute;left:0;right:0;top:100%;z-index:30;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.12);max-height:240px;overflow:auto;display:none}
+.sugestoes-lista.ativa{display:block}
+.sugestao-item{padding:11px 12px;cursor:pointer;border-bottom:1px solid #eee}
+.sugestao-item:last-child{border-bottom:none}
+.sugestao-item:hover{background:#f2eefb}
+.sugestao-item b{display:block;color:#4d4694}
+.sugestao-item small{color:#7d73bd}
+
 </style>
 </head>
 <body>
@@ -132,7 +144,15 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
     </div>
     <div class="card" id="boxNovoRelatorio">
       <h2>Novo Relatório</h2>
-      <div class="inputs"><input type="text" id="nome" placeholder="Nome do cliente"><input type="text" id="valor" placeholder="Valor" inputmode="decimal" oninput="mascaraValor(this)"></div>
+      <div class="inputs">
+        <div class="sugestoes-relatorio">
+          <input type="text" id="nome" placeholder="Nome do cliente" autocomplete="off"
+            oninput="mostrarSugestoesClienteRelatorio()"
+            onfocus="mostrarSugestoesClienteRelatorio()">
+          <div id="listaSugestoesClienteRelatorio" class="sugestoes-lista"></div>
+        </div>
+        <input type="text" id="valor" placeholder="Valor" inputmode="decimal" oninput="mascaraValor(this)">
+      </div>
       <button class="salvar" onclick="salvarRelatorio()">Salvar Relatório</button>
     </div>
     <div class="card">
@@ -257,6 +277,12 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
       </div>
       <div class="card">
         <h2>Clientes cadastrados</h2>
+        <div class="busca-clientes-box">
+          <input id="emailBuscaCliente" type="text"
+            placeholder="Pesquisar cliente por nome, e-mail ou vendedora"
+            oninput="filtrarTabelaClientesEmail()">
+          <button class="buscar" type="button" onclick="limparBuscaClienteEmail()">Limpar pesquisa</button>
+        </div>
         <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>E-mails</th><th>Vendedora</th><th>E-mail vendedora</th><th>Ações</th></tr></thead><tbody id="emailTabelaClientes"></tbody></table></div>
       </div>
     </div>
@@ -440,6 +466,12 @@ function iniciarSistema(){
   mostrarSecao("dashboard");
   carregarRelatorios();
   carregarUsuarios();
+
+  if(usuarioLogado.tipo === "financeiro"){
+    carregarVendedorasEmail().then(() => carregarClientesEmail()).catch(erro => {
+      console.error("Não foi possível carregar a lista rápida de clientes:", erro);
+    });
+  }
 }
 
 function mostrarSecao(secao){
@@ -1078,6 +1110,65 @@ function carregarNotificacoes(){
   }
 }
 
+function obterClientesParaSugestaoRelatorio(){
+  return emailClientes
+    .filter(item => item && item.nome)
+    .sort((a,b) => String(a.nome).localeCompare(String(b.nome),"pt-BR"));
+}
+
+function mostrarSugestoesClienteRelatorio(){
+  const input = document.getElementById("nome");
+  const lista = document.getElementById("listaSugestoesClienteRelatorio");
+  if(!input || !lista) return;
+
+  const termo = normalizarNomeEmail(input.value);
+  const clientes = obterClientesParaSugestaoRelatorio();
+
+  const encontrados = clientes
+    .filter(item => !termo || normalizarNomeEmail(item.nome).includes(termo))
+    .slice(0,15);
+
+  if(!encontrados.length){
+    lista.classList.remove("ativa");
+    lista.innerHTML = "";
+    return;
+  }
+
+  lista.innerHTML = encontrados.map(item => {
+    const vendedora = emailVendedoras.find(v => v.id === item.vendedora_id);
+    return `<div class="sugestao-item" onmousedown="selecionarSugestaoClienteRelatorio('${encodeURIComponent(item.nome)}')">
+      <b>${escaparHtmlEmail(item.nome)}</b>
+      <small>${escaparHtmlEmail(vendedora?.nome || "")}</small>
+    </div>`;
+  }).join("");
+
+  lista.classList.add("ativa");
+}
+
+function selecionarSugestaoClienteRelatorio(nomeCodificado){
+  const input = document.getElementById("nome");
+  const lista = document.getElementById("listaSugestoesClienteRelatorio");
+  if(!input) return;
+
+  input.value = decodeURIComponent(nomeCodificado);
+  input.focus();
+  input.setSelectionRange(input.value.length,input.value.length);
+
+  if(lista){
+    lista.classList.remove("ativa");
+    lista.innerHTML = "";
+  }
+}
+
+document.addEventListener("click", evento => {
+  const box = document.querySelector(".sugestoes-relatorio");
+  const lista = document.getElementById("listaSugestoesClienteRelatorio");
+
+  if(box && lista && !box.contains(evento.target)){
+    lista.classList.remove("ativa");
+  }
+});
+
 async function salvarRelatorio(){
   const nome = document.getElementById("nome").value.trim();
   const valorTexto = document.getElementById("valor").value.trim();
@@ -1538,14 +1629,15 @@ async function carregarClientesEmail(){
   prepararEnviosEmail();
 }
 
-function montarTabelaClientesEmail(){
+function montarTabelaClientesEmail(lista = emailClientes){
   const tabela = document.getElementById("emailTabelaClientes");
   if(!tabela) return;
-  tabela.innerHTML = emailClientes.length ? emailClientes.map(item => {
+
+  tabela.innerHTML = lista.length ? lista.map(item => {
     const vendedora = emailVendedoras.find(v => v.id === item.vendedora_id);
     return `<tr>
       <td>${escaparHtmlEmail(item.nome)}</td>
-      <td>${(item.emails || []).length ? (item.emails || []).map(escaparHtmlEmail).join("<br>") : '<span style="color:#c0392b">Sem e-mail — envia para vendedora</span>'}</td>
+      <td>${(item.emails || []).map(escaparHtmlEmail).join("<br>")}</td>
       <td>${escaparHtmlEmail(vendedora?.nome || "")}</td>
       <td>${escaparHtmlEmail(vendedora?.email || "")}</td>
       <td>
@@ -1553,7 +1645,36 @@ function montarTabelaClientesEmail(){
         <button class="btn vermelho" onclick="excluirClienteEmail('${item.id}')">Excluir</button>
       </td>
     </tr>`;
-  }).join("") : `<tr><td colspan="5">Nenhum cliente cadastrado.</td></tr>`;
+  }).join("") : `<tr><td colspan="5">Nenhum cliente encontrado.</td></tr>`;
+}
+
+function filtrarTabelaClientesEmail(){
+  const busca = normalizarNomeEmail(document.getElementById("emailBuscaCliente")?.value || "");
+
+  if(!busca){
+    montarTabelaClientesEmail(emailClientes);
+    return;
+  }
+
+  const filtrados = emailClientes.filter(item => {
+    const vendedora = emailVendedoras.find(v => v.id === item.vendedora_id);
+    const texto = [
+      item.nome,
+      ...(item.emails || []),
+      vendedora?.nome || "",
+      vendedora?.email || ""
+    ].join(" ");
+
+    return normalizarNomeEmail(texto).includes(busca);
+  });
+
+  montarTabelaClientesEmail(filtrados);
+}
+
+function limparBuscaClienteEmail(){
+  const campo = document.getElementById("emailBuscaCliente");
+  if(campo) campo.value = "";
+  montarTabelaClientesEmail(emailClientes);
 }
 
 async function salvarClienteEmail(){
