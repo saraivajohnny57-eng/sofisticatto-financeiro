@@ -326,7 +326,17 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
               </div>
               <div>
                 <label class="relatorio-label">Valor total dos pedidos</label>
-                <input id="gerValorTotal" placeholder="0,00" inputmode="decimal" oninput="mascaraValor(this);atualizarPreviaRelatorio()">
+                <input id="gerValorTotal" placeholder="0,00" inputmode="decimal" oninput="mascaraValor(this);calcularDescontoRelatorio()">
+              </div>
+
+              <div>
+                <label class="relatorio-label">Desconto para pagamento (%)</label>
+                <input id="gerDescontoPercentual" type="number" min="0" max="100" step="0.01"
+                  placeholder="Ex.: 5" oninput="calcularDescontoRelatorio()">
+              </div>
+              <div>
+                <label class="relatorio-label">Valor total com desconto</label>
+                <input id="gerValorComDesconto" placeholder="Calculado automaticamente" readonly>
               </div>
 
               <div>
@@ -377,7 +387,8 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 
               <div class="campo-largo">
                 <label class="relatorio-label">Observação sobre pagamento</label>
-                <textarea id="gerObservacaoPagamento" oninput="atualizarPreviaRelatorio()">Favor observar as datas limite para pagamento após a saída da mercadoria.</textarea>
+                <textarea id="gerObservacaoPagamento" oninput="atualizarPreviaRelatorio()"
+                  placeholder="Deixe vazio para o sistema criar a mensagem automaticamente."></textarea>
               </div>
 
               <div class="campo-largo">
@@ -2352,6 +2363,56 @@ function escaparComQuebrasRelatorio(texto){
   return escaparHtmlEmail(texto || "").replace(/\n/g,"<br>");
 }
 
+
+function numeroPorExtensoRelatorio(numero){
+  const unidades = ["ZERO","UM","DOIS","TRÊS","QUATRO","CINCO","SEIS","SETE","OITO","NOVE","DEZ",
+    "ONZE","DOZE","TREZE","QUATORZE","QUINZE","DEZESSEIS","DEZESSETE","DEZOITO","DEZENOVE","VINTE",
+    "VINTE E UM","VINTE E DOIS","VINTE E TRÊS","VINTE E QUATRO","VINTE E CINCO","VINTE E SEIS",
+    "VINTE E SETE","VINTE E OITO","VINTE E NOVE","TRINTA","QUARENTA E CINCO","SESSENTA","NOVENTA"];
+  const especiais = {30:"TRINTA",45:"QUARENTA E CINCO",60:"SESSENTA",90:"NOVENTA"};
+  return especiais[numero] || unidades[numero] || String(numero);
+}
+
+function calcularDescontoRelatorio(){
+  const total = valorParaNumero(document.getElementById("gerValorTotal")?.value || 0);
+  const percentual = Number(document.getElementById("gerDescontoPercentual")?.value || 0);
+  const valorComDesconto = percentual > 0 ? total - (total * percentual / 100) : total;
+  const campo = document.getElementById("gerValorComDesconto");
+  if(campo) campo.value = percentual > 0 ? valorParaInput(valorComDesconto) : "";
+  atualizarPreviaRelatorio();
+}
+
+function mensagemPagamentoAutomaticaRelatorio(d){
+  const forma = (d.forma_pagamento || "").trim();
+  const dias = normalizarDiasPrazoRelatorio(d.prazo_texto);
+  const vencimentos = gerVencimentosCalculados.map(x => formatarDataBrRelatorio(x.data));
+  const formaMinuscula = normalizarTexto(forma);
+  const formaDescricao = forma || "depósito, transferência bancária ou PIX";
+
+  let linha1 = "";
+  if(vencimentos.length === 1){
+    linha1 = `Data limite para pagamento: ${vencimentos[0]} via ${formaDescricao}. Contas bancárias listadas abaixo.`;
+  }else if(vencimentos.length > 1){
+    linha1 = `Datas limite para pagamento: ${vencimentos.join(" - ")} via ${formaDescricao}.`;
+  }else{
+    linha1 = `Forma de pagamento: ${formaDescricao}.`;
+  }
+
+  let linha2 = "";
+  if(d.desconto_percentual > 0 && dias.length){
+    const maiorPrazo = Math.max(...dias);
+    linha2 = `Favor observar a data limite para pagamento, pois pedidos com desconto de ${String(d.desconto_percentual).replace(".",",")}% à vista têm no máximo ${maiorPrazo} (${numeroPorExtensoRelatorio(maiorPrazo)}) dias para pagamento após a data de saída da mercadoria.`;
+  }else if(dias.length === 1){
+    linha2 = `Favor observar a data limite para pagamento: o prazo é de ${dias[0]} (${numeroPorExtensoRelatorio(dias[0])}) dias após a data de saída da mercadoria.`;
+  }else if(dias.length > 1){
+    linha2 = `Favor observar as datas de vencimento correspondentes aos prazos de ${dias.join("/")} dias após a data de saída da mercadoria.`;
+  }else if(formaMinuscula.includes("vista")){
+    linha2 = "Favor observar a data limite para pagamento à vista.";
+  }
+
+  return {linha1, linha2};
+}
+
 function dadosGeradorRelatorio(){
   const formaSelecionada = gerFormasPagamento.find(x => x.id === document.getElementById("gerFormaPagamento")?.value);
   const prazoSelecionado = gerPrazosPagamento.find(x => x.id === document.getElementById("gerPrazo")?.value);
@@ -2362,6 +2423,8 @@ function dadosGeradorRelatorio(){
     numero_pedido:document.getElementById("gerNumeroPedido")?.value.trim() || "",
     valor_pedido:valorParaNumero(document.getElementById("gerValorPedido")?.value || 0),
     valor_total:valorParaNumero(document.getElementById("gerValorTotal")?.value || 0),
+    desconto_percentual:Number(document.getElementById("gerDescontoPercentual")?.value || 0),
+    valor_com_desconto:valorParaNumero(document.getElementById("gerValorComDesconto")?.value || 0),
     data_emissao:document.getElementById("gerDataEmissao")?.value || null,
     data_saida:document.getElementById("gerDataSaida")?.value || null,
     transportadora:document.getElementById("gerTransportadora")?.value.trim() || "",
@@ -2382,13 +2445,15 @@ function atualizarPreviaRelatorio(){
   if(!folha) return;
 
   const d = dadosGeradorRelatorio();
-  const assinatura = assinaturaAtivaEmail();
+  const assinatura = emailAssinaturaAtiva || null;
   const vencimentosTexto = gerVencimentosCalculados.length
     ? gerVencimentosCalculados.map(x => formatarDataBrRelatorio(x.data)).join(" - ")
     : "A definir";
 
   const forma = d.forma_pagamento || "A definir";
   const prazo = d.prazo_texto ? ` (${escaparHtmlEmail(d.prazo_texto)} dias)` : "";
+  const mensagemAutomatica = mensagemPagamentoAutomaticaRelatorio(d);
+  const observacaoManual = d.observacao_pagamento || "";
   const logo = assinatura?.logo_url
     ? `<img class="relatorio-folha-logo" src="${escaparHtmlEmail(assinatura.logo_url)}" alt="Sofisticatto">`
     : `<div style="text-align:center;font-size:28px;font-style:italic;color:#5a4fa3;margin-bottom:28px;">Sofisticatto<br><small style="font-size:10px;letter-spacing:5px;">COSMÉTICOS</small></div>`;
@@ -2414,12 +2479,14 @@ function atualizarPreviaRelatorio(){
       <li><strong>Número do Pedido:</strong> ${escaparHtmlEmail(d.numero_pedido || "—")}</li>
       <li><strong>Valor do Pedido:</strong> ${formatarMoeda(d.valor_pedido)}</li>
       <li><strong>Valor Total dos Pedidos:</strong> ${formatarMoeda(d.valor_total)}</li>
+      ${d.desconto_percentual > 0 ? `<li><strong>Valor Total com ${String(d.desconto_percentual).replace(".",",")}% de desconto para pagamento à vista:</strong> ${formatarMoeda(d.valor_com_desconto)}</li>` : ""}
       <li><strong>Data de Faturamento:</strong> ${formatarDataBrRelatorio(d.data_emissao) || "—"}</li>
       <li><strong>Data da saída:</strong> ${formatarDataBrRelatorio(d.data_saida) || "—"}</li>
       <li><strong>Transportadora:</strong> ${escaparHtmlEmail(d.transportadora || "—")}</li>
       <li><strong>Forma de pagamento:</strong> ${escaparHtmlEmail(forma)}${prazo}</li>
-      <li><strong>Data(s) limite para pagamento:</strong> ${escaparHtmlEmail(vencimentosTexto)}</li>
-      <li>${escaparHtmlEmail(d.observacao_pagamento || "")}</li>
+      <li>${escaparHtmlEmail(mensagemAutomatica.linha1)}</li>
+      ${mensagemAutomatica.linha2 ? `<li>${escaparHtmlEmail(mensagemAutomatica.linha2)}</li>` : ""}
+      ${observacaoManual ? `<li>${escaparHtmlEmail(observacaoManual)}</li>` : ""}
     </ul>
     <h3>BANCOS / CONTAS PARA DEPÓSITO:</h3>
     <div>${escaparComQuebrasRelatorio(d.dados_bancarios)}</div>
@@ -2574,6 +2641,8 @@ function editarRelatorioCliente(id){
   document.getElementById("gerNumeroPedido").value = x.numero_pedido || "";
   document.getElementById("gerValorPedido").value = valorParaInput(x.valor_pedido || 0);
   document.getElementById("gerValorTotal").value = valorParaInput(x.valor_total || 0);
+  document.getElementById("gerDescontoPercentual").value = x.desconto_percentual || "";
+  document.getElementById("gerValorComDesconto").value = x.desconto_percentual > 0 ? valorParaInput(x.valor_com_desconto || 0) : "";
   document.getElementById("gerDataEmissao").value = x.data_emissao || "";
   document.getElementById("gerDataSaida").value = x.data_saida || "";
   document.getElementById("gerTransportadora").value = x.transportadora || "";
@@ -2598,7 +2667,7 @@ async function excluirRelatorioCliente(id){
 
 function limparGeradorRelatorio(){
   document.getElementById("gerRelatorioId").value = "";
-  ["gerCliente","gerNumeroNf","gerNumeroPedido","gerValorPedido","gerValorTotal","gerTransportadora","gerFormaPersonalizada","gerPrazoPersonalizado"].forEach(id => document.getElementById(id).value = "");
+  ["gerCliente","gerNumeroNf","gerNumeroPedido","gerValorPedido","gerValorTotal","gerDescontoPercentual","gerValorComDesconto","gerTransportadora","gerFormaPersonalizada","gerPrazoPersonalizado"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("gerFormaPagamento").value = "";
   document.getElementById("gerPrazo").value = "";
   document.getElementById("gerDataEmissao").value = dataHojeInputRelatorio();
@@ -2628,15 +2697,36 @@ async function carregarBibliotecaPdfRelatorio(){
 
 async function baixarRelatorioPDF(){
   try{
+    atualizarPreviaRelatorio();
     await carregarBibliotecaPdfRelatorio();
-    const folha = document.getElementById("gerFolhaRelatorio");
+
+    const original = document.getElementById("gerFolhaRelatorio");
+    if(!original || !original.innerHTML.trim()){
+      throw new Error("A prévia do relatório está vazia.");
+    }
+
+    const clone = original.cloneNode(true);
+    clone.style.width = "794px";
+    clone.style.minHeight = "1123px";
+    clone.style.margin = "0";
+    clone.style.transform = "none";
+    clone.style.position = "fixed";
+    clone.style.left = "-10000px";
+    clone.style.top = "0";
+    clone.style.background = "#ffffff";
+    document.body.appendChild(clone);
+
+    await new Promise(resolve => setTimeout(resolve,300));
+
     await html2pdf().set({
       margin:0,
       filename:nomeArquivoRelatorio()+".pdf",
       image:{type:"jpeg",quality:0.98},
-      html2canvas:{scale:2,useCORS:true},
+      html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:"#ffffff",windowWidth:794},
       jsPDF:{unit:"px",format:[794,1123],orientation:"portrait"}
-    }).from(folha).save();
+    }).from(clone).save();
+
+    clone.remove();
   }catch(erro){
     alert("Não foi possível gerar o PDF: "+erro.message);
   }
