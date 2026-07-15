@@ -257,7 +257,7 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
         <div id="emailDrop" class="email-drop" onclick="document.getElementById('emailArquivos').click()">
           <input id="emailArquivos" type="file" multiple accept=".pdf,.xml,.doc,.docx">
           <b>Selecione ou arraste os documentos para cá</b>
-          <p style="margin-top:7px;color:#7d73bd;font-size:13px;">O nome antes de “ - ” será usado para localizar o cliente.</p>
+          <p style="margin-top:7px;color:#7d73bd;font-size:13px;">O nome antes de “ - ” será usado para localizar o cliente. Relatórios criados no sistema também podem ser adicionados aqui automaticamente.</p>
         </div>
 
         <div class="email-acoes">
@@ -418,6 +418,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <button class="salvar" onclick="salvarRelatorioCliente()">Salvar Relatório</button>
               <button class="btn azul" onclick="baixarRelatorioPDF()">Baixar PDF</button>
               <button class="btn verde" onclick="baixarRelatorioWord()">Baixar Word</button>
+              <button class="btn roxo" onclick="adicionarRelatorioAoEnvio()">Adicionar ao envio</button>
               <button class="btn roxo" onclick="imprimirRelatorioCliente()">Imprimir</button>
               <button class="btn vermelho" onclick="limparGeradorRelatorio()">Limpar</button>
             </div>
@@ -2825,75 +2826,125 @@ p{margin:7px 0}ul{margin:8px 0 18px 22px}li{margin:4px 0}h3{font-size:12pt;text-
 </html>`;
 }
 
-async function baixarRelatorioPDF(){
-  try{
-    await carregarBibliotecaJsPdfRelatorio();
+async function gerarDocumentoPdfRelatorio(){
+  await carregarBibliotecaJsPdfRelatorio();
 
-    const {jsPDF} = window.jspdf;
-    const {assinatura,linhas} = conteudoTextoRelatorioExportacao();
-    const doc = new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+  const {jsPDF} = window.jspdf;
+  const {assinatura,linhas} = conteudoTextoRelatorioExportacao();
+  const doc = new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
 
-    const margemX = 22;
-    const larguraTexto = 166;
-    const alturaPagina = 297;
-    let y = 18;
+  const margemX = 22;
+  const larguraTexto = 166;
+  const alturaPagina = 297;
+  let y = 18;
 
+  doc.setDrawColor(198,154,245);
+  doc.setLineWidth(1.5);
+  doc.rect(7,7,196,283);
+
+  const logoDataUrl = await imagemUrlParaDataUrlRelatorio(assinatura?.logo_url || "");
+  if(logoDataUrl){
+    const formato = String(logoDataUrl).startsWith("data:image/png") ? "PNG" : "JPEG";
+    doc.addImage(logoDataUrl,formato,77,14,56,24,undefined,"FAST");
+    y = 46;
+  }else{
+    doc.setTextColor(90,79,163);
+    doc.setFont("helvetica","italic");
+    doc.setFontSize(23);
+    doc.text("Sofisticatto",105,26,{align:"center"});
+    doc.setFontSize(8);
+    doc.text("C O S M É T I C O S",105,32,{align:"center"});
+    doc.setTextColor(20,20,20);
+    y = 44;
+  }
+
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(10.5);
+
+  function novaPagina(){
+    doc.addPage();
     doc.setDrawColor(198,154,245);
     doc.setLineWidth(1.5);
     doc.rect(7,7,196,283);
+    y = 18;
+  }
 
-    const logoDataUrl = await imagemUrlParaDataUrlRelatorio(assinatura?.logo_url || "");
-    if(logoDataUrl){
-      const formato = String(logoDataUrl).startsWith("data:image/png") ? "PNG" : "JPEG";
-      doc.addImage(logoDataUrl,formato,77,14,56,24,undefined,"FAST");
-      y = 46;
-    }else{
-      doc.setTextColor(90,79,163);
-      doc.setFont("helvetica","italic");
-      doc.setFontSize(23);
-      doc.text("Sofisticatto",105,26,{align:"center"});
-      doc.setFontSize(8);
-      doc.text("C O S M É T I C O S",105,32,{align:"center"});
-      doc.setTextColor(20,20,20);
-      y = 44;
+  for(const linhaOriginal of linhas){
+    const linha = String(linhaOriginal ?? "");
+
+    if(linha === ""){
+      y += 4;
+      continue;
     }
 
-    doc.setFont("helvetica","normal");
-    doc.setFontSize(10.5);
+    const partes = doc.splitTextToSize(linha,larguraTexto);
+    const alturaNecessaria = partes.length * 5.2;
 
-    function novaPagina(){
-      doc.addPage();
-      doc.setDrawColor(198,154,245);
-      doc.setLineWidth(1.5);
-      doc.rect(7,7,196,283);
-      y = 18;
+    if(y + alturaNecessaria > alturaPagina - 18){
+      novaPagina();
     }
 
-    for(const linhaOriginal of linhas){
-      const linha = String(linhaOriginal ?? "");
+    const negrito = /^(BANCOS \/ CONTAS|Número da|Valor |Data |Transportadora|Forma de pagamento|Atenciosamente)/i.test(linha);
+    doc.setFont("helvetica",negrito ? "bold" : "normal");
+    doc.text(partes,margemX,y);
+    y += alturaNecessaria;
+  }
 
-      if(linha === ""){
-        y += 4;
-        continue;
-      }
+  return doc;
+}
 
-      const partes = doc.splitTextToSize(linha,larguraTexto);
-      const alturaNecessaria = partes.length * 5.2;
-
-      if(y + alturaNecessaria > alturaPagina - 18){
-        novaPagina();
-      }
-
-      const negrito = /^(BANCOS \/ CONTAS|Número da|Valor |Data |Transportadora|Forma de pagamento|Atenciosamente)/i.test(linha);
-      doc.setFont("helvetica",negrito ? "bold" : "normal");
-      doc.text(partes,margemX,y);
-      y += alturaNecessaria;
-    }
-
+async function baixarRelatorioPDF(){
+  try{
+    const doc = await gerarDocumentoPdfRelatorio();
     doc.save(nomeArquivoRelatorio()+".pdf");
   }catch(erro){
     console.error("Erro ao gerar PDF:",erro);
     alert("Não foi possível gerar o PDF: "+erro.message);
+  }
+}
+
+async function adicionarRelatorioAoEnvio(){
+  try{
+    const cliente = document.getElementById("gerCliente")?.value.trim() || "";
+    if(!cliente){
+      alert("Informe o nome do cliente antes de adicionar o relatório ao envio.");
+      return;
+    }
+
+    const doc = await gerarDocumentoPdfRelatorio();
+    const blob = doc.output("blob");
+
+    const numeroPedido = document.getElementById("gerNumeroPedido")?.value.trim();
+    const numeroNf = document.getElementById("gerNumeroNf")?.value.trim();
+
+    let descricao = "Relatorio";
+    if(numeroPedido) descricao += `_Pedido_${numeroPedido}`;
+    if(numeroNf) descricao += `_NF_${numeroNf}`;
+
+    const nomeArquivo = `${cliente} - ${descricao}.pdf`;
+    const arquivoPdf = new File([blob],nomeArquivo,{type:"application/pdf",lastModified:Date.now()});
+
+    const chaveArquivo = `${arquivoPdf.name}_${arquivoPdf.size}`;
+    const jaExiste = emailArquivosSelecionados.some(item => `${item.name}_${item.size}` === chaveArquivo);
+
+    if(!jaExiste){
+      emailArquivosSelecionados.push(arquivoPdf);
+    }
+
+    prepararEnviosEmail();
+    mostrarAbaEmail("preparar");
+
+    mostrarAvisoEmail(
+      jaExiste
+        ? `O relatório de ${cliente} já estava na preparação de envio.`
+        : `Relatório de ${cliente} adicionado à preparação de envio. Agora você pode acrescentar outros arquivos.`,
+      true
+    );
+
+    document.getElementById("emailSubPreparar")?.scrollIntoView({behavior:"smooth",block:"start"});
+  }catch(erro){
+    console.error("Erro ao adicionar relatório ao envio:",erro);
+    alert("Não foi possível adicionar o relatório ao envio: "+erro.message);
   }
 }
 
