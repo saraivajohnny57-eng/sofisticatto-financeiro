@@ -1632,8 +1632,14 @@ function arquivoCompativelModoEmail(arquivo){
   const nome = normalizarNomeEmail(arquivo.name);
   const extensao = arquivo.name.split(".").pop().toLowerCase();
 
+  // Relatórios gerados dentro do sistema devem aparecer em qualquer modo,
+  // para que possam ser enviados junto com boleto, NF, XML ou romaneio.
+  if(nome.includes("RELATORIO") && extensao === "pdf"){
+    return true;
+  }
+
   if(emailModoAtual === "boleto"){
-    return extensao === "pdf" && !/(NFE|NOTA FISCAL|XML|ROMANEIO|RELATORIO)/.test(nome);
+    return extensao === "pdf" && !/(NFE|NOTA FISCAL|XML|ROMANEIO)/.test(nome);
   }
 
   if(emailModoAtual === "completo"){
@@ -2035,6 +2041,25 @@ function montarHtmlCompletoEmail(corpo){
 }
 function atualizarPreviaAssinatura(){const box=document.getElementById("emailPreviaAssinatura");if(!box)return;box.innerHTML=`<div style="margin-bottom:22px;">Bom dia!<br><br>Segue em anexo Boleto, por favor, confirmar o recebimento deste.<br><br>Obrigado.</div>${htmlAssinaturaEmail(assinaturaFormularioOuAtiva())||'<div style="color:#999;">Preencha os dados para visualizar a assinatura.</div>'}`}
 
+function chaveArquivoEmail(arquivo){
+  return `${normalizarNomeEmail(arquivo.name)}_${arquivo.size}_${arquivo.lastModified || 0}`;
+}
+
+function adicionarArquivosEmail(novosArquivos){
+  const mapa = new Map();
+
+  emailArquivosSelecionados.forEach(arquivo => {
+    mapa.set(chaveArquivoEmail(arquivo),arquivo);
+  });
+
+  [...novosArquivos].forEach(arquivo => {
+    mapa.set(chaveArquivoEmail(arquivo),arquivo);
+  });
+
+  emailArquivosSelecionados = [...mapa.values()];
+  prepararEnviosEmail();
+}
+
 function prepararEnviosEmail(){
   const tabela = document.getElementById("emailTabelaPrevia");
   if(!tabela) return;
@@ -2077,7 +2102,7 @@ function prepararEnviosEmail(){
       <td><b>${escaparHtmlEmail(item.clienteNome)}</b><br><small>${escaparHtmlEmail(item.assunto)}</small></td>
       <td>${item.para.length ? item.para.map(escaparHtmlEmail).join("<br>") : "—"}</td>
       <td>${item.cc.length ? item.cc.map(escaparHtmlEmail).join("<br>") : "—"}</td>
-      <td class="email-arquivos">${item.arquivos.map(arquivo => "• " + escaparHtmlEmail(arquivo.name)).join("<br>")}</td>
+      <td class="email-arquivos">${item.arquivos.map(arquivo => `• ${escaparHtmlEmail(arquivo.name)} <small>(${(arquivo.size/1024).toFixed(0)} KB)</small>`).join("<br>")}</td>
       <td class="${item.status === "pronto" ? "email-status-ok" : "email-status-erro"}">${item.status === "pronto" ? (item.somenteVendedora ? "Pronto — somente vendedora" : "Pronto") : "Cliente/vendedora não cadastrado"}</td>
       <td>${item.status === "pronto"
         ? `<button class="btn verde" onclick="enviarEmailIndividual(${indice},this)">Enviar</button>`
@@ -2245,8 +2270,8 @@ async function carregarHistoricoEmail(){
 /* Seleção e arraste de arquivos */
 document.addEventListener("change",evento => {
   if(evento.target && evento.target.id === "emailArquivos"){
-    emailArquivosSelecionados = [...evento.target.files];
-    prepararEnviosEmail();
+    adicionarArquivosEmail(evento.target.files);
+    evento.target.value = "";
   }
 });
 
@@ -2267,8 +2292,7 @@ document.addEventListener("DOMContentLoaded",() => {
   }));
 
   area.addEventListener("drop",evento => {
-    emailArquivosSelecionados = [...evento.dataTransfer.files];
-    prepararEnviosEmail();
+    adicionarArquivosEmail(evento.dataTransfer.files);
   });
 });
 
@@ -2924,20 +2948,21 @@ async function adicionarRelatorioAoEnvio(){
     const nomeArquivo = `${cliente} - ${descricao}.pdf`;
     const arquivoPdf = new File([blob],nomeArquivo,{type:"application/pdf",lastModified:Date.now()});
 
-    const chaveArquivo = `${arquivoPdf.name}_${arquivoPdf.size}`;
-    const jaExiste = emailArquivosSelecionados.some(item => `${item.name}_${item.size}` === chaveArquivo);
+    const chaveArquivo = chaveArquivoEmail(arquivoPdf);
+    const jaExiste = emailArquivosSelecionados.some(item => chaveArquivoEmail(item) === chaveArquivo);
 
     if(!jaExiste){
-      emailArquivosSelecionados.push(arquivoPdf);
+      adicionarArquivosEmail([arquivoPdf]);
+    }else{
+      prepararEnviosEmail();
     }
 
-    prepararEnviosEmail();
     mostrarAbaEmail("preparar");
 
     mostrarAvisoEmail(
       jaExiste
         ? `O relatório de ${cliente} já estava na preparação de envio.`
-        : `Relatório de ${cliente} adicionado à preparação de envio. Agora você pode acrescentar outros arquivos.`,
+        : `Relatório de ${cliente} adicionado à preparação de envio. Agora você pode acrescentar outros arquivos; eles serão unidos ao mesmo cliente.`,
       true
     );
 
