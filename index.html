@@ -101,6 +101,41 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 @media(max-width:700px){.relatorio-form-grid,.relatorio-config-grid{grid-template-columns:1fr}.relatorio-form-grid .campo-largo{grid-column:auto}.relatorio-folha{width:794px}}
 @media print{body *{visibility:hidden}.relatorio-folha,.relatorio-folha *{visibility:visible}.relatorio-folha{position:absolute;left:0;top:0;border:none;box-shadow:none}}
 
+
+/* ETIQUETAS DE ENTREGA 150x100mm */
+.etiqueta-layout{display:grid;grid-template-columns:minmax(320px,420px) minmax(620px,1fr);gap:20px;align-items:start}
+.etiqueta-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.etiqueta-form-grid .campo-largo{grid-column:1/-1}
+.etiqueta-preview-area{background:#d8dce5;border-radius:18px;padding:24px;overflow:auto}
+.etiqueta-papel{position:relative;width:150mm;height:100mm;background:white;color:#000;margin:auto;border-radius:4mm;box-shadow:0 8px 28px rgba(0,0,0,.22);overflow:hidden;font-family:Arial,Helvetica,sans-serif}
+.etiqueta-logo{position:absolute;left:37mm;top:7mm;width:60mm;height:25mm;object-fit:contain}
+.etiqueta-qr{position:absolute;right:17mm;top:6mm;width:29mm;height:29mm}
+.etiqueta-qr-texto{position:absolute;right:48mm;top:10mm;font-size:5.5mm;font-weight:900;line-height:1.05;text-align:center}
+.etiqueta-destino{position:absolute;left:7mm;top:40mm;width:115mm;font-size:7.2mm;font-weight:400;white-space:nowrap;overflow:hidden}
+.etiqueta-destino b,.etiqueta-cidade b{font-weight:900}
+.etiqueta-cidade{position:absolute;left:7mm;top:52mm;width:115mm;font-size:7.2mm;white-space:nowrap;overflow:hidden}
+.etiqueta-nf{position:absolute;left:7mm;top:64mm;font-size:7mm}
+.etiqueta-volume{position:absolute;left:80mm;top:64mm;font-size:7mm}
+.etiqueta-barcode{position:absolute;left:7mm;bottom:13mm;width:108mm;height:17mm}
+.etiqueta-chave{position:absolute;left:8mm;bottom:6mm;width:108mm;text-align:center;font-size:4mm;letter-spacing:.25mm;white-space:nowrap}
+.etiqueta-transportadora{position:absolute;right:4mm;bottom:5mm;height:48mm;writing-mode:vertical-rl;transform:rotate(180deg);font-size:10mm;font-weight:900;white-space:nowrap;overflow:hidden}
+.etiqueta-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.etiqueta-sugestoes{position:relative}
+.etiqueta-sugestoes-lista{position:absolute;left:0;right:0;top:100%;z-index:100;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.16);max-height:230px;overflow:auto;display:none}
+.etiqueta-sugestoes-lista.ativa{display:block}
+.etiqueta-sugestao{padding:10px 12px;border-bottom:1px solid #eee;cursor:pointer}
+.etiqueta-sugestao:hover{background:#f1edfb}.etiqueta-sugestao:last-child{border-bottom:none}
+.etiqueta-lista-mini{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.etiqueta-mini{background:#f3f0fb;border-radius:10px;padding:8px 11px;font-size:12px}
+@media(max-width:1100px){.etiqueta-layout{grid-template-columns:1fr}.etiqueta-preview-area{padding:12px}}
+@media print{
+  body *{visibility:hidden!important}
+  #etiquetasImpressao,#etiquetasImpressao *{visibility:visible!important}
+  #etiquetasImpressao{position:absolute!important;left:0!important;top:0!important;width:100%!important}
+  .etiqueta-papel{page-break-after:always;box-shadow:none;border-radius:0;margin:0}
+  @page{size:150mm 100mm;margin:0}
+}
+
 </style>
 </head>
 <body>
@@ -223,6 +258,7 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
     <div class="email-abas">
       <button id="emailAbaPreparar" class="ativo" onclick="mostrarAbaEmail('preparar')">Preparar Envios</button>
       <button id="emailAbaGerador" onclick="mostrarAbaEmail('gerador')">Gerar Relatório</button>
+      <button id="emailAbaEtiquetas" onclick="mostrarAbaEmail('etiquetas')">Etiquetas</button>
       <button id="emailAbaClientes" onclick="mostrarAbaEmail('clientes')">Clientes</button>
       <button id="emailAbaVendedoras" onclick="mostrarAbaEmail('vendedoras')">Vendedoras</button>
       <button id="emailAbaAssinaturas" onclick="mostrarAbaEmail('assinaturas')">Assinatura</button>
@@ -471,6 +507,108 @@ SOFISTICATTO COSMÉTICOS</textarea>
       </div>
     </div>
 
+
+    <div id="emailSubEtiquetas" class="email-subsecao">
+      <div class="etiqueta-layout">
+        <div>
+          <div class="card">
+            <h2>Etiquetas de Entrega</h2>
+            <p style="margin:6px 0 18px;color:#7d73bd;">Modelo 150 × 100 mm para impressora térmica. A logo e o QR Code do Instagram são fixos.</p>
+
+            <div class="etiqueta-form-grid">
+              <div class="campo-largo etiqueta-sugestoes">
+                <label class="relatorio-label">Destino / Cliente</label>
+                <input id="etqCliente" autocomplete="off" placeholder="Digite ou selecione o cliente"
+                  oninput="mostrarSugestoesEtiqueta();atualizarPreviewEtiqueta()"
+                  onfocus="mostrarSugestoesEtiqueta()">
+                <div id="etqSugestoesClientes" class="etiqueta-sugestoes-lista"></div>
+              </div>
+
+              <div>
+                <label class="relatorio-label">Cidade</label>
+                <input id="etqCidade" placeholder="Ex.: GUANAMBI" oninput="atualizarPreviewEtiqueta()">
+              </div>
+              <div>
+                <label class="relatorio-label">UF</label>
+                <input id="etqUf" maxlength="2" placeholder="BA" oninput="this.value=this.value.toUpperCase();atualizarPreviewEtiqueta()">
+              </div>
+
+              <div>
+                <label class="relatorio-label">Número da Nota Fiscal</label>
+                <input id="etqNf" placeholder="Ex.: 50415" oninput="atualizarPreviewEtiqueta()">
+              </div>
+              <div>
+                <label class="relatorio-label">Quantidade de volumes</label>
+                <input id="etqVolumes" type="number" min="1" max="999" value="1" oninput="atualizarPreviewEtiqueta()">
+              </div>
+
+              <div class="campo-largo">
+                <label class="relatorio-label">Transportadora</label>
+                <input id="etqTransportadora" placeholder="Ex.: EX MAIA" oninput="atualizarPreviewEtiqueta()">
+              </div>
+
+              <div class="campo-largo">
+                <label class="relatorio-label">Chave de acesso da NF-e (44 dígitos)</label>
+                <input id="etqChave" maxlength="44" inputmode="numeric" placeholder="Digite ou cole a chave da nota"
+                  oninput="this.value=this.value.replace(/\D/g,'').slice(0,44);atualizarPreviewEtiqueta()">
+              </div>
+
+              <div class="campo-largo">
+                <label class="relatorio-label">Importar XML da NF-e (opcional)</label>
+                <input id="etqXml" type="file" accept=".xml,text/xml,application/xml" onchange="lerXmlEtiqueta(event)">
+                <small style="color:#7d73bd;">Preenche automaticamente cliente, cidade/UF, número da NF e chave de acesso.</small>
+              </div>
+            </div>
+
+            <div class="etiqueta-lista-mini" id="etqResumoVolumes"></div>
+
+            <div class="etiqueta-acoes">
+              <button class="salvar" onclick="salvarHistoricoEtiqueta()">Salvar etiqueta</button>
+              <button class="btn azul" onclick="imprimirEtiquetas()">Imprimir todos os volumes</button>
+              <button class="btn verde" onclick="baixarEtiquetasPDF()">Baixar PDF</button>
+              <button class="btn vermelho" onclick="limparFormularioEtiqueta()">Limpar</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Histórico de etiquetas</h2>
+            <div class="busca-clientes-box">
+              <input id="etqBuscaHistorico" placeholder="Pesquisar cliente, NF ou transportadora" oninput="filtrarHistoricoEtiquetas()">
+              <button class="buscar" onclick="document.getElementById('etqBuscaHistorico').value='';montarHistoricoEtiquetas(etiquetasHistorico)">Limpar</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Data</th><th>Cliente</th><th>Cidade/UF</th><th>NF</th><th>Volumes</th><th>Transportadora</th><th>Ações</th></tr></thead>
+                <tbody id="etqTabelaHistorico"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="top">
+            <div><h2>Prévia da etiqueta</h2><p>Mostrando o volume 01 do total informado.</p></div>
+          </div>
+          <div class="etiqueta-preview-area">
+            <div id="etqPreview" class="etiqueta-papel">
+              <img id="etqLogo" class="etiqueta-logo" alt="Logo Sofisticatto">
+              <div class="etiqueta-qr-texto">I<br>N<br>S<br>T<br>A<br>G<br>R<br>A<br>M</div>
+              <div id="etqQr" class="etiqueta-qr"></div>
+              <div class="etiqueta-destino">DESTINO: <b id="etqPrevCliente">CLIENTE</b></div>
+              <div class="etiqueta-cidade">CIDADE: <b id="etqPrevCidade">CIDADE/UF</b></div>
+              <div class="etiqueta-nf">NF: <span id="etqPrevNf">—</span></div>
+              <div class="etiqueta-volume">VOL: <span id="etqPrevVolume">01 / 01</span></div>
+              <svg id="etqBarcode" class="etiqueta-barcode"></svg>
+              <div id="etqPrevChave" class="etiqueta-chave"></div>
+              <div id="etqPrevTransportadora" class="etiqueta-transportadora">TRANSPORTADORA</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="etiquetasImpressao" style="display:none;"></div>
+    </div>
+
     <div id="emailSubClientes" class="email-subsecao">
       <div class="card">
         <h2>Cadastro de Cliente</h2>
@@ -478,6 +616,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div class="inputs">
           <input id="emailClienteNome" placeholder="Nome do cliente">
           <textarea id="emailClienteEmails" placeholder="E-mails separados por ponto e vírgula, vírgula ou uma linha para cada e-mail"></textarea>
+          <input id="emailClienteCidade" placeholder="Cidade (opcional)">
+          <input id="emailClienteUf" maxlength="2" placeholder="UF (opcional)" oninput="this.value=this.value.toUpperCase()">
           <select id="emailClienteVendedora" onchange="atualizarEmailVendedoraAutomatico()"><option value="">Selecione a vendedora</option></select>
           <input id="emailVendedoraAutomatico" placeholder="E-mail da vendedora (automático)" readonly>
         </div>
@@ -494,7 +634,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
             oninput="filtrarTabelaClientesEmail()">
           <button class="buscar" type="button" onclick="limparBuscaClienteEmail()">Limpar pesquisa</button>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>E-mails</th><th>Vendedora</th><th>E-mail vendedora</th><th>Ações</th></tr></thead><tbody id="emailTabelaClientes"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>E-mails</th><th>Cidade/UF</th><th>Vendedora</th><th>E-mail vendedora</th><th>Ações</th></tr></thead><tbody id="emailTabelaClientes"></tbody></table></div>
       </div>
     </div>
 
@@ -1599,6 +1739,9 @@ let gerVencimentosCalculados = [];
 
 let emailAssinaturas = [];
 let emailAssinaturaAtiva = null;
+let etiquetasHistorico = [];
+let etiquetaQrInstancia = null;
+const ETIQUETA_INSTAGRAM_URL = "https://www.instagram.com/sofisticatto.cosmeticos?igsh=NmFkdnRlaXZrMXNh";
 let emailLogoTemporariaDataUrl = "";
 
 function garantirFinanceiroEmail(){
@@ -1725,11 +1868,11 @@ async function carregarModuloEmail(){
 
 function mostrarAbaEmail(aba){
   if(!garantirFinanceiroEmail()) return;
-  ["Preparar","Gerador","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
+  ["Preparar","Gerador","Etiquetas","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
     document.getElementById("emailSub" + nome).classList.remove("ativa");
     document.getElementById("emailAba" + nome).classList.remove("ativo");
   });
-  const mapa = {preparar:"Preparar",gerador:"Gerador",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
+  const mapa = {preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
   const nome = mapa[aba];
   document.getElementById("emailSub" + nome).classList.add("ativa");
   document.getElementById("emailAba" + nome).classList.add("ativo");
@@ -1739,6 +1882,9 @@ function mostrarAbaEmail(aba){
     carregarConfiguracoesRelatorio();
     carregarRelatoriosClientes();
     inicializarGeradorRelatorio();
+  }
+  if(aba === "etiquetas"){
+    inicializarModuloEtiquetas();
   }
 }
 
@@ -1865,6 +2011,7 @@ function montarTabelaClientesEmail(lista = emailClientes){
     return `<tr>
       <td>${escaparHtmlEmail(item.nome)}</td>
       <td>${(item.emails || []).map(escaparHtmlEmail).join("<br>")}</td>
+      <td>${escaparHtmlEmail([item.cidade,item.uf].filter(Boolean).join("/"))}</td>
       <td>${escaparHtmlEmail(vendedora?.nome || "")}</td>
       <td>${escaparHtmlEmail(vendedora?.email || "")}</td>
       <td>
@@ -1872,7 +2019,7 @@ function montarTabelaClientesEmail(lista = emailClientes){
         <button class="btn vermelho" onclick="excluirClienteEmail('${item.id}')">Excluir</button>
       </td>
     </tr>`;
-  }).join("") : `<tr><td colspan="5">Nenhum cliente encontrado.</td></tr>`;
+  }).join("") : `<tr><td colspan="6">Nenhum cliente encontrado.</td></tr>`;
 }
 
 function filtrarTabelaClientesEmail(){
@@ -1888,6 +2035,8 @@ function filtrarTabelaClientesEmail(){
     const texto = [
       item.nome,
       ...(item.emails || []),
+      item.cidade || "",
+      item.uf || "",
       vendedora?.nome || "",
       vendedora?.email || ""
     ].join(" ");
@@ -1916,7 +2065,9 @@ async function salvarClienteEmail(){
     return;
   }
 
-  const dados = {nome,emails,vendedora_id,ativo:true,atualizado_em:new Date().toISOString()};
+  const cidade = document.getElementById("emailClienteCidade")?.value.trim() || "";
+  const uf = document.getElementById("emailClienteUf")?.value.trim().toUpperCase() || "";
+  const dados = {nome,emails,vendedora_id,cidade,uf,ativo:true,atualizado_em:new Date().toISOString()};
   const resposta = id
     ? await banco.from("email_clientes").update(dados).eq("id",id)
     : await banco.from("email_clientes").insert([{...dados,criado_por:usuarioLogado.login}]);
@@ -1933,6 +2084,8 @@ function editarClienteEmail(id){
   document.getElementById("emailClienteId").value = item.id;
   document.getElementById("emailClienteNome").value = item.nome || "";
   document.getElementById("emailClienteEmails").value = (item.emails || []).join("; ");
+  document.getElementById("emailClienteCidade").value = item.cidade || "";
+  document.getElementById("emailClienteUf").value = item.uf || "";
   document.getElementById("emailClienteVendedora").value = item.vendedora_id || "";
   atualizarEmailVendedoraAutomatico();
   document.getElementById("emailCancelarCliente").style.display = "inline-block";
@@ -1943,6 +2096,8 @@ function cancelarEdicaoClienteEmail(){
   document.getElementById("emailClienteId").value = "";
   document.getElementById("emailClienteNome").value = "";
   document.getElementById("emailClienteEmails").value = "";
+  document.getElementById("emailClienteCidade").value = "";
+  document.getElementById("emailClienteUf").value = "";
   document.getElementById("emailClienteVendedora").value = "";
   document.getElementById("emailVendedoraAutomatico").value = "";
   document.getElementById("emailCancelarCliente").style.display = "none";
@@ -3010,6 +3165,404 @@ function imprimirRelatorioCliente(){
     h3{text-decoration:underline}li{margin:2mm 0}.relatorio-assinatura-doc{margin-top:10mm}.relatorio-assinatura-doc img{max-width:45mm}
   </style></head><body><div class="relatorio-folha">${folha.innerHTML}</div><script>window.onload=()=>{window.print();window.close()}<\/script></body></html>`);
   janela.document.close();
+}
+
+
+/* =========================================================
+   ETIQUETAS DE ENTREGA 150 × 100 MM
+   ========================================================= */
+async function carregarBibliotecasEtiqueta(){
+  const promessas = [];
+
+  if(!window.QRCode){
+    promessas.push(new Promise((resolve,reject)=>{
+      const script=document.createElement("script");
+      script.src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+      script.onload=resolve;
+      script.onerror=()=>reject(new Error("Falha ao carregar QR Code."));
+      document.head.appendChild(script);
+    }));
+  }
+
+  if(!window.JsBarcode){
+    promessas.push(new Promise((resolve,reject)=>{
+      const script=document.createElement("script");
+      script.src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js";
+      script.onload=resolve;
+      script.onerror=()=>reject(new Error("Falha ao carregar código de barras."));
+      document.head.appendChild(script);
+    }));
+  }
+
+  if(!window.html2canvas){
+    promessas.push(new Promise((resolve,reject)=>{
+      const script=document.createElement("script");
+      script.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      script.onload=resolve;
+      script.onerror=()=>reject(new Error("Falha ao carregar gerador de imagem."));
+      document.head.appendChild(script);
+    }));
+  }
+
+  if(!window.jspdf?.jsPDF){
+    promessas.push(new Promise((resolve,reject)=>{
+      const script=document.createElement("script");
+      script.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      script.onload=resolve;
+      script.onerror=()=>reject(new Error("Falha ao carregar gerador de PDF."));
+      document.head.appendChild(script);
+    }));
+  }
+
+  await Promise.all(promessas);
+}
+
+async function inicializarModuloEtiquetas(){
+  if(!garantirFinanceiroEmail()) return;
+
+  try{
+    await carregarBibliotecasEtiqueta();
+    await carregarHistoricoEtiquetas();
+    atualizarPreviewEtiqueta();
+  }catch(erro){
+    console.error("Erro no módulo de etiquetas:",erro);
+    alert(erro.message);
+  }
+}
+
+function dadosEtiquetaFormulario(){
+  return {
+    cliente:document.getElementById("etqCliente")?.value.trim() || "",
+    cidade:document.getElementById("etqCidade")?.value.trim().toUpperCase() || "",
+    uf:document.getElementById("etqUf")?.value.trim().toUpperCase() || "",
+    numero_nf:document.getElementById("etqNf")?.value.trim() || "",
+    quantidade_volumes:Math.max(1,parseInt(document.getElementById("etqVolumes")?.value || "1",10) || 1),
+    transportadora:document.getElementById("etqTransportadora")?.value.trim().toUpperCase() || "",
+    chave_nfe:(document.getElementById("etqChave")?.value || "").replace(/\D/g,"").slice(0,44)
+  };
+}
+
+function formatarNfEtiqueta(valor){
+  const numero=String(valor || "").replace(/\D/g,"");
+  if(!numero) return "—";
+  return numero.replace(/\B(?=(\d{3})+(?!\d))/g,".");
+}
+
+function formatarVolumeEtiqueta(atual,total){
+  const tamanho=Math.max(2,String(total).length);
+  return `${String(atual).padStart(tamanho,"0")} / ${String(total).padStart(tamanho,"0")}`;
+}
+
+function logoEtiquetaUrl(){
+  return emailAssinaturaAtiva?.logo_url || "";
+}
+
+function montarQrEtiqueta(elemento){
+  if(!window.QRCode || !elemento) return;
+  elemento.innerHTML="";
+  new QRCode(elemento,{
+    text:ETIQUETA_INSTAGRAM_URL,
+    width:112,
+    height:112,
+    colorDark:"#000000",
+    colorLight:"#ffffff",
+    correctLevel:QRCode.CorrectLevel.M
+  });
+}
+
+function montarBarcodeEtiqueta(elemento,chave){
+  if(!window.JsBarcode || !elemento) return;
+  elemento.innerHTML="";
+  if(!chave){
+    elemento.setAttribute("viewBox","0 0 500 80");
+    elemento.innerHTML='<text x="250" y="45" text-anchor="middle" font-size="22">CHAVE DA NF-E</text>';
+    return;
+  }
+  JsBarcode(elemento,chave,{
+    format:"CODE128",
+    displayValue:false,
+    margin:0,
+    height:62,
+    width:1.15,
+    background:"#ffffff",
+    lineColor:"#000000"
+  });
+}
+
+function atualizarPreviewEtiqueta(){
+  const d=dadosEtiquetaFormulario();
+
+  const logo=document.getElementById("etqLogo");
+  if(logo){
+    const url=logoEtiquetaUrl();
+    logo.src=url || "";
+    logo.style.display=url ? "block" : "none";
+  }
+
+  document.getElementById("etqPrevCliente").textContent=(d.cliente || "CLIENTE").toUpperCase();
+  document.getElementById("etqPrevCidade").textContent=[d.cidade,d.uf].filter(Boolean).join("/") || "CIDADE/UF";
+  document.getElementById("etqPrevNf").textContent=formatarNfEtiqueta(d.numero_nf);
+  document.getElementById("etqPrevVolume").textContent=formatarVolumeEtiqueta(1,d.quantidade_volumes);
+  document.getElementById("etqPrevChave").textContent=d.chave_nfe;
+  document.getElementById("etqPrevTransportadora").textContent=d.transportadora || "TRANSPORTADORA";
+
+  if(window.QRCode) montarQrEtiqueta(document.getElementById("etqQr"));
+  if(window.JsBarcode) montarBarcodeEtiqueta(document.getElementById("etqBarcode"),d.chave_nfe);
+
+  const resumo=document.getElementById("etqResumoVolumes");
+  if(resumo){
+    resumo.innerHTML=Array.from({length:d.quantidade_volumes},(_,i)=>
+      `<span class="etiqueta-mini">VOL ${formatarVolumeEtiqueta(i+1,d.quantidade_volumes)}</span>`
+    ).join("");
+  }
+}
+
+function mostrarSugestoesEtiqueta(){
+  const input=document.getElementById("etqCliente");
+  const lista=document.getElementById("etqSugestoesClientes");
+  if(!input || !lista) return;
+
+  const termo=normalizarNomeEmail(input.value);
+  const encontrados=emailClientes
+    .filter(item=>!termo || normalizarNomeEmail(item.nome).includes(termo))
+    .slice(0,15);
+
+  if(!encontrados.length){
+    lista.innerHTML="";
+    lista.classList.remove("ativa");
+    return;
+  }
+
+  lista.innerHTML=encontrados.map(item=>`
+    <div class="etiqueta-sugestao" onmousedown="selecionarClienteEtiqueta('${item.id}')">
+      <b>${escaparHtmlEmail(item.nome)}</b>
+      <small>${escaparHtmlEmail([item.cidade,item.uf].filter(Boolean).join("/") || "Cidade/UF não cadastrada")}</small>
+    </div>`).join("");
+  lista.classList.add("ativa");
+}
+
+function selecionarClienteEtiqueta(id){
+  const item=emailClientes.find(x=>x.id===id);
+  if(!item) return;
+  document.getElementById("etqCliente").value=item.nome || "";
+  document.getElementById("etqCidade").value=item.cidade || "";
+  document.getElementById("etqUf").value=item.uf || "";
+  document.getElementById("etqSugestoesClientes").classList.remove("ativa");
+  atualizarPreviewEtiqueta();
+}
+
+document.addEventListener("click",evento=>{
+  const box=document.querySelector("#emailSubEtiquetas .etiqueta-sugestoes");
+  if(box && !box.contains(evento.target)){
+    document.getElementById("etqSugestoesClientes")?.classList.remove("ativa");
+  }
+});
+
+async function lerXmlEtiqueta(evento){
+  const arquivo=evento.target.files?.[0];
+  if(!arquivo) return;
+
+  try{
+    const texto=await arquivo.text();
+    const xml=new DOMParser().parseFromString(texto,"application/xml");
+    if(xml.querySelector("parsererror")) throw new Error("XML inválido.");
+
+    const textoNo=(seletores)=>{
+      for(const seletor of seletores){
+        const no=xml.querySelector(seletor);
+        if(no?.textContent?.trim()) return no.textContent.trim();
+      }
+      return "";
+    };
+
+    const chave=textoNo(["protNFe infProt chNFe","infNFe"]).replace(/^NFe/,"");
+    const numeroNf=textoNo(["ide nNF"]);
+    const cliente=textoNo(["dest xNome"]);
+    const cidade=textoNo(["dest enderDest xMun"]);
+    const uf=textoNo(["dest enderDest UF"]);
+
+    if(cliente) document.getElementById("etqCliente").value=cliente;
+    if(cidade) document.getElementById("etqCidade").value=cidade;
+    if(uf) document.getElementById("etqUf").value=uf;
+    if(numeroNf) document.getElementById("etqNf").value=numeroNf;
+    if(chave) document.getElementById("etqChave").value=chave.replace(/\D/g,"").slice(0,44);
+
+    atualizarPreviewEtiqueta();
+    alert("Dados da NF-e carregados do XML.");
+  }catch(erro){
+    alert("Não foi possível ler o XML: "+erro.message);
+  }
+}
+
+function criarElementoEtiqueta(d,volumeAtual){
+  const etiqueta=document.createElement("div");
+  etiqueta.className="etiqueta-papel";
+  etiqueta.innerHTML=`
+    <img class="etiqueta-logo" alt="Logo Sofisticatto">
+    <div class="etiqueta-qr-texto">I<br>N<br>S<br>T<br>A<br>G<br>R<br>A<br>M</div>
+    <div class="etiqueta-qr"></div>
+    <div class="etiqueta-destino">DESTINO: <b>${escaparHtmlEmail((d.cliente || "CLIENTE").toUpperCase())}</b></div>
+    <div class="etiqueta-cidade">CIDADE: <b>${escaparHtmlEmail([d.cidade,d.uf].filter(Boolean).join("/") || "CIDADE/UF")}</b></div>
+    <div class="etiqueta-nf">NF: ${escaparHtmlEmail(formatarNfEtiqueta(d.numero_nf))}</div>
+    <div class="etiqueta-volume">VOL: ${escaparHtmlEmail(formatarVolumeEtiqueta(volumeAtual,d.quantidade_volumes))}</div>
+    <svg class="etiqueta-barcode"></svg>
+    <div class="etiqueta-chave">${escaparHtmlEmail(d.chave_nfe)}</div>
+    <div class="etiqueta-transportadora">${escaparHtmlEmail(d.transportadora || "TRANSPORTADORA")}</div>`;
+
+  const logo=etiqueta.querySelector(".etiqueta-logo");
+  const logoUrl=logoEtiquetaUrl();
+  if(logoUrl) logo.src=logoUrl; else logo.style.display="none";
+
+  montarQrEtiqueta(etiqueta.querySelector(".etiqueta-qr"));
+  montarBarcodeEtiqueta(etiqueta.querySelector(".etiqueta-barcode"),d.chave_nfe);
+  return etiqueta;
+}
+
+function validarEtiqueta(){
+  const d=dadosEtiquetaFormulario();
+  if(!d.cliente){alert("Informe o nome do cliente.");return null}
+  if(!d.cidade || !d.uf){alert("Informe a cidade e o estado.");return null}
+  if(!d.numero_nf){alert("Informe o número da Nota Fiscal.");return null}
+  if(!d.transportadora){alert("Informe a transportadora.");return null}
+  if(d.chave_nfe.length!==44){alert("A chave da NF-e deve ter 44 dígitos.");return null}
+  return d;
+}
+
+async function montarEtiquetasParaSaida(){
+  const d=validarEtiqueta();
+  if(!d) return null;
+  await carregarBibliotecasEtiqueta();
+
+  const container=document.getElementById("etiquetasImpressao");
+  container.innerHTML="";
+  container.style.display="block";
+  for(let i=1;i<=d.quantidade_volumes;i++){
+    container.appendChild(criarElementoEtiqueta(d,i));
+  }
+  await new Promise(resolve=>setTimeout(resolve,350));
+  return {d,container};
+}
+
+async function imprimirEtiquetas(){
+  const resultado=await montarEtiquetasParaSaida();
+  if(!resultado) return;
+  window.print();
+  setTimeout(()=>{resultado.container.style.display="none"},500);
+}
+
+async function baixarEtiquetasPDF(){
+  try{
+    const resultado=await montarEtiquetasParaSaida();
+    if(!resultado) return;
+    const {jsPDF}=window.jspdf;
+    const etiquetas=[...resultado.container.querySelectorAll(".etiqueta-papel")];
+    const pdf=new jsPDF({orientation:"landscape",unit:"mm",format:[150,100]});
+
+    for(let i=0;i<etiquetas.length;i++){
+      if(i>0) pdf.addPage([150,100],"landscape");
+      const canvas=await html2canvas(etiquetas[i],{
+        scale:2,
+        useCORS:true,
+        backgroundColor:"#ffffff",
+        width:etiquetas[i].offsetWidth,
+        height:etiquetas[i].offsetHeight
+      });
+      pdf.addImage(canvas.toDataURL("image/png"),"PNG",0,0,150,100,undefined,"FAST");
+    }
+
+    pdf.save(`ETIQUETAS_${(resultado.d.cliente || "CLIENTE").replace(/[^a-z0-9]+/gi,"_")}_NF_${resultado.d.numero_nf}.pdf`);
+    resultado.container.style.display="none";
+  }catch(erro){
+    console.error(erro);
+    alert("Não foi possível gerar o PDF das etiquetas: "+erro.message);
+  }
+}
+
+async function salvarHistoricoEtiqueta(){
+  const d=validarEtiqueta();
+  if(!d) return;
+
+  const resposta=await banco.from("email_etiquetas").insert([{
+    ...d,
+    instagram_url:ETIQUETA_INSTAGRAM_URL,
+    criado_por:usuarioLogado.login
+  }]);
+
+  if(resposta.error){
+    alert("Erro ao salvar etiqueta: "+resposta.error.message);
+    return;
+  }
+
+  alert("Etiqueta salva no histórico.");
+  carregarHistoricoEtiquetas();
+}
+
+async function carregarHistoricoEtiquetas(){
+  if(!banco || !usuarioLogado || usuarioLogado.tipo!=="financeiro") return;
+  const resposta=await banco.from("email_etiquetas").select("*").order("created_at",{ascending:false}).limit(300);
+  if(resposta.error){
+    console.error("Erro ao carregar etiquetas:",resposta.error);
+    return;
+  }
+  etiquetasHistorico=resposta.data || [];
+  montarHistoricoEtiquetas(etiquetasHistorico);
+}
+
+function montarHistoricoEtiquetas(lista){
+  const tabela=document.getElementById("etqTabelaHistorico");
+  if(!tabela) return;
+  tabela.innerHTML=lista.length ? lista.map(item=>`
+    <tr>
+      <td>${new Date(item.created_at).toLocaleString("pt-BR")}</td>
+      <td>${escaparHtmlEmail(item.cliente)}</td>
+      <td>${escaparHtmlEmail([item.cidade,item.uf].filter(Boolean).join("/"))}</td>
+      <td>${escaparHtmlEmail(item.numero_nf || "")}</td>
+      <td>${item.quantidade_volumes}</td>
+      <td>${escaparHtmlEmail(item.transportadora || "")}</td>
+      <td>
+        <button class="btn azul" onclick="reutilizarEtiqueta('${item.id}')">Usar</button>
+        <button class="btn vermelho" onclick="excluirEtiqueta('${item.id}')">Excluir</button>
+      </td>
+    </tr>`).join("") : `<tr><td colspan="7">Nenhuma etiqueta salva.</td></tr>`;
+}
+
+function filtrarHistoricoEtiquetas(){
+  const termo=normalizarNomeEmail(document.getElementById("etqBuscaHistorico")?.value || "");
+  if(!termo){montarHistoricoEtiquetas(etiquetasHistorico);return}
+  montarHistoricoEtiquetas(etiquetasHistorico.filter(item=>
+    normalizarNomeEmail([item.cliente,item.numero_nf,item.transportadora,item.cidade,item.uf].join(" ")).includes(termo)
+  ));
+}
+
+function reutilizarEtiqueta(id){
+  const item=etiquetasHistorico.find(x=>x.id===id);
+  if(!item) return;
+  document.getElementById("etqCliente").value=item.cliente || "";
+  document.getElementById("etqCidade").value=item.cidade || "";
+  document.getElementById("etqUf").value=item.uf || "";
+  document.getElementById("etqNf").value=item.numero_nf || "";
+  document.getElementById("etqVolumes").value=item.quantidade_volumes || 1;
+  document.getElementById("etqTransportadora").value=item.transportadora || "";
+  document.getElementById("etqChave").value=item.chave_nfe || "";
+  atualizarPreviewEtiqueta();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+async function excluirEtiqueta(id){
+  if(!confirm("Excluir esta etiqueta do histórico?")) return;
+  const resposta=await banco.from("email_etiquetas").delete().eq("id",id);
+  if(resposta.error){alert("Erro ao excluir: "+resposta.error.message);return}
+  carregarHistoricoEtiquetas();
+}
+
+function limparFormularioEtiqueta(){
+  ["etqCliente","etqCidade","etqUf","etqNf","etqTransportadora","etqChave"].forEach(id=>{
+    const campo=document.getElementById(id);
+    if(campo) campo.value="";
+  });
+  document.getElementById("etqVolumes").value=1;
+  document.getElementById("etqXml").value="";
+  atualizarPreviewEtiqueta();
 }
 
 document.addEventListener("DOMContentLoaded", async function(){
