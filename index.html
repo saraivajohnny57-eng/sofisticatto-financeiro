@@ -70,6 +70,37 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .sugestao-item b{display:block;color:#4d4694}
 .sugestao-item small{color:#7d73bd}
 
+
+/* GERADOR PROFISSIONAL DE RELATÓRIOS */
+.relatorio-grid{display:grid;grid-template-columns:minmax(320px,1fr) minmax(380px,1.05fr);gap:20px;align-items:start}
+.relatorio-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.relatorio-form-grid .campo-largo{grid-column:1/-1}
+.relatorio-label{display:block;font-size:12px;font-weight:bold;margin-bottom:6px;color:#4d4694}
+.relatorio-preview-wrap{background:#d9d9df;padding:20px;border-radius:18px;overflow:auto}
+.relatorio-folha{background:#fff;color:#171717;width:794px;min-height:1123px;margin:auto;padding:48px 62px;box-shadow:0 8px 28px rgba(0,0,0,.16);border:5px solid #c69af5;font-family:Arial,sans-serif;font-size:15px;line-height:1.35}
+.relatorio-folha-logo{display:block;max-width:185px;max-height:95px;object-fit:contain;margin:0 auto 28px}
+.relatorio-folha h3{font-size:16px;margin:22px 0 8px;text-decoration:underline}
+.relatorio-folha ul{margin:10px 0 18px 23px}.relatorio-folha li{margin:4px 0}
+.relatorio-folha p{margin:8px 0}
+.relatorio-assinatura-doc{margin-top:34px}
+.relatorio-assinatura-doc img{max-width:170px;max-height:80px;object-fit:contain;margin-bottom:10px}
+.relatorio-assinatura-doc strong{font-size:16px}
+.relatorio-prazo-linha{display:grid;grid-template-columns:1fr auto;gap:8px}
+.relatorio-prazo-linha button{align-self:stretch}
+.relatorio-vencimentos{background:#f4f1fb;border-radius:12px;padding:12px;margin-top:8px;min-height:44px}
+.relatorio-vencimento-chip{display:inline-block;background:#5a4fa3;color:#fff;border-radius:999px;padding:6px 10px;margin:3px;font-size:12px}
+.relatorio-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.relatorio-config-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.relatorio-sugestoes{position:relative}
+.relatorio-sugestoes-lista{position:absolute;left:0;right:0;top:100%;z-index:80;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.14);max-height:230px;overflow:auto;display:none}
+.relatorio-sugestoes-lista.ativa{display:block}
+.relatorio-sugestao{padding:10px 12px;border-bottom:1px solid #eee;cursor:pointer}
+.relatorio-sugestao:hover{background:#f1edfb}.relatorio-sugestao:last-child{border-bottom:none}
+.relatorio-historico-acoes{white-space:nowrap}
+@media(max-width:1100px){.relatorio-grid{grid-template-columns:1fr}.relatorio-preview-wrap{padding:10px}.relatorio-folha{transform-origin:top left}}
+@media(max-width:700px){.relatorio-form-grid,.relatorio-config-grid{grid-template-columns:1fr}.relatorio-form-grid .campo-largo{grid-column:auto}.relatorio-folha{width:794px}}
+@media print{body *{visibility:hidden}.relatorio-folha,.relatorio-folha *{visibility:visible}.relatorio-folha{position:absolute;left:0;top:0;border:none;box-shadow:none}}
+
 </style>
 </head>
 <body>
@@ -191,6 +222,7 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 
     <div class="email-abas">
       <button id="emailAbaPreparar" class="ativo" onclick="mostrarAbaEmail('preparar')">Preparar Envios</button>
+      <button id="emailAbaGerador" onclick="mostrarAbaEmail('gerador')">Gerar Relatório</button>
       <button id="emailAbaClientes" onclick="mostrarAbaEmail('clientes')">Clientes</button>
       <button id="emailAbaVendedoras" onclick="mostrarAbaEmail('vendedoras')">Vendedoras</button>
       <button id="emailAbaAssinaturas" onclick="mostrarAbaEmail('assinaturas')">Assinatura</button>
@@ -255,6 +287,173 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
           <table>
             <thead><tr><th>Cliente / Assunto</th><th>Para</th><th>CC Vendedora</th><th>Anexos</th><th>Status</th><th>Ação</th></tr></thead>
             <tbody id="emailTabelaPrevia"><tr><td colspan="6">Nenhum arquivo selecionado.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+
+    <div id="emailSubGerador" class="email-subsecao">
+      <div class="relatorio-grid">
+        <div>
+          <div class="card">
+            <h2>Gerador rápido de relatório</h2>
+            <p style="margin:6px 0 18px;color:#7d73bd;">Preencha os dados. O vencimento será calculado automaticamente pela data de saída.</p>
+
+            <input type="hidden" id="gerRelatorioId">
+
+            <div class="relatorio-form-grid">
+              <div class="campo-largo relatorio-sugestoes">
+                <label class="relatorio-label">Cliente</label>
+                <input id="gerCliente" autocomplete="off" placeholder="Digite ou selecione um cliente"
+                  oninput="mostrarSugestoesGerador();atualizarPreviaRelatorio()"
+                  onfocus="mostrarSugestoesGerador()">
+                <div id="gerSugestoesClientes" class="relatorio-sugestoes-lista"></div>
+              </div>
+
+              <div>
+                <label class="relatorio-label">Número da Nota Fiscal</label>
+                <input id="gerNumeroNf" placeholder="Ex.: 46153" oninput="atualizarPreviaRelatorio()">
+              </div>
+              <div>
+                <label class="relatorio-label">Número do Pedido</label>
+                <input id="gerNumeroPedido" placeholder="Ex.: 46153" oninput="atualizarPreviaRelatorio()">
+              </div>
+
+              <div>
+                <label class="relatorio-label">Valor do pedido</label>
+                <input id="gerValorPedido" placeholder="0,00" inputmode="decimal" oninput="mascaraValor(this);sincronizarTotalRelatorio();atualizarPreviaRelatorio()">
+              </div>
+              <div>
+                <label class="relatorio-label">Valor total dos pedidos</label>
+                <input id="gerValorTotal" placeholder="0,00" inputmode="decimal" oninput="mascaraValor(this);atualizarPreviaRelatorio()">
+              </div>
+
+              <div>
+                <label class="relatorio-label">Data de emissão/faturamento</label>
+                <input id="gerDataEmissao" type="date" onchange="atualizarPreviaRelatorio()">
+              </div>
+              <div>
+                <label class="relatorio-label">Data de saída</label>
+                <input id="gerDataSaida" type="date" onchange="calcularVencimentosRelatorio()">
+              </div>
+
+              <div class="campo-largo">
+                <label class="relatorio-label">Transportadora</label>
+                <input id="gerTransportadora" placeholder="Ex.: ACCERT TRANSPORTES" oninput="atualizarPreviaRelatorio()">
+              </div>
+
+              <div>
+                <label class="relatorio-label">Forma de pagamento</label>
+                <select id="gerFormaPagamento" onchange="aplicarFormaPagamentoRelatorio()">
+                  <option value="">Selecione...</option>
+                </select>
+              </div>
+              <div>
+                <label class="relatorio-label">Prazo</label>
+                <select id="gerPrazo" onchange="aplicarPrazoRelatorio()">
+                  <option value="">Selecione...</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="relatorio-label">Forma personalizada</label>
+                <input id="gerFormaPersonalizada" placeholder="Ex.: Depósito, transferência ou PIX" oninput="atualizarPreviaRelatorio()">
+              </div>
+              <div>
+                <label class="relatorio-label">Prazo personalizado</label>
+                <input id="gerPrazoPersonalizado" placeholder="Ex.: 7, 14/21 ou 15/30/45" oninput="calcularVencimentosRelatorio()">
+              </div>
+
+              <div class="campo-largo">
+                <label class="relatorio-label">Vencimentos calculados</label>
+                <div id="gerVencimentos" class="relatorio-vencimentos">Informe a data de saída e o prazo.</div>
+              </div>
+
+              <div class="campo-largo">
+                <label class="relatorio-label">Texto introdutório</label>
+                <textarea id="gerTextoIntroducao" oninput="atualizarPreviaRelatorio()">Segue em anexo Pedido e Nota Fiscal da compra efetuada.</textarea>
+              </div>
+
+              <div class="campo-largo">
+                <label class="relatorio-label">Observação sobre pagamento</label>
+                <textarea id="gerObservacaoPagamento" oninput="atualizarPreviaRelatorio()">Favor observar as datas limite para pagamento após a saída da mercadoria.</textarea>
+              </div>
+
+              <div class="campo-largo">
+                <label class="relatorio-label">Bancos / contas para depósito</label>
+                <textarea id="gerDadosBancarios" rows="12" oninput="atualizarPreviaRelatorio()">CNPJ: 05.451.985/0001-95
+
+BANCO DO BRASIL
+AG: 3483-5
+C/C: 19039-X
+
+BANCO CAIXA ECONÔMICA FEDERAL
+AG: 2234
+C/C: 1566-3
+Operação: 003
+
+BANCO BRADESCO
+AG: 3767
+C/C: 8052-7
+
+PIX BANCO DO BRASIL
+CNPJ: 05.451.985/0001-95
+SOFISTICATTO COSMÉTICOS</textarea>
+              </div>
+            </div>
+
+            <div class="relatorio-toolbar" style="margin-top:16px;">
+              <button class="salvar" onclick="salvarRelatorioCliente()">Salvar Relatório</button>
+              <button class="btn azul" onclick="baixarRelatorioPDF()">Baixar PDF</button>
+              <button class="btn verde" onclick="baixarRelatorioWord()">Baixar Word</button>
+              <button class="btn roxo" onclick="imprimirRelatorioCliente()">Imprimir</button>
+              <button class="btn vermelho" onclick="limparGeradorRelatorio()">Limpar</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Cadastros rápidos</h2>
+            <div class="relatorio-config-grid">
+              <div>
+                <label class="relatorio-label">Nova forma de pagamento</label>
+                <input id="gerNovaFormaNome" placeholder="Ex.: Boleto">
+                <input id="gerNovaFormaDescricao" style="margin-top:8px;" placeholder="Descrição opcional">
+                <button class="buscar" style="margin-top:8px;width:100%;" onclick="cadastrarFormaPagamentoRelatorio()">Cadastrar forma</button>
+                <div id="gerListaFormas" style="margin-top:12px;"></div>
+              </div>
+              <div>
+                <label class="relatorio-label">Novo prazo</label>
+                <input id="gerNovoPrazoNome" placeholder="Ex.: 14/21 dias">
+                <input id="gerNovoPrazoDias" style="margin-top:8px;" placeholder="Dias: 14/21 ou 15,30,45">
+                <button class="buscar" style="margin-top:8px;width:100%;" onclick="cadastrarPrazoRelatorio()">Cadastrar prazo</button>
+                <div id="gerListaPrazos" style="margin-top:12px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="top">
+              <div><h2>Prévia do documento</h2><p>Modelo A4 profissional baseado no relatório enviado.</p></div>
+            </div>
+            <div class="relatorio-preview-wrap">
+              <div id="gerFolhaRelatorio" class="relatorio-folha"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="top">
+          <div><h2>Relatórios salvos</h2><p>Edite ou gere novamente um documento anterior.</p></div>
+          <button class="buscar" onclick="carregarRelatoriosClientes()">Atualizar</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Data</th><th>Cliente</th><th>NF</th><th>Pedido</th><th>Total</th><th>Saída</th><th>Vencimentos</th><th>Ações</th></tr></thead>
+            <tbody id="gerTabelaHistorico"></tbody>
           </table>
         </div>
       </div>
@@ -1381,6 +1580,11 @@ let emailArquivosSelecionados = [];
 let emailEnviosPreparados = [];
 let emailModoAtual = "boleto";
 let emailModuloCarregado = false;
+let gerFormasPagamento = [];
+let gerPrazosPagamento = [];
+let gerRelatoriosSalvos = [];
+let gerVencimentosCalculados = [];
+
 let emailAssinaturas = [];
 let emailAssinaturaAtiva = null;
 let emailLogoTemporariaDataUrl = "";
@@ -1489,7 +1693,7 @@ function descricaoModoEmail(){
 
 async function carregarModuloEmail(){
   if(!garantirFinanceiroEmail() || !bancoPronto()) return;
-  await Promise.all([carregarVendedorasEmail(), carregarClientesEmail(), carregarAssinaturasEmail(), carregarHistoricoEmail()]);
+  await Promise.all([carregarVendedorasEmail(), carregarClientesEmail(), carregarAssinaturasEmail(), carregarHistoricoEmail(), carregarConfiguracoesRelatorio(), carregarRelatoriosClientes()]);
   emailModuloCarregado = true;
 
   const campoMensagem = document.getElementById("emailMensagemPrincipal");
@@ -1503,16 +1707,21 @@ async function carregarModuloEmail(){
 
 function mostrarAbaEmail(aba){
   if(!garantirFinanceiroEmail()) return;
-  ["Preparar","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
+  ["Preparar","Gerador","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
     document.getElementById("emailSub" + nome).classList.remove("ativa");
     document.getElementById("emailAba" + nome).classList.remove("ativo");
   });
-  const mapa = {preparar:"Preparar",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
+  const mapa = {preparar:"Preparar",gerador:"Gerador",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
   const nome = mapa[aba];
   document.getElementById("emailSub" + nome).classList.add("ativa");
   document.getElementById("emailAba" + nome).classList.add("ativo");
   if(aba === "historico") carregarHistoricoEmail();
   if(aba === "assinaturas"){ carregarAssinaturasEmail(); atualizarPreviaAssinatura(); }
+  if(aba === "gerador"){
+    carregarConfiguracoesRelatorio();
+    carregarRelatoriosClientes();
+    inicializarGeradorRelatorio();
+  }
 }
 
 function selecionarModoEmail(modo){
@@ -2051,6 +2260,415 @@ document.addEventListener("DOMContentLoaded",() => {
   });
 });
 
+
+
+/* =========================================================
+   GERADOR PROFISSIONAL DE RELATÓRIOS
+   ========================================================= */
+function dataHojeInputRelatorio(){
+  return formatarDataInput(new Date());
+}
+
+function formatarDataBrRelatorio(valor){
+  if(!valor) return "";
+  const data = new Date(valor + (String(valor).includes("T") ? "" : "T12:00:00"));
+  return isNaN(data) ? "" : data.toLocaleDateString("pt-BR");
+}
+
+function inicializarGeradorRelatorio(){
+  const emissao = document.getElementById("gerDataEmissao");
+  const saida = document.getElementById("gerDataSaida");
+  if(emissao && !emissao.value) emissao.value = dataHojeInputRelatorio();
+  if(saida && !saida.value) saida.value = dataHojeInputRelatorio();
+  atualizarPreviaRelatorio();
+  calcularVencimentosRelatorio();
+}
+
+function sincronizarTotalRelatorio(){
+  const pedido = document.getElementById("gerValorPedido");
+  const total = document.getElementById("gerValorTotal");
+  if(total && pedido && !total.dataset.editadoManualmente){
+    total.value = pedido.value;
+  }
+}
+
+function normalizarDiasPrazoRelatorio(texto){
+  return [...new Set(String(texto || "")
+    .split(/[\/,;|\s-]+/)
+    .map(item => parseInt(item,10))
+    .filter(item => Number.isFinite(item) && item >= 0))]
+    .sort((a,b) => a-b);
+}
+
+function calcularVencimentosRelatorio(){
+  const dataSaida = document.getElementById("gerDataSaida")?.value;
+  const prazoPersonalizado = document.getElementById("gerPrazoPersonalizado")?.value || "";
+  const prazoId = document.getElementById("gerPrazo")?.value;
+  const prazo = gerPrazosPagamento.find(item => item.id === prazoId);
+  const dias = prazoPersonalizado.trim()
+    ? normalizarDiasPrazoRelatorio(prazoPersonalizado)
+    : (prazo?.dias || []);
+
+  gerVencimentosCalculados = [];
+  if(dataSaida && dias.length){
+    const base = new Date(dataSaida + "T12:00:00");
+    gerVencimentosCalculados = dias.map(dia => {
+      const data = new Date(base);
+      data.setDate(data.getDate() + Number(dia));
+      return {dias:Number(dia),data:formatarDataInput(data)};
+    });
+  }
+
+  const box = document.getElementById("gerVencimentos");
+  if(box){
+    box.innerHTML = gerVencimentosCalculados.length
+      ? gerVencimentosCalculados.map(item => `<span class="relatorio-vencimento-chip">${item.dias} dias: ${formatarDataBrRelatorio(item.data)}</span>`).join("")
+      : "Informe a data de saída e o prazo.";
+  }
+  atualizarPreviaRelatorio();
+}
+
+function aplicarFormaPagamentoRelatorio(){
+  const id = document.getElementById("gerFormaPagamento")?.value;
+  const forma = gerFormasPagamento.find(item => item.id === id);
+  const campo = document.getElementById("gerFormaPersonalizada");
+  if(campo && forma) campo.value = forma.descricao || forma.nome || "";
+  atualizarPreviaRelatorio();
+}
+
+function aplicarPrazoRelatorio(){
+  const id = document.getElementById("gerPrazo")?.value;
+  const prazo = gerPrazosPagamento.find(item => item.id === id);
+  const campo = document.getElementById("gerPrazoPersonalizado");
+  if(campo) campo.value = prazo ? (prazo.dias || []).join("/") : "";
+  calcularVencimentosRelatorio();
+}
+
+function obterSaudacaoRelatorio(){
+  return obterSaudacaoAutomaticaEmail();
+}
+
+function escaparComQuebrasRelatorio(texto){
+  return escaparHtmlEmail(texto || "").replace(/\n/g,"<br>");
+}
+
+function dadosGeradorRelatorio(){
+  const formaSelecionada = gerFormasPagamento.find(x => x.id === document.getElementById("gerFormaPagamento")?.value);
+  const prazoSelecionado = gerPrazosPagamento.find(x => x.id === document.getElementById("gerPrazo")?.value);
+  return {
+    id:document.getElementById("gerRelatorioId")?.value || null,
+    cliente:document.getElementById("gerCliente")?.value.trim() || "",
+    numero_nf:document.getElementById("gerNumeroNf")?.value.trim() || "",
+    numero_pedido:document.getElementById("gerNumeroPedido")?.value.trim() || "",
+    valor_pedido:valorParaNumero(document.getElementById("gerValorPedido")?.value || 0),
+    valor_total:valorParaNumero(document.getElementById("gerValorTotal")?.value || 0),
+    data_emissao:document.getElementById("gerDataEmissao")?.value || null,
+    data_saida:document.getElementById("gerDataSaida")?.value || null,
+    transportadora:document.getElementById("gerTransportadora")?.value.trim() || "",
+    forma_pagamento_id:formaSelecionada?.id || null,
+    forma_pagamento:document.getElementById("gerFormaPersonalizada")?.value.trim() || formaSelecionada?.nome || "",
+    prazo_id:prazoSelecionado?.id || null,
+    prazo_texto:document.getElementById("gerPrazoPersonalizado")?.value.trim() || (prazoSelecionado?.dias || []).join("/"),
+    vencimentos:gerVencimentosCalculados.map(x => x.data),
+    texto_introducao:document.getElementById("gerTextoIntroducao")?.value.trim() || "",
+    observacao_pagamento:document.getElementById("gerObservacaoPagamento")?.value.trim() || "",
+    dados_bancarios:document.getElementById("gerDadosBancarios")?.value || "",
+    criado_por:usuarioLogado?.login || ""
+  };
+}
+
+function atualizarPreviaRelatorio(){
+  const folha = document.getElementById("gerFolhaRelatorio");
+  if(!folha) return;
+
+  const d = dadosGeradorRelatorio();
+  const assinatura = assinaturaAtivaEmail();
+  const vencimentosTexto = gerVencimentosCalculados.length
+    ? gerVencimentosCalculados.map(x => formatarDataBrRelatorio(x.data)).join(" - ")
+    : "A definir";
+
+  const forma = d.forma_pagamento || "A definir";
+  const prazo = d.prazo_texto ? ` (${escaparHtmlEmail(d.prazo_texto)} dias)` : "";
+  const logo = assinatura?.logo_url
+    ? `<img class="relatorio-folha-logo" src="${escaparHtmlEmail(assinatura.logo_url)}" alt="Sofisticatto">`
+    : `<div style="text-align:center;font-size:28px;font-style:italic;color:#5a4fa3;margin-bottom:28px;">Sofisticatto<br><small style="font-size:10px;letter-spacing:5px;">COSMÉTICOS</small></div>`;
+
+  const assinaturaHtml = assinatura ? `
+    <div class="relatorio-assinatura-doc">
+      <p>Atenciosamente,</p>
+      ${assinatura.logo_url ? `<img src="${escaparHtmlEmail(assinatura.logo_url)}" alt="Logo">` : ""}
+      <br><strong>${escaparHtmlEmail(assinatura.nome_remetente || "")}</strong>
+      ${assinatura.setor ? `<br>${escaparHtmlEmail(assinatura.setor)}` : ""}
+      ${assinatura.telefone_1 ? `<br>Contato: ${escaparHtmlEmail(assinatura.telefone_1)}${assinatura.telefone_2 ? " ou "+escaparHtmlEmail(assinatura.telefone_2) : ""}` : ""}
+      ${assinatura.whatsapp ? `<br>WhatsApp: ${escaparHtmlEmail(assinatura.whatsapp)}` : ""}
+      ${assinatura.email_exibido ? `<br>E-mail: ${escaparHtmlEmail(assinatura.email_exibido)}` : ""}
+      ${assinatura.site ? `<br>Site: ${escaparHtmlEmail(assinatura.site)}` : ""}
+    </div>` : "";
+
+  folha.innerHTML = `
+    ${logo}
+    <p><strong>${escaparHtmlEmail(obterSaudacaoRelatorio())} (${escaparHtmlEmail(d.cliente || "NOME DO CLIENTE")})</strong></p>
+    <p>${escaparHtmlEmail(d.texto_introducao || "Segue em anexo Pedido e Nota Fiscal da compra efetuada.")}</p>
+    <ul>
+      <li><strong>Número da Nota Fiscal:</strong> ${escaparHtmlEmail(d.numero_nf || "—")}</li>
+      <li><strong>Número do Pedido:</strong> ${escaparHtmlEmail(d.numero_pedido || "—")}</li>
+      <li><strong>Valor do Pedido:</strong> ${formatarMoeda(d.valor_pedido)}</li>
+      <li><strong>Valor Total dos Pedidos:</strong> ${formatarMoeda(d.valor_total)}</li>
+      <li><strong>Data de Faturamento:</strong> ${formatarDataBrRelatorio(d.data_emissao) || "—"}</li>
+      <li><strong>Data da saída:</strong> ${formatarDataBrRelatorio(d.data_saida) || "—"}</li>
+      <li><strong>Transportadora:</strong> ${escaparHtmlEmail(d.transportadora || "—")}</li>
+      <li><strong>Forma de pagamento:</strong> ${escaparHtmlEmail(forma)}${prazo}</li>
+      <li><strong>Data(s) limite para pagamento:</strong> ${escaparHtmlEmail(vencimentosTexto)}</li>
+      <li>${escaparHtmlEmail(d.observacao_pagamento || "")}</li>
+    </ul>
+    <h3>BANCOS / CONTAS PARA DEPÓSITO:</h3>
+    <div>${escaparComQuebrasRelatorio(d.dados_bancarios)}</div>
+    ${assinaturaHtml}
+  `;
+}
+
+function mostrarSugestoesGerador(){
+  const input = document.getElementById("gerCliente");
+  const lista = document.getElementById("gerSugestoesClientes");
+  if(!input || !lista) return;
+  const termo = normalizarNomeEmail(input.value);
+  const encontrados = emailClientes
+    .filter(x => !termo || normalizarNomeEmail(x.nome).includes(termo))
+    .slice(0,15);
+
+  if(!encontrados.length){
+    lista.innerHTML = "";
+    lista.classList.remove("ativa");
+    return;
+  }
+  lista.innerHTML = encontrados.map(item => `
+    <div class="relatorio-sugestao" onmousedown="selecionarClienteGerador('${encodeURIComponent(item.nome)}')">
+      <b>${escaparHtmlEmail(item.nome)}</b>
+      <small>${(item.emails || []).map(escaparHtmlEmail).join("; ") || "Sem e-mail cadastrado"}</small>
+    </div>`).join("");
+  lista.classList.add("ativa");
+}
+
+function selecionarClienteGerador(nome){
+  const input = document.getElementById("gerCliente");
+  const lista = document.getElementById("gerSugestoesClientes");
+  input.value = decodeURIComponent(nome);
+  lista.classList.remove("ativa");
+  input.focus();
+  input.setSelectionRange(input.value.length,input.value.length);
+  atualizarPreviaRelatorio();
+}
+
+document.addEventListener("click", evento => {
+  const box = document.querySelector("#emailSubGerador .relatorio-sugestoes");
+  if(box && !box.contains(evento.target)){
+    document.getElementById("gerSugestoesClientes")?.classList.remove("ativa");
+  }
+});
+
+async function carregarConfiguracoesRelatorio(){
+  if(!banco || !usuarioLogado || usuarioLogado.tipo !== "financeiro") return;
+  const [formas,prazos] = await Promise.all([
+    banco.from("email_formas_pagamento").select("*").eq("ativo",true).order("nome"),
+    banco.from("email_prazos_pagamento").select("*").eq("ativo",true).order("nome")
+  ]);
+
+  if(!formas.error) gerFormasPagamento = formas.data || [];
+  if(!prazos.error) gerPrazosPagamento = prazos.data || [];
+
+  montarSelectsConfiguracaoRelatorio();
+}
+
+function montarSelectsConfiguracaoRelatorio(){
+  const forma = document.getElementById("gerFormaPagamento");
+  const prazo = document.getElementById("gerPrazo");
+  if(forma){
+    const atual = forma.value;
+    forma.innerHTML = `<option value="">Selecione...</option>` + gerFormasPagamento.map(x => `<option value="${x.id}">${escaparHtmlEmail(x.nome)}</option>`).join("");
+    if(gerFormasPagamento.some(x => x.id === atual)) forma.value = atual;
+  }
+  if(prazo){
+    const atual = prazo.value;
+    prazo.innerHTML = `<option value="">Selecione...</option>` + gerPrazosPagamento.map(x => `<option value="${x.id}">${escaparHtmlEmail(x.nome)}</option>`).join("");
+    if(gerPrazosPagamento.some(x => x.id === atual)) prazo.value = atual;
+  }
+
+  const listaFormas = document.getElementById("gerListaFormas");
+  const listaPrazos = document.getElementById("gerListaPrazos");
+  if(listaFormas) listaFormas.innerHTML = gerFormasPagamento.map(x => `<span class="badge" style="margin:3px;">${escaparHtmlEmail(x.nome)}</span>`).join("") || "Nenhuma forma cadastrada.";
+  if(listaPrazos) listaPrazos.innerHTML = gerPrazosPagamento.map(x => `<span class="badge" style="margin:3px;">${escaparHtmlEmail(x.nome)}</span>`).join("") || "Nenhum prazo cadastrado.";
+}
+
+async function cadastrarFormaPagamentoRelatorio(){
+  const nome = document.getElementById("gerNovaFormaNome").value.trim();
+  const descricao = document.getElementById("gerNovaFormaDescricao").value.trim();
+  if(!nome){ alert("Informe o nome da forma de pagamento."); return; }
+  const r = await banco.from("email_formas_pagamento").insert([{nome,descricao,ativo:true,criado_por:usuarioLogado.login}]);
+  if(r.error){ alert("Erro ao cadastrar: "+r.error.message); return; }
+  document.getElementById("gerNovaFormaNome").value = "";
+  document.getElementById("gerNovaFormaDescricao").value = "";
+  await carregarConfiguracoesRelatorio();
+}
+
+async function cadastrarPrazoRelatorio(){
+  const nome = document.getElementById("gerNovoPrazoNome").value.trim();
+  const dias = normalizarDiasPrazoRelatorio(document.getElementById("gerNovoPrazoDias").value);
+  if(!nome || !dias.length){ alert("Informe o nome e pelo menos um número de dias."); return; }
+  const r = await banco.from("email_prazos_pagamento").insert([{nome,dias,ativo:true,criado_por:usuarioLogado.login}]);
+  if(r.error){ alert("Erro ao cadastrar: "+r.error.message); return; }
+  document.getElementById("gerNovoPrazoNome").value = "";
+  document.getElementById("gerNovoPrazoDias").value = "";
+  await carregarConfiguracoesRelatorio();
+}
+
+async function salvarRelatorioCliente(){
+  const d = dadosGeradorRelatorio();
+  if(!d.cliente){ alert("Informe o nome do cliente."); return; }
+  if(!d.data_saida){ alert("Informe a data de saída."); return; }
+
+  const payload = {...d,atualizado_em:new Date().toISOString()};
+  delete payload.id;
+  const id = document.getElementById("gerRelatorioId").value;
+  const r = id
+    ? await banco.from("email_relatorios_clientes").update(payload).eq("id",id)
+    : await banco.from("email_relatorios_clientes").insert([payload]);
+
+  if(r.error){ alert("Erro ao salvar relatório: "+r.error.message); return; }
+  alert("Relatório salvo com sucesso!");
+  document.getElementById("gerRelatorioId").value = "";
+  await carregarRelatoriosClientes();
+}
+
+async function carregarRelatoriosClientes(){
+  if(!banco || !usuarioLogado || usuarioLogado.tipo !== "financeiro") return;
+  const r = await banco.from("email_relatorios_clientes").select("*").order("created_at",{ascending:false}).limit(300);
+  if(r.error){
+    console.error("Erro ao carregar relatórios:",r.error);
+    return;
+  }
+  gerRelatoriosSalvos = r.data || [];
+  const tabela = document.getElementById("gerTabelaHistorico");
+  if(!tabela) return;
+  tabela.innerHTML = gerRelatoriosSalvos.length ? gerRelatoriosSalvos.map(x => `
+    <tr>
+      <td>${new Date(x.created_at).toLocaleString("pt-BR")}</td>
+      <td>${escaparHtmlEmail(x.cliente)}</td>
+      <td>${escaparHtmlEmail(x.numero_nf || "")}</td>
+      <td>${escaparHtmlEmail(x.numero_pedido || "")}</td>
+      <td>${formatarMoeda(x.valor_total || 0)}</td>
+      <td>${formatarDataBrRelatorio(x.data_saida)}</td>
+      <td>${(x.vencimentos || []).map(formatarDataBrRelatorio).join("<br>")}</td>
+      <td class="relatorio-historico-acoes">
+        <button class="btn azul" onclick="editarRelatorioCliente('${x.id}')">Editar</button>
+        <button class="btn vermelho" onclick="excluirRelatorioCliente('${x.id}')">Excluir</button>
+      </td>
+    </tr>`).join("") : `<tr><td colspan="8">Nenhum relatório salvo.</td></tr>`;
+}
+
+function editarRelatorioCliente(id){
+  const x = gerRelatoriosSalvos.find(item => item.id === id);
+  if(!x) return;
+  document.getElementById("gerRelatorioId").value = x.id;
+  document.getElementById("gerCliente").value = x.cliente || "";
+  document.getElementById("gerNumeroNf").value = x.numero_nf || "";
+  document.getElementById("gerNumeroPedido").value = x.numero_pedido || "";
+  document.getElementById("gerValorPedido").value = valorParaInput(x.valor_pedido || 0);
+  document.getElementById("gerValorTotal").value = valorParaInput(x.valor_total || 0);
+  document.getElementById("gerDataEmissao").value = x.data_emissao || "";
+  document.getElementById("gerDataSaida").value = x.data_saida || "";
+  document.getElementById("gerTransportadora").value = x.transportadora || "";
+  document.getElementById("gerFormaPagamento").value = x.forma_pagamento_id || "";
+  document.getElementById("gerPrazo").value = x.prazo_id || "";
+  document.getElementById("gerFormaPersonalizada").value = x.forma_pagamento || "";
+  document.getElementById("gerPrazoPersonalizado").value = x.prazo_texto || "";
+  document.getElementById("gerTextoIntroducao").value = x.texto_introducao || "";
+  document.getElementById("gerObservacaoPagamento").value = x.observacao_pagamento || "";
+  document.getElementById("gerDadosBancarios").value = x.dados_bancarios || "";
+  calcularVencimentosRelatorio();
+  atualizarPreviaRelatorio();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+async function excluirRelatorioCliente(id){
+  if(!confirm("Excluir este relatório salvo?")) return;
+  const r = await banco.from("email_relatorios_clientes").delete().eq("id",id);
+  if(r.error){ alert("Erro ao excluir: "+r.error.message); return; }
+  carregarRelatoriosClientes();
+}
+
+function limparGeradorRelatorio(){
+  document.getElementById("gerRelatorioId").value = "";
+  ["gerCliente","gerNumeroNf","gerNumeroPedido","gerValorPedido","gerValorTotal","gerTransportadora","gerFormaPersonalizada","gerPrazoPersonalizado"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("gerFormaPagamento").value = "";
+  document.getElementById("gerPrazo").value = "";
+  document.getElementById("gerDataEmissao").value = dataHojeInputRelatorio();
+  document.getElementById("gerDataSaida").value = dataHojeInputRelatorio();
+  gerVencimentosCalculados = [];
+  calcularVencimentosRelatorio();
+  atualizarPreviaRelatorio();
+}
+
+function nomeArquivoRelatorio(){
+  const cliente = (document.getElementById("gerCliente")?.value || "relatorio")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-zA-Z0-9]+/g,"_").replace(/^_+|_+$/g,"");
+  return `RELATORIO_${cliente || "CLIENTE"}`;
+}
+
+async function carregarBibliotecaPdfRelatorio(){
+  if(window.html2pdf) return;
+  await new Promise((resolve,reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+async function baixarRelatorioPDF(){
+  try{
+    await carregarBibliotecaPdfRelatorio();
+    const folha = document.getElementById("gerFolhaRelatorio");
+    await html2pdf().set({
+      margin:0,
+      filename:nomeArquivoRelatorio()+".pdf",
+      image:{type:"jpeg",quality:0.98},
+      html2canvas:{scale:2,useCORS:true},
+      jsPDF:{unit:"px",format:[794,1123],orientation:"portrait"}
+    }).from(folha).save();
+  }catch(erro){
+    alert("Não foi possível gerar o PDF: "+erro.message);
+  }
+}
+
+function baixarRelatorioWord(){
+  const folha = document.getElementById("gerFolhaRelatorio");
+  const conteudo = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    body{font-family:Arial,sans-serif;color:#111;line-height:1.35}
+    .relatorio-folha{padding:25px;font-size:12pt}
+    img{max-width:180px}.relatorio-folha-logo{display:block;margin:auto}
+    h3{text-decoration:underline}li{margin:5px 0}
+  </style></head><body><div class="relatorio-folha">${folha.innerHTML}</div></body></html>`;
+  const blob = new Blob(["\ufeff",conteudo],{type:"application/msword"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = nomeArquivoRelatorio()+".doc";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href),1000);
+}
+
+function imprimirRelatorioCliente(){
+  const folha = document.getElementById("gerFolhaRelatorio");
+  const janela = window.open("","_blank","width=900,height=900");
+  janela.document.write(`<!DOCTYPE html><html><head><title>${nomeArquivoRelatorio()}</title><style>
+    @page{size:A4;margin:0}body{margin:0;font-family:Arial,sans-serif}
+    .relatorio-folha{box-sizing:border-box;width:210mm;min-height:297mm;padding:15mm 17mm;border:2mm solid #c69af5;font-size:11pt;line-height:1.35}
+    .relatorio-folha-logo{display:block;max-width:50mm;max-height:25mm;object-fit:contain;margin:0 auto 8mm}
+    h3{text-decoration:underline}li{margin:2mm 0}.relatorio-assinatura-doc{margin-top:10mm}.relatorio-assinatura-doc img{max-width:45mm}
+  </style></head><body><div class="relatorio-folha">${folha.innerHTML}</div><script>window.onload=()=>{window.print();window.close()}<\/script></body></html>`);
+  janela.document.close();
+}
 
 document.addEventListener("DOMContentLoaded", async function(){
   try{
