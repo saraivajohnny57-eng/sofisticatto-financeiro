@@ -2684,68 +2684,244 @@ function nomeArquivoRelatorio(){
   return `RELATORIO_${cliente || "CLIENTE"}`;
 }
 
-async function carregarBibliotecaPdfRelatorio(){
-  if(window.html2pdf) return;
+async function carregarBibliotecaJsPdfRelatorio(){
+  if(window.jspdf?.jsPDF) return;
+
   await new Promise((resolve,reject) => {
     const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
     script.onload = resolve;
-    script.onerror = reject;
+    script.onerror = () => reject(new Error("Não foi possível carregar a biblioteca de PDF."));
     document.head.appendChild(script);
   });
 }
 
+async function imagemUrlParaDataUrlRelatorio(url){
+  if(!url) return "";
+
+  try{
+    const resposta = await fetch(url,{cache:"no-store"});
+    if(!resposta.ok) throw new Error("Imagem não encontrada");
+    const blob = await resposta.blob();
+
+    return await new Promise((resolve,reject) => {
+      const leitor = new FileReader();
+      leitor.onload = () => resolve(leitor.result);
+      leitor.onerror = reject;
+      leitor.readAsDataURL(blob);
+    });
+  }catch(erro){
+    console.warn("Não foi possível incorporar a logo:",erro);
+    return "";
+  }
+}
+
+function conteudoTextoRelatorioExportacao(){
+  atualizarPreviaRelatorio();
+
+  const d = dadosGeradorRelatorio();
+  const assinatura = emailAssinaturaAtiva || null;
+  const mensagem = mensagemPagamentoAutomaticaRelatorio(d);
+  const linhas = [];
+
+  linhas.push(`${obterSaudacaoRelatorio()} (${d.cliente || "NOME DO CLIENTE"})`);
+  linhas.push("");
+  linhas.push(d.texto_introducao || "Segue em anexo Pedido e Nota Fiscal da compra efetuada.");
+  linhas.push("");
+  linhas.push(`Número da Nota Fiscal: ${d.numero_nf || "—"}`);
+  linhas.push(`Número do Pedido: ${d.numero_pedido || "—"}`);
+  linhas.push(`Valor do Pedido: ${formatarMoeda(d.valor_pedido)}`);
+  linhas.push(`Valor Total dos Pedidos: ${formatarMoeda(d.valor_total)}`);
+
+  if(d.desconto_percentual > 0){
+    linhas.push(`Valor Total com ${String(d.desconto_percentual).replace(".",",")}% de desconto para pagamento à vista: ${formatarMoeda(d.valor_com_desconto)}`);
+  }
+
+  linhas.push(`Data de Faturamento: ${formatarDataBrRelatorio(d.data_emissao) || "—"}`);
+  linhas.push(`Data da saída: ${formatarDataBrRelatorio(d.data_saida) || "—"}`);
+  linhas.push(`Transportadora: ${d.transportadora || "—"}`);
+  linhas.push(`Forma de pagamento: ${d.forma_pagamento || "A definir"}${d.prazo_texto ? ` (${d.prazo_texto} dias)` : ""}`);
+  linhas.push(mensagem.linha1);
+
+  if(mensagem.linha2) linhas.push(mensagem.linha2);
+  if(d.observacao_pagamento) linhas.push(d.observacao_pagamento);
+
+  linhas.push("");
+  linhas.push("BANCOS / CONTAS PARA DEPÓSITO:");
+  linhas.push("");
+  String(d.dados_bancarios || "").split("\n").forEach(linha => linhas.push(linha));
+
+  if(assinatura){
+    linhas.push("");
+    linhas.push("");
+    linhas.push("Atenciosamente,");
+    linhas.push(assinatura.nome_remetente || "");
+    if(assinatura.setor) linhas.push(assinatura.setor);
+
+    const contatos = [assinatura.telefone_1,assinatura.telefone_2].filter(Boolean);
+    if(contatos.length) linhas.push(`Contatos: ${contatos.join(" ou ")}`);
+    if(assinatura.whatsapp) linhas.push(`WhatsApp: ${assinatura.whatsapp}`);
+    if(assinatura.email_exibido) linhas.push(`E-mail: ${assinatura.email_exibido}`);
+    if(assinatura.site) linhas.push(`Site: ${assinatura.site}`);
+  }
+
+  return {dados:d,assinatura,linhas};
+}
+
+function htmlRelatorioExportacao(logoDataUrl=""){
+  const {dados:d,assinatura} = conteudoTextoRelatorioExportacao();
+  const mensagem = mensagemPagamentoAutomaticaRelatorio(d);
+
+  const logoHtml = logoDataUrl
+    ? `<img src="${logoDataUrl}" style="display:block;max-width:180px;max-height:90px;margin:0 auto 28px;">`
+    : `<div style="text-align:center;color:#5a4fa3;font-size:28px;font-style:italic;margin-bottom:28px;">Sofisticatto<br><span style="font-size:10px;letter-spacing:5px;">COSMÉTICOS</span></div>`;
+
+  const assinaturaHtml = assinatura ? `
+    <div style="margin-top:32px;">
+      <p>Atenciosamente,</p>
+      <strong style="font-size:16px;">${escaparHtmlEmail(assinatura.nome_remetente || "")}</strong>
+      ${assinatura.setor ? `<br>${escaparHtmlEmail(assinatura.setor)}` : ""}
+      ${(assinatura.telefone_1 || assinatura.telefone_2) ? `<br>Contatos: ${[assinatura.telefone_1,assinatura.telefone_2].filter(Boolean).map(escaparHtmlEmail).join(" ou ")}` : ""}
+      ${assinatura.whatsapp ? `<br>WhatsApp: ${escaparHtmlEmail(assinatura.whatsapp)}` : ""}
+      ${assinatura.email_exibido ? `<br>E-mail: ${escaparHtmlEmail(assinatura.email_exibido)}` : ""}
+      ${assinatura.site ? `<br>Site: ${escaparHtmlEmail(assinatura.site)}` : ""}
+    </div>` : "";
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+@page{size:A4;margin:14mm}
+body{margin:0;background:#fff;font-family:Arial,sans-serif;color:#171717}
+.folha{box-sizing:border-box;width:100%;min-height:267mm;padding:12mm 14mm;border:2mm solid #c69af5;font-size:11pt;line-height:1.35}
+p{margin:7px 0}ul{margin:8px 0 18px 22px}li{margin:4px 0}h3{font-size:12pt;text-decoration:underline;margin:20px 0 8px}
+</style>
+</head>
+<body>
+<div class="folha">
+  ${logoHtml}
+  <p><strong>${escaparHtmlEmail(obterSaudacaoRelatorio())} (${escaparHtmlEmail(d.cliente || "NOME DO CLIENTE")})</strong></p>
+  <p>${escaparHtmlEmail(d.texto_introducao || "Segue em anexo Pedido e Nota Fiscal da compra efetuada.")}</p>
+  <ul>
+    <li><strong>Número da Nota Fiscal:</strong> ${escaparHtmlEmail(d.numero_nf || "—")}</li>
+    <li><strong>Número do Pedido:</strong> ${escaparHtmlEmail(d.numero_pedido || "—")}</li>
+    <li><strong>Valor do Pedido:</strong> ${formatarMoeda(d.valor_pedido)}</li>
+    <li><strong>Valor Total dos Pedidos:</strong> ${formatarMoeda(d.valor_total)}</li>
+    ${d.desconto_percentual > 0 ? `<li><strong>Valor Total com ${String(d.desconto_percentual).replace(".",",")}% de desconto para pagamento à vista:</strong> ${formatarMoeda(d.valor_com_desconto)}</li>` : ""}
+    <li><strong>Data de Faturamento:</strong> ${formatarDataBrRelatorio(d.data_emissao) || "—"}</li>
+    <li><strong>Data da saída:</strong> ${formatarDataBrRelatorio(d.data_saida) || "—"}</li>
+    <li><strong>Transportadora:</strong> ${escaparHtmlEmail(d.transportadora || "—")}</li>
+    <li><strong>Forma de pagamento:</strong> ${escaparHtmlEmail(d.forma_pagamento || "A definir")}${d.prazo_texto ? ` (${escaparHtmlEmail(d.prazo_texto)} dias)` : ""}</li>
+    <li>${escaparHtmlEmail(mensagem.linha1)}</li>
+    ${mensagem.linha2 ? `<li>${escaparHtmlEmail(mensagem.linha2)}</li>` : ""}
+    ${d.observacao_pagamento ? `<li>${escaparHtmlEmail(d.observacao_pagamento)}</li>` : ""}
+  </ul>
+  <h3>BANCOS / CONTAS PARA DEPÓSITO:</h3>
+  <div style="white-space:pre-line;">${escaparHtmlEmail(d.dados_bancarios || "")}</div>
+  ${assinaturaHtml}
+</div>
+</body>
+</html>`;
+}
+
 async function baixarRelatorioPDF(){
   try{
-    atualizarPreviaRelatorio();
-    await carregarBibliotecaPdfRelatorio();
+    await carregarBibliotecaJsPdfRelatorio();
 
-    const original = document.getElementById("gerFolhaRelatorio");
-    if(!original || !original.innerHTML.trim()){
-      throw new Error("A prévia do relatório está vazia.");
+    const {jsPDF} = window.jspdf;
+    const {assinatura,linhas} = conteudoTextoRelatorioExportacao();
+    const doc = new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+
+    const margemX = 22;
+    const larguraTexto = 166;
+    const alturaPagina = 297;
+    let y = 18;
+
+    doc.setDrawColor(198,154,245);
+    doc.setLineWidth(1.5);
+    doc.rect(7,7,196,283);
+
+    const logoDataUrl = await imagemUrlParaDataUrlRelatorio(assinatura?.logo_url || "");
+    if(logoDataUrl){
+      const formato = String(logoDataUrl).startsWith("data:image/png") ? "PNG" : "JPEG";
+      doc.addImage(logoDataUrl,formato,77,14,56,24,undefined,"FAST");
+      y = 46;
+    }else{
+      doc.setTextColor(90,79,163);
+      doc.setFont("helvetica","italic");
+      doc.setFontSize(23);
+      doc.text("Sofisticatto",105,26,{align:"center"});
+      doc.setFontSize(8);
+      doc.text("C O S M É T I C O S",105,32,{align:"center"});
+      doc.setTextColor(20,20,20);
+      y = 44;
     }
 
-    const clone = original.cloneNode(true);
-    clone.style.width = "794px";
-    clone.style.minHeight = "1123px";
-    clone.style.margin = "0";
-    clone.style.transform = "none";
-    clone.style.position = "fixed";
-    clone.style.left = "-10000px";
-    clone.style.top = "0";
-    clone.style.background = "#ffffff";
-    document.body.appendChild(clone);
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(10.5);
 
-    await new Promise(resolve => setTimeout(resolve,300));
+    function novaPagina(){
+      doc.addPage();
+      doc.setDrawColor(198,154,245);
+      doc.setLineWidth(1.5);
+      doc.rect(7,7,196,283);
+      y = 18;
+    }
 
-    await html2pdf().set({
-      margin:0,
-      filename:nomeArquivoRelatorio()+".pdf",
-      image:{type:"jpeg",quality:0.98},
-      html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:"#ffffff",windowWidth:794},
-      jsPDF:{unit:"px",format:[794,1123],orientation:"portrait"}
-    }).from(clone).save();
+    for(const linhaOriginal of linhas){
+      const linha = String(linhaOriginal ?? "");
 
-    clone.remove();
+      if(linha === ""){
+        y += 4;
+        continue;
+      }
+
+      const partes = doc.splitTextToSize(linha,larguraTexto);
+      const alturaNecessaria = partes.length * 5.2;
+
+      if(y + alturaNecessaria > alturaPagina - 18){
+        novaPagina();
+      }
+
+      const negrito = /^(BANCOS \/ CONTAS|Número da|Valor |Data |Transportadora|Forma de pagamento|Atenciosamente)/i.test(linha);
+      doc.setFont("helvetica",negrito ? "bold" : "normal");
+      doc.text(partes,margemX,y);
+      y += alturaNecessaria;
+    }
+
+    doc.save(nomeArquivoRelatorio()+".pdf");
   }catch(erro){
+    console.error("Erro ao gerar PDF:",erro);
     alert("Não foi possível gerar o PDF: "+erro.message);
   }
 }
 
-function baixarRelatorioWord(){
-  const folha = document.getElementById("gerFolhaRelatorio");
-  const conteudo = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-    body{font-family:Arial,sans-serif;color:#111;line-height:1.35}
-    .relatorio-folha{padding:25px;font-size:12pt}
-    img{max-width:180px}.relatorio-folha-logo{display:block;margin:auto}
-    h3{text-decoration:underline}li{margin:5px 0}
-  </style></head><body><div class="relatorio-folha">${folha.innerHTML}</div></body></html>`;
-  const blob = new Blob(["\ufeff",conteudo],{type:"application/msword"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = nomeArquivoRelatorio()+".doc";
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href),1000);
+async function baixarRelatorioWord(){
+  try{
+    atualizarPreviaRelatorio();
+
+    const assinatura = emailAssinaturaAtiva || null;
+    const logoDataUrl = await imagemUrlParaDataUrlRelatorio(assinatura?.logo_url || "");
+    const conteudo = htmlRelatorioExportacao(logoDataUrl);
+
+    const blob = new Blob(["\ufeff",conteudo],{
+      type:"application/msword;charset=utf-8"
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nomeArquivoRelatorio()+".doc";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url),3000);
+  }catch(erro){
+    console.error("Erro ao gerar Word:",erro);
+    alert("Não foi possível gerar o Word: "+erro.message);
+  }
 }
 
 function imprimirRelatorioCliente(){
