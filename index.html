@@ -135,6 +135,38 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 @media(max-width:1100px){.etiqueta-layout{grid-template-columns:1fr}.etiqueta-preview-area{padding:12px}}
 
 
+
+/* CORREÇÃO DE LARGURA DO MÓDULO DE ETIQUETAS */
+.main{min-width:0;max-width:100%;overflow-x:hidden}
+#envioDocumentos{width:100%;max-width:100%;min-width:0}
+#emailSubEtiquetas{width:100%;max-width:100%;min-width:0}
+.etiqueta-layout{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  grid-template-columns:minmax(300px,420px) minmax(0,1fr);
+}
+.etiqueta-layout>.card,
+.etiqueta-layout>div,
+.etiqueta-layout .card{min-width:0;max-width:100%}
+.etiqueta-preview-area{max-width:100%;overflow:auto}
+.etiqueta-controle-fonte{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  gap:8px;
+  align-items:center;
+  margin-top:8px;
+  width:100%;
+}
+.etiqueta-controle-fonte select{min-width:0;max-width:100%}
+@media(max-width:1350px){
+  .etiqueta-layout{grid-template-columns:1fr}
+  .etiqueta-preview-area{display:flex;justify-content:flex-start}
+}
+@media(max-width:768px){
+  .etiqueta-controle-fonte{grid-template-columns:1fr auto auto}
+}
+
 </style>
 </head>
 <body>
@@ -545,7 +577,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <label class="relatorio-label">Transportadora (opcional)</label>
                 <input id="etqTransportadora" placeholder="Ex.: EX MAIA" oninput="atualizarPreviewEtiqueta()">
 
-                <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;margin-top:8px;">
+                <div class="etiqueta-controle-fonte">
                   <select id="etqTransportadoraFonte" onchange="atualizarPreviewEtiqueta()">
                     <option value="auto">Tamanho automático</option>
                     <option value="2.5">Muito pequena</option>
