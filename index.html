@@ -3786,3 +3786,27 @@ document.addEventListener("DOMContentLoaded", async function(){
 
 </body>
 </html>
+
+
+<div class="campo-transportadora-fonte" style="margin-top:8px;">
+<label><strong>Tamanho da letra da transportadora</strong></label>
+<select id="transportadoraFonteManual">
+    <option value="auto" selected>Automático</option>
+    <option value="2.5mm">Muito pequena</option>
+    <option value="3mm">Pequena</option>
+    <option value="4mm">Média</option>
+    <option value="5mm">Grande</option>
+    <option value="6mm">Muito grande</option>
+</select>
+</div>
+
+
+<script>
+function obterFonteTransportadora(texto,duasLinhas){
+    const seletor=document.getElementById('transportadoraFonteManual');
+    if(seletor && seletor.value!=='auto'){
+        return seletor.value;
+    }
+    return tamanhoFonteTransportadora(texto,duasLinhas);
+}
+</script>
