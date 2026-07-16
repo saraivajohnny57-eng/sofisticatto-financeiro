@@ -109,12 +109,12 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .etiqueta-preview-area{background:#d8dce5;border-radius:18px;padding:24px;overflow:auto}
 .etiqueta-papel{position:relative;width:150mm;height:100mm;background:#fff;color:#000;margin:auto;border-radius:4mm;box-shadow:0 8px 28px rgba(0,0,0,.22);overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-sizing:border-box}
 .etiqueta-logo{position:absolute;left:34mm;top:3mm;width:70mm;height:31mm;object-fit:contain}
-.etiqueta-qr{position:absolute;right:14mm;top:8mm;width:22mm;height:22mm}
+.etiqueta-qr{position:absolute;right:16mm;top:8mm;width:22mm;height:22mm}
 .etiqueta-qr canvas,.etiqueta-qr img{width:22mm!important;height:22mm!important}
 .etiqueta-qr-texto{position:absolute;right:14mm;top:7mm;width:31mm;height:27mm;font-weight:900;color:#000;line-height:1;pointer-events:none}
 .insta-vertical{position:absolute;left:0;top:0;width:6mm;font-size:4mm;line-height:1.08;text-align:center}
 .gram-horizontal{position:absolute;left:0;bottom:0;width:31mm;font-size:4mm;letter-spacing:1.05mm;text-align:left;white-space:nowrap}
-.etiqueta-transportadora{position:absolute;right:3mm;bottom:5mm;height:49mm;width:17mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
+.etiqueta-transportadora{position:absolute;right:2mm;bottom:3mm;height:53mm;width:18mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
 .etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;line-height:1.05;white-space:normal;word-break:break-word}
 .etiqueta-destino{position:absolute;left:7mm;top:39mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip}
 .etiqueta-destino b,.etiqueta-cidade b{font-weight:900}
@@ -3325,18 +3325,23 @@ function quebrarTransportadoraEmDuasLinhas(texto){
 }
 
 function tamanhoFonteTransportadora(texto,duasLinhas){
-  const tamanho=String(texto || "").trim().length;
+  const tamanho=String(texto || "").replace(/\s+/g,"").trim().length;
 
   if(duasLinhas){
-    if(tamanho>30) return "5.3mm";
-    if(tamanho>22) return "6mm";
+    if(tamanho>32) return "3.8mm";
+    if(tamanho>24) return "4.5mm";
+    if(tamanho>18) return "5.2mm";
+    if(tamanho>12) return "6mm";
     return "7mm";
   }
 
-  if(tamanho>28) return "5.2mm";
-  if(tamanho>22) return "6mm";
-  if(tamanho>16) return "7mm";
-  return "9mm";
+  if(tamanho<=5) return "8.5mm";
+  if(tamanho<=7) return "6.2mm";
+  if(tamanho<=9) return "5.1mm";
+  if(tamanho<=12) return "4.1mm";
+  if(tamanho<=16) return "3.4mm";
+  if(tamanho<=22) return "2.9mm";
+  return "2.5mm";
 }
 
 function atualizarPreviewEtiqueta(){
@@ -3584,12 +3589,12 @@ html,body{margin:0!important;padding:0!important;background:#fff!important;width
 .rotacionada{position:absolute;left:0;top:0;width:150mm;height:100mm;transform-origin:top left;transform:translateX(100mm) rotate(90deg)}
 .etiqueta-papel{position:relative;width:150mm;height:100mm;background:#fff;color:#000;margin:0;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:none;border-radius:0}
 .etiqueta-logo{position:absolute;left:34mm;top:3mm;width:70mm;height:31mm;object-fit:contain}
-.etiqueta-qr{position:absolute;right:14mm;top:8mm;width:22mm;height:22mm}
+.etiqueta-qr{position:absolute;right:16mm;top:8mm;width:22mm;height:22mm}
 .etiqueta-qr canvas,.etiqueta-qr img{width:22mm!important;height:22mm!important}
 .etiqueta-qr-texto{position:absolute;right:14mm;top:7mm;width:31mm;height:27mm;font-weight:900;color:#000;line-height:1;pointer-events:none}
 .insta-vertical{position:absolute;left:0;top:0;width:6mm;font-size:4mm;line-height:1.08;text-align:center}
 .gram-horizontal{position:absolute;left:0;bottom:0;width:31mm;font-size:4mm;letter-spacing:1.05mm;text-align:left;white-space:nowrap}
-.etiqueta-transportadora{position:absolute;right:3mm;bottom:5mm;height:49mm;width:17mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
+.etiqueta-transportadora{position:absolute;right:2mm;bottom:3mm;height:53mm;width:18mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
 .etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;line-height:1.05;white-space:normal;word-break:break-word}
 .etiqueta-destino{position:absolute;left:7mm;top:39mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
 .etiqueta-destino b,.etiqueta-cidade b{font-weight:900}
@@ -3598,7 +3603,7 @@ html,body{margin:0!important;padding:0!important;background:#fff!important;width
 .etiqueta-volume{position:absolute;left:80mm;top:63mm;font-size:7mm;line-height:1}
 .etiqueta-barcode{position:absolute;left:7mm;bottom:13mm;width:108mm;height:17mm}
 .etiqueta-chave{position:absolute;left:7mm;bottom:5.5mm;width:108mm;text-align:center;font-size:3.8mm;letter-spacing:.1mm;white-space:nowrap}
-.etiqueta-transportadora{position:absolute;right:3mm;bottom:5mm;height:49mm;width:17mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
+.etiqueta-transportadora{position:absolute;right:2mm;bottom:3mm;height:53mm;width:18mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
 .etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;line-height:1.05;white-space:normal;word-break:break-word}
 .etiqueta-transportadora.vazia{display:none}
 @page{size:100mm 150mm;margin:0}
