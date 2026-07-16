@@ -544,6 +544,20 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <div class="campo-largo">
                 <label class="relatorio-label">Transportadora (opcional)</label>
                 <input id="etqTransportadora" placeholder="Ex.: EX MAIA" oninput="atualizarPreviewEtiqueta()">
+
+                <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;margin-top:8px;">
+                  <select id="etqTransportadoraFonte" onchange="atualizarPreviewEtiqueta()">
+                    <option value="auto">Tamanho automático</option>
+                    <option value="2.5">Muito pequena</option>
+                    <option value="3.2">Pequena</option>
+                    <option value="4.2">Média</option>
+                    <option value="5.2">Grande</option>
+                    <option value="6.2">Muito grande</option>
+                  </select>
+                  <button type="button" class="btn azul" onclick="ajustarFonteTransportadora(-0.5)" title="Diminuir letra">A−</button>
+                  <button type="button" class="btn azul" onclick="ajustarFonteTransportadora(0.5)" title="Aumentar letra">A+</button>
+                </div>
+
                 <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:#4d4694;">
                   <input id="etqTransportadoraDuasLinhas" type="checkbox" style="width:auto;"
                     onchange="atualizarPreviewEtiqueta()">
@@ -3246,6 +3260,7 @@ function dadosEtiquetaFormulario(){
     quantidade_volumes:Math.max(1,parseInt(document.getElementById("etqVolumes")?.value || "1",10) || 1),
     transportadora:document.getElementById("etqTransportadora")?.value.trim().toUpperCase() || "",
     transportadora_duas_linhas:document.getElementById("etqTransportadoraDuasLinhas")?.checked || false,
+    transportadora_fonte:document.getElementById("etqTransportadoraFonte")?.value || "auto",
     chave_nfe:(document.getElementById("etqChave")?.value || "").replace(/\D/g,"").slice(0,44)
   };
 }
@@ -3344,6 +3359,42 @@ function tamanhoFonteTransportadora(texto,duasLinhas){
   return "2.5mm";
 }
 
+function fonteTransportadoraEscolhida(texto,duasLinhas){
+  const seletor=document.getElementById("etqTransportadoraFonte");
+  const valor=seletor?.value || "auto";
+
+  if(valor!=="auto"){
+    return `${Number(valor)}mm`;
+  }
+
+  return tamanhoFonteTransportadora(texto,duasLinhas);
+}
+
+function ajustarFonteTransportadora(delta){
+  const seletor=document.getElementById("etqTransportadoraFonte");
+  if(!seletor) return;
+
+  let atual=seletor.value==="auto"
+    ? parseFloat(tamanhoFonteTransportadora(
+        document.getElementById("etqTransportadora")?.value || "",
+        document.getElementById("etqTransportadoraDuasLinhas")?.checked || false
+      ))
+    : Number(seletor.value);
+
+  atual=Math.max(2,Math.min(8,atual+delta));
+
+  let opcao=[...seletor.options].find(item=>item.value!=="auto" && Math.abs(Number(item.value)-atual)<0.26);
+  if(!opcao){
+    opcao=document.createElement("option");
+    opcao.value=atual.toFixed(1);
+    opcao.textContent=`Personalizado: ${atual.toFixed(1)} mm`;
+    seletor.appendChild(opcao);
+  }
+
+  seletor.value=opcao.value;
+  atualizarPreviewEtiqueta();
+}
+
 function atualizarPreviewEtiqueta(){
   const d=dadosEtiquetaFormulario();
 
@@ -3369,7 +3420,7 @@ function atualizarPreviewEtiqueta(){
   const transp=document.getElementById("etqPrevTransportadora");
   transp.classList.toggle("vazia",!d.transportadora);
   transp.classList.toggle("duas-linhas",!!d.transportadora_duas_linhas);
-  transp.style.fontSize=tamanhoFonteTransportadora(d.transportadora,d.transportadora_duas_linhas);
+  transp.style.fontSize=fonteTransportadoraEscolhida(d.transportadora,d.transportadora_duas_linhas);
 
   if(d.transportadora_duas_linhas && d.transportadora){
     const linhas=quebrarTransportadoraEmDuasLinhas(d.transportadora);
@@ -3511,7 +3562,7 @@ function criarElementoEtiqueta(d,volumeAtual){
   cidade.style.fontSize=(cidadeUf.length>24 ? "5.8mm" : cidadeUf.length>18 ? "6.2mm" : "6.8mm");
 
   const transportadora=etiqueta.querySelector(".etiqueta-transportadora");
-  transportadora.style.fontSize=tamanhoFonteTransportadora(d.transportadora,d.transportadora_duas_linhas);
+  transportadora.style.fontSize=fonteTransportadoraEscolhida(d.transportadora,d.transportadora_duas_linhas);
 
   if(d.transportadora_duas_linhas && d.transportadora){
     const linhas=quebrarTransportadoraEmDuasLinhas(d.transportadora);
@@ -3739,6 +3790,7 @@ function reutilizarEtiqueta(id){
   document.getElementById("etqVolumes").value=item.quantidade_volumes || 1;
   document.getElementById("etqTransportadora").value=item.transportadora || "";
   document.getElementById("etqTransportadoraDuasLinhas").checked=!!item.transportadora_duas_linhas;
+  document.getElementById("etqTransportadoraFonte").value=item.transportadora_fonte || "auto";
   document.getElementById("etqChave").value=item.chave_nfe || "";
   atualizarPreviewEtiqueta();
   window.scrollTo({top:0,behavior:"smooth"});
@@ -3758,6 +3810,7 @@ function limparFormularioEtiqueta(){
   });
   document.getElementById("etqVolumes").value=1;
   document.getElementById("etqTransportadoraDuasLinhas").checked=false;
+  document.getElementById("etqTransportadoraFonte").value="auto";
   document.getElementById("etqXml").value="";
   atualizarPreviewEtiqueta();
 }
@@ -3786,27 +3839,3 @@ document.addEventListener("DOMContentLoaded", async function(){
 
 </body>
 </html>
-
-
-<div class="campo-transportadora-fonte" style="margin-top:8px;">
-<label><strong>Tamanho da letra da transportadora</strong></label>
-<select id="transportadoraFonteManual">
-    <option value="auto" selected>Automático</option>
-    <option value="2.5mm">Muito pequena</option>
-    <option value="3mm">Pequena</option>
-    <option value="4mm">Média</option>
-    <option value="5mm">Grande</option>
-    <option value="6mm">Muito grande</option>
-</select>
-</div>
-
-
-<script>
-function obterFonteTransportadora(texto,duasLinhas){
-    const seletor=document.getElementById('transportadoraFonteManual');
-    if(seletor && seletor.value!=='auto'){
-        return seletor.value;
-    }
-    return tamanhoFonteTransportadora(texto,duasLinhas);
-}
-</script>
