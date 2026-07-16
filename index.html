@@ -111,9 +111,11 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .etiqueta-logo{position:absolute;left:37mm;top:4mm;width:64mm;height:29mm;object-fit:contain}
 .etiqueta-qr{position:absolute;right:14mm;top:7mm;width:24mm;height:24mm}
 .etiqueta-qr canvas,.etiqueta-qr img{width:24mm!important;height:24mm!important}
-.etiqueta-qr-texto{position:absolute;right:41mm;top:6mm;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;color:#000;line-height:1}
-.insta-vertical{font-size:4.8mm;line-height:.9;text-align:center}
-.gram-horizontal{margin-top:1.2mm;font-size:4.5mm;letter-spacing:.8mm;text-align:center;white-space:nowrap}
+.etiqueta-qr-texto{position:absolute;right:39mm;top:7mm;width:20mm;height:24mm;font-weight:900;color:#000;line-height:1}
+.insta-vertical{position:absolute;right:0;top:0;font-size:4.5mm;line-height:.86;text-align:center}
+.gram-horizontal{position:absolute;right:0;bottom:0;font-size:4.2mm;letter-spacing:.7mm;text-align:right;white-space:nowrap}
+.etiqueta-transportadora{position:absolute;right:3mm;bottom:5mm;height:49mm;width:17mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
+.etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;line-height:1.05;white-space:normal;word-break:break-word}
 .etiqueta-destino{position:absolute;left:7mm;top:39mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip}
 .etiqueta-destino b,.etiqueta-cidade b{font-weight:900}
 .etiqueta-cidade{position:absolute;left:7mm;top:51mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip}
@@ -121,7 +123,6 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .etiqueta-volume{position:absolute;left:80mm;top:63mm;font-size:7mm;line-height:1}
 .etiqueta-barcode{position:absolute;left:7mm;bottom:13mm;width:108mm;height:17mm}
 .etiqueta-chave{position:absolute;left:7mm;bottom:5.5mm;width:108mm;text-align:center;font-size:3.8mm;letter-spacing:.1mm;white-space:nowrap}
-.etiqueta-transportadora{position:absolute;right:3mm;bottom:5mm;height:49mm;writing-mode:vertical-rl;transform:rotate(180deg);font-size:9.5mm;font-weight:900;line-height:1;white-space:nowrap;overflow:hidden;text-align:center}
 .etiqueta-transportadora.vazia{display:none}
 .etiqueta-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .etiqueta-sugestoes{position:relative}
@@ -543,6 +544,11 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <div class="campo-largo">
                 <label class="relatorio-label">Transportadora (opcional)</label>
                 <input id="etqTransportadora" placeholder="Ex.: EX MAIA" oninput="atualizarPreviewEtiqueta()">
+                <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:#4d4694;">
+                  <input id="etqTransportadoraDuasLinhas" type="checkbox" style="width:auto;"
+                    onchange="atualizarPreviewEtiqueta()">
+                  Dividir o nome da transportadora em 2 linhas quando necessário
+                </label>
               </div>
 
               <div class="campo-largo">
@@ -3239,6 +3245,7 @@ function dadosEtiquetaFormulario(){
     numero_nf:document.getElementById("etqNf")?.value.trim() || "",
     quantidade_volumes:Math.max(1,parseInt(document.getElementById("etqVolumes")?.value || "1",10) || 1),
     transportadora:document.getElementById("etqTransportadora")?.value.trim().toUpperCase() || "",
+    transportadora_duas_linhas:document.getElementById("etqTransportadoraDuasLinhas")?.checked || false,
     chave_nfe:(document.getElementById("etqChave")?.value || "").replace(/\D/g,"").slice(0,44)
   };
 }
@@ -3290,6 +3297,48 @@ function montarBarcodeEtiqueta(elemento,chave){
   });
 }
 
+function quebrarTransportadoraEmDuasLinhas(texto){
+  const nome=String(texto || "").trim();
+  if(!nome) return [""];
+
+  const palavras=nome.split(/\s+/);
+  if(palavras.length===1){
+    const meio=Math.ceil(nome.length/2);
+    return [nome.slice(0,meio),nome.slice(meio)];
+  }
+
+  let melhor=[nome,""];
+  let menorDiferenca=Infinity;
+
+  for(let i=1;i<palavras.length;i++){
+    const primeira=palavras.slice(0,i).join(" ");
+    const segunda=palavras.slice(i).join(" ");
+    const diferenca=Math.abs(primeira.length-segunda.length);
+
+    if(diferenca<menorDiferenca){
+      menorDiferenca=diferenca;
+      melhor=[primeira,segunda];
+    }
+  }
+
+  return melhor;
+}
+
+function tamanhoFonteTransportadora(texto,duasLinhas){
+  const tamanho=String(texto || "").trim().length;
+
+  if(duasLinhas){
+    if(tamanho>30) return "5.3mm";
+    if(tamanho>22) return "6mm";
+    return "7mm";
+  }
+
+  if(tamanho>28) return "5.2mm";
+  if(tamanho>22) return "6mm";
+  if(tamanho>16) return "7mm";
+  return "9mm";
+}
+
 function atualizarPreviewEtiqueta(){
   const d=dadosEtiquetaFormulario();
 
@@ -3313,8 +3362,16 @@ function atualizarPreviewEtiqueta(){
   if(cidade) cidade.style.fontSize=(cidadeUf.length>24 ? "5.8mm" : cidadeUf.length>18 ? "6.2mm" : "6.8mm");
 
   const transp=document.getElementById("etqPrevTransportadora");
-  transp.textContent=d.transportadora || "";
   transp.classList.toggle("vazia",!d.transportadora);
+  transp.classList.toggle("duas-linhas",!!d.transportadora_duas_linhas);
+  transp.style.fontSize=tamanhoFonteTransportadora(d.transportadora,d.transportadora_duas_linhas);
+
+  if(d.transportadora_duas_linhas && d.transportadora){
+    const linhas=quebrarTransportadoraEmDuasLinhas(d.transportadora);
+    transp.innerHTML=`<span>${escaparHtmlEmail(linhas[0])}</span><span>${escaparHtmlEmail(linhas[1] || "")}</span>`;
+  }else{
+    transp.textContent=d.transportadora || "";
+  }
 
   if(window.QRCode) montarQrEtiqueta(document.getElementById("etqQr"));
   if(window.JsBarcode) montarBarcodeEtiqueta(document.getElementById("etqBarcode"),d.chave_nfe);
@@ -3420,13 +3477,23 @@ function criarElementoEtiqueta(d,volumeAtual){
     <div class="etiqueta-volume">VOL: ${escaparHtmlEmail(formatarVolumeEtiqueta(volumeAtual,d.quantidade_volumes))}</div>
     <svg class="etiqueta-barcode"></svg>
     <div class="etiqueta-chave">${escaparHtmlEmail(d.chave_nfe)}</div>
-    <div class="etiqueta-transportadora ${d.transportadora ? "" : "vazia"}">${escaparHtmlEmail(d.transportadora || "")}</div>`;
+    <div class="etiqueta-transportadora ${d.transportadora ? "" : "vazia"} ${d.transportadora_duas_linhas ? "duas-linhas" : ""}"></div>`;
 
   const destino=etiqueta.querySelector(".etiqueta-destino");
   const cidade=etiqueta.querySelector(".etiqueta-cidade");
   destino.style.fontSize=(d.cliente.length>28 ? "5.8mm" : d.cliente.length>22 ? "6.2mm" : "6.8mm");
   const cidadeUf=[d.cidade,d.uf].filter(Boolean).join("/");
   cidade.style.fontSize=(cidadeUf.length>24 ? "5.8mm" : cidadeUf.length>18 ? "6.2mm" : "6.8mm");
+
+  const transportadora=etiqueta.querySelector(".etiqueta-transportadora");
+  transportadora.style.fontSize=tamanhoFonteTransportadora(d.transportadora,d.transportadora_duas_linhas);
+
+  if(d.transportadora_duas_linhas && d.transportadora){
+    const linhas=quebrarTransportadoraEmDuasLinhas(d.transportadora);
+    transportadora.innerHTML=`<span>${escaparHtmlEmail(linhas[0])}</span><span>${escaparHtmlEmail(linhas[1] || "")}</span>`;
+  }else{
+    transportadora.textContent=d.transportadora || "";
+  }
 
   const logo=etiqueta.querySelector(".etiqueta-logo");
   const logoUrl=logoEtiquetaUrl();
@@ -3499,9 +3566,11 @@ html,body{margin:0!important;padding:0!important;background:#fff!important;width
 .etiqueta-logo{position:absolute;left:37mm;top:4mm;width:64mm;height:29mm;object-fit:contain}
 .etiqueta-qr{position:absolute;right:14mm;top:7mm;width:24mm;height:24mm}
 .etiqueta-qr canvas,.etiqueta-qr img{width:24mm!important;height:24mm!important}
-.etiqueta-qr-texto{position:absolute;right:41mm;top:6mm;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;color:#000;line-height:1}
-.insta-vertical{font-size:4.8mm;line-height:.9;text-align:center}
-.gram-horizontal{margin-top:1.2mm;font-size:4.5mm;letter-spacing:.8mm;text-align:center;white-space:nowrap}
+.etiqueta-qr-texto{position:absolute;right:39mm;top:7mm;width:20mm;height:24mm;font-weight:900;color:#000;line-height:1}
+.insta-vertical{position:absolute;right:0;top:0;font-size:4.5mm;line-height:.86;text-align:center}
+.gram-horizontal{position:absolute;right:0;bottom:0;font-size:4.2mm;letter-spacing:.7mm;text-align:right;white-space:nowrap}
+.etiqueta-transportadora{position:absolute;right:3mm;bottom:5mm;height:49mm;width:17mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
+.etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;line-height:1.05;white-space:normal;word-break:break-word}
 .etiqueta-destino{position:absolute;left:7mm;top:39mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
 .etiqueta-destino b,.etiqueta-cidade b{font-weight:900}
 .etiqueta-cidade{position:absolute;left:7mm;top:51mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
@@ -3509,7 +3578,8 @@ html,body{margin:0!important;padding:0!important;background:#fff!important;width
 .etiqueta-volume{position:absolute;left:80mm;top:63mm;font-size:7mm;line-height:1}
 .etiqueta-barcode{position:absolute;left:7mm;bottom:13mm;width:108mm;height:17mm}
 .etiqueta-chave{position:absolute;left:7mm;bottom:5.5mm;width:108mm;text-align:center;font-size:3.8mm;letter-spacing:.1mm;white-space:nowrap}
-.etiqueta-transportadora{position:absolute;right:3mm;bottom:5mm;height:49mm;writing-mode:vertical-rl;transform:rotate(180deg);font-size:9.5mm;font-weight:900;line-height:1;white-space:nowrap;overflow:hidden;text-align:center}
+.etiqueta-transportadora{position:absolute;right:3mm;bottom:5mm;height:49mm;width:17mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
+.etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;line-height:1.05;white-space:normal;word-break:break-word}
 .etiqueta-transportadora.vazia{display:none}
 @page{size:100mm 150mm;margin:0}
 @media print{
@@ -3643,6 +3713,7 @@ function reutilizarEtiqueta(id){
   document.getElementById("etqNf").value=item.numero_nf || "";
   document.getElementById("etqVolumes").value=item.quantidade_volumes || 1;
   document.getElementById("etqTransportadora").value=item.transportadora || "";
+  document.getElementById("etqTransportadoraDuasLinhas").checked=!!item.transportadora_duas_linhas;
   document.getElementById("etqChave").value=item.chave_nfe || "";
   atualizarPreviewEtiqueta();
   window.scrollTo({top:0,behavior:"smooth"});
@@ -3661,6 +3732,7 @@ function limparFormularioEtiqueta(){
     if(campo) campo.value="";
   });
   document.getElementById("etqVolumes").value=1;
+  document.getElementById("etqTransportadoraDuasLinhas").checked=false;
   document.getElementById("etqXml").value="";
   atualizarPreviewEtiqueta();
 }
