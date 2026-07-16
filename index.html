@@ -107,18 +107,20 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .etiqueta-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .etiqueta-form-grid .campo-largo{grid-column:1/-1}
 .etiqueta-preview-area{background:#d8dce5;border-radius:18px;padding:24px;overflow:auto}
-.etiqueta-papel{position:relative;width:150mm;height:100mm;background:white;color:#000;margin:auto;border-radius:4mm;box-shadow:0 8px 28px rgba(0,0,0,.22);overflow:hidden;font-family:Arial,Helvetica,sans-serif}
-.etiqueta-logo{position:absolute;left:37mm;top:7mm;width:60mm;height:25mm;object-fit:contain}
-.etiqueta-qr{position:absolute;right:17mm;top:6mm;width:29mm;height:29mm}
-.etiqueta-qr-texto{position:absolute;right:48mm;top:10mm;font-size:5.5mm;font-weight:900;line-height:1.05;text-align:center}
-.etiqueta-destino{position:absolute;left:7mm;top:40mm;width:115mm;font-size:7.2mm;font-weight:400;white-space:nowrap;overflow:hidden}
+.etiqueta-papel{position:relative;width:150mm;height:100mm;background:#fff;color:#000;margin:auto;border-radius:4mm;box-shadow:0 8px 28px rgba(0,0,0,.22);overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-sizing:border-box}
+.etiqueta-logo{position:absolute;left:42mm;top:6mm;width:55mm;height:25mm;object-fit:contain}
+.etiqueta-qr{position:absolute;right:18mm;top:5mm;width:29mm;height:29mm}
+.etiqueta-qr canvas,.etiqueta-qr img{width:29mm!important;height:29mm!important}
+.etiqueta-qr-texto{position:absolute;right:48mm;top:7mm;font-size:5.3mm;font-weight:900;line-height:1.03;text-align:center}
+.etiqueta-destino{position:absolute;left:7mm;top:39mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip}
 .etiqueta-destino b,.etiqueta-cidade b{font-weight:900}
-.etiqueta-cidade{position:absolute;left:7mm;top:52mm;width:115mm;font-size:7.2mm;white-space:nowrap;overflow:hidden}
-.etiqueta-nf{position:absolute;left:7mm;top:64mm;font-size:7mm}
-.etiqueta-volume{position:absolute;left:80mm;top:64mm;font-size:7mm}
+.etiqueta-cidade{position:absolute;left:7mm;top:51mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip}
+.etiqueta-nf{position:absolute;left:7mm;top:63mm;font-size:7mm;line-height:1}
+.etiqueta-volume{position:absolute;left:80mm;top:63mm;font-size:7mm;line-height:1}
 .etiqueta-barcode{position:absolute;left:7mm;bottom:13mm;width:108mm;height:17mm}
-.etiqueta-chave{position:absolute;left:8mm;bottom:6mm;width:108mm;text-align:center;font-size:4mm;letter-spacing:.25mm;white-space:nowrap}
-.etiqueta-transportadora{position:absolute;right:4mm;bottom:5mm;height:48mm;writing-mode:vertical-rl;transform:rotate(180deg);font-size:10mm;font-weight:900;white-space:nowrap;overflow:hidden}
+.etiqueta-chave{position:absolute;left:7mm;bottom:5.5mm;width:108mm;text-align:center;font-size:3.8mm;letter-spacing:.1mm;white-space:nowrap}
+.etiqueta-transportadora{position:absolute;right:3mm;bottom:5mm;height:49mm;writing-mode:vertical-rl;transform:rotate(180deg);font-size:9.5mm;font-weight:900;line-height:1;white-space:nowrap;overflow:hidden;text-align:center}
+.etiqueta-transportadora.vazia{display:none}
 .etiqueta-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .etiqueta-sugestoes{position:relative}
 .etiqueta-sugestoes-lista{position:absolute;left:0;right:0;top:100%;z-index:100;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.16);max-height:230px;overflow:auto;display:none}
@@ -128,13 +130,7 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .etiqueta-lista-mini{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .etiqueta-mini{background:#f3f0fb;border-radius:10px;padding:8px 11px;font-size:12px}
 @media(max-width:1100px){.etiqueta-layout{grid-template-columns:1fr}.etiqueta-preview-area{padding:12px}}
-@media print{
-  body *{visibility:hidden!important}
-  #etiquetasImpressao,#etiquetasImpressao *{visibility:visible!important}
-  #etiquetasImpressao{position:absolute!important;left:0!important;top:0!important;width:100%!important}
-  .etiqueta-papel{page-break-after:always;box-shadow:none;border-radius:0;margin:0}
-  @page{size:150mm 100mm;margin:0}
-}
+
 
 </style>
 </head>
@@ -543,7 +539,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
               </div>
 
               <div class="campo-largo">
-                <label class="relatorio-label">Transportadora</label>
+                <label class="relatorio-label">Transportadora (opcional)</label>
                 <input id="etqTransportadora" placeholder="Ex.: EX MAIA" oninput="atualizarPreviewEtiqueta()">
               </div>
 
@@ -3304,7 +3300,16 @@ function atualizarPreviewEtiqueta(){
   document.getElementById("etqPrevNf").textContent=formatarNfEtiqueta(d.numero_nf);
   document.getElementById("etqPrevVolume").textContent=formatarVolumeEtiqueta(1,d.quantidade_volumes);
   document.getElementById("etqPrevChave").textContent=d.chave_nfe;
-  document.getElementById("etqPrevTransportadora").textContent=d.transportadora || "TRANSPORTADORA";
+
+  const destino=document.querySelector("#etqPreview .etiqueta-destino");
+  const cidade=document.querySelector("#etqPreview .etiqueta-cidade");
+  if(destino) destino.style.fontSize=(d.cliente.length>28 ? "5.8mm" : d.cliente.length>22 ? "6.2mm" : "6.8mm");
+  const cidadeUf=[d.cidade,d.uf].filter(Boolean).join("/");
+  if(cidade) cidade.style.fontSize=(cidadeUf.length>24 ? "5.8mm" : cidadeUf.length>18 ? "6.2mm" : "6.8mm");
+
+  const transp=document.getElementById("etqPrevTransportadora");
+  transp.textContent=d.transportadora || "";
+  transp.classList.toggle("vazia",!d.transportadora);
 
   if(window.QRCode) montarQrEtiqueta(document.getElementById("etqQr"));
   if(window.JsBarcode) montarBarcodeEtiqueta(document.getElementById("etqBarcode"),d.chave_nfe);
@@ -3407,7 +3412,13 @@ function criarElementoEtiqueta(d,volumeAtual){
     <div class="etiqueta-volume">VOL: ${escaparHtmlEmail(formatarVolumeEtiqueta(volumeAtual,d.quantidade_volumes))}</div>
     <svg class="etiqueta-barcode"></svg>
     <div class="etiqueta-chave">${escaparHtmlEmail(d.chave_nfe)}</div>
-    <div class="etiqueta-transportadora">${escaparHtmlEmail(d.transportadora || "TRANSPORTADORA")}</div>`;
+    <div class="etiqueta-transportadora ${d.transportadora ? "" : "vazia"}">${escaparHtmlEmail(d.transportadora || "")}</div>`;
+
+  const destino=etiqueta.querySelector(".etiqueta-destino");
+  const cidade=etiqueta.querySelector(".etiqueta-cidade");
+  destino.style.fontSize=(d.cliente.length>28 ? "5.8mm" : d.cliente.length>22 ? "6.2mm" : "6.8mm");
+  const cidadeUf=[d.cidade,d.uf].filter(Boolean).join("/");
+  cidade.style.fontSize=(cidadeUf.length>24 ? "5.8mm" : cidadeUf.length>18 ? "6.2mm" : "6.8mm");
 
   const logo=etiqueta.querySelector(".etiqueta-logo");
   const logoUrl=logoEtiquetaUrl();
@@ -3423,7 +3434,6 @@ function validarEtiqueta(){
   if(!d.cliente){alert("Informe o nome do cliente.");return null}
   if(!d.cidade || !d.uf){alert("Informe a cidade e o estado.");return null}
   if(!d.numero_nf){alert("Informe o número da Nota Fiscal.");return null}
-  if(!d.transportadora){alert("Informe a transportadora.");return null}
   if(d.chave_nfe.length!==44){alert("A chave da NF-e deve ter 44 dígitos.");return null}
   return d;
 }
@@ -3444,10 +3454,84 @@ async function montarEtiquetasParaSaida(){
 }
 
 async function imprimirEtiquetas(){
-  const resultado=await montarEtiquetasParaSaida();
-  if(!resultado) return;
-  window.print();
-  setTimeout(()=>{resultado.container.style.display="none"},500);
+  const d=validarEtiqueta();
+  if(!d) return;
+
+  try{
+    await carregarBibliotecasEtiqueta();
+
+    const janela=window.open("","_blank","width=900,height=700");
+    if(!janela){
+      alert("O navegador bloqueou a janela de impressão. Permita pop-ups para este site.");
+      return;
+    }
+
+    const etiquetas=[];
+    for(let i=1;i<=d.quantidade_volumes;i++){
+      const elemento=criarElementoEtiqueta(d,i);
+      elemento.style.boxShadow="none";
+      elemento.style.borderRadius="0";
+      elemento.style.margin="0";
+      etiquetas.push(elemento);
+    }
+
+    janela.document.open();
+    janela.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Etiquetas ${escaparHtmlEmail(d.cliente)}</title>
+<style>
+html,body{margin:0!important;padding:0!important;background:#fff!important;width:100%;height:100%;overflow:visible}
+*{box-sizing:border-box}
+.pagina-etiqueta{position:relative;width:100mm;height:150mm;margin:0;padding:0;page-break-after:always;break-after:page;overflow:hidden;background:#fff}
+.pagina-etiqueta:last-child{page-break-after:auto;break-after:auto}
+.rotacionada{position:absolute;left:0;top:0;width:150mm;height:100mm;transform-origin:top left;transform:translateX(100mm) rotate(90deg)}
+.etiqueta-papel{position:relative;width:150mm;height:100mm;background:#fff;color:#000;margin:0;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:none;border-radius:0}
+.etiqueta-logo{position:absolute;left:42mm;top:6mm;width:55mm;height:25mm;object-fit:contain}
+.etiqueta-qr{position:absolute;right:18mm;top:5mm;width:29mm;height:29mm}
+.etiqueta-qr canvas,.etiqueta-qr img{width:29mm!important;height:29mm!important}
+.etiqueta-qr-texto{position:absolute;right:48mm;top:7mm;font-size:5.3mm;font-weight:900;line-height:1.03;text-align:center}
+.etiqueta-destino{position:absolute;left:7mm;top:39mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
+.etiqueta-destino b,.etiqueta-cidade b{font-weight:900}
+.etiqueta-cidade{position:absolute;left:7mm;top:51mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
+.etiqueta-nf{position:absolute;left:7mm;top:63mm;font-size:7mm;line-height:1}
+.etiqueta-volume{position:absolute;left:80mm;top:63mm;font-size:7mm;line-height:1}
+.etiqueta-barcode{position:absolute;left:7mm;bottom:13mm;width:108mm;height:17mm}
+.etiqueta-chave{position:absolute;left:7mm;bottom:5.5mm;width:108mm;text-align:center;font-size:3.8mm;letter-spacing:.1mm;white-space:nowrap}
+.etiqueta-transportadora{position:absolute;right:3mm;bottom:5mm;height:49mm;writing-mode:vertical-rl;transform:rotate(180deg);font-size:9.5mm;font-weight:900;line-height:1;white-space:nowrap;overflow:hidden;text-align:center}
+.etiqueta-transportadora.vazia{display:none}
+@page{size:100mm 150mm;margin:0}
+@media print{
+  html,body{width:100mm;height:auto}
+  .pagina-etiqueta{width:100mm;height:150mm}
+}
+</style>
+</head>
+<body></body>
+</html>`);
+    janela.document.close();
+
+    await new Promise(resolve=>setTimeout(resolve,150));
+
+    etiquetas.forEach(etiqueta=>{
+      const pagina=janela.document.createElement("div");
+      pagina.className="pagina-etiqueta";
+      const rotacionada=janela.document.createElement("div");
+      rotacionada.className="rotacionada";
+      rotacionada.appendChild(janela.document.importNode(etiqueta,true));
+      pagina.appendChild(rotacionada);
+      janela.document.body.appendChild(pagina);
+    });
+
+    // Esperar imagens e códigos renderizarem antes de abrir a impressão.
+    await new Promise(resolve=>setTimeout(resolve,650));
+    janela.focus();
+    janela.print();
+  }catch(erro){
+    console.error("Erro ao imprimir etiquetas:",erro);
+    alert("Não foi possível preparar a impressão: "+erro.message);
+  }
 }
 
 async function baixarEtiquetasPDF(){
@@ -3460,12 +3544,18 @@ async function baixarEtiquetasPDF(){
 
     for(let i=0;i<etiquetas.length;i++){
       if(i>0) pdf.addPage([150,100],"landscape");
+      etiquetas[i].style.boxShadow="none";
+      etiquetas[i].style.borderRadius="0";
+      etiquetas[i].style.margin="0";
       const canvas=await html2canvas(etiquetas[i],{
-        scale:2,
+        scale:3,
         useCORS:true,
+        allowTaint:true,
         backgroundColor:"#ffffff",
-        width:etiquetas[i].offsetWidth,
-        height:etiquetas[i].offsetHeight
+        width:etiquetas[i].scrollWidth,
+        height:etiquetas[i].scrollHeight,
+        windowWidth:etiquetas[i].scrollWidth,
+        windowHeight:etiquetas[i].scrollHeight
       });
       pdf.addImage(canvas.toDataURL("image/png"),"PNG",0,0,150,100,undefined,"FAST");
     }
