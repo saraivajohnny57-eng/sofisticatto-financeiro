@@ -3584,9 +3584,9 @@ async function imprimirEtiquetas(){
 <style>
 html,body{margin:0!important;padding:0!important;background:#fff!important;width:100%;height:100%;overflow:visible}
 *{box-sizing:border-box}
-.pagina-etiqueta{position:relative;width:100mm;height:150mm;margin:0;padding:0;page-break-after:always;break-after:page;overflow:hidden;background:#fff}
+.pagina-etiqueta{position:relative;width:150mm;height:100mm;margin:0;padding:0;page-break-after:always;break-after:page;overflow:hidden;background:#fff}
 .pagina-etiqueta:last-child{page-break-after:auto;break-after:auto}
-.rotacionada{position:absolute;left:0;top:0;width:150mm;height:100mm;transform-origin:top left;transform:translateX(100mm) rotate(90deg)}
+.rotacionada{position:absolute;left:0;top:0;width:150mm;height:100mm;transform:none}
 .etiqueta-papel{position:relative;width:150mm;height:100mm;background:#fff;color:#000;margin:0;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:none;border-radius:0}
 .etiqueta-logo{position:absolute;left:34mm;top:3mm;width:70mm;height:31mm;object-fit:contain}
 .etiqueta-qr{position:absolute;right:16mm;top:8mm;width:22mm;height:22mm}
@@ -3606,14 +3606,14 @@ html,body{margin:0!important;padding:0!important;background:#fff!important;width
 .etiqueta-transportadora{position:absolute;right:2mm;bottom:3mm;height:53mm;width:18mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
 .etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;line-height:1.05;white-space:normal;word-break:break-word}
 .etiqueta-transportadora.vazia{display:none}
-@page{size:100mm 150mm;margin:0}
+@page{size:150mm 100mm;margin:0}
 @media print{
-  html,body{width:100mm;height:auto}
-  .pagina-etiqueta{width:100mm;height:150mm}
+  html,body{width:150mm;height:auto;margin:0!important;padding:0!important}
+  .pagina-etiqueta{width:150mm;height:100mm;margin:0!important;padding:0!important}
 }
 </style>
 </head>
-<body></body>
+<body style="margin:0;padding:0;"></body>
 </html>`);
     janela.document.close();
 
