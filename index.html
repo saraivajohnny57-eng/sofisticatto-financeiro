@@ -108,10 +108,12 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .etiqueta-form-grid .campo-largo{grid-column:1/-1}
 .etiqueta-preview-area{background:#d8dce5;border-radius:18px;padding:24px;overflow:auto}
 .etiqueta-papel{position:relative;width:150mm;height:100mm;background:#fff;color:#000;margin:auto;border-radius:4mm;box-shadow:0 8px 28px rgba(0,0,0,.22);overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-sizing:border-box}
-.etiqueta-logo{position:absolute;left:42mm;top:6mm;width:55mm;height:25mm;object-fit:contain}
-.etiqueta-qr{position:absolute;right:18mm;top:5mm;width:29mm;height:29mm}
-.etiqueta-qr canvas,.etiqueta-qr img{width:29mm!important;height:29mm!important}
-.etiqueta-qr-texto{position:absolute;right:48mm;top:7mm;font-size:5.3mm;font-weight:900;line-height:1.03;text-align:center}
+.etiqueta-logo{position:absolute;left:37mm;top:4mm;width:64mm;height:29mm;object-fit:contain}
+.etiqueta-qr{position:absolute;right:14mm;top:7mm;width:24mm;height:24mm}
+.etiqueta-qr canvas,.etiqueta-qr img{width:24mm!important;height:24mm!important}
+.etiqueta-qr-texto{position:absolute;right:41mm;top:6mm;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;color:#000;line-height:1}
+.insta-vertical{font-size:4.8mm;line-height:.9;text-align:center}
+.gram-horizontal{margin-top:1.2mm;font-size:4.5mm;letter-spacing:.8mm;text-align:center;white-space:nowrap}
 .etiqueta-destino{position:absolute;left:7mm;top:39mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip}
 .etiqueta-destino b,.etiqueta-cidade b{font-weight:900}
 .etiqueta-cidade{position:absolute;left:7mm;top:51mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip}
@@ -588,7 +590,10 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <div class="etiqueta-preview-area">
             <div id="etqPreview" class="etiqueta-papel">
               <img id="etqLogo" class="etiqueta-logo" alt="Logo Sofisticatto">
-              <div class="etiqueta-qr-texto">I<br>N<br>S<br>T<br>A<br>G<br>R<br>A<br>M</div>
+              <div class="etiqueta-qr-texto">
+                <div class="insta-vertical">I<br>N<br>S<br>T<br>A</div>
+                <div class="gram-horizontal">G&nbsp;R&nbsp;A&nbsp;M</div>
+              </div>
               <div id="etqQr" class="etiqueta-qr"></div>
               <div class="etiqueta-destino">DESTINO: <b id="etqPrevCliente">CLIENTE</b></div>
               <div class="etiqueta-cidade">CIDADE: <b id="etqPrevCidade">CIDADE/UF</b></div>
@@ -3404,7 +3409,10 @@ function criarElementoEtiqueta(d,volumeAtual){
   etiqueta.className="etiqueta-papel";
   etiqueta.innerHTML=`
     <img class="etiqueta-logo" alt="Logo Sofisticatto">
-    <div class="etiqueta-qr-texto">I<br>N<br>S<br>T<br>A<br>G<br>R<br>A<br>M</div>
+    <div class="etiqueta-qr-texto">
+                <div class="insta-vertical">I<br>N<br>S<br>T<br>A</div>
+                <div class="gram-horizontal">G&nbsp;R&nbsp;A&nbsp;M</div>
+              </div>
     <div class="etiqueta-qr"></div>
     <div class="etiqueta-destino">DESTINO: <b>${escaparHtmlEmail((d.cliente || "CLIENTE").toUpperCase())}</b></div>
     <div class="etiqueta-cidade">CIDADE: <b>${escaparHtmlEmail([d.cidade,d.uf].filter(Boolean).join("/") || "CIDADE/UF")}</b></div>
@@ -3488,10 +3496,12 @@ html,body{margin:0!important;padding:0!important;background:#fff!important;width
 .pagina-etiqueta:last-child{page-break-after:auto;break-after:auto}
 .rotacionada{position:absolute;left:0;top:0;width:150mm;height:100mm;transform-origin:top left;transform:translateX(100mm) rotate(90deg)}
 .etiqueta-papel{position:relative;width:150mm;height:100mm;background:#fff;color:#000;margin:0;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:none;border-radius:0}
-.etiqueta-logo{position:absolute;left:42mm;top:6mm;width:55mm;height:25mm;object-fit:contain}
-.etiqueta-qr{position:absolute;right:18mm;top:5mm;width:29mm;height:29mm}
-.etiqueta-qr canvas,.etiqueta-qr img{width:29mm!important;height:29mm!important}
-.etiqueta-qr-texto{position:absolute;right:48mm;top:7mm;font-size:5.3mm;font-weight:900;line-height:1.03;text-align:center}
+.etiqueta-logo{position:absolute;left:37mm;top:4mm;width:64mm;height:29mm;object-fit:contain}
+.etiqueta-qr{position:absolute;right:14mm;top:7mm;width:24mm;height:24mm}
+.etiqueta-qr canvas,.etiqueta-qr img{width:24mm!important;height:24mm!important}
+.etiqueta-qr-texto{position:absolute;right:41mm;top:6mm;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;color:#000;line-height:1}
+.insta-vertical{font-size:4.8mm;line-height:.9;text-align:center}
+.gram-horizontal{margin-top:1.2mm;font-size:4.5mm;letter-spacing:.8mm;text-align:center;white-space:nowrap}
 .etiqueta-destino{position:absolute;left:7mm;top:39mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
 .etiqueta-destino b,.etiqueta-cidade b{font-weight:900}
 .etiqueta-cidade{position:absolute;left:7mm;top:51mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
