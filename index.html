@@ -116,13 +116,16 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .gram-horizontal{position:absolute;left:0;bottom:0;width:31mm;font-size:4mm;letter-spacing:1.05mm;text-align:left;white-space:nowrap}
 .etiqueta-transportadora{position:absolute;right:2mm;bottom:3mm;height:53mm;width:18mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
 .etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;line-height:1.05;white-space:normal;word-break:break-word}
-.etiqueta-destino{position:absolute;left:7mm;top:39mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip}
-.etiqueta-destino b,.etiqueta-cidade b{font-weight:900}
-.etiqueta-cidade{position:absolute;left:7mm;top:51mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip}
-.etiqueta-nf{position:absolute;left:7mm;top:63mm;font-size:7mm;line-height:1}
-.etiqueta-volume{position:absolute;left:80mm;top:63mm;font-size:7mm;line-height:1}
-.etiqueta-barcode{position:absolute;left:7mm;bottom:13mm;width:108mm;height:17mm}
-.etiqueta-chave{position:absolute;left:7mm;bottom:5.5mm;width:108mm;text-align:center;font-size:3.8mm;letter-spacing:.1mm;white-space:nowrap}
+.etiqueta-destino{position:absolute;left:7mm;top:36mm;width:118mm;font-size:6.2mm;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip}
+.etiqueta-destino b,.etiqueta-endereco b,.etiqueta-bairro b,.etiqueta-cep b,.etiqueta-cidade b{font-weight:900}
+.etiqueta-endereco{position:absolute;left:7mm;top:44mm;width:118mm;font-size:4.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
+.etiqueta-bairro{position:absolute;left:7mm;top:51mm;width:75mm;font-size:4.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
+.etiqueta-cep{position:absolute;left:82mm;top:51mm;width:43mm;font-size:4.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
+.etiqueta-cidade{position:absolute;left:7mm;top:58mm;width:118mm;font-size:5.4mm;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip}
+.etiqueta-nf{position:absolute;left:7mm;top:67mm;font-size:6.2mm;line-height:1}
+.etiqueta-volume{position:absolute;left:79mm;top:67mm;font-size:6.2mm;line-height:1}
+.etiqueta-barcode{position:absolute;left:7mm;bottom:11mm;width:108mm;height:14mm}
+.etiqueta-chave{position:absolute;left:7mm;bottom:4mm;width:108mm;text-align:center;font-size:3.5mm;letter-spacing:.05mm;white-space:nowrap}
 .etiqueta-transportadora.vazia{display:none}
 .etiqueta-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .etiqueta-sugestoes{position:relative}
@@ -555,6 +558,21 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <div id="etqSugestoesClientes" class="etiqueta-sugestoes-lista"></div>
               </div>
 
+              <div class="campo-largo">
+                <label class="relatorio-label">Endereço</label>
+                <input id="etqEndereco" placeholder="Ex.: RUA FALCHI GIANNINI, 955" oninput="atualizarPreviewEtiqueta()">
+              </div>
+
+              <div>
+                <label class="relatorio-label">Bairro</label>
+                <input id="etqBairro" placeholder="Ex.: VILA PRUDENTE" oninput="atualizarPreviewEtiqueta()">
+              </div>
+              <div>
+                <label class="relatorio-label">CEP</label>
+                <input id="etqCep" maxlength="9" inputmode="numeric" placeholder="00000-000"
+                  oninput="formatarCepEtiquetaCampo(this);atualizarPreviewEtiqueta()">
+              </div>
+
               <div>
                 <label class="relatorio-label">Cidade</label>
                 <input id="etqCidade" placeholder="Ex.: GUANAMBI" oninput="atualizarPreviewEtiqueta()">
@@ -619,7 +637,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <div class="campo-largo">
                 <label class="relatorio-label">Importar XML da NF-e (opcional)</label>
                 <input id="etqXml" type="file" accept=".xml,text/xml,application/xml" onchange="lerXmlEtiqueta(event)">
-                <small style="color:#7d73bd;">Preenche automaticamente cliente, cidade/UF, número da NF e chave de acesso.</small>
+                <small style="color:#7d73bd;">Preenche automaticamente cliente, endereço, bairro, CEP, cidade/UF, NF, volumes, transportadora e chave de acesso.</small>
               </div>
             </div>
 
@@ -661,6 +679,9 @@ SOFISTICATTO COSMÉTICOS</textarea>
               </div>
               <div id="etqQr" class="etiqueta-qr"></div>
               <div class="etiqueta-destino">DESTINO: <b id="etqPrevCliente">CLIENTE</b></div>
+              <div class="etiqueta-endereco">ENDEREÇO: <b id="etqPrevEndereco">ENDEREÇO</b></div>
+              <div class="etiqueta-bairro">BAIRRO: <b id="etqPrevBairro">BAIRRO</b></div>
+              <div class="etiqueta-cep">CEP: <b id="etqPrevCep">CEP</b></div>
               <div class="etiqueta-cidade">CIDADE: <b id="etqPrevCidade">CIDADE/UF</b></div>
               <div class="etiqueta-nf">NF: <span id="etqPrevNf">—</span></div>
               <div class="etiqueta-volume">VOL: <span id="etqPrevVolume">01 / 01</span></div>
@@ -3299,6 +3320,9 @@ async function inicializarModuloEtiquetas(){
 function dadosEtiquetaFormulario(){
   return {
     cliente:document.getElementById("etqCliente")?.value.trim() || "",
+    endereco:document.getElementById("etqEndereco")?.value.trim().toUpperCase() || "",
+    bairro:document.getElementById("etqBairro")?.value.trim().toUpperCase() || "",
+    cep:document.getElementById("etqCep")?.value.trim() || "",
     cidade:document.getElementById("etqCidade")?.value.trim().toUpperCase() || "",
     uf:document.getElementById("etqUf")?.value.trim().toUpperCase() || "",
     numero_nf:document.getElementById("etqNf")?.value.trim() || "",
@@ -3308,6 +3332,16 @@ function dadosEtiquetaFormulario(){
     transportadora_fonte:document.getElementById("etqTransportadoraFonte")?.value || "auto",
     chave_nfe:(document.getElementById("etqChave")?.value || "").replace(/\D/g,"").slice(0,44)
   };
+}
+
+function formatarCepEtiquetaCampo(campo){
+  const numeros=String(campo.value || "").replace(/\D/g,"").slice(0,8);
+  campo.value=numeros.length>5 ? `${numeros.slice(0,5)}-${numeros.slice(5)}` : numeros;
+}
+
+function formatarCepEtiqueta(valor){
+  const numeros=String(valor || "").replace(/\D/g,"").slice(0,8);
+  return numeros.length===8 ? `${numeros.slice(0,5)}-${numeros.slice(5)}` : (valor || "");
 }
 
 function formatarNfEtiqueta(valor){
@@ -3456,14 +3490,21 @@ function atualizarPreviewEtiqueta(){
   }
 
   document.getElementById("etqPrevCliente").textContent=(d.cliente || "CLIENTE").toUpperCase();
+  document.getElementById("etqPrevEndereco").textContent=d.endereco || "ENDEREÇO";
+  document.getElementById("etqPrevBairro").textContent=d.bairro || "BAIRRO";
+  document.getElementById("etqPrevCep").textContent=formatarCepEtiqueta(d.cep) || "CEP";
   document.getElementById("etqPrevCidade").textContent=[d.cidade,d.uf].filter(Boolean).join("/") || "CIDADE/UF";
   document.getElementById("etqPrevNf").textContent=formatarNfEtiqueta(d.numero_nf);
   document.getElementById("etqPrevVolume").textContent=formatarVolumeEtiqueta(1,d.quantidade_volumes);
   document.getElementById("etqPrevChave").textContent=d.chave_nfe;
 
   const destino=document.querySelector("#etqPreview .etiqueta-destino");
+  const endereco=document.querySelector("#etqPreview .etiqueta-endereco");
+  const bairro=document.querySelector("#etqPreview .etiqueta-bairro");
   const cidade=document.querySelector("#etqPreview .etiqueta-cidade");
-  if(destino) destino.style.fontSize=(d.cliente.length>28 ? "5.8mm" : d.cliente.length>22 ? "6.2mm" : "6.8mm");
+  if(destino) destino.style.fontSize=(d.cliente.length>30 ? "5mm" : d.cliente.length>24 ? "5.6mm" : "6.2mm");
+  if(endereco) endereco.style.fontSize=(d.endereco.length>38 ? "3.8mm" : d.endereco.length>30 ? "4.2mm" : "4.8mm");
+  if(bairro) bairro.style.fontSize=(d.bairro.length>22 ? "4mm" : "4.8mm");
   const cidadeUf=[d.cidade,d.uf].filter(Boolean).join("/");
   if(cidade) cidade.style.fontSize=(cidadeUf.length>24 ? "5.8mm" : cidadeUf.length>18 ? "6.2mm" : "6.8mm");
 
@@ -3518,6 +3559,9 @@ function selecionarClienteEtiqueta(id){
   const item=emailClientes.find(x=>x.id===id);
   if(!item) return;
   document.getElementById("etqCliente").value=item.nome || "";
+  document.getElementById("etqEndereco").value=item.endereco || "";
+  document.getElementById("etqBairro").value=item.bairro || "";
+  document.getElementById("etqCep").value=formatarCepEtiqueta(item.cep || "");
   document.getElementById("etqCidade").value=item.cidade || "";
   document.getElementById("etqUf").value=item.uf || "";
   document.getElementById("etqSugestoesClientes").classList.remove("ativa");
@@ -3551,8 +3595,16 @@ async function lerXmlEtiqueta(evento){
     const chave=textoNo(["protNFe infProt chNFe","infNFe"]).replace(/^NFe/,"");
     const numeroNf=textoNo(["ide nNF"]);
     const cliente=textoNo(["dest xNome"]);
+    const logradouro=textoNo(["dest enderDest xLgr"]);
+    const numeroEndereco=textoNo(["dest enderDest nro"]);
+    const complemento=textoNo(["dest enderDest xCpl"]);
+    const bairro=textoNo(["dest enderDest xBairro"]);
+    const cep=textoNo(["dest enderDest CEP"]);
     const cidade=textoNo(["dest enderDest xMun"]);
     const uf=textoNo(["dest enderDest UF"]);
+    const transportadoraCompleta=textoNo(["transp transporta xNome","transporta xNome"]);
+    const transportadoraPrimeiroNome=transportadoraCompleta.trim().split(/\s+/)[0] || "";
+    const endereco=[logradouro,numeroEndereco].filter(Boolean).join(", ") + (complemento ? ` - ${complemento}` : "");
 
     // Quantidade de volumes: primeiro tenta qVol; se não existir,
     // conta os blocos <vol>; por último tenta nVol quando vier numérico.
@@ -3574,8 +3626,12 @@ async function lerXmlEtiqueta(evento){
     }
 
     if(cliente) document.getElementById("etqCliente").value=cliente;
+    if(endereco) document.getElementById("etqEndereco").value=endereco;
+    if(bairro) document.getElementById("etqBairro").value=bairro;
+    if(cep) document.getElementById("etqCep").value=formatarCepEtiqueta(cep);
     if(cidade) document.getElementById("etqCidade").value=cidade;
     if(uf) document.getElementById("etqUf").value=uf;
+    if(transportadoraPrimeiroNome) document.getElementById("etqTransportadora").value=transportadoraPrimeiroNome.toUpperCase();
     if(numeroNf) document.getElementById("etqNf").value=numeroNf;
     if(quantidadeVolumes>0) document.getElementById("etqVolumes").value=quantidadeVolumes;
     if(chave) document.getElementById("etqChave").value=chave.replace(/\D/g,"").slice(0,44);
@@ -3598,6 +3654,9 @@ function criarElementoEtiqueta(d,volumeAtual){
               </div>
     <div class="etiqueta-qr"></div>
     <div class="etiqueta-destino">DESTINO: <b>${escaparHtmlEmail((d.cliente || "CLIENTE").toUpperCase())}</b></div>
+    <div class="etiqueta-endereco">ENDEREÇO: <b>${escaparHtmlEmail(d.endereco || "ENDEREÇO")}</b></div>
+    <div class="etiqueta-bairro">BAIRRO: <b>${escaparHtmlEmail(d.bairro || "BAIRRO")}</b></div>
+    <div class="etiqueta-cep">CEP: <b>${escaparHtmlEmail(formatarCepEtiqueta(d.cep) || "CEP")}</b></div>
     <div class="etiqueta-cidade">CIDADE: <b>${escaparHtmlEmail([d.cidade,d.uf].filter(Boolean).join("/") || "CIDADE/UF")}</b></div>
     <div class="etiqueta-nf">NF: ${escaparHtmlEmail(formatarNfEtiqueta(d.numero_nf))}</div>
     <div class="etiqueta-volume">VOL: ${escaparHtmlEmail(formatarVolumeEtiqueta(volumeAtual,d.quantidade_volumes))}</div>
@@ -3606,8 +3665,12 @@ function criarElementoEtiqueta(d,volumeAtual){
     <div class="etiqueta-transportadora ${d.transportadora ? "" : "vazia"} ${d.transportadora_duas_linhas ? "duas-linhas" : ""}"></div>`;
 
   const destino=etiqueta.querySelector(".etiqueta-destino");
+  const endereco=etiqueta.querySelector(".etiqueta-endereco");
+  const bairro=etiqueta.querySelector(".etiqueta-bairro");
   const cidade=etiqueta.querySelector(".etiqueta-cidade");
-  destino.style.fontSize=(d.cliente.length>28 ? "5.8mm" : d.cliente.length>22 ? "6.2mm" : "6.8mm");
+  destino.style.fontSize=(d.cliente.length>30 ? "5mm" : d.cliente.length>24 ? "5.6mm" : "6.2mm");
+  endereco.style.fontSize=(d.endereco.length>38 ? "3.8mm" : d.endereco.length>30 ? "4.2mm" : "4.8mm");
+  bairro.style.fontSize=(d.bairro.length>22 ? "4mm" : "4.8mm");
   const cidadeUf=[d.cidade,d.uf].filter(Boolean).join("/");
   cidade.style.fontSize=(cidadeUf.length>24 ? "5.8mm" : cidadeUf.length>18 ? "6.2mm" : "6.8mm");
 
@@ -3698,12 +3761,12 @@ html,body{margin:0!important;padding:0!important;background:#fff!important;width
 .etiqueta-transportadora{position:absolute;right:2mm;bottom:3mm;height:53mm;width:18mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
 .etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;line-height:1.05;white-space:normal;word-break:break-word}
 .etiqueta-destino{position:absolute;left:7mm;top:39mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
-.etiqueta-destino b,.etiqueta-cidade b{font-weight:900}
+.etiqueta-destino b,.etiqueta-endereco b,.etiqueta-bairro b,.etiqueta-cep b,.etiqueta-cidade b{font-weight:900}
 .etiqueta-cidade{position:absolute;left:7mm;top:51mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
-.etiqueta-nf{position:absolute;left:7mm;top:63mm;font-size:7mm;line-height:1}
-.etiqueta-volume{position:absolute;left:80mm;top:63mm;font-size:7mm;line-height:1}
-.etiqueta-barcode{position:absolute;left:7mm;bottom:13mm;width:108mm;height:17mm}
-.etiqueta-chave{position:absolute;left:7mm;bottom:5.5mm;width:108mm;text-align:center;font-size:3.8mm;letter-spacing:.1mm;white-space:nowrap}
+.etiqueta-nf{position:absolute;left:7mm;top:67mm;font-size:6.2mm;line-height:1}
+.etiqueta-volume{position:absolute;left:79mm;top:67mm;font-size:6.2mm;line-height:1}
+.etiqueta-barcode{position:absolute;left:7mm;bottom:11mm;width:108mm;height:14mm}
+.etiqueta-chave{position:absolute;left:7mm;bottom:4mm;width:108mm;text-align:center;font-size:3.5mm;letter-spacing:.05mm;white-space:nowrap}
 .etiqueta-transportadora{position:absolute;right:2mm;bottom:3mm;height:53mm;width:18mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
 .etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;line-height:1.05;white-space:normal;word-break:break-word}
 .etiqueta-transportadora.vazia{display:none}
@@ -3826,7 +3889,7 @@ function filtrarHistoricoEtiquetas(){
   const termo=normalizarNomeEmail(document.getElementById("etqBuscaHistorico")?.value || "");
   if(!termo){montarHistoricoEtiquetas(etiquetasHistorico);return}
   montarHistoricoEtiquetas(etiquetasHistorico.filter(item=>
-    normalizarNomeEmail([item.cliente,item.numero_nf,item.transportadora,item.cidade,item.uf].join(" ")).includes(termo)
+    normalizarNomeEmail([item.cliente,item.endereco,item.bairro,item.cep,item.numero_nf,item.transportadora,item.cidade,item.uf].join(" ")).includes(termo)
   ));
 }
 
@@ -3834,6 +3897,9 @@ function reutilizarEtiqueta(id){
   const item=etiquetasHistorico.find(x=>x.id===id);
   if(!item) return;
   document.getElementById("etqCliente").value=item.cliente || "";
+  document.getElementById("etqEndereco").value=item.endereco || "";
+  document.getElementById("etqBairro").value=item.bairro || "";
+  document.getElementById("etqCep").value=formatarCepEtiqueta(item.cep || "");
   document.getElementById("etqCidade").value=item.cidade || "";
   document.getElementById("etqUf").value=item.uf || "";
   document.getElementById("etqNf").value=item.numero_nf || "";
@@ -3854,7 +3920,7 @@ async function excluirEtiqueta(id){
 }
 
 function limparFormularioEtiqueta(){
-  ["etqCliente","etqCidade","etqUf","etqNf","etqTransportadora","etqChave"].forEach(id=>{
+  ["etqCliente","etqEndereco","etqBairro","etqCep","etqCidade","etqUf","etqNf","etqTransportadora","etqChave"].forEach(id=>{
     const campo=document.getElementById(id);
     if(campo) campo.value="";
   });
