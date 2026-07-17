@@ -4033,8 +4033,15 @@ function converterTransportadoraParaCanvas(etiqueta){
   const canvas=document.createElement("canvas");
   canvas.width=Math.max(1,Math.round(rect.width*escala));
   canvas.height=Math.max(1,Math.round(rect.height*escala));
-  canvas.className=elemento.className;
-  canvas.style.cssText=elemento.style.cssText;
+  canvas.className="etiqueta-transportadora-canvas";
+  canvas.style.position="absolute";
+  canvas.style.right=getComputedStyle(elemento).right;
+  canvas.style.bottom=getComputedStyle(elemento).bottom;
+  canvas.style.width=`${rect.width}px`;
+  canvas.style.height=`${rect.height}px`;
+  canvas.style.transform="none";
+  canvas.style.writingMode="horizontal-tb";
+  canvas.style.overflow="visible";
 
   const contexto=canvas.getContext("2d");
   contexto.scale(escala,escala);
@@ -4077,7 +4084,27 @@ async function esperarImagensEtiqueta(etiqueta){
   }));
 }
 
+function normalizarLogoParaCaptura(etiqueta){
+  const logoGerada=etiqueta.querySelector(".etiqueta-logo");
+  const logoPrevia=document.getElementById("etqLogo");
+  if(!logoGerada || !logoPrevia) return;
+
+  const estiloPrevia=getComputedStyle(logoPrevia);
+  const rectPrevia=logoPrevia.getBoundingClientRect();
+
+  logoGerada.style.position="absolute";
+  logoGerada.style.left=estiloPrevia.left;
+  logoGerada.style.top=estiloPrevia.top;
+  logoGerada.style.width=`${rectPrevia.width}px`;
+  logoGerada.style.height=`${rectPrevia.height}px`;
+  logoGerada.style.maxWidth="none";
+  logoGerada.style.maxHeight="none";
+  logoGerada.style.objectFit="contain";
+  logoGerada.style.transform="none";
+}
+
 async function prepararEtiquetaParaCaptura(etiqueta){
+  normalizarLogoParaCaptura(etiqueta);
   await esperarImagensEtiqueta(etiqueta);
   await converterSvgBarcodeParaCanvas(etiqueta);
   converterTransportadoraParaCanvas(etiqueta);
