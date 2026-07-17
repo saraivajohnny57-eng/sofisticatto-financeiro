@@ -580,14 +580,27 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <div class="etiqueta-controle-fonte">
                   <select id="etqTransportadoraFonte" onchange="atualizarPreviewEtiqueta()">
                     <option value="auto">Tamanho automático</option>
-                    <option value="2.5">Muito pequena</option>
-                    <option value="3.2">Pequena</option>
-                    <option value="4.2">Média</option>
-                    <option value="5.2">Grande</option>
-                    <option value="6.2">Muito grande</option>
+                    <option value="18px">18px</option>
+                    <option value="20px">20px</option>
+                    <option value="22px">22px</option>
+                    <option value="24px">24px</option>
+                    <option value="26px">26px</option>
+                    <option value="28px">28px</option>
+                    <option value="30px">30px</option>
+                    <option value="32px">32px</option>
+                    <option value="36px">36px</option>
+                    <option value="40px">40px</option>
+                    <option value="44px">44px</option>
+                    <option value="48px">48px</option>
+                    <option value="52px">52px</option>
+                    <option value="56px">56px</option>
+                    <option value="60px">60px</option>
+                    <option value="64px">64px</option>
+                    <option value="68px">68px</option>
+                    <option value="72px">72px</option>
                   </select>
-                  <button type="button" class="btn azul" onclick="ajustarFonteTransportadora(-0.5)" title="Diminuir letra">A−</button>
-                  <button type="button" class="btn azul" onclick="ajustarFonteTransportadora(0.5)" title="Aumentar letra">A+</button>
+                  <button type="button" class="btn azul" onclick="ajustarFonteTransportadora(-2)" title="Diminuir letra">A−</button>
+                  <button type="button" class="btn azul" onclick="ajustarFonteTransportadora(2)" title="Aumentar letra">A+</button>
                 </div>
 
                 <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:#4d4694;">
@@ -3396,7 +3409,7 @@ function fonteTransportadoraEscolhida(texto,duasLinhas){
   const valor=seletor?.value || "auto";
 
   if(valor!=="auto"){
-    return `${Number(valor)}mm`;
+    return valor.endsWith("px") ? valor : `${valor}px`;
   }
 
   return tamanhoFonteTransportadora(texto,duasLinhas);
@@ -3406,20 +3419,25 @@ function ajustarFonteTransportadora(delta){
   const seletor=document.getElementById("etqTransportadoraFonte");
   if(!seletor) return;
 
-  let atual=seletor.value==="auto"
-    ? parseFloat(tamanhoFonteTransportadora(
-        document.getElementById("etqTransportadora")?.value || "",
-        document.getElementById("etqTransportadoraDuasLinhas")?.checked || false
-      ))
-    : Number(seletor.value);
+  let atual;
+  if(seletor.value==="auto"){
+    const automatico=tamanhoFonteTransportadora(
+      document.getElementById("etqTransportadora")?.value || "",
+      document.getElementById("etqTransportadoraDuasLinhas")?.checked || false
+    );
+    atual=Math.round(parseFloat(automatico) * 3.7795275591);
+  }else{
+    atual=parseFloat(seletor.value);
+  }
 
-  atual=Math.max(2,Math.min(8,atual+delta));
+  atual=Math.max(12,Math.min(72,atual+delta));
+  atual=Math.round(atual);
 
-  let opcao=[...seletor.options].find(item=>item.value!=="auto" && Math.abs(Number(item.value)-atual)<0.26);
+  let opcao=[...seletor.options].find(item=>parseFloat(item.value)===atual);
   if(!opcao){
     opcao=document.createElement("option");
-    opcao.value=atual.toFixed(1);
-    opcao.textContent=`Personalizado: ${atual.toFixed(1)} mm`;
+    opcao.value=`${atual}px`;
+    opcao.textContent=`${atual}px`;
     seletor.appendChild(opcao);
   }
 
