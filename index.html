@@ -189,6 +189,15 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 
 @media(max-width:650px){.etiqueta-pedido-grid{grid-template-columns:1fr 1fr}.etiqueta-pedido-grid .pedido-nome{grid-column:1/-1}.etiqueta-pedido-grid button{grid-column:1/-1}}
 
+
+.etiquetas-faixas-preview{margin-top:18px}
+.etiquetas-faixas-preview h3{margin:0 0 10px;color:#4d4694}
+.etiquetas-faixas-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px}
+.etiqueta-faixa-card{background:#f4f1fb;border-radius:16px;padding:12px;overflow:auto}
+.etiqueta-faixa-card .etiqueta-faixa-titulo{font-weight:700;color:#4d4694;margin-bottom:8px}
+.etiqueta-faixa-card .etiqueta-papel{transform:scale(.48);transform-origin:top left;margin:0;width:150mm;height:100mm}
+.etiqueta-faixa-card .etiqueta-mini-wrap{width:72mm;height:48mm;overflow:hidden;margin:auto}
+
 </style>
 </head>
 <body>
@@ -753,6 +762,11 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <div id="etqPrevChave" class="etiqueta-chave"></div>
               <div id="etqPrevTransportadora" class="etiqueta-transportadora">TRANSPORTADORA</div>
             </div>
+          </div>
+
+          <div id="etqFaixasPreview" class="etiquetas-faixas-preview" style="display:none;">
+            <h3>Prévia das identificações por faixa</h3>
+            <div id="etqFaixasPreviewGrid" class="etiquetas-faixas-grid"></div>
           </div>
         </div>
       </div>
@@ -3670,6 +3684,43 @@ function removerFaixaPedidoEtiqueta(id){
   atualizarPreviewEtiqueta();
 }
 
+
+function atualizarPreviewsFaixasEtiqueta(){
+  const secao=document.getElementById("etqFaixasPreview");
+  const grid=document.getElementById("etqFaixasPreviewGrid");
+  if(!secao || !grid) return;
+
+  const d=dadosEtiquetaFormulario();
+  const faixas=(d.pedidos_faixas || []).slice().sort((a,b)=>Number(a.inicio)-Number(b.inicio));
+
+  if(!faixas.length){
+    secao.style.display="none";
+    grid.innerHTML="";
+    return;
+  }
+
+  secao.style.display="block";
+  grid.innerHTML="";
+
+  faixas.forEach(faixa=>{
+    const volume=Math.max(1,Number(faixa.inicio) || 1);
+    const card=document.createElement("div");
+    card.className="etiqueta-faixa-card";
+
+    const titulo=document.createElement("div");
+    titulo.className="etiqueta-faixa-titulo";
+    titulo.textContent=`${faixa.nome} — volumes ${String(faixa.inicio).padStart(2,"0")} a ${String(faixa.fim).padStart(2,"0")}`;
+
+    const wrap=document.createElement("div");
+    wrap.className="etiqueta-mini-wrap";
+    wrap.appendChild(criarElementoEtiqueta(d,volume));
+
+    card.appendChild(titulo);
+    card.appendChild(wrap);
+    grid.appendChild(card);
+  });
+}
+
 function atualizarPreviewEtiqueta(){
   const d=dadosEtiquetaFormulario();
 
@@ -3721,6 +3772,8 @@ function atualizarPreviewEtiqueta(){
 
   if(window.QRCode) montarQrEtiqueta(document.getElementById("etqQr"));
   if(window.JsBarcode) montarBarcodeEtiqueta(document.getElementById("etqBarcode"),d.chave_nfe);
+
+  atualizarPreviewsFaixasEtiqueta();
 
   const resumo=document.getElementById("etqResumoVolumes");
   if(resumo){
@@ -3928,19 +3981,10 @@ async function imprimirEtiquetas(){
   try{
     await carregarBibliotecasEtiqueta();
 
-    const janela=window.open("","_blank","width=900,height=700");
+    const janela=window.open("","_blank","width=980,height=760");
     if(!janela){
       alert("O navegador bloqueou a janela de impressão. Permita pop-ups para este site.");
       return;
-    }
-
-    const etiquetas=[];
-    for(let i=1;i<=d.quantidade_volumes;i++){
-      const elemento=criarElementoEtiqueta(d,i);
-      elemento.style.boxShadow="none";
-      elemento.style.borderRadius="0";
-      elemento.style.margin="0";
-      etiquetas.push(elemento);
     }
 
     janela.document.open();
@@ -3950,57 +3994,65 @@ async function imprimirEtiquetas(){
 <meta charset="UTF-8">
 <title>Etiquetas ${escaparHtmlEmail(d.cliente)}</title>
 <style>
-html,body{margin:0!important;padding:0!important;background:#fff!important;width:100%;height:100%;overflow:visible}
-*{box-sizing:border-box}
-.pagina-etiqueta{position:relative;width:150mm;height:100mm;margin:0;padding:0;page-break-after:always;break-after:page;overflow:hidden;background:#fff}
-.pagina-etiqueta:last-child{page-break-after:auto;break-after:auto}
-.rotacionada{position:absolute;left:0;top:0;width:150mm;height:100mm;transform:none}
-.etiqueta-papel{position:relative;width:150mm;height:100mm;background:#fff;color:#000;margin:0;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:none;border-radius:0}
-.etiqueta-pedido-tag{position:absolute;left:8mm;top:7mm;min-width:25mm;max-width:31mm;height:12mm;padding:1.5mm 3mm;border:.55mm solid #111;background:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-size:5.5mm;font-weight:900;line-height:1;white-space:nowrap;overflow:hidden;z-index:5}
-.etiqueta-pedido-tag.vazia{display:none}
-.etiqueta-logo{position:absolute;left:34mm;top:3mm;width:70mm;height:31mm;object-fit:contain}
-.etiqueta-qr{position:absolute;right:16mm;top:8mm;width:22mm;height:22mm}
-.etiqueta-qr canvas,.etiqueta-qr img{width:22mm!important;height:22mm!important}
-.etiqueta-qr-texto{position:absolute;right:14mm;top:7mm;width:31mm;height:27mm;font-weight:900;color:#000;line-height:1;pointer-events:none}
-.insta-vertical{position:absolute;left:0;top:0;width:6mm;font-size:4mm;line-height:1.08;text-align:center}
-.gram-horizontal{position:absolute;left:0;bottom:0;width:31mm;font-size:4mm;letter-spacing:1.05mm;text-align:left;white-space:nowrap}
-.etiqueta-transportadora{position:absolute;right:2mm;bottom:3mm;height:53mm;width:18mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
-.etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;line-height:1.05;white-space:normal;word-break:break-word}
-.etiqueta-destino{position:absolute;left:7mm;top:39mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
-.etiqueta-destino b,.etiqueta-endereco b,.etiqueta-bairro b,.etiqueta-cep b,.etiqueta-cidade b{font-weight:900}
-.etiqueta-cidade{position:absolute;left:7mm;top:51mm;width:118mm;font-size:6.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}
-.etiqueta-nf{position:absolute;left:7mm;top:73mm;font-size:5.8mm;line-height:1}
-.etiqueta-volume{position:absolute;left:79mm;top:73mm;font-size:5.8mm;line-height:1}
-.etiqueta-barcode{position:absolute;left:5mm;bottom:9.2mm;width:120mm;height:9mm}
-.etiqueta-chave{position:absolute;left:5mm;bottom:3.5mm;width:120mm;text-align:center;font-size:2.75mm;letter-spacing:0;white-space:nowrap;overflow:hidden}
-.etiqueta-transportadora{position:absolute;right:2mm;bottom:3mm;height:53mm;width:18mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
-.etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;line-height:1.05;white-space:normal;word-break:break-word}
-.etiqueta-transportadora.vazia{display:none}
 @page{size:150mm 100mm;margin:0}
+html,body{margin:0!important;padding:0!important;background:#fff!important}
+.pagina{width:150mm;height:100mm;margin:0;padding:0;overflow:hidden;page-break-after:always;break-after:page}
+.pagina:last-child{page-break-after:auto;break-after:auto}
+.pagina img{display:block;width:150mm;height:100mm;margin:0;padding:0;object-fit:fill}
 @media print{
-  html,body{width:150mm;height:auto;margin:0!important;padding:0!important}
-  .pagina-etiqueta{width:150mm;height:100mm;margin:0!important;padding:0!important}
+  html,body{width:150mm;margin:0!important;padding:0!important}
+  .pagina{width:150mm;height:100mm;margin:0!important;padding:0!important}
 }
 </style>
 </head>
-<body style="margin:0;padding:0;"></body>
+<body><div id="paginas"></div></body>
 </html>`);
     janela.document.close();
 
-    await new Promise(resolve=>setTimeout(resolve,150));
+    const temporario=document.createElement("div");
+    temporario.style.position="fixed";
+    temporario.style.left="-10000px";
+    temporario.style.top="0";
+    temporario.style.background="#fff";
+    temporario.style.zIndex="-1";
+    document.body.appendChild(temporario);
 
-    etiquetas.forEach(etiqueta=>{
+    const paginas=janela.document.getElementById("paginas");
+
+    for(let volume=1;volume<=d.quantidade_volumes;volume++){
+      const etiqueta=criarElementoEtiqueta(d,volume);
+      etiqueta.style.margin="0";
+      etiqueta.style.boxShadow="none";
+      etiqueta.style.borderRadius="0";
+      etiqueta.style.transform="none";
+      temporario.appendChild(etiqueta);
+
+      await new Promise(resolve=>setTimeout(resolve,180));
+
+      const canvas=await html2canvas(etiqueta,{
+        scale:3,
+        useCORS:true,
+        allowTaint:true,
+        backgroundColor:"#ffffff",
+        width:etiqueta.scrollWidth,
+        height:etiqueta.scrollHeight,
+        windowWidth:etiqueta.scrollWidth,
+        windowHeight:etiqueta.scrollHeight
+      });
+
       const pagina=janela.document.createElement("div");
-      pagina.className="pagina-etiqueta";
-      const rotacionada=janela.document.createElement("div");
-      rotacionada.className="rotacionada";
-      rotacionada.appendChild(janela.document.importNode(etiqueta,true));
-      pagina.appendChild(rotacionada);
-      janela.document.body.appendChild(pagina);
-    });
+      pagina.className="pagina";
+      const imagem=janela.document.createElement("img");
+      imagem.src=canvas.toDataURL("image/png");
+      pagina.appendChild(imagem);
+      paginas.appendChild(pagina);
 
-    // Esperar imagens e códigos renderizarem antes de abrir a impressão.
-    await new Promise(resolve=>setTimeout(resolve,650));
+      etiqueta.remove();
+    }
+
+    temporario.remove();
+
+    await new Promise(resolve=>setTimeout(resolve,700));
     janela.focus();
     janela.print();
   }catch(erro){
@@ -4008,7 +4060,6 @@ html,body{margin:0!important;padding:0!important;background:#fff!important;width
     alert("Não foi possível preparar a impressão: "+erro.message);
   }
 }
-
 async function baixarEtiquetasPDF(){
   try{
     const resultado=await montarEtiquetasParaSaida();
