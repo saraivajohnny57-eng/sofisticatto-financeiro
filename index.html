@@ -3974,6 +3974,116 @@ async function montarEtiquetasParaSaida(){
   return {d,container};
 }
 
+
+async function converterSvgBarcodeParaCanvas(etiqueta){
+  const svg=etiqueta.querySelector(".etiqueta-barcode");
+  if(!svg) return;
+
+  const rect=svg.getBoundingClientRect();
+  if(!rect.width || !rect.height) return;
+
+  const clone=svg.cloneNode(true);
+  clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
+  clone.setAttribute("width",String(Math.max(1,Math.round(rect.width))));
+  clone.setAttribute("height",String(Math.max(1,Math.round(rect.height))));
+
+  const textoSvg=new XMLSerializer().serializeToString(clone);
+  const blob=new Blob([textoSvg],{type:"image/svg+xml;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+
+  try{
+    const imagem=new Image();
+    await new Promise((resolve,reject)=>{
+      imagem.onload=resolve;
+      imagem.onerror=reject;
+      imagem.src=url;
+    });
+
+    const escala=4;
+    const canvas=document.createElement("canvas");
+    canvas.width=Math.max(1,Math.round(rect.width*escala));
+    canvas.height=Math.max(1,Math.round(rect.height*escala));
+    canvas.className=svg.className.baseVal || "etiqueta-barcode";
+    canvas.style.cssText=svg.style.cssText;
+
+    const contexto=canvas.getContext("2d");
+    contexto.scale(escala,escala);
+    contexto.fillStyle="#fff";
+    contexto.fillRect(0,0,rect.width,rect.height);
+    contexto.drawImage(imagem,0,0,rect.width,rect.height);
+
+    svg.replaceWith(canvas);
+  }finally{
+    URL.revokeObjectURL(url);
+  }
+}
+
+function converterTransportadoraParaCanvas(etiqueta){
+  const elemento=etiqueta.querySelector(".etiqueta-transportadora");
+  if(!elemento || elemento.classList.contains("vazia")) return;
+
+  const texto=(elemento.textContent || "").trim();
+  if(!texto) return;
+
+  const rect=elemento.getBoundingClientRect();
+  if(!rect.width || !rect.height) return;
+
+  const estilo=getComputedStyle(elemento);
+  const escala=4;
+  const canvas=document.createElement("canvas");
+  canvas.width=Math.max(1,Math.round(rect.width*escala));
+  canvas.height=Math.max(1,Math.round(rect.height*escala));
+  canvas.className=elemento.className;
+  canvas.style.cssText=elemento.style.cssText;
+
+  const contexto=canvas.getContext("2d");
+  contexto.scale(escala,escala);
+  contexto.clearRect(0,0,rect.width,rect.height);
+  contexto.fillStyle=estilo.color || "#000";
+  contexto.font=`${estilo.fontWeight || "900"} ${estilo.fontSize || "32px"} Arial`;
+  contexto.textAlign="center";
+  contexto.textBaseline="middle";
+
+  const duasLinhas=elemento.classList.contains("duas-linhas");
+  if(duasLinhas){
+    const linhas=[...elemento.querySelectorAll("span")]
+      .map(item=>item.textContent.trim())
+      .filter(Boolean);
+
+    const alturaLinha=parseFloat(estilo.fontSize || "24")*1.05;
+    const inicioY=rect.height/2-((linhas.length-1)*alturaLinha)/2;
+    linhas.forEach((linha,indice)=>{
+      contexto.fillText(linha,rect.width/2,inicioY+(indice*alturaLinha),rect.width-2);
+    });
+  }else{
+    contexto.save();
+    contexto.translate(rect.width/2,rect.height/2);
+    contexto.rotate(-Math.PI/2);
+    contexto.fillText(texto,0,0,rect.height-4);
+    contexto.restore();
+  }
+
+  elemento.replaceWith(canvas);
+}
+
+async function esperarImagensEtiqueta(etiqueta){
+  const imagens=[...etiqueta.querySelectorAll("img")];
+  await Promise.all(imagens.map(imagem=>{
+    if(imagem.complete) return Promise.resolve();
+    return new Promise(resolve=>{
+      imagem.addEventListener("load",resolve,{once:true});
+      imagem.addEventListener("error",resolve,{once:true});
+    });
+  }));
+}
+
+async function prepararEtiquetaParaCaptura(etiqueta){
+  await esperarImagensEtiqueta(etiqueta);
+  await converterSvgBarcodeParaCanvas(etiqueta);
+  converterTransportadoraParaCanvas(etiqueta);
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+}
+
 async function imprimirEtiquetas(){
   const d=validarEtiqueta();
   if(!d) return;
@@ -3987,11 +4097,6 @@ async function imprimirEtiquetas(){
       return;
     }
 
-    // Copia os estilos reais da página para que a impressão fique igual à prévia.
-    const estilos=[...document.querySelectorAll("style")]
-      .map(item=>item.textContent || "")
-      .join("\n");
-
     janela.document.open();
     janela.document.write(`<!DOCTYPE html>
 <html>
@@ -3999,99 +4104,30 @@ async function imprimirEtiquetas(){
 <meta charset="UTF-8">
 <title>Etiquetas ${escaparHtmlEmail(d.cliente)}</title>
 <style>
-${estilos}
-
-html,body{
-  margin:0!important;
-  padding:0!important;
-  background:#fff!important;
-  width:150mm!important;
-  min-width:150mm!important;
-  max-width:150mm!important;
-  overflow:visible!important;
-}
-
-#paginasImpressao{
-  margin:0!important;
-  padding:0!important;
-  width:150mm!important;
-}
-
-.pagina-impressao-etiqueta{
-  position:relative!important;
-  display:block!important;
-  width:150mm!important;
-  height:100mm!important;
-  min-width:150mm!important;
-  min-height:100mm!important;
-  max-width:150mm!important;
-  max-height:100mm!important;
-  margin:0!important;
-  padding:0!important;
-  overflow:hidden!important;
-  background:#fff!important;
-  page-break-after:always!important;
-  break-after:page!important;
-}
-
-.pagina-impressao-etiqueta:last-child{
-  page-break-after:auto!important;
-  break-after:auto!important;
-}
-
-.pagina-impressao-etiqueta .etiqueta-papel{
-  position:relative!important;
-  display:block!important;
-  width:150mm!important;
-  height:100mm!important;
-  min-width:150mm!important;
-  min-height:100mm!important;
-  max-width:150mm!important;
-  max-height:100mm!important;
-  margin:0!important;
-  padding:0!important;
-  border-radius:0!important;
-  box-shadow:none!important;
-  transform:none!important;
-  overflow:hidden!important;
-}
-
-@page{
-  size:150mm 100mm;
-  margin:0;
-}
-
+@page{size:150mm 100mm;margin:0}
+html,body{margin:0!important;padding:0!important;background:#fff!important}
+.pagina{width:150mm;height:100mm;margin:0;padding:0;overflow:hidden;page-break-after:always;break-after:page}
+.pagina:last-child{page-break-after:auto;break-after:auto}
+.pagina img{display:block;width:150mm;height:100mm;margin:0;padding:0;object-fit:fill}
 @media print{
-  html,body,#paginasImpressao{
-    width:150mm!important;
-    margin:0!important;
-    padding:0!important;
-  }
-
-  .pagina-impressao-etiqueta{
-    width:150mm!important;
-    height:100mm!important;
-    margin:0!important;
-    padding:0!important;
-  }
+  html,body{width:150mm;margin:0!important;padding:0!important}
+  .pagina{width:150mm;height:100mm;margin:0!important;padding:0!important}
 }
 </style>
 </head>
-<body>
-  <div id="paginasImpressao"></div>
-</body>
+<body><div id="paginas"></div></body>
 </html>`);
     janela.document.close();
 
-    const paginas=janela.document.getElementById("paginasImpressao");
     const temporario=document.createElement("div");
     temporario.style.position="fixed";
     temporario.style.left="-10000px";
     temporario.style.top="0";
-    temporario.style.width="150mm";
-    temporario.style.height="100mm";
     temporario.style.background="#fff";
+    temporario.style.zIndex="-1";
     document.body.appendChild(temporario);
+
+    const paginas=janela.document.getElementById("paginas");
 
     for(let volume=1;volume<=d.quantidade_volumes;volume++){
       const etiqueta=criarElementoEtiqueta(d,volume);
@@ -4101,34 +4137,29 @@ html,body{
       etiqueta.style.transform="none";
       temporario.appendChild(etiqueta);
 
-      // Aguarda QR Code, código de barras e logo terminarem de renderizar.
-      await new Promise(resolve=>setTimeout(resolve,320));
+      await prepararEtiquetaParaCaptura(etiqueta);
+      await new Promise(resolve=>setTimeout(resolve,120));
 
-      // Converte o canvas do QR Code em imagem para preservar na impressão.
-      const qrCanvas=etiqueta.querySelector(".etiqueta-qr canvas");
-      if(qrCanvas){
-        const qrImg=document.createElement("img");
-        qrImg.src=qrCanvas.toDataURL("image/png");
-        qrImg.style.width="22mm";
-        qrImg.style.height="22mm";
-        qrImg.style.display="block";
-        qrCanvas.replaceWith(qrImg);
-      }
-
-      // Garante dimensões e viewBox do SVG do código de barras.
-      const barcode=etiqueta.querySelector(".etiqueta-barcode");
-      if(barcode){
-        const largura=barcode.getAttribute("width") || barcode.viewBox?.baseVal?.width || 600;
-        const altura=barcode.getAttribute("height") || barcode.viewBox?.baseVal?.height || 60;
-        if(!barcode.getAttribute("viewBox")){
-          barcode.setAttribute("viewBox",`0 0 ${largura} ${altura}`);
-        }
-        barcode.setAttribute("preserveAspectRatio","none");
-      }
+      const rectEtiqueta=etiqueta.getBoundingClientRect();
+      const canvas=await html2canvas(etiqueta,{
+        scale:4,
+        useCORS:true,
+        allowTaint:true,
+        backgroundColor:"#ffffff",
+        width:Math.round(rectEtiqueta.width),
+        height:Math.round(rectEtiqueta.height),
+        windowWidth:Math.round(rectEtiqueta.width),
+        windowHeight:Math.round(rectEtiqueta.height),
+        scrollX:0,
+        scrollY:0,
+        logging:false
+      });
 
       const pagina=janela.document.createElement("div");
-      pagina.className="pagina-impressao-etiqueta";
-      pagina.appendChild(janela.document.importNode(etiqueta,true));
+      pagina.className="pagina";
+      const imagem=janela.document.createElement("img");
+      imagem.src=canvas.toDataURL("image/png");
+      pagina.appendChild(imagem);
       paginas.appendChild(pagina);
 
       etiqueta.remove();
@@ -4136,17 +4167,7 @@ html,body{
 
     temporario.remove();
 
-    // Espera as imagens da janela de impressão carregarem.
-    const imagens=[...janela.document.images];
-    await Promise.all(imagens.map(img=>{
-      if(img.complete) return Promise.resolve();
-      return new Promise(resolve=>{
-        img.onload=resolve;
-        img.onerror=resolve;
-      });
-    }));
-
-    await new Promise(resolve=>setTimeout(resolve,500));
+    await new Promise(resolve=>setTimeout(resolve,700));
     janela.focus();
     janela.print();
   }catch(erro){
