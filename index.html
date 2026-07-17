@@ -108,6 +108,8 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .etiqueta-form-grid .campo-largo{grid-column:1/-1}
 .etiqueta-preview-area{background:#d8dce5;border-radius:18px;padding:24px;overflow:auto}
 .etiqueta-papel{position:relative;width:150mm;height:100mm;background:#fff;color:#000;margin:auto;border-radius:4mm;box-shadow:0 8px 28px rgba(0,0,0,.22);overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-sizing:border-box}
+.etiqueta-pedido-tag{position:absolute;left:8mm;top:7mm;min-width:25mm;max-width:31mm;height:12mm;padding:1.5mm 3mm;border:.55mm solid #111;background:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-size:5.5mm;font-weight:900;line-height:1;white-space:nowrap;overflow:hidden;z-index:5}
+.etiqueta-pedido-tag.vazia{display:none}
 .etiqueta-logo{position:absolute;left:34mm;top:3mm;width:70mm;height:31mm;object-fit:contain}
 .etiqueta-qr{position:absolute;right:16mm;top:8mm;width:22mm;height:22mm}
 .etiqueta-qr canvas,.etiqueta-qr img{width:22mm!important;height:22mm!important}
@@ -169,6 +171,17 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 @media(max-width:768px){
   .etiqueta-controle-fonte{grid-template-columns:1fr auto auto}
 }
+
+
+/* IDENTIFICAÇÃO OPCIONAL POR FAIXA DE VOLUMES */
+.etiqueta-pedido-config{grid-column:1/-1;background:#f7f4fd;border:1px solid #e4ddf7;border-radius:14px;padding:12px}
+.etiqueta-pedido-grid{display:grid;grid-template-columns:minmax(150px,1fr) 90px 90px auto;gap:8px;align-items:end}
+.etiqueta-pedido-lista{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.etiqueta-pedido-item{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #ddd4f4;border-radius:10px;padding:7px 9px;font-size:12px}
+.etiqueta-pedido-item button{border:0;background:#c0392b;color:#fff;border-radius:7px;padding:4px 7px;cursor:pointer}
+.etiqueta-pedido-tag{position:absolute;left:8mm;top:7mm;min-width:25mm;max-width:31mm;height:12mm;padding:1.5mm 3mm;border:.55mm solid #111;background:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-size:5.5mm;font-weight:900;line-height:1;white-space:nowrap;overflow:hidden;z-index:5}
+.etiqueta-pedido-tag.vazia{display:none}
+@media(max-width:650px){.etiqueta-pedido-grid{grid-template-columns:1fr 1fr}.etiqueta-pedido-grid .pedido-nome{grid-column:1/-1}.etiqueta-pedido-grid button{grid-column:1/-1}}
 
 </style>
 </head>
@@ -591,6 +604,29 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <input id="etqVolumes" type="number" min="1" max="999" value="1" oninput="atualizarPreviewEtiqueta()">
               </div>
 
+              <div class="etiqueta-pedido-config">
+                <label class="relatorio-label">Identificação opcional por faixa de volumes</label>
+                <small style="display:block;color:#7d73bd;margin-bottom:9px;">
+                  Exemplo: DENISE nos volumes 01 a 05 e IVO nos volumes 06 a 12.
+                </small>
+                <div class="etiqueta-pedido-grid">
+                  <div class="pedido-nome">
+                    <label class="relatorio-label">Nome / Pedido</label>
+                    <input id="etqPedidoNome" placeholder="Ex.: DENISE">
+                  </div>
+                  <div>
+                    <label class="relatorio-label">Do volume</label>
+                    <input id="etqPedidoInicio" type="number" min="1" placeholder="1">
+                  </div>
+                  <div>
+                    <label class="relatorio-label">Até o volume</label>
+                    <input id="etqPedidoFim" type="number" min="1" placeholder="5">
+                  </div>
+                  <button type="button" class="btn azul" onclick="adicionarFaixaPedidoEtiqueta()">Adicionar</button>
+                </div>
+                <div id="etqPedidosLista" class="etiqueta-pedido-lista"></div>
+              </div>
+
               <div class="campo-largo">
                 <label class="relatorio-label">Transportadora (opcional)</label>
                 <input id="etqTransportadora" placeholder="Ex.: EX MAIA" oninput="atualizarPreviewEtiqueta()">
@@ -672,6 +708,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
           </div>
           <div class="etiqueta-preview-area">
             <div id="etqPreview" class="etiqueta-papel">
+              <div id="etqPrevPedidoTag" class="etiqueta-pedido-tag vazia"></div>
               <img id="etqLogo" class="etiqueta-logo" alt="Logo Sofisticatto">
               <div class="etiqueta-qr-texto">
                 <div class="insta-vertical">I<br>N<br>S<br>T<br>A</div>
@@ -1827,6 +1864,7 @@ let gerVencimentosCalculados = [];
 let emailAssinaturas = [];
 let emailAssinaturaAtiva = null;
 let etiquetasHistorico = [];
+let etiquetaPedidosFaixas = [];
 let etiquetaQrInstancia = null;
 const ETIQUETA_INSTAGRAM_URL = "https://www.instagram.com/sofisticatto.cosmeticos?igsh=NmFkdnRlaXZrMXNh";
 let emailLogoTemporariaDataUrl = "";
@@ -3310,6 +3348,7 @@ async function inicializarModuloEtiquetas(){
   try{
     await carregarBibliotecasEtiqueta();
     await carregarHistoricoEtiquetas();
+    montarListaFaixasPedidoEtiqueta();
     atualizarPreviewEtiqueta();
   }catch(erro){
     console.error("Erro no módulo de etiquetas:",erro);
@@ -3330,6 +3369,7 @@ function dadosEtiquetaFormulario(){
     transportadora:document.getElementById("etqTransportadora")?.value.trim().toUpperCase() || "",
     transportadora_duas_linhas:document.getElementById("etqTransportadoraDuasLinhas")?.checked || false,
     transportadora_fonte:document.getElementById("etqTransportadoraFonte")?.value || "auto",
+    pedidos_faixas:etiquetaPedidosFaixas.map(item=>({...item})),
     chave_nfe:(document.getElementById("etqChave")?.value || "").replace(/\D/g,"").slice(0,44)
   };
 }
@@ -3479,6 +3519,80 @@ function ajustarFonteTransportadora(delta){
   atualizarPreviewEtiqueta();
 }
 
+
+function pedidoParaVolumeEtiqueta(volume,faixas=etiquetaPedidosFaixas){
+  const numero=Number(volume);
+  return (faixas || []).find(item=>numero>=Number(item.inicio) && numero<=Number(item.fim)) || null;
+}
+
+function ajustarFontePedidoEtiqueta(elemento,texto){
+  if(!elemento) return;
+  const tamanho=String(texto || "").length;
+  elemento.style.fontSize=tamanho>16 ? "3.7mm" : tamanho>11 ? "4.4mm" : "5.5mm";
+}
+
+function montarListaFaixasPedidoEtiqueta(){
+  const lista=document.getElementById("etqPedidosLista");
+  if(!lista) return;
+
+  lista.innerHTML=etiquetaPedidosFaixas.length
+    ? etiquetaPedidosFaixas
+        .slice()
+        .sort((a,b)=>a.inicio-b.inicio)
+        .map(item=>`
+          <div class="etiqueta-pedido-item">
+            <strong>${escaparHtmlEmail(item.nome)}</strong>
+            <span>VOL ${String(item.inicio).padStart(2,"0")}–${String(item.fim).padStart(2,"0")}</span>
+            <button type="button" onclick="removerFaixaPedidoEtiqueta('${item.id}')">Excluir</button>
+          </div>`).join("")
+    : '<small style="color:#7d73bd;">Nenhuma identificação adicionada.</small>';
+}
+
+function adicionarFaixaPedidoEtiqueta(){
+  const nome=(document.getElementById("etqPedidoNome")?.value || "").trim().toUpperCase();
+  const inicio=parseInt(document.getElementById("etqPedidoInicio")?.value || "0",10);
+  const fim=parseInt(document.getElementById("etqPedidoFim")?.value || "0",10);
+  const total=Math.max(1,parseInt(document.getElementById("etqVolumes")?.value || "1",10));
+
+  if(!nome){
+    alert("Informe o nome ou a identificação do pedido.");
+    return;
+  }
+  if(!inicio || !fim || inicio<1 || fim<inicio){
+    alert("Informe uma faixa de volumes válida. Exemplo: do volume 1 até o volume 5.");
+    return;
+  }
+  if(fim>total){
+    alert(`O volume final não pode ser maior que a quantidade total de volumes (${total}).`);
+    return;
+  }
+
+  const conflito=etiquetaPedidosFaixas.find(item=>inicio<=item.fim && fim>=item.inicio);
+  if(conflito){
+    alert(`Essa faixa coincide com ${conflito.nome}, volumes ${conflito.inicio} a ${conflito.fim}.`);
+    return;
+  }
+
+  etiquetaPedidosFaixas.push({
+    id:`faixa_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    nome,
+    inicio,
+    fim
+  });
+
+  document.getElementById("etqPedidoNome").value="";
+  document.getElementById("etqPedidoInicio").value="";
+  document.getElementById("etqPedidoFim").value="";
+  montarListaFaixasPedidoEtiqueta();
+  atualizarPreviewEtiqueta();
+}
+
+function removerFaixaPedidoEtiqueta(id){
+  etiquetaPedidosFaixas=etiquetaPedidosFaixas.filter(item=>item.id!==id);
+  montarListaFaixasPedidoEtiqueta();
+  atualizarPreviewEtiqueta();
+}
+
 function atualizarPreviewEtiqueta(){
   const d=dadosEtiquetaFormulario();
 
@@ -3497,6 +3611,14 @@ function atualizarPreviewEtiqueta(){
   document.getElementById("etqPrevNf").textContent=formatarNfEtiqueta(d.numero_nf);
   document.getElementById("etqPrevVolume").textContent=formatarVolumeEtiqueta(1,d.quantidade_volumes);
   document.getElementById("etqPrevChave").textContent=d.chave_nfe;
+
+  const pedidoVolumeUm=pedidoParaVolumeEtiqueta(1,d.pedidos_faixas);
+  const pedidoTag=document.getElementById("etqPrevPedidoTag");
+  if(pedidoTag){
+    pedidoTag.textContent=pedidoVolumeUm?.nome || "";
+    pedidoTag.classList.toggle("vazia",!pedidoVolumeUm);
+    ajustarFontePedidoEtiqueta(pedidoTag,pedidoVolumeUm?.nome || "");
+  }
 
   const destino=document.querySelector("#etqPreview .etiqueta-destino");
   const endereco=document.querySelector("#etqPreview .etiqueta-endereco");
@@ -3646,7 +3768,9 @@ async function lerXmlEtiqueta(evento){
 function criarElementoEtiqueta(d,volumeAtual){
   const etiqueta=document.createElement("div");
   etiqueta.className="etiqueta-papel";
+  const pedidoVolume=pedidoParaVolumeEtiqueta(volumeAtual,d.pedidos_faixas);
   etiqueta.innerHTML=`
+    <div class="etiqueta-pedido-tag ${pedidoVolume ? "" : "vazia"}">${pedidoVolume ? escaparHtmlEmail(pedidoVolume.nome) : ""}</div>
     <img class="etiqueta-logo" alt="Logo Sofisticatto">
     <div class="etiqueta-qr-texto">
                 <div class="insta-vertical">I<br>N<br>S<br>T<br>A</div>
@@ -3663,6 +3787,9 @@ function criarElementoEtiqueta(d,volumeAtual){
     <svg class="etiqueta-barcode"></svg>
     <div class="etiqueta-chave">${escaparHtmlEmail(d.chave_nfe)}</div>
     <div class="etiqueta-transportadora ${d.transportadora ? "" : "vazia"} ${d.transportadora_duas_linhas ? "duas-linhas" : ""}"></div>`;
+
+  const pedidoTag=etiqueta.querySelector(".etiqueta-pedido-tag");
+  ajustarFontePedidoEtiqueta(pedidoTag,pedidoVolume?.nome || "");
 
   const destino=etiqueta.querySelector(".etiqueta-destino");
   const endereco=etiqueta.querySelector(".etiqueta-endereco");
@@ -3752,6 +3879,8 @@ html,body{margin:0!important;padding:0!important;background:#fff!important;width
 .pagina-etiqueta:last-child{page-break-after:auto;break-after:auto}
 .rotacionada{position:absolute;left:0;top:0;width:150mm;height:100mm;transform:none}
 .etiqueta-papel{position:relative;width:150mm;height:100mm;background:#fff;color:#000;margin:0;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:none;border-radius:0}
+.etiqueta-pedido-tag{position:absolute;left:8mm;top:7mm;min-width:25mm;max-width:31mm;height:12mm;padding:1.5mm 3mm;border:.55mm solid #111;background:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-size:5.5mm;font-weight:900;line-height:1;white-space:nowrap;overflow:hidden;z-index:5}
+.etiqueta-pedido-tag.vazia{display:none}
 .etiqueta-logo{position:absolute;left:34mm;top:3mm;width:70mm;height:31mm;object-fit:contain}
 .etiqueta-qr{position:absolute;right:16mm;top:8mm;width:22mm;height:22mm}
 .etiqueta-qr canvas,.etiqueta-qr img{width:22mm!important;height:22mm!important}
@@ -3907,6 +4036,15 @@ function reutilizarEtiqueta(id){
   document.getElementById("etqTransportadora").value=item.transportadora || "";
   document.getElementById("etqTransportadoraDuasLinhas").checked=!!item.transportadora_duas_linhas;
   document.getElementById("etqTransportadoraFonte").value=item.transportadora_fonte || "auto";
+  etiquetaPedidosFaixas=Array.isArray(item.pedidos_faixas)
+    ? item.pedidos_faixas.map((faixa,index)=>({
+        id:faixa.id || `faixa_salva_${index}_${Date.now()}`,
+        nome:String(faixa.nome || "").toUpperCase(),
+        inicio:Number(faixa.inicio),
+        fim:Number(faixa.fim)
+      }))
+    : [];
+  montarListaFaixasPedidoEtiqueta();
   document.getElementById("etqChave").value=item.chave_nfe || "";
   atualizarPreviewEtiqueta();
   window.scrollTo({top:0,behavior:"smooth"});
@@ -3927,6 +4065,12 @@ function limparFormularioEtiqueta(){
   document.getElementById("etqVolumes").value=1;
   document.getElementById("etqTransportadoraDuasLinhas").checked=false;
   document.getElementById("etqTransportadoraFonte").value="auto";
+  etiquetaPedidosFaixas=[];
+  montarListaFaixasPedidoEtiqueta();
+  ["etqPedidoNome","etqPedidoInicio","etqPedidoFim"].forEach(id=>{
+    const campo=document.getElementById(id);
+    if(campo) campo.value="";
+  });
   document.getElementById("etqXml").value="";
   atualizarPreviewEtiqueta();
 }
