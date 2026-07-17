@@ -198,6 +198,23 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .etiqueta-faixa-card .etiqueta-papel{transform:scale(.48);transform-origin:top left;margin:0;width:150mm;height:100mm}
 .etiqueta-faixa-card .etiqueta-mini-wrap{width:72mm;height:48mm;overflow:hidden;margin:auto}
 
+
+/* AJUSTE DE IMPRESSÃO: IDENTIFICAÇÃO E LOGO */
+@media print{
+  .etiqueta-pedido-tag{
+    z-index:9999 !important;
+  }
+
+  .etiqueta-logo{
+    width:70mm !important;
+    height:31mm !important;
+    max-width:70mm !important;
+    max-height:31mm !important;
+    object-fit:contain !important;
+    z-index:1 !important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -4371,20 +4388,3 @@ document.addEventListener("DOMContentLoaded", async function(){
 
 </body>
 </html>
-
-
-@media print{
-  .identificacao-volume{
-    z-index:9999 !important;
-    position:absolute !important;
-    left:10mm !important;
-    top:8mm !important;
-  }
-
-  .etiqueta-logo{
-    max-width:220px !important;
-    width:220px !important;
-    height:auto !important;
-    z-index:1 !important;
-  }
-}
