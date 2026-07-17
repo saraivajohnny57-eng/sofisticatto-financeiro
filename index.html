@@ -26,8 +26,8 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .notificacao-box{margin-top:15px;background:#ede9fb;padding:15px;border-radius:15px}.notificacao-item{background:white;padding:12px;border-radius:12px;margin-bottom:8px;border-left:5px solid #5a4fa3;font-size:13px;cursor:pointer}.badge{display:inline-block;background:#5a4fa3;color:white;border-radius:999px;padding:3px 9px;font-size:12px;margin-left:5px}
 .filtro-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}.filtro-tabs button{border:none;background:#ede9fb;color:#4d4694;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:bold}.filtro-tabs button.ativo{background:#5a4fa3;color:white}.filtro-data-box{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:end}.filtro-data-box input{max-width:220px}.campo-data{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:bold;color:#4d4694}.resumo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px;margin-bottom:25px}.resumo-card{background:white;padding:18px;border-radius:20px;box-shadow:0 0 15px rgba(0,0,0,.05);border-left:6px solid #5a4fa3}.resumo-card p{font-size:13px;color:#7d73bd;margin-bottom:8px}.resumo-card h2{font-size:28px;color:#4d4694}.resumo-card ul{list-style:none;margin-top:6px}.resumo-card li{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #eee;font-size:14px}.resumo-card li:last-child{border-bottom:none}.texto-vazio{color:#999;font-size:14px;margin-top:6px}
 .toast-container{position:fixed;right:20px;bottom:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;max-width:360px}.toast-notificacao{background:white;color:#4d4694;padding:15px 18px;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.18);border-left:6px solid #5a4fa3;animation:toastEntrar .25s ease;font-size:14px}.toast-notificacao b{display:block;margin-bottom:5px;font-size:15px}.toast-notificacao small{color:#7d73bd}@keyframes toastEntrar{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
-.grafico-fallback{margin-top:15px}.grafico-linha{display:flex;align-items:center;gap:10px;margin:10px 0}.grafico-nome{width:120px;font-weight:bold;font-size:13px}.grafico-barra{flex:1;background:#ede9fb;border-radius:999px;overflow:hidden;height:18px}.grafico-preenchido{height:100%;background:#5a4fa3;border-radius:999px}.grafico-valor{width:105px;text-align:right;font-size:13px;font-weight:bold}.carregando-sistema{position:fixed;left:50%;top:20px;transform:translateX(-50%);background:white;color:#4d4694;padding:12px 18px;border-radius:16px;box-shadow:0 8px 25px rgba(0,0,0,.12);z-index:10000;font-weight:bold;display:none}
-@media(max-width:768px){.toast-container{left:15px;right:15px;bottom:15px;max-width:none}body{display:block}.sidebar{width:100%;padding:15px;position:sticky;top:0;z-index:10}.logo h1{font-size:30px}.logo p{letter-spacing:4px}.menu{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.menu button{margin-bottom:0;padding:12px;font-size:14px}.logout{margin-top:10px;width:100%}.main{padding:15px}.top{display:block}.top h1{font-size:26px;margin-bottom:5px}.card{padding:18px;border-radius:20px}.total{margin-top:15px}.total h2{font-size:28px}.inputs{grid-template-columns:1fr}table{min-width:850px}.login-box{padding:30px}.login-box h1{font-size:34px}.grafico-box{height:280px}}
+.grafico-fallback{margin-top:15px}.grafico-linha{display:flex;align-items:center;gap:10px;margin:10px 0}.grafico-nome{width:120px;font-weight:bold;font-size:13px}.grafico-barra{flex:1;background:#ede9fb;border-radius:999px;overflow:hidden;height:18px}.grafico-preenchido{height:100%;background:#5a4fa3;border-radius:999px}.grafico-valor{width:105px;text-align:right;font-size:13px;font-weight:bold}.carregando-sistema{position:fixed;left:50%;top:20px;transform:translateX(-50%);background:white;color:#4d4694;padding:12px 18px;border-radius:16px;box-shadow:0 8px 25px rgba(0,0,0,.12);z-index:100000;font-weight:bold;display:none}
+@media(max-width:768px){.toast-container{left:15px;right:15px;bottom:15px;max-width:none}body{display:block}.sidebar{width:100%;padding:15px;position:sticky;top:0;z-index:100}.logo h1{font-size:30px}.logo p{letter-spacing:4px}.menu{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.menu button{margin-bottom:0;padding:12px;font-size:14px}.logout{margin-top:10px;width:100%}.main{padding:15px}.top{display:block}.top h1{font-size:26px;margin-bottom:5px}.card{padding:18px;border-radius:20px}.total{margin-top:15px}.total h2{font-size:28px}.inputs{grid-template-columns:1fr}table{min-width:850px}.login-box{padding:30px}.login-box h1{font-size:34px}.grafico-box{height:280px}}
 
 .email-abas{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
 .email-abas button{border:none;background:#ede9fb;color:#4d4694;padding:11px 15px;border-radius:12px;cursor:pointer;font-weight:bold}
@@ -131,7 +131,7 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .etiqueta-transportadora.vazia{display:none}
 .etiqueta-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .etiqueta-sugestoes{position:relative}
-.etiqueta-sugestoes-lista{position:absolute;left:0;right:0;top:100%;z-index:100;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.16);max-height:230px;overflow:auto;display:none}
+.etiqueta-sugestoes-lista{position:absolute;left:0;right:0;top:100%;z-index:1000;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.16);max-height:230px;overflow:auto;display:none}
 .etiqueta-sugestoes-lista.ativa{display:block}
 .etiqueta-sugestao{padding:10px 12px;border-bottom:1px solid #eee;cursor:pointer}
 .etiqueta-sugestao:hover{background:#f1edfb}.etiqueta-sugestao:last-child{border-bottom:none}
@@ -4095,8 +4095,8 @@ function normalizarLogoParaCaptura(etiqueta){
   logoGerada.style.position="absolute";
   logoGerada.style.left=estiloPrevia.left;
   logoGerada.style.top=estiloPrevia.top;
-  logoGerada.style.width=`${rectPrevia.width}px`;
-  logoGerada.style.height=`${rectPrevia.height}px`;
+  logoGerada.style.width="220px";
+  logoGerada.style.height="auto";
   logoGerada.style.maxWidth="none";
   logoGerada.style.maxHeight="none";
   logoGerada.style.objectFit="contain";
@@ -4371,3 +4371,20 @@ document.addEventListener("DOMContentLoaded", async function(){
 
 </body>
 </html>
+
+
+@media print{
+  .identificacao-volume{
+    z-index:9999 !important;
+    position:absolute !important;
+    left:10mm !important;
+    top:8mm !important;
+  }
+
+  .etiqueta-logo{
+    max-width:220px !important;
+    width:220px !important;
+    height:auto !important;
+    z-index:1 !important;
+  }
+}
