@@ -181,6 +181,12 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .etiqueta-pedido-item button{border:0;background:#c0392b;color:#fff;border-radius:7px;padding:4px 7px;cursor:pointer}
 .etiqueta-pedido-tag{position:absolute;left:8mm;top:7mm;min-width:25mm;max-width:31mm;height:12mm;padding:1.5mm 3mm;border:.55mm solid #111;background:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-size:5.5mm;font-weight:900;line-height:1;white-space:nowrap;overflow:hidden;z-index:5}
 .etiqueta-pedido-tag.vazia{display:none}
+
+.etiqueta-pedido-fonte{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;margin-top:2px}
+.etiqueta-pedido-fonte select{min-width:0}
+.etiqueta-pedido-item .pedido-fonte-acoes{display:flex;align-items:center;gap:5px}
+.etiqueta-pedido-item .pedido-fonte-acoes button{background:#5a4fa3}
+
 @media(max-width:650px){.etiqueta-pedido-grid{grid-template-columns:1fr 1fr}.etiqueta-pedido-grid .pedido-nome{grid-column:1/-1}.etiqueta-pedido-grid button{grid-column:1/-1}}
 
 </style>
@@ -623,6 +629,27 @@ SOFISTICATTO COSMÉTICOS</textarea>
                     <input id="etqPedidoFim" type="number" min="1" placeholder="5">
                   </div>
                   <button type="button" class="btn azul" onclick="adicionarFaixaPedidoEtiqueta()">Adicionar</button>
+
+                  <div class="etiqueta-pedido-fonte">
+                    <select id="etqPedidoFonte">
+                      <option value="auto">Tamanho automático</option>
+                      <option value="24">24px</option>
+                      <option value="28">28px</option>
+                      <option value="32">32px</option>
+                      <option value="36">36px</option>
+                      <option value="40">40px</option>
+                      <option value="44">44px</option>
+                      <option value="48">48px</option>
+                      <option value="52">52px</option>
+                      <option value="56">56px</option>
+                      <option value="60">60px</option>
+                      <option value="64">64px</option>
+                      <option value="68">68px</option>
+                      <option value="72">72px</option>
+                    </select>
+                    <button type="button" class="btn azul" onclick="ajustarFonteNovaFaixaPedido(-2)">A−</button>
+                    <button type="button" class="btn azul" onclick="ajustarFonteNovaFaixaPedido(2)">A+</button>
+                  </div>
                 </div>
                 <div id="etqPedidosLista" class="etiqueta-pedido-lista"></div>
               </div>
@@ -3525,10 +3552,52 @@ function pedidoParaVolumeEtiqueta(volume,faixas=etiquetaPedidosFaixas){
   return (faixas || []).find(item=>numero>=Number(item.inicio) && numero<=Number(item.fim)) || null;
 }
 
-function ajustarFontePedidoEtiqueta(elemento,texto){
-  if(!elemento) return;
+function fonteAutomaticaPedidoEtiqueta(texto){
   const tamanho=String(texto || "").length;
-  elemento.style.fontSize=tamanho>16 ? "3.7mm" : tamanho>11 ? "4.4mm" : "5.5mm";
+  return tamanho>16 ? 14 : tamanho>11 ? 17 : 21;
+}
+
+function ajustarFontePedidoEtiqueta(elemento,texto,fonte="auto"){
+  if(!elemento) return;
+  const tamanhoPx=fonte && fonte!=="auto"
+    ? Math.max(12,Math.min(72,Number(fonte) || 24))
+    : fonteAutomaticaPedidoEtiqueta(texto);
+  elemento.style.fontSize=`${tamanhoPx}px`;
+}
+
+function definirOpcaoFontePedido(select,valor){
+  if(!select) return;
+  const normalizado=valor==="auto" ? "auto" : String(Math.max(12,Math.min(72,Number(valor) || 24)));
+  let opcao=[...select.options].find(item=>item.value===normalizado);
+  if(!opcao && normalizado!=="auto"){
+    opcao=document.createElement("option");
+    opcao.value=normalizado;
+    opcao.textContent=`${normalizado}px`;
+    select.appendChild(opcao);
+  }
+  select.value=normalizado;
+}
+
+function ajustarFonteNovaFaixaPedido(delta){
+  const select=document.getElementById("etqPedidoFonte");
+  if(!select) return;
+  let atual=select.value==="auto"
+    ? fonteAutomaticaPedidoEtiqueta(document.getElementById("etqPedidoNome")?.value || "")
+    : Number(select.value);
+  atual=Math.max(12,Math.min(72,atual+delta));
+  definirOpcaoFontePedido(select,atual);
+}
+
+function ajustarFonteFaixaPedido(id,delta){
+  const item=etiquetaPedidosFaixas.find(faixa=>faixa.id===id);
+  if(!item) return;
+  let atual=item.fonte==="auto" || !item.fonte
+    ? fonteAutomaticaPedidoEtiqueta(item.nome)
+    : Number(item.fonte);
+  atual=Math.max(12,Math.min(72,atual+delta));
+  item.fonte=String(atual);
+  montarListaFaixasPedidoEtiqueta();
+  atualizarPreviewEtiqueta();
 }
 
 function montarListaFaixasPedidoEtiqueta(){
@@ -3543,6 +3612,11 @@ function montarListaFaixasPedidoEtiqueta(){
           <div class="etiqueta-pedido-item">
             <strong>${escaparHtmlEmail(item.nome)}</strong>
             <span>VOL ${String(item.inicio).padStart(2,"0")}–${String(item.fim).padStart(2,"0")}</span>
+            <span>${item.fonte && item.fonte!=="auto" ? escaparHtmlEmail(item.fonte)+"px" : "Automático"}</span>
+            <div class="pedido-fonte-acoes">
+              <button type="button" onclick="ajustarFonteFaixaPedido('${item.id}',-2)">A−</button>
+              <button type="button" onclick="ajustarFonteFaixaPedido('${item.id}',2)">A+</button>
+            </div>
             <button type="button" onclick="removerFaixaPedidoEtiqueta('${item.id}')">Excluir</button>
           </div>`).join("")
     : '<small style="color:#7d73bd;">Nenhuma identificação adicionada.</small>';
@@ -3552,6 +3626,7 @@ function adicionarFaixaPedidoEtiqueta(){
   const nome=(document.getElementById("etqPedidoNome")?.value || "").trim().toUpperCase();
   const inicio=parseInt(document.getElementById("etqPedidoInicio")?.value || "0",10);
   const fim=parseInt(document.getElementById("etqPedidoFim")?.value || "0",10);
+  const fonte=document.getElementById("etqPedidoFonte")?.value || "auto";
   const total=Math.max(1,parseInt(document.getElementById("etqVolumes")?.value || "1",10));
 
   if(!nome){
@@ -3577,12 +3652,14 @@ function adicionarFaixaPedidoEtiqueta(){
     id:`faixa_${Date.now()}_${Math.random().toString(16).slice(2)}`,
     nome,
     inicio,
-    fim
+    fim,
+    fonte
   });
 
   document.getElementById("etqPedidoNome").value="";
   document.getElementById("etqPedidoInicio").value="";
   document.getElementById("etqPedidoFim").value="";
+  document.getElementById("etqPedidoFonte").value="auto";
   montarListaFaixasPedidoEtiqueta();
   atualizarPreviewEtiqueta();
 }
@@ -3617,7 +3694,7 @@ function atualizarPreviewEtiqueta(){
   if(pedidoTag){
     pedidoTag.textContent=pedidoVolumeUm?.nome || "";
     pedidoTag.classList.toggle("vazia",!pedidoVolumeUm);
-    ajustarFontePedidoEtiqueta(pedidoTag,pedidoVolumeUm?.nome || "");
+    ajustarFontePedidoEtiqueta(pedidoTag,pedidoVolumeUm?.nome || "",pedidoVolumeUm?.fonte || "auto");
   }
 
   const destino=document.querySelector("#etqPreview .etiqueta-destino");
@@ -3789,7 +3866,7 @@ function criarElementoEtiqueta(d,volumeAtual){
     <div class="etiqueta-transportadora ${d.transportadora ? "" : "vazia"} ${d.transportadora_duas_linhas ? "duas-linhas" : ""}"></div>`;
 
   const pedidoTag=etiqueta.querySelector(".etiqueta-pedido-tag");
-  ajustarFontePedidoEtiqueta(pedidoTag,pedidoVolume?.nome || "");
+  ajustarFontePedidoEtiqueta(pedidoTag,pedidoVolume?.nome || "",pedidoVolume?.fonte || "auto");
 
   const destino=etiqueta.querySelector(".etiqueta-destino");
   const endereco=etiqueta.querySelector(".etiqueta-endereco");
@@ -4041,7 +4118,8 @@ function reutilizarEtiqueta(id){
         id:faixa.id || `faixa_salva_${index}_${Date.now()}`,
         nome:String(faixa.nome || "").toUpperCase(),
         inicio:Number(faixa.inicio),
-        fim:Number(faixa.fim)
+        fim:Number(faixa.fim),
+        fonte:faixa.fonte || "auto"
       }))
     : [];
   montarListaFaixasPedidoEtiqueta();
@@ -4067,6 +4145,7 @@ function limparFormularioEtiqueta(){
   document.getElementById("etqTransportadoraFonte").value="auto";
   etiquetaPedidosFaixas=[];
   montarListaFaixasPedidoEtiqueta();
+  document.getElementById("etqPedidoFonte").value="auto";
   ["etqPedidoNome","etqPedidoInicio","etqPedidoFim"].forEach(id=>{
     const campo=document.getElementById(id);
     if(campo) campo.value="";
