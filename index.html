@@ -3987,6 +3987,11 @@ async function imprimirEtiquetas(){
       return;
     }
 
+    // Copia os estilos reais da página para que a impressão fique igual à prévia.
+    const estilos=[...document.querySelectorAll("style")]
+      .map(item=>item.textContent || "")
+      .join("\n");
+
     janela.document.open();
     janela.document.write(`<!DOCTYPE html>
 <html>
@@ -3994,30 +3999,99 @@ async function imprimirEtiquetas(){
 <meta charset="UTF-8">
 <title>Etiquetas ${escaparHtmlEmail(d.cliente)}</title>
 <style>
-@page{size:150mm 100mm;margin:0}
-html,body{margin:0!important;padding:0!important;background:#fff!important}
-.pagina{width:150mm;height:100mm;margin:0;padding:0;overflow:hidden;page-break-after:always;break-after:page}
-.pagina:last-child{page-break-after:auto;break-after:auto}
-.pagina img{display:block;width:150mm;height:100mm;margin:0;padding:0;object-fit:fill}
+${estilos}
+
+html,body{
+  margin:0!important;
+  padding:0!important;
+  background:#fff!important;
+  width:150mm!important;
+  min-width:150mm!important;
+  max-width:150mm!important;
+  overflow:visible!important;
+}
+
+#paginasImpressao{
+  margin:0!important;
+  padding:0!important;
+  width:150mm!important;
+}
+
+.pagina-impressao-etiqueta{
+  position:relative!important;
+  display:block!important;
+  width:150mm!important;
+  height:100mm!important;
+  min-width:150mm!important;
+  min-height:100mm!important;
+  max-width:150mm!important;
+  max-height:100mm!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+  background:#fff!important;
+  page-break-after:always!important;
+  break-after:page!important;
+}
+
+.pagina-impressao-etiqueta:last-child{
+  page-break-after:auto!important;
+  break-after:auto!important;
+}
+
+.pagina-impressao-etiqueta .etiqueta-papel{
+  position:relative!important;
+  display:block!important;
+  width:150mm!important;
+  height:100mm!important;
+  min-width:150mm!important;
+  min-height:100mm!important;
+  max-width:150mm!important;
+  max-height:100mm!important;
+  margin:0!important;
+  padding:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  transform:none!important;
+  overflow:hidden!important;
+}
+
+@page{
+  size:150mm 100mm;
+  margin:0;
+}
+
 @media print{
-  html,body{width:150mm;margin:0!important;padding:0!important}
-  .pagina{width:150mm;height:100mm;margin:0!important;padding:0!important}
+  html,body,#paginasImpressao{
+    width:150mm!important;
+    margin:0!important;
+    padding:0!important;
+  }
+
+  .pagina-impressao-etiqueta{
+    width:150mm!important;
+    height:100mm!important;
+    margin:0!important;
+    padding:0!important;
+  }
 }
 </style>
 </head>
-<body><div id="paginas"></div></body>
+<body>
+  <div id="paginasImpressao"></div>
+</body>
 </html>`);
     janela.document.close();
 
+    const paginas=janela.document.getElementById("paginasImpressao");
     const temporario=document.createElement("div");
     temporario.style.position="fixed";
     temporario.style.left="-10000px";
     temporario.style.top="0";
+    temporario.style.width="150mm";
+    temporario.style.height="100mm";
     temporario.style.background="#fff";
-    temporario.style.zIndex="-1";
     document.body.appendChild(temporario);
-
-    const paginas=janela.document.getElementById("paginas");
 
     for(let volume=1;volume<=d.quantidade_volumes;volume++){
       const etiqueta=criarElementoEtiqueta(d,volume);
@@ -4027,24 +4101,34 @@ html,body{margin:0!important;padding:0!important;background:#fff!important}
       etiqueta.style.transform="none";
       temporario.appendChild(etiqueta);
 
-      await new Promise(resolve=>setTimeout(resolve,180));
+      // Aguarda QR Code, código de barras e logo terminarem de renderizar.
+      await new Promise(resolve=>setTimeout(resolve,320));
 
-      const canvas=await html2canvas(etiqueta,{
-        scale:3,
-        useCORS:true,
-        allowTaint:true,
-        backgroundColor:"#ffffff",
-        width:etiqueta.scrollWidth,
-        height:etiqueta.scrollHeight,
-        windowWidth:etiqueta.scrollWidth,
-        windowHeight:etiqueta.scrollHeight
-      });
+      // Converte o canvas do QR Code em imagem para preservar na impressão.
+      const qrCanvas=etiqueta.querySelector(".etiqueta-qr canvas");
+      if(qrCanvas){
+        const qrImg=document.createElement("img");
+        qrImg.src=qrCanvas.toDataURL("image/png");
+        qrImg.style.width="22mm";
+        qrImg.style.height="22mm";
+        qrImg.style.display="block";
+        qrCanvas.replaceWith(qrImg);
+      }
+
+      // Garante dimensões e viewBox do SVG do código de barras.
+      const barcode=etiqueta.querySelector(".etiqueta-barcode");
+      if(barcode){
+        const largura=barcode.getAttribute("width") || barcode.viewBox?.baseVal?.width || 600;
+        const altura=barcode.getAttribute("height") || barcode.viewBox?.baseVal?.height || 60;
+        if(!barcode.getAttribute("viewBox")){
+          barcode.setAttribute("viewBox",`0 0 ${largura} ${altura}`);
+        }
+        barcode.setAttribute("preserveAspectRatio","none");
+      }
 
       const pagina=janela.document.createElement("div");
-      pagina.className="pagina";
-      const imagem=janela.document.createElement("img");
-      imagem.src=canvas.toDataURL("image/png");
-      pagina.appendChild(imagem);
+      pagina.className="pagina-impressao-etiqueta";
+      pagina.appendChild(janela.document.importNode(etiqueta,true));
       paginas.appendChild(pagina);
 
       etiqueta.remove();
@@ -4052,7 +4136,17 @@ html,body{margin:0!important;padding:0!important;background:#fff!important}
 
     temporario.remove();
 
-    await new Promise(resolve=>setTimeout(resolve,700));
+    // Espera as imagens da janela de impressão carregarem.
+    const imagens=[...janela.document.images];
+    await Promise.all(imagens.map(img=>{
+      if(img.complete) return Promise.resolve();
+      return new Promise(resolve=>{
+        img.onload=resolve;
+        img.onerror=resolve;
+      });
+    }));
+
+    await new Promise(resolve=>setTimeout(resolve,500));
     janela.focus();
     janela.print();
   }catch(erro){
