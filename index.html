@@ -475,6 +475,58 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
   .cor-item-linha{grid-template-columns:1fr}
 }
 
+
+/* POSICIONAMENTO FINAL DO CEP E CÓDIGO DE BARRAS DOS CORREIOS */
+.correios-etiqueta .cor-barcode-area{
+  position:absolute;
+  left:7mm;
+  bottom:4mm;
+  width:72mm;
+  height:22mm;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-end;
+  z-index:6;
+  background:#fff;
+}
+.correios-etiqueta .cor-barcode{
+  position:static!important;
+  display:block!important;
+  width:68mm!important;
+  height:14mm!important;
+  max-width:68mm!important;
+  max-height:14mm!important;
+  overflow:hidden!important;
+}
+.correios-etiqueta .cor-barcode svg,
+.correios-etiqueta svg.cor-barcode{
+  width:68mm!important;
+  height:14mm!important;
+}
+.correios-etiqueta .cor-cep{
+  position:static!important;
+  width:68mm!important;
+  margin-top:1mm;
+  text-align:center;
+  font-size:4mm;
+  font-weight:900;
+  line-height:1;
+  white-space:nowrap;
+}
+.correios-etiqueta .cor-servico{
+  right:12mm!important;
+  bottom:8mm!important;
+}
+.correios-etiqueta .cor-cidade{
+  top:68mm!important;
+  max-width:112mm!important;
+}
+.correios-remetente .cor-rem-texto{
+  max-height:43mm;
+  overflow:hidden;
+}
+
 </style>
 </head>
 <body>
@@ -2877,7 +2929,7 @@ function montarLogoQrCorreios(container){
   try{
     if(!window.QRCode) throw new Error("Biblioteca QRCode não carregada.");
     new QRCode(alvo,{
-      text:INSTAGRAM_URL || "https://www.instagram.com/sofisticatto.cosmeticos",
+      text:"https://www.instagram.com/sofisticatto.cosmeticos?igsh=NmFkdnRlaXZrMXNh",
       width:112,
       height:112,
       colorDark:"#000000",
@@ -2903,14 +2955,25 @@ function montarEtiquetaDestinoCorreios(){
     <div class="cor-endereco">${escaparHtmlEmail(enderecoCompleto)}</div>
     <div class="cor-bairro">${d.bairro ? "BAIRRO: "+escaparHtmlEmail(d.bairro) : ""}</div>
     <div class="cor-cidade">${escaparHtmlEmail([d.cidade,d.uf].filter(Boolean).join("/"))}</div>
-    <svg class="cor-barcode"></svg>
-    <div class="cor-cep">${d.cep ? "CEP: "+escaparHtmlEmail(formatarCepEtiqueta(d.cep)) : ""}</div>
+    <div class="cor-barcode-area">
+      <svg class="cor-barcode"></svg>
+      <div class="cor-cep">${d.cep ? "CEP: "+escaparHtmlEmail(formatarCepEtiqueta(d.cep)) : ""}</div>
+    </div>
     <div class="cor-servico">${escaparHtmlEmail(d.servico)}</div>`);
   const barcodeDestino=box.querySelector(".cor-barcode");
   if(barcodeDestino && window.JsBarcode){
     JsBarcode(barcodeDestino,(d.cep || "").replace(/\D/g,"") || "00000000",{
-      format:"CODE128",displayValue:false,margin:0,height:52,width:2
+      format:"CODE128",
+      displayValue:false,
+      margin:0,
+      height:42,
+      width:1.6,
+      background:"#ffffff",
+      lineColor:"#000000"
     });
+    barcodeDestino.setAttribute("preserveAspectRatio","none");
+    barcodeDestino.setAttribute("width","272");
+    barcodeDestino.setAttribute("height","53");
   }
   aplicarAjustesCorreiosEtiqueta(box,"destino");
 }
@@ -2928,15 +2991,26 @@ function montarEtiquetaRemetenteCorreios(){
       <div>${escaparHtmlEmail(d.remetente_endereco)}</div>
       <div>${escaparHtmlEmail(d.remetente_bairro)}</div>
       <div>${escaparHtmlEmail([d.remetente_cidade,d.remetente_uf].filter(Boolean).join("/"))}</div>
-      <div>CEP: ${escaparHtmlEmail(d.remetente_cep)}</div>
     </div>
-    <svg class="cor-barcode"></svg>
+    <div class="cor-barcode-area">
+      <svg class="cor-barcode"></svg>
+      <div class="cor-cep">${d.remetente_cep ? "CEP: "+escaparHtmlEmail(formatarCepEtiqueta(d.remetente_cep)) : ""}</div>
+    </div>
     <div class="cor-servico">${escaparHtmlEmail(d.servico)}</div>`);
   const barcodeRemetente=box.querySelector(".cor-barcode");
   if(barcodeRemetente && window.JsBarcode){
     JsBarcode(barcodeRemetente,(d.remetente_cep || "").replace(/\D/g,"") || "74550470",{
-      format:"CODE128",displayValue:false,margin:0,height:52,width:2
+      format:"CODE128",
+      displayValue:false,
+      margin:0,
+      height:42,
+      width:1.6,
+      background:"#ffffff",
+      lineColor:"#000000"
     });
+    barcodeRemetente.setAttribute("preserveAspectRatio","none");
+    barcodeRemetente.setAttribute("width","272");
+    barcodeRemetente.setAttribute("height","53");
   }
   aplicarAjustesCorreiosEtiqueta(box,"remetente");
 }
