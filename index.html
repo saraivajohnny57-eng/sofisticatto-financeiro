@@ -261,6 +261,51 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
   .etq-controle-grafico{grid-template-columns:1fr}
 }
 
+
+/* MÓDULO CORREIOS */
+.correios-layout{display:grid;grid-template-columns:minmax(340px,480px) minmax(0,1fr);gap:20px;align-items:start}
+.correios-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.correios-grid .campo-largo{grid-column:1/-1}
+.correios-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.correios-preview-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.correios-preview-tabs button{border:0;border-radius:11px;padding:10px 14px;background:#eee9fb;color:#4d4694;font-weight:700;cursor:pointer}
+.correios-preview-tabs button.ativo{background:#5a4fa3;color:#fff}
+.correios-preview-painel{display:none}
+.correios-preview-painel.ativo{display:block}
+.correios-label-wrap{background:#d9dde5;border-radius:18px;padding:18px;overflow:auto}
+.correios-etiqueta{position:relative;width:150mm;height:100mm;background:#fff;color:#000;margin:auto;overflow:hidden;font-family:Arial,sans-serif}
+.correios-etiqueta .cor-logo{position:absolute;left:48mm;top:5mm;width:58mm;height:28mm;object-fit:contain}
+.correios-etiqueta .cor-qr{position:absolute;right:10mm;top:6mm;width:30mm;height:30mm}
+.correios-etiqueta .cor-insta{position:absolute;right:39mm;top:7mm;font-size:5mm;font-weight:900;line-height:1}
+.correios-etiqueta .cor-gram{position:absolute;right:10mm;top:36mm;font-size:4.2mm;font-weight:900;letter-spacing:3mm}
+.correios-etiqueta .cor-destino{position:absolute;left:7mm;top:35mm;width:115mm;font-size:7mm;font-weight:900;line-height:1.18}
+.correios-etiqueta .cor-endereco{position:absolute;left:7mm;top:48mm;width:117mm;font-size:5.5mm;font-weight:700;line-height:1.18}
+.correios-etiqueta .cor-bairro{position:absolute;left:7mm;top:59mm;width:112mm;font-size:5.5mm;font-weight:700}
+.correios-etiqueta .cor-cidade{position:absolute;left:7mm;top:68mm;width:112mm;font-size:5.5mm;font-weight:700}
+.correios-etiqueta .cor-barcode{position:absolute;left:7mm;bottom:11mm;width:55mm;height:18mm}
+.correios-etiqueta .cor-cep{position:absolute;left:7mm;bottom:5mm;width:55mm;text-align:center;font-size:4mm;font-weight:900}
+.correios-etiqueta .cor-servico{position:absolute;right:16mm;bottom:6mm;font-size:22mm;font-weight:900;line-height:1}
+.correios-remetente .cor-rem-texto{position:absolute;left:8mm;top:34mm;width:87mm;font-size:6mm;line-height:1.45}
+.correios-remetente .cor-rem-label{font-size:4mm;font-weight:700}
+.correios-declaracao-wrap{background:#e8e8e8;padding:16px;border-radius:16px;overflow:auto}
+.correios-declaracao{width:210mm;min-height:297mm;background:#fff;color:#000;margin:auto;padding:8mm;font-family:Arial,sans-serif;font-size:10px}
+.correios-declaracao h1{text-align:center;border:2px solid #111;padding:8px;margin:0 0 6px;font-size:20px}
+.cor-dec-duplo{display:grid;grid-template-columns:1fr 1fr}
+.cor-dec-box{border:2px solid #111;padding:0}
+.cor-dec-box+.cor-dec-box{border-left:0}
+.cor-dec-titulo{text-align:center;font-weight:900;letter-spacing:4px;border-bottom:1px solid #111;padding:5px}
+.cor-dec-linha{min-height:23px;border-bottom:1px solid #111;padding:5px}
+.cor-dec-linha:last-child{border-bottom:0}
+.cor-dec-bens{width:100%;border-collapse:collapse;margin-top:6px}
+.cor-dec-bens th,.cor-dec-bens td{border:1px solid #111;padding:5px;text-align:left;height:24px}
+.cor-dec-bens th{text-align:center}
+.cor-dec-declaracao{border:2px solid #111;margin-top:6px;padding:10px;line-height:1.35;text-align:justify}
+.cor-dec-assinatura{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:28px;align-items:end}
+.cor-dec-assinatura>div{border-bottom:1px solid #111;padding-bottom:4px;text-align:center}
+.cor-historico-status{font-weight:700}
+@media(max-width:1100px){.correios-layout{grid-template-columns:1fr}}
+@media(max-width:650px){.correios-grid{grid-template-columns:1fr}.correios-grid .campo-largo{grid-column:auto}}
+
 </style>
 </head>
 <body>
@@ -384,6 +429,7 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
       <button id="emailAbaPreparar" class="ativo" onclick="mostrarAbaEmail('preparar')">Preparar Envios</button>
       <button id="emailAbaGerador" onclick="mostrarAbaEmail('gerador')">Gerar Relatório</button>
       <button id="emailAbaEtiquetas" onclick="mostrarAbaEmail('etiquetas')">Etiquetas</button>
+      <button id="emailAbaCorreios" onclick="mostrarAbaEmail('correios')">Correios</button>
       <button id="emailAbaClientes" onclick="mostrarAbaEmail('clientes')">Clientes</button>
       <button id="emailAbaVendedoras" onclick="mostrarAbaEmail('vendedoras')">Vendedoras</button>
       <button id="emailAbaAssinaturas" onclick="mostrarAbaEmail('assinaturas')">Assinatura</button>
@@ -920,6 +966,109 @@ SOFISTICATTO COSMÉTICOS</textarea>
       </div>
 
       <div id="etiquetasImpressao" style="display:none;"></div>
+    </div>
+
+
+    <div id="emailSubCorreios" class="email-subsecao">
+      <div class="correios-layout">
+        <div>
+          <div class="card">
+            <h2>Postagem pelos Correios</h2>
+            <p style="margin:6px 0 18px;color:#7d73bd;">Os mesmos dados preenchem a etiqueta do destinatário, a etiqueta do remetente e a Declaração de Conteúdo.</p>
+
+            <div class="correios-grid">
+              <div class="campo-largo">
+                <label class="relatorio-label">Cliente / destinatário</label>
+                <input id="corCliente" list="corClientesLista" placeholder="Digite ou selecione o cliente" oninput="atualizarCorreiosTudo()">
+                <datalist id="corClientesLista"></datalist>
+                <button type="button" class="btn azul" style="margin-top:8px;width:100%;" onclick="preencherCorreiosPeloCliente()">Preencher pelo cadastro do cliente</button>
+              </div>
+
+              <div class="campo-largo">
+                <label class="relatorio-label">Endereço</label>
+                <input id="corEndereco" placeholder="Rua, avenida..." oninput="atualizarCorreiosTudo()">
+              </div>
+              <div><label class="relatorio-label">Número</label><input id="corNumero" oninput="atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">Complemento</label><input id="corComplemento" oninput="atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">Bairro</label><input id="corBairro" oninput="atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">CEP</label><input id="corCep" maxlength="9" oninput="formatarCepEtiquetaCampo(this);atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">Cidade</label><input id="corCidade" oninput="atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">UF</label><input id="corUf" maxlength="2" oninput="this.value=this.value.toUpperCase();atualizarCorreiosTudo()"></div>
+              <div class="campo-largo"><label class="relatorio-label">CPF/CNPJ do destinatário (opcional)</label><input id="corDocumento" oninput="atualizarCorreiosTudo()"></div>
+
+              <div>
+                <label class="relatorio-label">Serviço</label>
+                <select id="corServico" onchange="atualizarCorreiosTudo()">
+                  <option value="PAC">PAC</option>
+                  <option value="SEDEX">SEDEX</option>
+                </select>
+              </div>
+              <div><label class="relatorio-label">Data da postagem</label><input id="corData" type="date" onchange="atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">Peso total (kg)</label><input id="corPeso" inputmode="decimal" placeholder="0,000" oninput="atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">Código de rastreio (opcional)</label><input id="corRastreio" placeholder="Ex.: QB123456789BR"></div>
+
+              <div class="campo-largo"><h3 style="margin-top:8px;">Conteúdo da declaração</h3></div>
+              <div class="campo-largo"><label class="relatorio-label">Descrição do conteúdo</label><input id="corConteudo" value="COSMÉTICOS" oninput="atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">Quantidade</label><input id="corQuantidade" type="number" min="1" value="1" oninput="atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">Valor declarado (R$)</label><input id="corValor" inputmode="decimal" placeholder="0,00" oninput="atualizarCorreiosTudo()"></div>
+
+              <div class="campo-largo"><h3 style="margin-top:8px;">Remetente</h3></div>
+              <div class="campo-largo"><label class="relatorio-label">Nome</label><input id="corRemNome" value="SOFISTICATTO COSMÉTICOS" oninput="atualizarCorreiosTudo()"></div>
+              <div class="campo-largo"><label class="relatorio-label">Endereço</label><input id="corRemEndereco" value="RUA 4, Nº 217" oninput="atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">Bairro</label><input id="corRemBairro" value="VILA ABAJÁ" oninput="atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">CEP</label><input id="corRemCep" value="74550-470" oninput="atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">Cidade</label><input id="corRemCidade" value="GOIÂNIA" oninput="atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">UF</label><input id="corRemUf" value="GO" maxlength="2" oninput="atualizarCorreiosTudo()"></div>
+              <div class="campo-largo"><label class="relatorio-label">CNPJ</label><input id="corRemDocumento" value="05.451.985/0001-95" oninput="atualizarCorreiosTudo()"></div>
+            </div>
+
+            <div class="correios-acoes">
+              <button class="salvar" onclick="salvarEnvioCorreios()">Salvar envio</button>
+              <button class="btn azul" onclick="imprimirEtiquetaCorreios('destino')">Imprimir destinatário</button>
+              <button class="btn azul" onclick="imprimirEtiquetaCorreios('remetente')">Imprimir remetente</button>
+              <button class="btn roxo" onclick="imprimirDeclaracaoCorreios()">Imprimir declaração</button>
+              <button class="btn verde" onclick="imprimirPacoteCorreios()">Imprimir tudo</button>
+              <button class="btn vermelho" onclick="limparCorreios()">Limpar</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="top">
+              <div><h2>Pré-visualização</h2><p>Confira os três documentos antes de imprimir.</p></div>
+            </div>
+            <div class="correios-preview-tabs">
+              <button id="corTabDestino" class="ativo" onclick="mostrarPreviewCorreios('destino')">Destinatário</button>
+              <button id="corTabRemetente" onclick="mostrarPreviewCorreios('remetente')">Remetente</button>
+              <button id="corTabDeclaracao" onclick="mostrarPreviewCorreios('declaracao')">Declaração</button>
+            </div>
+
+            <div id="corPreviewDestino" class="correios-preview-painel ativo">
+              <div class="correios-label-wrap"><div id="corEtiquetaDestino" class="correios-etiqueta"></div></div>
+            </div>
+            <div id="corPreviewRemetente" class="correios-preview-painel">
+              <div class="correios-label-wrap"><div id="corEtiquetaRemetente" class="correios-etiqueta correios-remetente"></div></div>
+            </div>
+            <div id="corPreviewDeclaracao" class="correios-preview-painel">
+              <div class="correios-declaracao-wrap"><div id="corDeclaracao" class="correios-declaracao"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="top">
+          <div><h2>Histórico de postagens</h2><p>Envios salvos, serviços e códigos de rastreio.</p></div>
+          <button class="buscar" onclick="carregarHistoricoCorreios()">Atualizar</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Data</th><th>Cliente</th><th>CEP</th><th>Serviço</th><th>Peso</th><th>Rastreio</th><th>Ações</th></tr></thead>
+            <tbody id="corTabelaHistorico"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <div id="emailSubClientes" class="email-subsecao">
@@ -2316,11 +2465,11 @@ async function carregarModuloEmail(){
 
 function mostrarAbaEmail(aba){
   if(!garantirFinanceiroEmail()) return;
-  ["Preparar","Gerador","Etiquetas","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
+  ["Preparar","Gerador","Etiquetas","Correios","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
     document.getElementById("emailSub" + nome).classList.remove("ativa");
     document.getElementById("emailAba" + nome).classList.remove("ativo");
   });
-  const mapa = {preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
+  const mapa = {preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",correios:"Correios",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
   const nome = mapa[aba];
   document.getElementById("emailSub" + nome).classList.add("ativa");
   document.getElementById("emailAba" + nome).classList.add("ativo");
@@ -2334,6 +2483,300 @@ function mostrarAbaEmail(aba){
   if(aba === "etiquetas"){
     inicializarModuloEtiquetas();
   }
+  if(aba === "correios"){
+    inicializarModuloCorreios();
+  }
+}
+
+
+let correiosHistorico=[];
+
+function valorCampoCorreios(id){
+  return document.getElementById(id)?.value.trim() || "";
+}
+
+function dadosCorreios(){
+  return {
+    cliente:valorCampoCorreios("corCliente"),
+    endereco:valorCampoCorreios("corEndereco"),
+    numero:valorCampoCorreios("corNumero"),
+    complemento:valorCampoCorreios("corComplemento"),
+    bairro:valorCampoCorreios("corBairro"),
+    cep:valorCampoCorreios("corCep"),
+    cidade:valorCampoCorreios("corCidade"),
+    uf:valorCampoCorreios("corUf").toUpperCase(),
+    documento:valorCampoCorreios("corDocumento"),
+    servico:valorCampoCorreios("corServico") || "PAC",
+    data_postagem:valorCampoCorreios("corData"),
+    peso:valorCampoCorreios("corPeso"),
+    rastreio:valorCampoCorreios("corRastreio").toUpperCase(),
+    conteudo:valorCampoCorreios("corConteudo") || "COSMÉTICOS",
+    quantidade:Number(valorCampoCorreios("corQuantidade") || 1),
+    valor_declarado:valorCampoCorreios("corValor"),
+    remetente_nome:valorCampoCorreios("corRemNome"),
+    remetente_endereco:valorCampoCorreios("corRemEndereco"),
+    remetente_bairro:valorCampoCorreios("corRemBairro"),
+    remetente_cep:valorCampoCorreios("corRemCep"),
+    remetente_cidade:valorCampoCorreios("corRemCidade"),
+    remetente_uf:valorCampoCorreios("corRemUf").toUpperCase(),
+    remetente_documento:valorCampoCorreios("corRemDocumento")
+  };
+}
+
+function montarLogoQrCorreios(container){
+  container.innerHTML=`
+    <img class="cor-logo" src="${EMAIL_LOGO_PADRAO}" alt="Sofisticatto">
+    <div class="cor-insta">I<br>N<br>S<br>T<br>A</div>
+    <div class="cor-gram">GRAM</div>
+    <div class="cor-qr"></div>`;
+  montarQrEtiqueta(container.querySelector(".cor-qr"));
+}
+
+function montarEtiquetaDestinoCorreios(){
+  const d=dadosCorreios();
+  const box=document.getElementById("corEtiquetaDestino");
+  if(!box) return;
+
+  montarLogoQrCorreios(box);
+  const endereco=[d.endereco,d.numero].filter(Boolean).join(", ");
+  const enderecoCompleto=[endereco,d.complemento].filter(Boolean).join(" - ");
+  box.insertAdjacentHTML("beforeend",`
+    <div class="cor-destino">DESTINO:<br>${escaparHtmlEmail(d.cliente || "DESTINATÁRIO")}</div>
+    <div class="cor-endereco">${escaparHtmlEmail(enderecoCompleto)}</div>
+    <div class="cor-bairro">${d.bairro ? "BAIRRO: "+escaparHtmlEmail(d.bairro) : ""}</div>
+    <div class="cor-cidade">${escaparHtmlEmail([d.cidade,d.uf].filter(Boolean).join("/"))}</div>
+    <svg class="cor-barcode"></svg>
+    <div class="cor-cep">${d.cep ? "CEP: "+escaparHtmlEmail(formatarCepEtiqueta(d.cep)) : ""}</div>
+    <div class="cor-servico">${escaparHtmlEmail(d.servico)}</div>`);
+  montarBarcodeEtiqueta(box.querySelector(".cor-barcode"),(d.cep || "").replace(/\D/g,"") || "00000000");
+}
+
+function montarEtiquetaRemetenteCorreios(){
+  const d=dadosCorreios();
+  const box=document.getElementById("corEtiquetaRemetente");
+  if(!box) return;
+
+  montarLogoQrCorreios(box);
+  box.insertAdjacentHTML("beforeend",`
+    <div class="cor-rem-texto">
+      <div class="cor-rem-label">REMETENTE:</div>
+      <div>${escaparHtmlEmail(d.remetente_nome)}</div>
+      <div>${escaparHtmlEmail(d.remetente_endereco)}</div>
+      <div>${escaparHtmlEmail(d.remetente_bairro)}</div>
+      <div>${escaparHtmlEmail([d.remetente_cidade,d.remetente_uf].filter(Boolean).join("/"))}</div>
+      <div>CEP: ${escaparHtmlEmail(d.remetente_cep)}</div>
+    </div>
+    <svg class="cor-barcode"></svg>
+    <div class="cor-servico">${escaparHtmlEmail(d.servico)}</div>`);
+  montarBarcodeEtiqueta(box.querySelector(".cor-barcode"),(d.remetente_cep || "").replace(/\D/g,"") || "74550470");
+}
+
+function dataExtensoCorreios(valor){
+  const data=valor ? new Date(valor+"T12:00:00") : new Date();
+  return {
+    dia:String(data.getDate()).padStart(2,"0"),
+    mes:data.toLocaleDateString("pt-BR",{month:"long"}),
+    ano:String(data.getFullYear())
+  };
+}
+
+function montarDeclaracaoCorreios(){
+  const d=dadosCorreios();
+  const box=document.getElementById("corDeclaracao");
+  if(!box) return;
+  const data=dataExtensoCorreios(d.data_postagem);
+  const enderecoDest=[d.endereco,d.numero,d.complemento].filter(Boolean).join(", ");
+  box.innerHTML=`
+    <h1>DECLARAÇÃO DE CONTEÚDO</h1>
+    <div class="cor-dec-duplo">
+      <div class="cor-dec-box">
+        <div class="cor-dec-titulo">REMETENTE</div>
+        <div class="cor-dec-linha"><b>NOME:</b> ${escaparHtmlEmail(d.remetente_nome)}</div>
+        <div class="cor-dec-linha"><b>ENDEREÇO:</b> ${escaparHtmlEmail(d.remetente_endereco)}</div>
+        <div class="cor-dec-linha">${escaparHtmlEmail(d.remetente_bairro)}</div>
+        <div class="cor-dec-linha"><b>CIDADE:</b> ${escaparHtmlEmail(d.remetente_cidade)} &nbsp; <b>UF:</b> ${escaparHtmlEmail(d.remetente_uf)}</div>
+        <div class="cor-dec-linha"><b>CEP:</b> ${escaparHtmlEmail(d.remetente_cep)} &nbsp; <b>CPF/CNPJ:</b> ${escaparHtmlEmail(d.remetente_documento)}</div>
+      </div>
+      <div class="cor-dec-box">
+        <div class="cor-dec-titulo">DESTINATÁRIO</div>
+        <div class="cor-dec-linha"><b>NOME:</b> ${escaparHtmlEmail(d.cliente)}</div>
+        <div class="cor-dec-linha"><b>ENDEREÇO:</b> ${escaparHtmlEmail(enderecoDest)}</div>
+        <div class="cor-dec-linha">${escaparHtmlEmail(d.bairro)}</div>
+        <div class="cor-dec-linha"><b>CIDADE:</b> ${escaparHtmlEmail(d.cidade)} &nbsp; <b>UF:</b> ${escaparHtmlEmail(d.uf)}</div>
+        <div class="cor-dec-linha"><b>CEP:</b> ${escaparHtmlEmail(d.cep)} &nbsp; <b>CPF/CNPJ:</b> ${escaparHtmlEmail(d.documento)}</div>
+      </div>
+    </div>
+
+    <table class="cor-dec-bens">
+      <thead><tr><th style="width:8%;">ITEM</th><th>CONTEÚDO</th><th style="width:16%;">QUANT.</th><th style="width:18%;">VALOR</th></tr></thead>
+      <tbody>
+        <tr><td style="text-align:center;">01</td><td>${escaparHtmlEmail(d.conteudo)}</td><td style="text-align:center;">${d.quantidade}</td><td style="text-align:center;">${escaparHtmlEmail(d.valor_declarado || "")}</td></tr>
+        ${Array.from({length:10},()=>'<tr><td></td><td></td><td></td><td></td></tr>').join("")}
+        <tr><td colspan="2" style="text-align:right;font-weight:700;">TOTAIS</td><td style="text-align:center;font-weight:700;">${d.quantidade}</td><td style="text-align:center;font-weight:700;">${escaparHtmlEmail(d.valor_declarado || "")}</td></tr>
+        <tr><td colspan="3" style="text-align:right;font-weight:700;">PESO TOTAL (kg)</td><td style="text-align:center;font-weight:700;">${escaparHtmlEmail(d.peso || "")}</td></tr>
+      </tbody>
+    </table>
+
+    <div class="cor-dec-declaracao">
+      <div style="text-align:center;font-weight:900;letter-spacing:4px;margin-bottom:9px;">DECLARAÇÃO</div>
+      Declaro que não me enquadro no conceito de contribuinte previsto no art. 4º da Lei Complementar nº 87/1996, uma vez que não realizo, com habitualidade ou em volume que caracterize intuito comercial, operações de circulação de mercadoria, ainda que se iniciem no exterior, ou estou dispensado da emissão da nota fiscal por força da legislação tributária vigente, responsabilizando-me, nos termos da lei e a quem de direito, por informações inverídicas.<br><br>
+      Declaro ainda que não estou postando conteúdo inflamável, explosivo, causador de combustão espontânea, tóxico, corrosivo, gás ou qualquer outro conteúdo que constitua perigo, conforme o art. 13 da Lei Postal nº 6.538/78.
+      <div class="cor-dec-assinatura">
+        <div>${escaparHtmlEmail(d.remetente_cidade)}, ${data.dia} de ${escaparHtmlEmail(data.mes)} de ${data.ano}</div>
+        <div>Assinatura do Declarante/Remetente</div>
+      </div>
+    </div>
+    <div style="border:2px solid #111;margin-top:6px;padding:8px;"><b>OBSERVAÇÃO:</b><br>Constitui crime contra a ordem tributária suprimir ou reduzir tributo, ou contribuição social e qualquer acessório (Lei 8.137/90 Art. 1º, V).</div>`;
+}
+
+function atualizarCorreiosTudo(){
+  montarEtiquetaDestinoCorreios();
+  montarEtiquetaRemetenteCorreios();
+  montarDeclaracaoCorreios();
+}
+
+function mostrarPreviewCorreios(tipo){
+  ["Destino","Remetente","Declaracao"].forEach(nome=>{
+    document.getElementById("corPreview"+nome)?.classList.remove("ativo");
+    document.getElementById("corTab"+nome)?.classList.remove("ativo");
+  });
+  const nome={destino:"Destino",remetente:"Remetente",declaracao:"Declaracao"}[tipo];
+  document.getElementById("corPreview"+nome)?.classList.add("ativo");
+  document.getElementById("corTab"+nome)?.classList.add("ativo");
+}
+
+function preencherListaClientesCorreios(){
+  const lista=document.getElementById("corClientesLista");
+  if(!lista) return;
+  lista.innerHTML=emailClientes.map(item=>`<option value="${escaparHtmlEmail(item.nome || "")}"></option>`).join("");
+}
+
+function preencherCorreiosPeloCliente(){
+  const nome=valorCampoCorreios("corCliente");
+  const cliente=emailClientes.find(item=>normalizarNomeEmail(item.nome || "")===normalizarNomeEmail(nome));
+  if(!cliente){
+    alert("Cliente não encontrado no cadastro.");
+    return;
+  }
+  document.getElementById("corEndereco").value=cliente.endereco || "";
+  document.getElementById("corNumero").value=cliente.numero || "";
+  document.getElementById("corComplemento").value=cliente.complemento || "";
+  document.getElementById("corBairro").value=cliente.bairro || "";
+  document.getElementById("corCep").value=cliente.cep || "";
+  document.getElementById("corCidade").value=cliente.cidade || "";
+  document.getElementById("corUf").value=cliente.uf || "";
+  document.getElementById("corDocumento").value=cliente.cpf_cnpj || "";
+  atualizarCorreiosTudo();
+}
+
+function inicializarModuloCorreios(){
+  preencherListaClientesCorreios();
+  const data=document.getElementById("corData");
+  if(data && !data.value) data.value=new Date().toISOString().slice(0,10);
+  atualizarCorreiosTudo();
+  carregarHistoricoCorreios();
+}
+
+function abrirJanelaImpressaoCorreios(conteudo,tamanho,titulo){
+  const janela=window.open("","_blank","width=1000,height=760");
+  if(!janela){alert("Permita pop-ups para imprimir.");return;}
+  janela.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${titulo}</title>
+  <style>@page{size:${tamanho};margin:0}html,body{margin:0;padding:0;background:#fff}body>*{margin:0 auto!important;box-shadow:none!important;border-radius:0!important}</style>
+  ${document.querySelector("style")?.outerHTML || ""}</head><body>${conteudo}</body></html>`);
+  janela.document.close();
+  setTimeout(()=>{janela.focus();janela.print();},700);
+}
+
+function imprimirEtiquetaCorreios(tipo){
+  atualizarCorreiosTudo();
+  const id=tipo==="destino" ? "corEtiquetaDestino" : "corEtiquetaRemetente";
+  abrirJanelaImpressaoCorreios(document.getElementById(id).outerHTML,"150mm 100mm","Etiqueta Correios");
+}
+
+function imprimirDeclaracaoCorreios(){
+  atualizarCorreiosTudo();
+  abrirJanelaImpressaoCorreios(document.getElementById("corDeclaracao").outerHTML,"A4","Declaração de Conteúdo");
+}
+
+function imprimirPacoteCorreios(){
+  imprimirEtiquetaCorreios("destino");
+  setTimeout(()=>imprimirEtiquetaCorreios("remetente"),900);
+  setTimeout(()=>imprimirDeclaracaoCorreios(),1800);
+}
+
+async function salvarEnvioCorreios(){
+  if(!bancoPronto()) return;
+  const d=dadosCorreios();
+  if(!d.cliente || !d.endereco || !d.cep || !d.cidade || !d.uf){
+    alert("Preencha cliente, endereço, CEP, cidade e UF.");
+    return;
+  }
+  const resposta=await banco.from("correios_envios").insert([{
+    cliente_nome:d.cliente,endereco:d.endereco,numero:d.numero,complemento:d.complemento,
+    bairro:d.bairro,cep:d.cep,cidade:d.cidade,uf:d.uf,cpf_cnpj:d.documento,
+    servico:d.servico,data_postagem:d.data_postagem,peso_kg:d.peso ? Number(String(d.peso).replace(",",".")) : null,
+    codigo_rastreio:d.rastreio,conteudo:d.conteudo,quantidade:d.quantidade,
+    valor_declarado:d.valor_declarado ? Number(String(d.valor_declarado).replace(".","").replace(",",".")) : null,
+    criado_por:usuarioAtual?.username || null
+  }]).select().single();
+  if(resposta.error){alert("Erro ao salvar postagem: "+resposta.error.message);return;}
+  mostrarAvisoEmail("Postagem dos Correios salva com sucesso.",true);
+  carregarHistoricoCorreios();
+}
+
+async function carregarHistoricoCorreios(){
+  if(!bancoPronto()) return;
+  const resposta=await banco.from("correios_envios").select("*").order("created_at",{ascending:false}).limit(200);
+  if(resposta.error){console.error(resposta.error);return;}
+  correiosHistorico=resposta.data || [];
+  const tbody=document.getElementById("corTabelaHistorico");
+  if(!tbody) return;
+  tbody.innerHTML=correiosHistorico.length ? correiosHistorico.map(item=>`
+    <tr>
+      <td>${formatarDataHoraEmail(item.data_postagem || item.created_at)}</td>
+      <td>${escaparHtmlEmail(item.cliente_nome || "")}</td>
+      <td>${escaparHtmlEmail(item.cep || "")}</td>
+      <td>${escaparHtmlEmail(item.servico || "")}</td>
+      <td>${item.peso_kg ?? ""}</td>
+      <td>${escaparHtmlEmail(item.codigo_rastreio || "")}</td>
+      <td>
+        <button class="btn azul" onclick="reutilizarEnvioCorreios('${item.id}')">Usar</button>
+        <button class="btn vermelho" onclick="excluirEnvioCorreios('${item.id}')">Excluir</button>
+      </td>
+    </tr>`).join("") : '<tr><td colspan="7">Nenhuma postagem salva.</td></tr>';
+}
+
+function reutilizarEnvioCorreios(id){
+  const item=correiosHistorico.find(reg=>reg.id===id);
+  if(!item) return;
+  const mapa={
+    corCliente:item.cliente_nome,corEndereco:item.endereco,corNumero:item.numero,
+    corComplemento:item.complemento,corBairro:item.bairro,corCep:item.cep,
+    corCidade:item.cidade,corUf:item.uf,corDocumento:item.cpf_cnpj,
+    corServico:item.servico,corData:item.data_postagem,corPeso:item.peso_kg,
+    corRastreio:item.codigo_rastreio,corConteudo:item.conteudo,
+    corQuantidade:item.quantidade,corValor:item.valor_declarado
+  };
+  Object.entries(mapa).forEach(([idCampo,valor])=>{const el=document.getElementById(idCampo);if(el)el.value=valor ?? "";});
+  atualizarCorreiosTudo();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+async function excluirEnvioCorreios(id){
+  if(!confirm("Excluir esta postagem do histórico?")) return;
+  const resposta=await banco.from("correios_envios").delete().eq("id",id);
+  if(resposta.error){alert(resposta.error.message);return;}
+  carregarHistoricoCorreios();
+}
+
+function limparCorreios(){
+  ["corCliente","corEndereco","corNumero","corComplemento","corBairro","corCep","corCidade","corUf",
+   "corDocumento","corPeso","corRastreio","corValor"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
+  document.getElementById("corServico").value="PAC";
+  document.getElementById("corConteudo").value="COSMÉTICOS";
+  document.getElementById("corQuantidade").value="1";
+  document.getElementById("corData").value=new Date().toISOString().slice(0,10);
+  atualizarCorreiosTudo();
 }
 
 function selecionarModoEmail(modo){
