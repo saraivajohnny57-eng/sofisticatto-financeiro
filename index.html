@@ -157,7 +157,7 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .etiqueta-preview-area{max-width:100%;overflow:auto}
 .etiqueta-controle-fonte{
   display:grid;
-  grid-template-columns:minmax(0,1fr) auto auto;
+  grid-template-columns:minmax(0,1fr) auto auto auto;
   gap:8px;
   align-items:center;
   margin-top:8px;
@@ -216,16 +216,50 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 }
 
 
-/* CONTROLES DE TAMANHO DA ETIQUETA */
-.etq-ajustes-painel{grid-column:1/-1;margin-top:4px;border:1px solid #ded7f3;border-radius:14px;background:#faf8ff;overflow:hidden}
-.etq-ajustes-painel summary{padding:12px 14px;font-weight:700;color:#4d4694;cursor:pointer;user-select:none}
-.etq-ajustes-conteudo{padding:0 12px 12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.etq-ajuste-linha{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:6px;align-items:center;background:#fff;border:1px solid #ebe6f7;border-radius:10px;padding:7px}
-.etq-ajuste-linha span:first-child{font-size:12px;font-weight:700;color:#4d4694}
-.etq-ajuste-valor{min-width:48px;text-align:center;font-size:11px;color:#7d73bd}
-.etq-ajuste-linha button{border:0;border-radius:8px;background:#3498db;color:#fff;font-weight:700;padding:7px 9px;cursor:pointer}
-.etq-ajustes-acoes{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
-@media(max-width:650px){.etq-ajustes-conteudo{grid-template-columns:1fr}}
+/* CONTROLES INDIVIDUAIS ABAIXO DE CADA CAMPO */
+.etq-controle-inline{
+  display:grid;
+  grid-template-columns:auto minmax(70px,1fr) auto;
+  gap:7px;
+  align-items:center;
+  margin-top:7px;
+}
+.etq-controle-inline button{
+  border:0;
+  border-radius:9px;
+  background:#3498db;
+  color:#fff;
+  font-weight:700;
+  padding:7px 10px;
+  cursor:pointer;
+}
+.etq-controle-inline span{
+  text-align:center;
+  font-size:11px;
+  color:#7d73bd;
+  background:#faf8ff;
+  border:1px solid #ebe6f7;
+  border-radius:9px;
+  padding:7px 6px;
+}
+.etq-controle-grafico{
+  grid-column:1/-1;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin-top:4px;
+}
+.etq-controle-grafico-box{
+  background:#faf8ff;
+  border:1px solid #e4ddf7;
+  border-radius:12px;
+  padding:10px;
+}
+.etq-controle-grafico-box .relatorio-label{margin-bottom:4px}
+.etq-restaurar-box{grid-column:1/-1;margin-top:2px}
+@media(max-width:650px){
+  .etq-controle-grafico{grid-template-columns:1fr}
+}
 
 </style>
 </head>
@@ -612,27 +646,52 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <input id="etqCliente" autocomplete="off" placeholder="Digite ou selecione o cliente"
                   oninput="mostrarSugestoesEtiqueta();atualizarPreviewEtiqueta()"
                   onfocus="mostrarSugestoesEtiqueta()">
+                <div class="etq-controle-inline">
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('destino',-1)">A−</button>
+                  <span id="etqValDestino">Automático</span>
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('destino',1)">A+</button>
+                </div>
                 <div id="etqSugestoesClientes" class="etiqueta-sugestoes-lista"></div>
               </div>
 
               <div class="campo-largo">
                 <label class="relatorio-label">Endereço</label>
                 <input id="etqEndereco" placeholder="Ex.: RUA FALCHI GIANNINI, 955" oninput="atualizarPreviewEtiqueta()">
+                <div class="etq-controle-inline">
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('endereco',-1)">A−</button>
+                  <span id="etqValEndereco">Automático</span>
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('endereco',1)">A+</button>
+                </div>
               </div>
 
               <div>
                 <label class="relatorio-label">Bairro</label>
                 <input id="etqBairro" placeholder="Ex.: VILA PRUDENTE" oninput="atualizarPreviewEtiqueta()">
+                <div class="etq-controle-inline">
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('bairro',-1)">A−</button>
+                  <span id="etqValBairro">Automático</span>
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('bairro',1)">A+</button>
+                </div>
               </div>
               <div>
                 <label class="relatorio-label">CEP</label>
                 <input id="etqCep" maxlength="9" inputmode="numeric" placeholder="00000-000"
                   oninput="formatarCepEtiquetaCampo(this);atualizarPreviewEtiqueta()">
+                <div class="etq-controle-inline">
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('cep',-1)">A−</button>
+                  <span id="etqValCep">Automático</span>
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('cep',1)">A+</button>
+                </div>
               </div>
 
               <div>
                 <label class="relatorio-label">Cidade</label>
                 <input id="etqCidade" placeholder="Ex.: GUANAMBI" oninput="atualizarPreviewEtiqueta()">
+                <div class="etq-controle-inline">
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('cidade',-1)">A−</button>
+                  <span id="etqValCidade">Automático</span>
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('cidade',1)">A+</button>
+                </div>
               </div>
               <div>
                 <label class="relatorio-label">UF</label>
@@ -642,10 +701,20 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <div>
                 <label class="relatorio-label">Número da Nota Fiscal</label>
                 <input id="etqNf" placeholder="Ex.: 50415" oninput="atualizarPreviewEtiqueta()">
+                <div class="etq-controle-inline">
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('nf',-1)">A−</button>
+                  <span id="etqValNf">Automático</span>
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('nf',1)">A+</button>
+                </div>
               </div>
               <div>
                 <label class="relatorio-label">Quantidade de volumes</label>
                 <input id="etqVolumes" type="number" min="1" max="999" value="1" oninput="atualizarPreviewEtiqueta()">
+                <div class="etq-controle-inline">
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('volume',-1)">A−</button>
+                  <span id="etqValVolume">Automático</span>
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('volume',1)">A+</button>
+                </div>
               </div>
 
               <div class="etiqueta-pedido-config">
@@ -719,6 +788,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
                     <option value="72px">72px</option>
                   </select>
                   <button type="button" class="btn azul" onclick="ajustarFonteTransportadora(-2)" title="Diminuir letra">A−</button>
+                  <span id="etqValTransportadora" class="etq-ajuste-valor">Automático</span>
                   <button type="button" class="btn azul" onclick="ajustarFonteTransportadora(2)" title="Aumentar letra">A+</button>
                 </div>
 
@@ -728,39 +798,63 @@ SOFISTICATTO COSMÉTICOS</textarea>
                   Dividir o nome da transportadora em 2 linhas quando necessário
                 </label>
               </div>
-
-
-              <details class="etq-ajustes-painel">
-                <summary>⚙️ Ajustar tamanhos da etiqueta</summary>
-                <div class="etq-ajustes-conteudo">
-                  <div class="etq-ajuste-linha"><span>Destino / cliente</span><button type="button" onclick="ajustarTamanhoEtiqueta('destino',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('destino',1)">A+</button><span id="etqValDestino" class="etq-ajuste-valor">0</span></div>
-                  <div class="etq-ajuste-linha"><span>Endereço</span><button type="button" onclick="ajustarTamanhoEtiqueta('endereco',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('endereco',1)">A+</button><span id="etqValEndereco" class="etq-ajuste-valor">0</span></div>
-                  <div class="etq-ajuste-linha"><span>Bairro</span><button type="button" onclick="ajustarTamanhoEtiqueta('bairro',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('bairro',1)">A+</button><span id="etqValBairro" class="etq-ajuste-valor">0</span></div>
-                  <div class="etq-ajuste-linha"><span>CEP</span><button type="button" onclick="ajustarTamanhoEtiqueta('cep',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('cep',1)">A+</button><span id="etqValCep" class="etq-ajuste-valor">0</span></div>
-                  <div class="etq-ajuste-linha"><span>Cidade / UF</span><button type="button" onclick="ajustarTamanhoEtiqueta('cidade',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('cidade',1)">A+</button><span id="etqValCidade" class="etq-ajuste-valor">0</span></div>
-                  <div class="etq-ajuste-linha"><span>Número da NF</span><button type="button" onclick="ajustarTamanhoEtiqueta('nf',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('nf',1)">A+</button><span id="etqValNf" class="etq-ajuste-valor">0</span></div>
-                  <div class="etq-ajuste-linha"><span>Volume</span><button type="button" onclick="ajustarTamanhoEtiqueta('volume',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('volume',1)">A+</button><span id="etqValVolume" class="etq-ajuste-valor">0</span></div>
-                  <div class="etq-ajuste-linha"><span>Números da chave</span><button type="button" onclick="ajustarTamanhoEtiqueta('chave',-0.5)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('chave',0.5)">A+</button><span id="etqValChave" class="etq-ajuste-valor">0</span></div>
-                  <div class="etq-ajuste-linha"><span>Logo</span><button type="button" onclick="ajustarTamanhoEtiqueta('logo',-5)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('logo',5)">A+</button><span id="etqValLogo" class="etq-ajuste-valor">0</span></div>
-                  <div class="etq-ajuste-linha"><span>QR Code</span><button type="button" onclick="ajustarTamanhoEtiqueta('qr',-3)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('qr',3)">A+</button><span id="etqValQr" class="etq-ajuste-valor">0</span></div>
-                  <div class="etq-ajuste-linha"><span>Código de barras — largura</span><button type="button" onclick="ajustarTamanhoEtiqueta('barcodeLargura',-8)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('barcodeLargura',8)">A+</button><span id="etqValBarcodeLargura" class="etq-ajuste-valor">0</span></div>
-                  <div class="etq-ajuste-linha"><span>Código de barras — altura</span><button type="button" onclick="ajustarTamanhoEtiqueta('barcodeAltura',-2)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('barcodeAltura',2)">A+</button><span id="etqValBarcodeAltura" class="etq-ajuste-valor">0</span></div>
-                  <div class="etq-ajustes-acoes">
-                    <button type="button" class="btn vermelho" onclick="restaurarTamanhosEtiqueta()">Restaurar tamanhos</button>
-                  </div>
-                </div>
-              </details>
-
-              <div class="campo-largo">
+<div class="campo-largo">
                 <label class="relatorio-label">Chave de acesso da NF-e (44 dígitos)</label>
                 <input id="etqChave" maxlength="44" inputmode="numeric" placeholder="Digite ou cole a chave da nota"
                   oninput="this.value=this.value.replace(/\D/g,'').slice(0,44);atualizarPreviewEtiqueta()">
+                <div class="etq-controle-inline">
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('chave',-0.5)">A−</button>
+                  <span id="etqValChave">Automático</span>
+                  <button type="button" onclick="ajustarTamanhoEtiqueta('chave',0.5)">A+</button>
+                </div>
               </div>
 
               <div class="campo-largo">
                 <label class="relatorio-label">Importar XML da NF-e (opcional)</label>
                 <input id="etqXml" type="file" accept=".xml,text/xml,application/xml" onchange="lerXmlEtiqueta(event)">
                 <small style="color:#7d73bd;">Preenche automaticamente cliente, endereço, bairro, CEP, cidade/UF, NF, volumes, transportadora e chave de acesso.</small>
+              </div>
+
+              <div class="etq-controle-grafico">
+                <div class="etq-controle-grafico-box">
+                  <label class="relatorio-label">Tamanho da logo</label>
+                  <div class="etq-controle-inline">
+                    <button type="button" onclick="ajustarTamanhoEtiqueta('logo',-5)">A−</button>
+                    <span id="etqValLogo">Padrão</span>
+                    <button type="button" onclick="ajustarTamanhoEtiqueta('logo',5)">A+</button>
+                  </div>
+                </div>
+
+                <div class="etq-controle-grafico-box">
+                  <label class="relatorio-label">Tamanho do QR Code</label>
+                  <div class="etq-controle-inline">
+                    <button type="button" onclick="ajustarTamanhoEtiqueta('qr',-3)">A−</button>
+                    <span id="etqValQr">Padrão</span>
+                    <button type="button" onclick="ajustarTamanhoEtiqueta('qr',3)">A+</button>
+                  </div>
+                </div>
+
+                <div class="etq-controle-grafico-box">
+                  <label class="relatorio-label">Largura do código de barras</label>
+                  <div class="etq-controle-inline">
+                    <button type="button" onclick="ajustarTamanhoEtiqueta('barcodeLargura',-8)">A−</button>
+                    <span id="etqValBarcodeLargura">Padrão</span>
+                    <button type="button" onclick="ajustarTamanhoEtiqueta('barcodeLargura',8)">A+</button>
+                  </div>
+                </div>
+
+                <div class="etq-controle-grafico-box">
+                  <label class="relatorio-label">Altura do código de barras</label>
+                  <div class="etq-controle-inline">
+                    <button type="button" onclick="ajustarTamanhoEtiqueta('barcodeAltura',-2)">A−</button>
+                    <span id="etqValBarcodeAltura">Padrão</span>
+                    <button type="button" onclick="ajustarTamanhoEtiqueta('barcodeAltura',2)">A+</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="etq-restaurar-box">
+                <button type="button" class="btn vermelho" onclick="restaurarTamanhosEtiqueta()">Restaurar todos os tamanhos</button>
               </div>
             </div>
 
@@ -3501,6 +3595,12 @@ function atualizarValoresAjustesEtiqueta(){
     const valor=Number(etqAjustesTamanho[campo] || 0);
     el.textContent=valor===0 ? "Padrão" : `${valor>0?"+":""}${valor}`;
   });
+
+  const transp=document.getElementById("etqValTransportadora");
+  const seletorTransp=document.getElementById("etqTransportadoraFonte");
+  if(transp && seletorTransp){
+    transp.textContent=seletorTransp.value==="auto" ? "Automático" : seletorTransp.value;
+  }
 }
 
 function pxDoElemento(elemento,fallback){
