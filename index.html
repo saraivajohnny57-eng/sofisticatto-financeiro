@@ -3653,8 +3653,28 @@ function aplicarAjustesTamanhoEtiqueta(etiqueta){
 
   const barcode=etiqueta.querySelector(".etiqueta-barcode");
   if(barcode){
-    barcode.style.width=`${Math.max(250,454+Number(etqAjustesTamanho.barcodeLargura || 0))}px`;
-    barcode.style.height=`${Math.max(16,34+Number(etqAjustesTamanho.barcodeAltura || 0))}px`;
+    const larguraBase=454;
+    const largura=Math.max(250,Math.min(490,larguraBase+Number(etqAjustesTamanho.barcodeLargura || 0)));
+    const altura=Math.max(16,34+Number(etqAjustesTamanho.barcodeAltura || 0));
+
+    barcode.style.width=`${largura}px`;
+    barcode.style.height=`${altura}px`;
+
+    // Centraliza o código de barras dentro da área útil da etiqueta.
+    const larguraEtiqueta=etiqueta.getBoundingClientRect().width || 567;
+    const areaUtilEsquerda=19;   // aproximadamente 5 mm
+    const areaUtilDireita=95;    // reserva para a transportadora
+    const centroUtil=(areaUtilEsquerda + (larguraEtiqueta-areaUtilDireita))/2;
+
+    barcode.style.left=`${Math.max(0,centroUtil-(largura/2))}px`;
+    barcode.style.right="auto";
+
+    const chave=etiqueta.querySelector(".etiqueta-chave");
+    if(chave){
+      chave.style.width=`${largura}px`;
+      chave.style.left=barcode.style.left;
+      chave.style.right="auto";
+    }
   }
 }
 
