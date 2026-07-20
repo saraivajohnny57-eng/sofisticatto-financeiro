@@ -4245,6 +4245,27 @@ document.addEventListener("click",evento=>{
   }
 });
 
+
+function decodificarEntidadesXml(valor){
+  let texto=String(valor || "");
+
+  // Decodifica entidades comuns e também casos duplamente codificados,
+  // como &amp;amp;H, sem alterar o caractere & correto.
+  for(let tentativa=0;tentativa<3;tentativa++){
+    const textarea=document.createElement("textarea");
+    textarea.innerHTML=texto;
+    const decodificado=textarea.value;
+
+    if(decodificado===texto) break;
+    texto=decodificado;
+  }
+
+  return texto
+    .replace(/\u00A0/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+}
+
 async function lerXmlEtiqueta(evento){
   const arquivo=evento.target.files?.[0];
   if(!arquivo) return;
@@ -4257,14 +4278,16 @@ async function lerXmlEtiqueta(evento){
     const textoNo=(seletores)=>{
       for(const seletor of seletores){
         const no=xml.querySelector(seletor);
-        if(no?.textContent?.trim()) return no.textContent.trim();
+        if(no?.textContent?.trim()){
+          return decodificarEntidadesXml(no.textContent);
+        }
       }
       return "";
     };
 
     const chave=textoNo(["protNFe infProt chNFe","infNFe"]).replace(/^NFe/,"");
     const numeroNf=textoNo(["ide nNF"]);
-    const cliente=textoNo(["dest xNome"]);
+    const cliente=decodificarEntidadesXml(textoNo(["dest xNome"]));
     const logradouro=textoNo(["dest enderDest xLgr"]);
     const numeroEndereco=textoNo(["dest enderDest nro"]);
     const complemento=textoNo(["dest enderDest xCpl"]);
