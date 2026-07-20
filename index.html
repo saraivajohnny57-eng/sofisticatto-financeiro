@@ -929,8 +929,15 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div class="inputs">
           <input id="emailClienteNome" placeholder="Nome do cliente">
           <textarea id="emailClienteEmails" placeholder="E-mails separados por ponto e vírgula, vírgula ou uma linha para cada e-mail"></textarea>
+          <input id="emailClienteEndereco" placeholder="Endereço (opcional)">
+          <input id="emailClienteNumero" placeholder="Número (opcional)">
+          <input id="emailClienteComplemento" placeholder="Complemento (opcional)">
+          <input id="emailClienteBairro" placeholder="Bairro (opcional)">
+          <input id="emailClienteCep" maxlength="9" placeholder="CEP (opcional)" oninput="formatarCepEtiquetaCampo(this)">
           <input id="emailClienteCidade" placeholder="Cidade (opcional)">
           <input id="emailClienteUf" maxlength="2" placeholder="UF (opcional)" oninput="this.value=this.value.toUpperCase()">
+          <input id="emailClienteTransportadora" placeholder="Transportadora preferencial (opcional)">
+          <textarea id="emailClienteObservacaoLogistica" placeholder="Observação logística (opcional)"></textarea>
           <select id="emailClienteVendedora" onchange="atualizarEmailVendedoraAutomatico()"><option value="">Selecione a vendedora</option></select>
           <input id="emailVendedoraAutomatico" placeholder="E-mail da vendedora (automático)" readonly>
         </div>
@@ -2375,8 +2382,15 @@ function filtrarTabelaClientesEmail(){
     const texto = [
       item.nome,
       ...(item.emails || []),
+      item.endereco || "",
+      item.numero || "",
+      item.complemento || "",
+      item.bairro || "",
+      item.cep || "",
       item.cidade || "",
       item.uf || "",
+      item.transportadora_preferencial || "",
+      item.observacao_logistica || "",
       vendedora?.nome || "",
       vendedora?.email || ""
     ].join(" ");
@@ -2405,9 +2419,21 @@ async function salvarClienteEmail(){
     return;
   }
 
+  const endereco = document.getElementById("emailClienteEndereco")?.value.trim() || "";
+  const numero = document.getElementById("emailClienteNumero")?.value.trim() || "";
+  const complemento = document.getElementById("emailClienteComplemento")?.value.trim() || "";
+  const bairro = document.getElementById("emailClienteBairro")?.value.trim() || "";
+  const cep = document.getElementById("emailClienteCep")?.value.trim() || "";
   const cidade = document.getElementById("emailClienteCidade")?.value.trim() || "";
   const uf = document.getElementById("emailClienteUf")?.value.trim().toUpperCase() || "";
-  const dados = {nome,emails,vendedora_id,cidade,uf,ativo:true,atualizado_em:new Date().toISOString()};
+  const transportadora_preferencial = document.getElementById("emailClienteTransportadora")?.value.trim() || "";
+  const observacao_logistica = document.getElementById("emailClienteObservacaoLogistica")?.value.trim() || "";
+
+  const dados = {
+    nome,emails,vendedora_id,endereco,numero,complemento,bairro,cep,cidade,uf,
+    transportadora_preferencial,observacao_logistica,
+    ativo:true,atualizado_em:new Date().toISOString()
+  };
   const resposta = id
     ? await banco.from("email_clientes").update(dados).eq("id",id)
     : await banco.from("email_clientes").insert([{...dados,criado_por:usuarioLogado.login}]);
@@ -2424,8 +2450,15 @@ function editarClienteEmail(id){
   document.getElementById("emailClienteId").value = item.id;
   document.getElementById("emailClienteNome").value = item.nome || "";
   document.getElementById("emailClienteEmails").value = (item.emails || []).join("; ");
+  document.getElementById("emailClienteEndereco").value = item.endereco || "";
+  document.getElementById("emailClienteNumero").value = item.numero || "";
+  document.getElementById("emailClienteComplemento").value = item.complemento || "";
+  document.getElementById("emailClienteBairro").value = item.bairro || "";
+  document.getElementById("emailClienteCep").value = item.cep || "";
   document.getElementById("emailClienteCidade").value = item.cidade || "";
   document.getElementById("emailClienteUf").value = item.uf || "";
+  document.getElementById("emailClienteTransportadora").value = item.transportadora_preferencial || "";
+  document.getElementById("emailClienteObservacaoLogistica").value = item.observacao_logistica || "";
   document.getElementById("emailClienteVendedora").value = item.vendedora_id || "";
   atualizarEmailVendedoraAutomatico();
   document.getElementById("emailCancelarCliente").style.display = "inline-block";
@@ -2436,8 +2469,12 @@ function cancelarEdicaoClienteEmail(){
   document.getElementById("emailClienteId").value = "";
   document.getElementById("emailClienteNome").value = "";
   document.getElementById("emailClienteEmails").value = "";
-  document.getElementById("emailClienteCidade").value = "";
-  document.getElementById("emailClienteUf").value = "";
+  ["emailClienteEndereco","emailClienteNumero","emailClienteComplemento","emailClienteBairro",
+   "emailClienteCep","emailClienteCidade","emailClienteUf","emailClienteTransportadora",
+   "emailClienteObservacaoLogistica"].forEach(id=>{
+    const campo=document.getElementById(id);
+    if(campo) campo.value="";
+  });
   document.getElementById("emailClienteVendedora").value = "";
   document.getElementById("emailVendedoraAutomatico").value = "";
   document.getElementById("emailCancelarCliente").style.display = "none";
@@ -4032,6 +4069,47 @@ function atualizarPreviewsFaixasEtiqueta(){
   });
 }
 
+
+function ajustarLinhasVisiveisEtiqueta(etiqueta,d){
+  if(!etiqueta) return;
+
+  const valores={
+    ".etiqueta-endereco":d.endereco,
+    ".etiqueta-bairro":d.bairro,
+    ".etiqueta-cep":d.cep,
+    ".etiqueta-cidade":[d.cidade,d.uf].filter(Boolean).join("/"),
+    ".etiqueta-nf":d.numero_nf,
+    ".etiqueta-chave":d.chave_nfe,
+    ".etiqueta-barcode":d.chave_nfe,
+    ".etiqueta-transportadora":d.transportadora
+  };
+
+  Object.entries(valores).forEach(([seletor,valor])=>{
+    const elemento=etiqueta.querySelector(seletor);
+    if(elemento) elemento.style.display=valor ? "" : "none";
+  });
+
+  let topo=44;
+  [
+    [".etiqueta-endereco",d.endereco,7],
+    [".etiqueta-bairro",d.bairro,7],
+    [".etiqueta-cep",d.cep,7],
+    [".etiqueta-cidade",[d.cidade,d.uf].filter(Boolean).join("/"),8]
+  ].forEach(([seletor,valor,espaco])=>{
+    if(!valor) return;
+    const elemento=etiqueta.querySelector(seletor);
+    if(elemento){
+      elemento.style.top=`${topo}mm`;
+      topo+=espaco;
+    }
+  });
+
+  const nf=etiqueta.querySelector(".etiqueta-nf");
+  const volume=etiqueta.querySelector(".etiqueta-volume");
+  if(nf) nf.style.top=`${topo}mm`;
+  if(volume) volume.style.top=`${topo}mm`;
+}
+
 function atualizarPreviewEtiqueta(){
   const d=dadosEtiquetaFormulario();
 
@@ -4043,10 +4121,10 @@ function atualizarPreviewEtiqueta(){
   }
 
   document.getElementById("etqPrevCliente").textContent=(d.cliente || "CLIENTE").toUpperCase();
-  document.getElementById("etqPrevEndereco").textContent=d.endereco || "ENDEREÇO";
-  document.getElementById("etqPrevBairro").textContent=d.bairro || "BAIRRO";
-  document.getElementById("etqPrevCep").textContent=formatarCepEtiqueta(d.cep) || "CEP";
-  document.getElementById("etqPrevCidade").textContent=[d.cidade,d.uf].filter(Boolean).join("/") || "CIDADE/UF";
+  document.getElementById("etqPrevEndereco").textContent=d.endereco || "";
+  document.getElementById("etqPrevBairro").textContent=d.bairro || "";
+  document.getElementById("etqPrevCep").textContent=formatarCepEtiqueta(d.cep) || "";
+  document.getElementById("etqPrevCidade").textContent=[d.cidade,d.uf].filter(Boolean).join("/") || "";
   document.getElementById("etqPrevNf").textContent=formatarNfEtiqueta(d.numero_nf);
   document.getElementById("etqPrevVolume").textContent=formatarVolumeEtiqueta(1,d.quantidade_volumes);
   document.getElementById("etqPrevChave").textContent=d.chave_nfe;
@@ -4085,6 +4163,7 @@ function atualizarPreviewEtiqueta(){
   if(window.JsBarcode) montarBarcodeEtiqueta(document.getElementById("etqBarcode"),d.chave_nfe);
 
   aplicarAjustesTamanhoEtiqueta(document.getElementById("etqPreview"));
+  ajustarLinhasVisiveisEtiqueta(document.getElementById("etqPreview"),d);
   atualizarValoresAjustesEtiqueta();
   atualizarPreviewsFaixasEtiqueta();
 
@@ -4175,8 +4254,15 @@ async function salvarClienteRapidoEtiqueta(){
     nome,
     emails,
     vendedora_id,
+    endereco:dadosEtiqueta.endereco || "",
+    numero:"",
+    complemento:"",
+    bairro:dadosEtiqueta.bairro || "",
+    cep:dadosEtiqueta.cep || "",
     cidade:dadosEtiqueta.cidade || "",
     uf:dadosEtiqueta.uf || "",
+    transportadora_preferencial:dadosEtiqueta.transportadora || "",
+    observacao_logistica:"",
     ativo:true,
     atualizado_em:new Date().toISOString()
   }]).select().single();
@@ -4229,11 +4315,16 @@ function selecionarClienteEtiqueta(id){
   const item=emailClientes.find(x=>x.id===id);
   if(!item) return;
   document.getElementById("etqCliente").value=item.nome || "";
-  document.getElementById("etqEndereco").value=item.endereco || "";
+
+  const enderecoNumero=[item.endereco,item.numero].filter(Boolean).join(", ");
+  const enderecoCompleto=[enderecoNumero,item.complemento].filter(Boolean).join(" - ");
+
+  document.getElementById("etqEndereco").value=enderecoCompleto || "";
   document.getElementById("etqBairro").value=item.bairro || "";
   document.getElementById("etqCep").value=formatarCepEtiqueta(item.cep || "");
   document.getElementById("etqCidade").value=item.cidade || "";
   document.getElementById("etqUf").value=item.uf || "";
+  document.getElementById("etqTransportadora").value=item.transportadora_preferencial || "";
   document.getElementById("etqSugestoesClientes").classList.remove("ativa");
   atualizarPreviewEtiqueta();
 }
@@ -4331,10 +4422,44 @@ async function lerXmlEtiqueta(evento){
 
     atualizarPreviewEtiqueta();
 
-    if(cliente && !clienteEtiquetaJaCadastrado(cliente)){
-      setTimeout(()=>abrirModalClienteEtiqueta(cliente),250);
-    }else{
-      alert("Dados da NF-e carregados do XML.");
+    if(cliente){
+      const cadastro=clienteEtiquetaJaCadastrado(cliente);
+
+      if(!cadastro){
+        setTimeout(()=>abrirModalClienteEtiqueta(cliente),250);
+      }else{
+        const atualizacao={};
+
+        if(!cadastro.endereco && logradouro) atualizacao.endereco=logradouro;
+        if(!cadastro.numero && numeroEndereco) atualizacao.numero=numeroEndereco;
+        if(!cadastro.complemento && complemento) atualizacao.complemento=complemento;
+        if(!cadastro.bairro && bairro) atualizacao.bairro=bairro;
+        if(!cadastro.cep && cep) atualizacao.cep=cep;
+        if(!cadastro.cidade && cidade) atualizacao.cidade=cidade;
+        if(!cadastro.uf && uf) atualizacao.uf=uf;
+        if(!cadastro.transportadora_preferencial && transportadoraPrimeiroNome){
+          atualizacao.transportadora_preferencial=transportadoraPrimeiroNome.toUpperCase();
+        }
+
+        if(Object.keys(atualizacao).length){
+          atualizacao.atualizado_em=new Date().toISOString();
+
+          const resultado=await banco
+            .from("email_clientes")
+            .update(atualizacao)
+            .eq("id",cadastro.id)
+            .select()
+            .single();
+
+          if(!resultado.error && resultado.data){
+            const posicao=emailClientes.findIndex(item=>item.id===cadastro.id);
+            if(posicao>=0) emailClientes[posicao]=resultado.data;
+            montarTabelaClientesEmail();
+          }
+        }
+
+        alert("Dados da NF-e carregados. O endereço do cadastro foi completado quando havia informações faltando.");
+      }
     }
   }catch(erro){
     alert("Não foi possível ler o XML: "+erro.message);
@@ -4394,6 +4519,7 @@ function criarElementoEtiqueta(d,volumeAtual){
   montarQrEtiqueta(etiqueta.querySelector(".etiqueta-qr"));
   montarBarcodeEtiqueta(etiqueta.querySelector(".etiqueta-barcode"),d.chave_nfe);
   aplicarAjustesTamanhoEtiqueta(etiqueta);
+  ajustarLinhasVisiveisEtiqueta(etiqueta,d);
   return etiqueta;
 }
 
