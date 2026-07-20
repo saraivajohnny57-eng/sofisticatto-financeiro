@@ -410,6 +410,71 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
   }
 }
 
+
+/* CORREÇÕES FINAIS CORREIOS */
+.correios-etiqueta .cor-qr{
+  width:28mm!important;
+  height:28mm!important;
+  background:#fff!important;
+  z-index:5!important;
+}
+.correios-etiqueta .cor-qr canvas,
+.correios-etiqueta .cor-qr img{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+}
+.correios-etiqueta .cor-barcode{
+  display:block!important;
+  z-index:4!important;
+  overflow:visible!important;
+}
+.correios-etiqueta .cor-barcode rect,
+.correios-etiqueta .cor-barcode path{fill:#000!important}
+
+.correios-declaracao{
+  width:194mm!important;
+  min-height:281mm!important;
+  padding:6mm!important;
+  margin:0 auto!important;
+}
+.correios-declaracao .cor-dec-bens{
+  width:100%!important;
+  max-width:100%!important;
+  table-layout:fixed!important;
+}
+.correios-declaracao .cor-dec-bens col:nth-child(1){width:9%!important}
+.correios-declaracao .cor-dec-bens col:nth-child(2){width:53%!important}
+.correios-declaracao .cor-dec-bens col:nth-child(3){width:17%!important}
+.correios-declaracao .cor-dec-bens col:nth-child(4){width:21%!important}
+.correios-declaracao .cor-dec-bens th,
+.correios-declaracao .cor-dec-bens td{
+  max-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:normal!important;
+}
+
+.cor-itens-lista{grid-column:1/-1;display:grid;gap:8px}
+.cor-item-linha{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 100px 130px auto;
+  gap:8px;
+  align-items:end;
+  background:#faf8ff;
+  border:1px solid #e4ddf7;
+  border-radius:12px;
+  padding:10px;
+}
+.cor-item-linha button{
+  border:0;border-radius:9px;background:#c0392b;color:#fff;font-weight:700;padding:10px;cursor:pointer
+}
+@media(max-width:650px){
+  .cor-item-linha{grid-template-columns:1fr}
+}
+
 </style>
 </head>
 <body>
@@ -1130,9 +1195,11 @@ SOFISTICATTO COSMÉTICOS</textarea>
               </div>
 
               <div class="campo-largo"><h3 style="margin-top:8px;">Conteúdo da declaração</h3></div>
-              <div class="campo-largo"><label class="relatorio-label">Descrição do conteúdo</label><input id="corConteudo" value="COSMÉTICOS" oninput="atualizarCorreiosTudo()"></div>
-              <div><label class="relatorio-label">Quantidade</label><input id="corQuantidade" type="number" min="1" value="1" oninput="atualizarCorreiosTudo()"></div>
-              <div><label class="relatorio-label">Valor declarado (R$)</label><input id="corValor" inputmode="decimal" placeholder="0,00" oninput="atualizarCorreiosTudo()"></div>
+              <div class="campo-largo" style="color:#7d73bd;">Adicione tudo o que será levado pelos Correios. Cada linha será colocada automaticamente na declaração.</div>
+              <div id="corItensLista" class="cor-itens-lista"></div>
+              <div class="campo-largo">
+                <button type="button" class="btn azul" onclick="adicionarItemCorreios()">+ Adicionar conteúdo</button>
+              </div>
 
               <div class="campo-largo"><h3 style="margin-top:8px;">Remetente</h3></div>
               <div class="campo-largo"><label class="relatorio-label">Nome</label><input id="corRemNome" value="SOFISTICATTO COSMÉTICOS" oninput="atualizarCorreiosTudo()"></div>
@@ -2613,6 +2680,72 @@ function mostrarAbaEmail(aba){
 
 let correiosHistorico=[];
 
+let correiosItens=[{id:crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),conteudo:"COSMÉTICOS",quantidade:1,valor:""}];
+
+function montarItensCorreios(){
+  const lista=document.getElementById("corItensLista");
+  if(!lista) return;
+
+  lista.innerHTML=correiosItens.map((item,indice)=>`
+    <div class="cor-item-linha">
+      <div>
+        <label class="relatorio-label">Conteúdo ${indice+1}</label>
+        <input value="${escaparHtmlEmail(item.conteudo || "")}"
+          oninput="atualizarItemCorreios('${item.id}','conteudo',this.value)">
+      </div>
+      <div>
+        <label class="relatorio-label">Quantidade</label>
+        <input type="number" min="1" value="${Number(item.quantidade || 1)}"
+          oninput="atualizarItemCorreios('${item.id}','quantidade',this.value)">
+      </div>
+      <div>
+        <label class="relatorio-label">Valor (R$)</label>
+        <input inputmode="decimal" value="${escaparHtmlEmail(item.valor || "")}" placeholder="0,00"
+          oninput="atualizarItemCorreios('${item.id}','valor',this.value)">
+      </div>
+      <button type="button" onclick="removerItemCorreios('${item.id}')">Excluir</button>
+    </div>`).join("");
+}
+
+function adicionarItemCorreios(){
+  correiosItens.push({
+    id:crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random()),
+    conteudo:"",
+    quantidade:1,
+    valor:""
+  });
+  montarItensCorreios();
+  atualizarCorreiosTudo();
+}
+
+function removerItemCorreios(id){
+  if(correiosItens.length===1){
+    correiosItens=[{id:crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),conteudo:"",quantidade:1,valor:""}];
+  }else{
+    correiosItens=correiosItens.filter(item=>item.id!==id);
+  }
+  montarItensCorreios();
+  atualizarCorreiosTudo();
+}
+
+function atualizarItemCorreios(id,campo,valor){
+  const item=correiosItens.find(item=>item.id===id);
+  if(!item) return;
+  item[campo]=campo==="quantidade" ? Math.max(1,Number(valor || 1)) : valor;
+  atualizarCorreiosTudo();
+}
+
+function numeroCorreios(valor){
+  const texto=String(valor || "").trim();
+  if(!texto) return 0;
+  return Number(texto.replace(/\./g,"").replace(",", ".")) || 0;
+}
+
+function totalCorreiosItens(){
+  return correiosItens.reduce((total,item)=>total+(numeroCorreios(item.valor)*Number(item.quantidade || 1)),0);
+}
+
+
 const CORREIOS_AJUSTES_PADRAO={
   logo:0,qr:0,destino:0,endereco:0,bairro:0,cidade:0,cep:0,servico:0,remetente:0,declaracao:0
 };
@@ -2636,6 +2769,7 @@ function ajustarCorreiosTamanho(campo,delta){
   const [min,max]=limites[campo] || [-20,20];
   correiosAjustesTamanho[campo]=Math.max(min,Math.min(max,Number(correiosAjustesTamanho[campo] || 0)+Number(delta)));
   salvarCorreiosTamanhos();
+  montarItensCorreios();
   atualizarCorreiosValoresAjuste();
   atualizarCorreiosTudo();
 }
@@ -2715,9 +2849,10 @@ function dadosCorreios(){
     data_postagem:valorCampoCorreios("corData"),
     peso:valorCampoCorreios("corPeso"),
     rastreio:valorCampoCorreios("corRastreio").toUpperCase(),
-    conteudo:valorCampoCorreios("corConteudo") || "COSMÉTICOS",
-    quantidade:Number(valorCampoCorreios("corQuantidade") || 1),
-    valor_declarado:valorCampoCorreios("corValor"),
+    itens:correiosItens.map(item=>({...item})),
+    conteudo:correiosItens.map(item=>item.conteudo).filter(Boolean).join(", "),
+    quantidade:correiosItens.reduce((total,item)=>total+Number(item.quantidade || 0),0),
+    valor_declarado:totalCorreiosItens(),
     remetente_nome:valorCampoCorreios("corRemNome"),
     remetente_endereco:valorCampoCorreios("corRemEndereco"),
     remetente_bairro:valorCampoCorreios("corRemBairro"),
@@ -2740,16 +2875,18 @@ function montarLogoQrCorreios(container){
 
   alvo.innerHTML="";
   try{
-    if(window.QRCode){
-      new QRCode(alvo,{
-        text:INSTAGRAM_URL,
-        width:120,
-        height:120,
-        correctLevel:QRCode.CorrectLevel.M
-      });
-    }
+    if(!window.QRCode) throw new Error("Biblioteca QRCode não carregada.");
+    new QRCode(alvo,{
+      text:INSTAGRAM_URL || "https://www.instagram.com/sofisticatto.cosmeticos",
+      width:112,
+      height:112,
+      colorDark:"#000000",
+      colorLight:"#ffffff",
+      correctLevel:QRCode.CorrectLevel.M
+    });
   }catch(erro){
     console.error("Erro ao gerar QR Code dos Correios:",erro);
+    alvo.innerHTML='<div style="font-size:10px;color:#900;padding:4px;">QR indisponível</div>';
   }
 }
 
@@ -2769,7 +2906,12 @@ function montarEtiquetaDestinoCorreios(){
     <svg class="cor-barcode"></svg>
     <div class="cor-cep">${d.cep ? "CEP: "+escaparHtmlEmail(formatarCepEtiqueta(d.cep)) : ""}</div>
     <div class="cor-servico">${escaparHtmlEmail(d.servico)}</div>`);
-  montarBarcodeEtiqueta(box.querySelector(".cor-barcode"),(d.cep || "").replace(/\D/g,"") || "00000000");
+  const barcodeDestino=box.querySelector(".cor-barcode");
+  if(barcodeDestino && window.JsBarcode){
+    JsBarcode(barcodeDestino,(d.cep || "").replace(/\D/g,"") || "00000000",{
+      format:"CODE128",displayValue:false,margin:0,height:52,width:2
+    });
+  }
   aplicarAjustesCorreiosEtiqueta(box,"destino");
 }
 
@@ -2790,7 +2932,12 @@ function montarEtiquetaRemetenteCorreios(){
     </div>
     <svg class="cor-barcode"></svg>
     <div class="cor-servico">${escaparHtmlEmail(d.servico)}</div>`);
-  montarBarcodeEtiqueta(box.querySelector(".cor-barcode"),(d.remetente_cep || "").replace(/\D/g,"") || "74550470");
+  const barcodeRemetente=box.querySelector(".cor-barcode");
+  if(barcodeRemetente && window.JsBarcode){
+    JsBarcode(barcodeRemetente,(d.remetente_cep || "").replace(/\D/g,"") || "74550470",{
+      format:"CODE128",displayValue:false,margin:0,height:52,width:2
+    });
+  }
   aplicarAjustesCorreiosEtiqueta(box,"remetente");
 }
 
@@ -2831,11 +2978,22 @@ function montarDeclaracaoCorreios(){
     </div>
 
     <table class="cor-dec-bens">
-      <thead><tr><th style="width:8%;">ITEM</th><th>CONTEÚDO</th><th style="width:16%;">QUANT.</th><th style="width:18%;">VALOR</th></tr></thead>
+      <colgroup><col><col><col><col></colgroup>
+      <thead><tr><th>ITEM</th><th>CONTEÚDO</th><th>QUANT.</th><th>VALOR</th></tr></thead>
       <tbody>
-        <tr><td style="text-align:center;">01</td><td>${escaparHtmlEmail(d.conteudo)}</td><td style="text-align:center;">${d.quantidade}</td><td style="text-align:center;">${escaparHtmlEmail(d.valor_declarado || "")}</td></tr>
-        ${Array.from({length:10},()=>'<tr><td></td><td></td><td></td><td></td></tr>').join("")}
-        <tr><td colspan="2" style="text-align:right;font-weight:700;">TOTAIS</td><td style="text-align:center;font-weight:700;">${d.quantidade}</td><td style="text-align:center;font-weight:700;">${escaparHtmlEmail(d.valor_declarado || "")}</td></tr>
+        ${d.itens.map((item,indice)=>`
+          <tr>
+            <td style="text-align:center;">${String(indice+1).padStart(2,"0")}</td>
+            <td>${escaparHtmlEmail(item.conteudo || "")}</td>
+            <td style="text-align:center;">${Number(item.quantidade || 0)}</td>
+            <td style="text-align:center;">${item.valor ? "R$ "+escaparHtmlEmail(item.valor) : ""}</td>
+          </tr>`).join("")}
+        ${Array.from({length:Math.max(0,10-d.itens.length)},()=>'<tr><td></td><td></td><td></td><td></td></tr>').join("")}
+        <tr>
+          <td colspan="2" style="text-align:right;font-weight:700;">TOTAIS</td>
+          <td style="text-align:center;font-weight:700;">${d.quantidade}</td>
+          <td style="text-align:center;font-weight:700;">R$ ${totalCorreiosItens().toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        </tr>
         <tr><td colspan="3" style="text-align:right;font-weight:700;">PESO TOTAL (kg)</td><td style="text-align:center;font-weight:700;">${escaparHtmlEmail(d.peso || "")}</td></tr>
       </tbody>
     </table>
@@ -2853,7 +3011,12 @@ function montarDeclaracaoCorreios(){
   aplicarAjustesCorreiosEtiqueta(box,"declaracao");
 }
 
-function atualizarCorreiosTudo(){
+async function atualizarCorreiosTudo(){
+  try{
+    await carregarBibliotecasEtiqueta();
+  }catch(erro){
+    console.error("Não foi possível carregar as bibliotecas das etiquetas:",erro);
+  }
   montarEtiquetaDestinoCorreios();
   montarEtiquetaRemetenteCorreios();
   montarDeclaracaoCorreios();
@@ -3018,10 +3181,16 @@ function reutilizarEnvioCorreios(id){
     corComplemento:item.complemento,corBairro:item.bairro,corCep:item.cep,
     corCidade:item.cidade,corUf:item.uf,corDocumento:item.cpf_cnpj,
     corServico:item.servico,corData:item.data_postagem,corPeso:item.peso_kg,
-    corRastreio:item.codigo_rastreio,corConteudo:item.conteudo,
-    corQuantidade:item.quantidade,corValor:item.valor_declarado
+    corRastreio:item.codigo_rastreio
   };
   Object.entries(mapa).forEach(([idCampo,valor])=>{const el=document.getElementById(idCampo);if(el)el.value=valor ?? "";});
+  correiosItens=[{
+    id:crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+    conteudo:item.conteudo || "COSMÉTICOS",
+    quantidade:Number(item.quantidade || 1),
+    valor:item.valor_declarado ? Number(item.valor_declarado).toLocaleString("pt-BR",{minimumFractionDigits:2}) : ""
+  }];
+  montarItensCorreios();
   atualizarCorreiosTudo();
   window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -3037,8 +3206,8 @@ function limparCorreios(){
   ["corCliente","corEndereco","corNumero","corComplemento","corBairro","corCep","corCidade","corUf",
    "corDocumento","corPeso","corRastreio","corValor"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
   document.getElementById("corServico").value="PAC";
-  document.getElementById("corConteudo").value="COSMÉTICOS";
-  document.getElementById("corQuantidade").value="1";
+  correiosItens=[{id:crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),conteudo:"COSMÉTICOS",quantidade:1,valor:""}];
+  montarItensCorreios();
   document.getElementById("corData").value=new Date().toISOString().slice(0,10);
   atualizarCorreiosTudo();
 }
