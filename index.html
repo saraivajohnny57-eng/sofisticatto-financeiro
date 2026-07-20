@@ -306,6 +306,110 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 @media(max-width:1100px){.correios-layout{grid-template-columns:1fr}}
 @media(max-width:650px){.correios-grid{grid-template-columns:1fr}.correios-grid .campo-largo{grid-column:auto}}
 
+
+/* CORREÇÕES DO MÓDULO CORREIOS */
+.correios-label-wrap{overflow:auto}
+.correios-etiqueta{
+  flex:none;
+  box-sizing:border-box;
+  transform-origin:top left;
+}
+.correios-etiqueta .cor-qr{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  background:#fff;
+}
+.correios-etiqueta .cor-qr canvas,
+.correios-etiqueta .cor-qr img{
+  width:100%!important;
+  height:100%!important;
+  display:block!important;
+}
+.correios-remetente .cor-rem-texto{
+  overflow:hidden;
+  word-break:break-word;
+}
+.correios-declaracao{
+  box-sizing:border-box;
+  overflow:hidden;
+}
+.correios-declaracao *{box-sizing:border-box}
+.correios-declaracao .cor-dec-bens{
+  width:100%!important;
+  max-width:100%!important;
+  table-layout:fixed!important;
+}
+.correios-declaracao .cor-dec-bens th,
+.correios-declaracao .cor-dec-bens td{
+  overflow:hidden!important;
+  word-break:break-word!important;
+}
+.correios-declaracao .cor-dec-bens th:nth-child(1),
+.correios-declaracao .cor-dec-bens td:nth-child(1){width:9%!important}
+.correios-declaracao .cor-dec-bens th:nth-child(2),
+.correios-declaracao .cor-dec-bens td:nth-child(2){width:55%!important}
+.correios-declaracao .cor-dec-bens th:nth-child(3),
+.correios-declaracao .cor-dec-bens td:nth-child(3){width:16%!important}
+.correios-declaracao .cor-dec-bens th:nth-child(4),
+.correios-declaracao .cor-dec-bens td:nth-child(4){width:20%!important}
+
+.cor-ajustes-box{
+  grid-column:1/-1;
+  background:#faf8ff;
+  border:1px solid #e1daf5;
+  border-radius:14px;
+  padding:12px;
+}
+.cor-ajustes-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+.cor-ajuste-item{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto auto;
+  align-items:center;
+  gap:6px;
+  background:#fff;
+  border:1px solid #ebe6f7;
+  border-radius:10px;
+  padding:8px;
+}
+.cor-ajuste-item strong{font-size:12px;color:#4d4694}
+.cor-ajuste-item button{
+  border:0;
+  border-radius:8px;
+  padding:7px 9px;
+  background:#3498db;
+  color:#fff;
+  font-weight:700;
+  cursor:pointer;
+}
+.cor-ajuste-item span{
+  min-width:46px;
+  text-align:center;
+  color:#7d73bd;
+  font-size:11px;
+}
+@media(max-width:650px){
+  .cor-ajustes-grid{grid-template-columns:1fr}
+}
+@media print{
+  .correios-etiqueta{
+    width:150mm!important;
+    height:100mm!important;
+    transform:none!important;
+  }
+  .correios-declaracao{
+    width:210mm!important;
+    min-height:297mm!important;
+    padding:8mm!important;
+    overflow:hidden!important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -1006,6 +1110,24 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <div><label class="relatorio-label">Data da postagem</label><input id="corData" type="date" onchange="atualizarCorreiosTudo()"></div>
               <div><label class="relatorio-label">Peso total (kg)</label><input id="corPeso" inputmode="decimal" placeholder="0,000" oninput="atualizarCorreiosTudo()"></div>
               <div><label class="relatorio-label">Código de rastreio (opcional)</label><input id="corRastreio" placeholder="Ex.: QB123456789BR"></div>
+
+
+              <div class="cor-ajustes-box">
+                <h3 style="margin:0 0 10px;">Ajustes de tamanho das etiquetas dos Correios</h3>
+                <div class="cor-ajustes-grid">
+                  <div class="cor-ajuste-item"><strong>Logo</strong><button type="button" onclick="ajustarCorreiosTamanho('logo',-4)">A−</button><span id="corAjLogo">Padrão</span><button type="button" onclick="ajustarCorreiosTamanho('logo',4)">A+</button></div>
+                  <div class="cor-ajuste-item"><strong>QR Code</strong><button type="button" onclick="ajustarCorreiosTamanho('qr',-2)">A−</button><span id="corAjQr">Padrão</span><button type="button" onclick="ajustarCorreiosTamanho('qr',2)">A+</button></div>
+                  <div class="cor-ajuste-item"><strong>Nome do destinatário</strong><button type="button" onclick="ajustarCorreiosTamanho('destino',-1)">A−</button><span id="corAjDestino">Padrão</span><button type="button" onclick="ajustarCorreiosTamanho('destino',1)">A+</button></div>
+                  <div class="cor-ajuste-item"><strong>Endereço</strong><button type="button" onclick="ajustarCorreiosTamanho('endereco',-1)">A−</button><span id="corAjEndereco">Padrão</span><button type="button" onclick="ajustarCorreiosTamanho('endereco',1)">A+</button></div>
+                  <div class="cor-ajuste-item"><strong>Bairro</strong><button type="button" onclick="ajustarCorreiosTamanho('bairro',-1)">A−</button><span id="corAjBairro">Padrão</span><button type="button" onclick="ajustarCorreiosTamanho('bairro',1)">A+</button></div>
+                  <div class="cor-ajuste-item"><strong>Cidade/UF</strong><button type="button" onclick="ajustarCorreiosTamanho('cidade',-1)">A−</button><span id="corAjCidade">Padrão</span><button type="button" onclick="ajustarCorreiosTamanho('cidade',1)">A+</button></div>
+                  <div class="cor-ajuste-item"><strong>CEP</strong><button type="button" onclick="ajustarCorreiosTamanho('cep',-1)">A−</button><span id="corAjCep">Padrão</span><button type="button" onclick="ajustarCorreiosTamanho('cep',1)">A+</button></div>
+                  <div class="cor-ajuste-item"><strong>Serviço PAC/SEDEX</strong><button type="button" onclick="ajustarCorreiosTamanho('servico',-2)">A−</button><span id="corAjServico">Padrão</span><button type="button" onclick="ajustarCorreiosTamanho('servico',2)">A+</button></div>
+                  <div class="cor-ajuste-item"><strong>Texto do remetente</strong><button type="button" onclick="ajustarCorreiosTamanho('remetente',-1)">A−</button><span id="corAjRemetente">Padrão</span><button type="button" onclick="ajustarCorreiosTamanho('remetente',1)">A+</button></div>
+                  <div class="cor-ajuste-item"><strong>Declaração A4</strong><button type="button" onclick="ajustarCorreiosTamanho('declaracao',-0.5)">A−</button><span id="corAjDeclaracao">Padrão</span><button type="button" onclick="ajustarCorreiosTamanho('declaracao',0.5)">A+</button></div>
+                </div>
+                <button type="button" class="btn vermelho" style="margin-top:10px;" onclick="restaurarCorreiosTamanhos()">Restaurar tamanhos</button>
+              </div>
 
               <div class="campo-largo"><h3 style="margin-top:8px;">Conteúdo da declaração</h3></div>
               <div class="campo-largo"><label class="relatorio-label">Descrição do conteúdo</label><input id="corConteudo" value="COSMÉTICOS" oninput="atualizarCorreiosTudo()"></div>
@@ -2491,6 +2613,89 @@ function mostrarAbaEmail(aba){
 
 let correiosHistorico=[];
 
+const CORREIOS_AJUSTES_PADRAO={
+  logo:0,qr:0,destino:0,endereco:0,bairro:0,cidade:0,cep:0,servico:0,remetente:0,declaracao:0
+};
+let correiosAjustesTamanho=carregarCorreiosTamanhos();
+
+function carregarCorreiosTamanhos(){
+  try{
+    return {...CORREIOS_AJUSTES_PADRAO,...JSON.parse(localStorage.getItem("sofisticatto_correios_tamanhos") || "{}")};
+  }catch{
+    return {...CORREIOS_AJUSTES_PADRAO};
+  }
+}
+function salvarCorreiosTamanhos(){
+  localStorage.setItem("sofisticatto_correios_tamanhos",JSON.stringify(correiosAjustesTamanho));
+}
+function ajustarCorreiosTamanho(campo,delta){
+  const limites={
+    logo:[-80,120],qr:[-18,35],destino:[-8,20],endereco:[-6,16],bairro:[-6,16],
+    cidade:[-6,16],cep:[-5,12],servico:[-12,30],remetente:[-5,15],declaracao:[-3,6]
+  };
+  const [min,max]=limites[campo] || [-20,20];
+  correiosAjustesTamanho[campo]=Math.max(min,Math.min(max,Number(correiosAjustesTamanho[campo] || 0)+Number(delta)));
+  salvarCorreiosTamanhos();
+  atualizarCorreiosValoresAjuste();
+  atualizarCorreiosTudo();
+}
+function restaurarCorreiosTamanhos(){
+  correiosAjustesTamanho={...CORREIOS_AJUSTES_PADRAO};
+  salvarCorreiosTamanhos();
+  atualizarCorreiosValoresAjuste();
+  atualizarCorreiosTudo();
+}
+function atualizarCorreiosValoresAjuste(){
+  const mapa={
+    logo:"corAjLogo",qr:"corAjQr",destino:"corAjDestino",endereco:"corAjEndereco",
+    bairro:"corAjBairro",cidade:"corAjCidade",cep:"corAjCep",servico:"corAjServico",
+    remetente:"corAjRemetente",declaracao:"corAjDeclaracao"
+  };
+  Object.entries(mapa).forEach(([campo,id])=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    const valor=Number(correiosAjustesTamanho[campo] || 0);
+    el.textContent=valor===0 ? "Padrão" : `${valor>0?"+":""}${valor}`;
+  });
+}
+function aplicarAjustesCorreiosEtiqueta(etiqueta,tipo){
+  if(!etiqueta) return;
+  const ajuste=correiosAjustesTamanho;
+
+  const logo=etiqueta.querySelector(".cor-logo");
+  if(logo){
+    const largura=Math.max(120,220+Number(ajuste.logo || 0));
+    logo.style.width=`${largura}px`;
+    logo.style.height="106px";
+    logo.style.objectFit="contain";
+  }
+
+  const qr=etiqueta.querySelector(".cor-qr");
+  if(qr){
+    const tamanho=Math.max(55,113+Number(ajuste.qr || 0));
+    qr.style.width=`${tamanho}px`;
+    qr.style.height=`${tamanho}px`;
+  }
+
+  const aplicarFonte=(seletor,base,campo,minimo=9)=>{
+    const el=etiqueta.querySelector(seletor);
+    if(el) el.style.fontSize=`${Math.max(minimo,base+Number(ajuste[campo] || 0))}px`;
+  };
+
+  aplicarFonte(".cor-destino",27,"destino",14);
+  aplicarFonte(".cor-endereco",21,"endereco",12);
+  aplicarFonte(".cor-bairro",21,"bairro",12);
+  aplicarFonte(".cor-cidade",21,"cidade",12);
+  aplicarFonte(".cor-cep",15,"cep",9);
+  aplicarFonte(".cor-servico",83,"servico",40);
+  aplicarFonte(".cor-rem-texto",23,"remetente",13);
+
+  if(tipo==="declaracao"){
+    etiqueta.style.fontSize=`${Math.max(7,10+Number(ajuste.declaracao || 0))}px`;
+  }
+}
+
+
 function valorCampoCorreios(id){
   return document.getElementById(id)?.value.trim() || "";
 }
@@ -2529,7 +2734,23 @@ function montarLogoQrCorreios(container){
     <div class="cor-insta">I<br>N<br>S<br>T<br>A</div>
     <div class="cor-gram">GRAM</div>
     <div class="cor-qr"></div>`;
-  montarQrEtiqueta(container.querySelector(".cor-qr"));
+
+  const alvo=container.querySelector(".cor-qr");
+  if(!alvo) return;
+
+  alvo.innerHTML="";
+  try{
+    if(window.QRCode){
+      new QRCode(alvo,{
+        text:INSTAGRAM_URL,
+        width:120,
+        height:120,
+        correctLevel:QRCode.CorrectLevel.M
+      });
+    }
+  }catch(erro){
+    console.error("Erro ao gerar QR Code dos Correios:",erro);
+  }
 }
 
 function montarEtiquetaDestinoCorreios(){
@@ -2549,6 +2770,7 @@ function montarEtiquetaDestinoCorreios(){
     <div class="cor-cep">${d.cep ? "CEP: "+escaparHtmlEmail(formatarCepEtiqueta(d.cep)) : ""}</div>
     <div class="cor-servico">${escaparHtmlEmail(d.servico)}</div>`);
   montarBarcodeEtiqueta(box.querySelector(".cor-barcode"),(d.cep || "").replace(/\D/g,"") || "00000000");
+  aplicarAjustesCorreiosEtiqueta(box,"destino");
 }
 
 function montarEtiquetaRemetenteCorreios(){
@@ -2569,6 +2791,7 @@ function montarEtiquetaRemetenteCorreios(){
     <svg class="cor-barcode"></svg>
     <div class="cor-servico">${escaparHtmlEmail(d.servico)}</div>`);
   montarBarcodeEtiqueta(box.querySelector(".cor-barcode"),(d.remetente_cep || "").replace(/\D/g,"") || "74550470");
+  aplicarAjustesCorreiosEtiqueta(box,"remetente");
 }
 
 function dataExtensoCorreios(valor){
@@ -2627,6 +2850,7 @@ function montarDeclaracaoCorreios(){
       </div>
     </div>
     <div style="border:2px solid #111;margin-top:6px;padding:8px;"><b>OBSERVAÇÃO:</b><br>Constitui crime contra a ordem tributária suprimir ou reduzir tributo, ou contribuição social e qualquer acessório (Lei 8.137/90 Art. 1º, V).</div>`;
+  aplicarAjustesCorreiosEtiqueta(box,"declaracao");
 }
 
 function atualizarCorreiosTudo(){
@@ -2698,11 +2922,12 @@ function inicializarModuloCorreios(){
   preencherListaClientesCorreios();
   const data=document.getElementById("corData");
   if(data && !data.value) data.value=new Date().toISOString().slice(0,10);
+  atualizarCorreiosValoresAjuste();
   atualizarCorreiosTudo();
   carregarHistoricoCorreios();
 
-  // A assinatura e a logo podem terminar de carregar depois da abertura da aba.
-  setTimeout(atualizarCorreiosTudo,500);
+  // A assinatura, a logo e a biblioteca do QR podem carregar depois da abertura.
+  setTimeout(atualizarCorreiosTudo,600);
 }
 
 function abrirJanelaImpressaoCorreios(conteudo,tamanho,titulo){
@@ -2723,7 +2948,18 @@ function imprimirEtiquetaCorreios(tipo){
 
 function imprimirDeclaracaoCorreios(){
   atualizarCorreiosTudo();
-  abrirJanelaImpressaoCorreios(document.getElementById("corDeclaracao").outerHTML,"A4","Declaração de Conteúdo");
+  const declaracao=document.getElementById("corDeclaracao").cloneNode(true);
+  declaracao.style.width="210mm";
+  declaracao.style.minHeight="297mm";
+  declaracao.style.margin="0";
+  declaracao.style.padding="8mm";
+  declaracao.style.overflow="hidden";
+  declaracao.querySelectorAll("table").forEach(tabela=>{
+    tabela.style.width="100%";
+    tabela.style.maxWidth="100%";
+    tabela.style.tableLayout="fixed";
+  });
+  abrirJanelaImpressaoCorreios(declaracao.outerHTML,"A4","Declaração de Conteúdo");
 }
 
 function imprimirPacoteCorreios(){
