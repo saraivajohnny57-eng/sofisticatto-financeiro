@@ -540,6 +540,25 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
   fill:#000;
 }
 
+
+/* QR DOS CORREIOS IGUAL AO DA ABA ETIQUETAS */
+.correios-etiqueta .cor-qr{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:visible!important;
+  background:#fff!important;
+}
+.correios-etiqueta .cor-qr canvas,
+.correios-etiqueta .cor-qr img{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  object-fit:contain!important;
+}
+
 </style>
 </head>
 <body>
@@ -2938,21 +2957,8 @@ function montarLogoQrCorreios(container){
   const alvo=container.querySelector(".cor-qr");
   if(!alvo) return;
 
-  alvo.innerHTML="";
-  try{
-    if(!window.QRCode) throw new Error("Biblioteca QRCode não carregada.");
-    new QRCode(alvo,{
-      text:"https://www.instagram.com/sofisticatto.cosmeticos?igsh=NmFkdnRlaXZrMXNh",
-      width:112,
-      height:112,
-      colorDark:"#000000",
-      colorLight:"#ffffff",
-      correctLevel:QRCode.CorrectLevel.M
-    });
-  }catch(erro){
-    console.error("Erro ao gerar QR Code dos Correios:",erro);
-    alvo.innerHTML='<div style="font-size:10px;color:#900;padding:4px;">QR indisponível</div>';
-  }
+  // Usa exatamente o mesmo QR Code da aba Etiquetas.
+  montarQrEtiqueta(alvo);
 }
 
 function montarEtiquetaDestinoCorreios(){
