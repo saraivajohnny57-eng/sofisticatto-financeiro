@@ -3603,11 +3603,6 @@ function atualizarValoresAjustesEtiqueta(){
   }
 }
 
-function pxDoElemento(elemento,fallback){
-  const valor=parseFloat(getComputedStyle(elemento).fontSize);
-  return Number.isFinite(valor) ? valor : fallback;
-}
-
 function aplicarAjustesTamanhoEtiqueta(etiqueta){
   if(!etiqueta) return;
 
@@ -3622,11 +3617,15 @@ function aplicarAjustesTamanhoEtiqueta(etiqueta){
     ["chave",".etiqueta-chave",10]
   ];
 
-  campos.forEach(([campo,seletor,fallback])=>{
+  campos.forEach(([campo,seletor,tamanhoPadrao])=>{
     const elemento=etiqueta.querySelector(seletor);
     if(!elemento) return;
-    const base=pxDoElemento(elemento,fallback);
-    elemento.style.fontSize=`${Math.max(7,base+Number(etqAjustesTamanho[campo] || 0))}px`;
+
+    // Usa sempre o tamanho padrão fixo como base.
+    // Isso impede que o ajuste seja somado novamente toda vez que
+    // qualquer outro botão atualizar a prévia.
+    const ajuste=Number(etqAjustesTamanho[campo] || 0);
+    elemento.style.fontSize=`${Math.max(7,tamanhoPadrao+ajuste)}px`;
   });
 
   const logo=etiqueta.querySelector(".etiqueta-logo");
