@@ -215,6 +215,18 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
   }
 }
 
+
+/* CONTROLES DE TAMANHO DA ETIQUETA */
+.etq-ajustes-painel{grid-column:1/-1;margin-top:4px;border:1px solid #ded7f3;border-radius:14px;background:#faf8ff;overflow:hidden}
+.etq-ajustes-painel summary{padding:12px 14px;font-weight:700;color:#4d4694;cursor:pointer;user-select:none}
+.etq-ajustes-conteudo{padding:0 12px 12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.etq-ajuste-linha{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:6px;align-items:center;background:#fff;border:1px solid #ebe6f7;border-radius:10px;padding:7px}
+.etq-ajuste-linha span:first-child{font-size:12px;font-weight:700;color:#4d4694}
+.etq-ajuste-valor{min-width:48px;text-align:center;font-size:11px;color:#7d73bd}
+.etq-ajuste-linha button{border:0;border-radius:8px;background:#3498db;color:#fff;font-weight:700;padding:7px 9px;cursor:pointer}
+.etq-ajustes-acoes{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+@media(max-width:650px){.etq-ajustes-conteudo{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -716,6 +728,28 @@ SOFISTICATTO COSMÉTICOS</textarea>
                   Dividir o nome da transportadora em 2 linhas quando necessário
                 </label>
               </div>
+
+
+              <details class="etq-ajustes-painel">
+                <summary>⚙️ Ajustar tamanhos da etiqueta</summary>
+                <div class="etq-ajustes-conteudo">
+                  <div class="etq-ajuste-linha"><span>Destino / cliente</span><button type="button" onclick="ajustarTamanhoEtiqueta('destino',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('destino',1)">A+</button><span id="etqValDestino" class="etq-ajuste-valor">0</span></div>
+                  <div class="etq-ajuste-linha"><span>Endereço</span><button type="button" onclick="ajustarTamanhoEtiqueta('endereco',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('endereco',1)">A+</button><span id="etqValEndereco" class="etq-ajuste-valor">0</span></div>
+                  <div class="etq-ajuste-linha"><span>Bairro</span><button type="button" onclick="ajustarTamanhoEtiqueta('bairro',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('bairro',1)">A+</button><span id="etqValBairro" class="etq-ajuste-valor">0</span></div>
+                  <div class="etq-ajuste-linha"><span>CEP</span><button type="button" onclick="ajustarTamanhoEtiqueta('cep',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('cep',1)">A+</button><span id="etqValCep" class="etq-ajuste-valor">0</span></div>
+                  <div class="etq-ajuste-linha"><span>Cidade / UF</span><button type="button" onclick="ajustarTamanhoEtiqueta('cidade',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('cidade',1)">A+</button><span id="etqValCidade" class="etq-ajuste-valor">0</span></div>
+                  <div class="etq-ajuste-linha"><span>Número da NF</span><button type="button" onclick="ajustarTamanhoEtiqueta('nf',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('nf',1)">A+</button><span id="etqValNf" class="etq-ajuste-valor">0</span></div>
+                  <div class="etq-ajuste-linha"><span>Volume</span><button type="button" onclick="ajustarTamanhoEtiqueta('volume',-1)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('volume',1)">A+</button><span id="etqValVolume" class="etq-ajuste-valor">0</span></div>
+                  <div class="etq-ajuste-linha"><span>Números da chave</span><button type="button" onclick="ajustarTamanhoEtiqueta('chave',-0.5)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('chave',0.5)">A+</button><span id="etqValChave" class="etq-ajuste-valor">0</span></div>
+                  <div class="etq-ajuste-linha"><span>Logo</span><button type="button" onclick="ajustarTamanhoEtiqueta('logo',-5)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('logo',5)">A+</button><span id="etqValLogo" class="etq-ajuste-valor">0</span></div>
+                  <div class="etq-ajuste-linha"><span>QR Code</span><button type="button" onclick="ajustarTamanhoEtiqueta('qr',-3)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('qr',3)">A+</button><span id="etqValQr" class="etq-ajuste-valor">0</span></div>
+                  <div class="etq-ajuste-linha"><span>Código de barras — largura</span><button type="button" onclick="ajustarTamanhoEtiqueta('barcodeLargura',-8)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('barcodeLargura',8)">A+</button><span id="etqValBarcodeLargura" class="etq-ajuste-valor">0</span></div>
+                  <div class="etq-ajuste-linha"><span>Código de barras — altura</span><button type="button" onclick="ajustarTamanhoEtiqueta('barcodeAltura',-2)">A−</button><button type="button" onclick="ajustarTamanhoEtiqueta('barcodeAltura',2)">A+</button><span id="etqValBarcodeAltura" class="etq-ajuste-valor">0</span></div>
+                  <div class="etq-ajustes-acoes">
+                    <button type="button" class="btn vermelho" onclick="restaurarTamanhosEtiqueta()">Restaurar tamanhos</button>
+                  </div>
+                </div>
+              </details>
 
               <div class="campo-largo">
                 <label class="relatorio-label">Chave de acesso da NF-e (44 dígitos)</label>
@@ -3407,10 +3441,121 @@ async function inicializarModuloEtiquetas(){
     await carregarBibliotecasEtiqueta();
     await carregarHistoricoEtiquetas();
     montarListaFaixasPedidoEtiqueta();
+    atualizarValoresAjustesEtiqueta();
     atualizarPreviewEtiqueta();
   }catch(erro){
     console.error("Erro no módulo de etiquetas:",erro);
     alert(erro.message);
+  }
+}
+
+
+const ETQ_AJUSTES_PADRAO={
+  destino:0,endereco:0,bairro:0,cep:0,cidade:0,nf:0,volume:0,chave:0,
+  logo:0,qr:0,barcodeLargura:0,barcodeAltura:0
+};
+let etqAjustesTamanho=carregarTamanhosEtiqueta();
+
+function carregarTamanhosEtiqueta(){
+  try{
+    return {...ETQ_AJUSTES_PADRAO,...JSON.parse(localStorage.getItem("sofisticatto_etiqueta_tamanhos") || "{}")};
+  }catch{
+    return {...ETQ_AJUSTES_PADRAO};
+  }
+}
+
+function salvarTamanhosEtiqueta(){
+  localStorage.setItem("sofisticatto_etiqueta_tamanhos",JSON.stringify(etqAjustesTamanho));
+}
+
+function ajustarTamanhoEtiqueta(campo,delta){
+  const limites={
+    destino:[-10,24],endereco:[-10,24],bairro:[-10,24],cep:[-10,24],
+    cidade:[-10,24],nf:[-10,24],volume:[-10,24],chave:[-5,12],
+    logo:[-100,100],qr:[-35,40],barcodeLargura:[-160,120],barcodeAltura:[-20,50]
+  };
+  const [min,max]=limites[campo] || [-50,50];
+  etqAjustesTamanho[campo]=Math.max(min,Math.min(max,Number(etqAjustesTamanho[campo] || 0)+Number(delta)));
+  salvarTamanhosEtiqueta();
+  atualizarValoresAjustesEtiqueta();
+  atualizarPreviewEtiqueta();
+}
+
+function restaurarTamanhosEtiqueta(){
+  etqAjustesTamanho={...ETQ_AJUSTES_PADRAO};
+  salvarTamanhosEtiqueta();
+  atualizarValoresAjustesEtiqueta();
+  atualizarPreviewEtiqueta();
+}
+
+function atualizarValoresAjustesEtiqueta(){
+  const mapa={
+    destino:"etqValDestino",endereco:"etqValEndereco",bairro:"etqValBairro",
+    cep:"etqValCep",cidade:"etqValCidade",nf:"etqValNf",volume:"etqValVolume",
+    chave:"etqValChave",logo:"etqValLogo",qr:"etqValQr",
+    barcodeLargura:"etqValBarcodeLargura",barcodeAltura:"etqValBarcodeAltura"
+  };
+  Object.entries(mapa).forEach(([campo,id])=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    const valor=Number(etqAjustesTamanho[campo] || 0);
+    el.textContent=valor===0 ? "Padrão" : `${valor>0?"+":""}${valor}`;
+  });
+}
+
+function pxDoElemento(elemento,fallback){
+  const valor=parseFloat(getComputedStyle(elemento).fontSize);
+  return Number.isFinite(valor) ? valor : fallback;
+}
+
+function aplicarAjustesTamanhoEtiqueta(etiqueta){
+  if(!etiqueta) return;
+
+  const campos=[
+    ["destino",".etiqueta-destino",23],
+    ["endereco",".etiqueta-endereco",18],
+    ["bairro",".etiqueta-bairro",18],
+    ["cep",".etiqueta-cep",17],
+    ["cidade",".etiqueta-cidade",18],
+    ["nf",".etiqueta-nf",22],
+    ["volume",".etiqueta-volume",22],
+    ["chave",".etiqueta-chave",10]
+  ];
+
+  campos.forEach(([campo,seletor,fallback])=>{
+    const elemento=etiqueta.querySelector(seletor);
+    if(!elemento) return;
+    const base=pxDoElemento(elemento,fallback);
+    elemento.style.fontSize=`${Math.max(7,base+Number(etqAjustesTamanho[campo] || 0))}px`;
+  });
+
+  const logo=etiqueta.querySelector(".etiqueta-logo");
+  if(logo){
+    const base=264;
+    const largura=Math.max(120,base+Number(etqAjustesTamanho.logo || 0));
+    logo.style.width=`${largura}px`;
+    logo.style.maxWidth=`${largura}px`;
+    logo.style.height="117px";
+    logo.style.maxHeight="117px";
+    logo.style.objectFit="contain";
+  }
+
+  const qr=etiqueta.querySelector(".etiqueta-qr");
+  if(qr){
+    const tamanho=Math.max(45,83+Number(etqAjustesTamanho.qr || 0));
+    qr.style.width=`${tamanho}px`;
+    qr.style.height=`${tamanho}px`;
+    const imagem=qr.querySelector("canvas,img");
+    if(imagem){
+      imagem.style.width=`${tamanho}px`;
+      imagem.style.height=`${tamanho}px`;
+    }
+  }
+
+  const barcode=etiqueta.querySelector(".etiqueta-barcode");
+  if(barcode){
+    barcode.style.width=`${Math.max(250,454+Number(etqAjustesTamanho.barcodeLargura || 0))}px`;
+    barcode.style.height=`${Math.max(16,34+Number(etqAjustesTamanho.barcodeAltura || 0))}px`;
   }
 }
 
@@ -3428,6 +3573,7 @@ function dadosEtiquetaFormulario(){
     transportadora_duas_linhas:document.getElementById("etqTransportadoraDuasLinhas")?.checked || false,
     transportadora_fonte:document.getElementById("etqTransportadoraFonte")?.value || "auto",
     pedidos_faixas:etiquetaPedidosFaixas.map(item=>({...item})),
+    ajustes_tamanho:{...etqAjustesTamanho},
     chave_nfe:(document.getElementById("etqChave")?.value || "").replace(/\D/g,"").slice(0,44)
   };
 }
@@ -3790,6 +3936,8 @@ function atualizarPreviewEtiqueta(){
   if(window.QRCode) montarQrEtiqueta(document.getElementById("etqQr"));
   if(window.JsBarcode) montarBarcodeEtiqueta(document.getElementById("etqBarcode"),d.chave_nfe);
 
+  aplicarAjustesTamanhoEtiqueta(document.getElementById("etqPreview"));
+  atualizarValoresAjustesEtiqueta();
   atualizarPreviewsFaixasEtiqueta();
 
   const resumo=document.getElementById("etqResumoVolumes");
@@ -3964,6 +4112,7 @@ function criarElementoEtiqueta(d,volumeAtual){
 
   montarQrEtiqueta(etiqueta.querySelector(".etiqueta-qr"));
   montarBarcodeEtiqueta(etiqueta.querySelector(".etiqueta-barcode"),d.chave_nfe);
+  aplicarAjustesTamanhoEtiqueta(etiqueta);
   return etiqueta;
 }
 
