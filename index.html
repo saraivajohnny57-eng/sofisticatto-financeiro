@@ -652,6 +652,9 @@ SOFISTICATTO COSMÉTICOS</textarea>
                   <button type="button" onclick="ajustarTamanhoEtiqueta('destino',1)">A+</button>
                 </div>
                 <div id="etqSugestoesClientes" class="etiqueta-sugestoes-lista"></div>
+                <button type="button" class="btn azul" style="margin-top:8px;width:100%;" onclick="verificarCadastroClienteEtiqueta()">
+                  Verificar / cadastrar cliente
+                </button>
               </div>
 
               <div class="campo-largo">
@@ -1028,6 +1031,32 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 <div id="toastContainer" class="toast-container"></div>
+
+<div id="modalClienteEtiqueta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200000;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;width:520px;max-width:100%;border-radius:22px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+    <h2 style="margin-bottom:8px;">Cadastrar cliente</h2>
+    <p style="color:#7d73bd;margin-bottom:16px;">Esse cliente ainda não está cadastrado. Informe os dados para futuros envios de boletos. Essas informações não aparecem na etiqueta.</p>
+
+    <input type="hidden" id="modalClienteEtiquetaNomeOriginal">
+
+    <label class="relatorio-label">Nome do cliente</label>
+    <input id="modalClienteEtiquetaNome" placeholder="Nome do cliente">
+
+    <label class="relatorio-label" style="margin-top:12px;">E-mail do cliente</label>
+    <textarea id="modalClienteEtiquetaEmails" placeholder="Pode informar mais de um e-mail, separados por vírgula, ponto e vírgula ou uma linha por e-mail."></textarea>
+
+    <label class="relatorio-label" style="margin-top:12px;">Vendedora</label>
+    <select id="modalClienteEtiquetaVendedora">
+      <option value="">Selecione a vendedora</option>
+    </select>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap;">
+      <button type="button" class="btn vermelho" onclick="fecharModalClienteEtiqueta()">Cancelar</button>
+      <button type="button" class="salvar" onclick="salvarClienteRapidoEtiqueta()">Salvar cliente</button>
+    </div>
+  </div>
+</div>
+
 
 <script>
 const SUPABASE_URL = "https://drtgtwwsbxrmqcaabzcs.supabase.co";
@@ -4067,6 +4096,111 @@ function atualizarPreviewEtiqueta(){
   }
 }
 
+
+function clienteEtiquetaJaCadastrado(nome){
+  const normalizado=normalizarNomeEmail(nome || "");
+  return emailClientes.find(item=>normalizarNomeEmail(item.nome || "")===normalizado) || null;
+}
+
+function preencherVendedorasModalClienteEtiqueta(){
+  const select=document.getElementById("modalClienteEtiquetaVendedora");
+  if(!select) return;
+
+  select.innerHTML='<option value="">Selecione a vendedora</option>' +
+    emailVendedoras
+      .filter(item=>item.ativo!==false)
+      .sort((a,b)=>(a.nome || "").localeCompare(b.nome || "","pt-BR"))
+      .map(item=>`<option value="${item.id}">${escaparHtmlEmail(item.nome || "")} — ${escaparHtmlEmail(item.email || "")}</option>`)
+      .join("");
+}
+
+function abrirModalClienteEtiqueta(nome){
+  preencherVendedorasModalClienteEtiqueta();
+
+  document.getElementById("modalClienteEtiquetaNomeOriginal").value=nome || "";
+  document.getElementById("modalClienteEtiquetaNome").value=nome || "";
+  document.getElementById("modalClienteEtiquetaEmails").value="";
+  document.getElementById("modalClienteEtiquetaVendedora").value="";
+
+  const modal=document.getElementById("modalClienteEtiqueta");
+  modal.style.display="flex";
+}
+
+function fecharModalClienteEtiqueta(){
+  const modal=document.getElementById("modalClienteEtiqueta");
+  if(modal) modal.style.display="none";
+}
+
+async function salvarClienteRapidoEtiqueta(){
+  if(!bancoPronto()) return;
+
+  const nome=document.getElementById("modalClienteEtiquetaNome")?.value.trim() || "";
+  const emailsTexto=document.getElementById("modalClienteEtiquetaEmails")?.value.trim() || "";
+  const vendedora_id=document.getElementById("modalClienteEtiquetaVendedora")?.value || "";
+
+  if(!nome){
+    alert("Informe o nome do cliente.");
+    return;
+  }
+  if(!emailsTexto){
+    alert("Informe pelo menos um e-mail do cliente.");
+    return;
+  }
+  if(!vendedora_id){
+    alert("Selecione a vendedora.");
+    return;
+  }
+
+  const emails=emailsTexto
+    .split(/[;,\n]+/)
+    .map(item=>item.trim())
+    .filter(Boolean);
+
+  const invalidos=emails.filter(email=>!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+  if(invalidos.length){
+    alert("Verifique estes e-mails inválidos:\n"+invalidos.join("\n"));
+    return;
+  }
+
+  const existente=clienteEtiquetaJaCadastrado(nome);
+  if(existente){
+    alert("Esse cliente já está cadastrado.");
+    fecharModalClienteEtiqueta();
+    return;
+  }
+
+  const dadosEtiqueta=dadosEtiquetaFormulario();
+
+  const resposta=await banco.from("email_clientes").insert([{
+    nome,
+    emails,
+    vendedora_id,
+    cidade:dadosEtiqueta.cidade || "",
+    uf:dadosEtiqueta.uf || "",
+    ativo:true,
+    atualizado_em:new Date().toISOString()
+  }]).select().single();
+
+  if(resposta.error){
+    alert("Erro ao cadastrar cliente: "+resposta.error.message);
+    return;
+  }
+
+  emailClientes.unshift(resposta.data);
+  montarTabelaClientesEmail();
+  fecharModalClienteEtiqueta();
+  mostrarAvisoEmail(`Cliente ${nome} cadastrado com sucesso para futuros envios de boletos.`,true);
+}
+
+function verificarCadastroClienteEtiqueta(){
+  const nome=document.getElementById("etqCliente")?.value.trim() || "";
+  if(!nome) return;
+
+  if(!clienteEtiquetaJaCadastrado(nome)){
+    abrirModalClienteEtiqueta(nome);
+  }
+}
+
 function mostrarSugestoesEtiqueta(){
   const input=document.getElementById("etqCliente");
   const lista=document.getElementById("etqSugestoesClientes");
@@ -4173,7 +4307,12 @@ async function lerXmlEtiqueta(evento){
     if(chave) document.getElementById("etqChave").value=chave.replace(/\D/g,"").slice(0,44);
 
     atualizarPreviewEtiqueta();
-    alert("Dados da NF-e carregados do XML.");
+
+    if(cliente && !clienteEtiquetaJaCadastrado(cliente)){
+      setTimeout(()=>abrirModalClienteEtiqueta(cliente),250);
+    }else{
+      alert("Dados da NF-e carregados do XML.");
+    }
   }catch(erro){
     alert("Não foi possível ler o XML: "+erro.message);
   }
