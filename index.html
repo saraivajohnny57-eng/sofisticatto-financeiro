@@ -2525,7 +2525,7 @@ function dadosCorreios(){
 
 function montarLogoQrCorreios(container){
   container.innerHTML=`
-    <img class="cor-logo" src="${EMAIL_LOGO_PADRAO}" alt="Sofisticatto">
+    <img class="cor-logo" src="${escaparHtmlEmail(logoEtiquetaUrl() || "")}" alt="Sofisticatto" onerror="this.style.display='none'">
     <div class="cor-insta">I<br>N<br>S<br>T<br>A</div>
     <div class="cor-gram">GRAM</div>
     <div class="cor-qr"></div>`;
@@ -2652,21 +2652,46 @@ function preencherListaClientesCorreios(){
 }
 
 function preencherCorreiosPeloCliente(){
-  const nome=valorCampoCorreios("corCliente");
-  const cliente=emailClientes.find(item=>normalizarNomeEmail(item.nome || "")===normalizarNomeEmail(nome));
+  const nome=decodificarEntidadesXml(valorCampoCorreios("corCliente"));
+  const nomeNormalizado=normalizarNomeEmail(nome);
+
+  let cliente=emailClientes.find(item=>
+    normalizarNomeEmail(decodificarEntidadesXml(item.nome || ""))===nomeNormalizado
+  );
+
   if(!cliente){
-    alert("Cliente não encontrado no cadastro.");
+    cliente=emailClientes.find(item=>{
+      const cadastro=normalizarNomeEmail(decodificarEntidadesXml(item.nome || ""));
+      return cadastro.includes(nomeNormalizado) || nomeNormalizado.includes(cadastro);
+    });
+  }
+
+  if(!cliente){
+    alert("Cliente não encontrado no cadastro. Verifique o nome digitado ou cadastre o cliente primeiro.");
     return;
   }
+
+  document.getElementById("corCliente").value=decodificarEntidadesXml(cliente.nome || nome);
   document.getElementById("corEndereco").value=cliente.endereco || "";
   document.getElementById("corNumero").value=cliente.numero || "";
   document.getElementById("corComplemento").value=cliente.complemento || "";
   document.getElementById("corBairro").value=cliente.bairro || "";
-  document.getElementById("corCep").value=cliente.cep || "";
+  document.getElementById("corCep").value=formatarCepEtiqueta(cliente.cep || "");
   document.getElementById("corCidade").value=cliente.cidade || "";
-  document.getElementById("corUf").value=cliente.uf || "";
-  document.getElementById("corDocumento").value=cliente.cpf_cnpj || "";
+  document.getElementById("corUf").value=(cliente.uf || "").toUpperCase();
+  document.getElementById("corDocumento").value=cliente.cpf_cnpj || cliente.cnpj || cliente.cpf || "";
+
   atualizarCorreiosTudo();
+
+  const possuiEndereco=!!(
+    cliente.endereco || cliente.bairro || cliente.cep || cliente.cidade || cliente.uf
+  );
+
+  if(!possuiEndereco){
+    alert("O cliente foi encontrado, mas ainda não possui endereço logístico cadastrado.");
+  }else{
+    mostrarAvisoEmail("Dados do cliente preenchidos com sucesso.",true);
+  }
 }
 
 function inicializarModuloCorreios(){
@@ -2675,6 +2700,9 @@ function inicializarModuloCorreios(){
   if(data && !data.value) data.value=new Date().toISOString().slice(0,10);
   atualizarCorreiosTudo();
   carregarHistoricoCorreios();
+
+  // A assinatura e a logo podem terminar de carregar depois da abertura da aba.
+  setTimeout(atualizarCorreiosTudo,500);
 }
 
 function abrirJanelaImpressaoCorreios(conteudo,tamanho,titulo){
