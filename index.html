@@ -276,8 +276,8 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .correios-etiqueta{position:relative;width:150mm;height:100mm;background:#fff;color:#000;margin:auto;overflow:hidden;font-family:Arial,sans-serif}
 .correios-etiqueta .cor-logo{position:absolute;left:48mm;top:5mm;width:58mm;height:28mm;object-fit:contain}
 .correios-etiqueta .cor-qr{position:absolute;right:10mm;top:6mm;width:30mm;height:30mm}
-.correios-etiqueta .cor-insta{position:absolute;right:39mm;top:7mm;font-size:5mm;font-weight:900;line-height:1}
-.correios-etiqueta .cor-gram{position:absolute;right:10mm;top:36mm;font-size:4.2mm;font-weight:900;letter-spacing:3mm}
+
+
 .correios-etiqueta .cor-destino{position:absolute;left:7mm;top:35mm;width:115mm;font-size:7mm;font-weight:900;line-height:1.18}
 .correios-etiqueta .cor-endereco{position:absolute;left:7mm;top:48mm;width:117mm;font-size:5.5mm;font-weight:700;line-height:1.18}
 .correios-etiqueta .cor-bairro{position:absolute;left:7mm;top:59mm;width:112mm;font-size:5.5mm;font-weight:700}
@@ -557,6 +557,60 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
   max-width:100%!important;
   max-height:100%!important;
   object-fit:contain!important;
+}
+
+
+/* ALINHAMENTO DO INSTA/GRAM E QR DOS CORREIOS */
+.correios-etiqueta .cor-qr{
+  position:absolute!important;
+  right:10mm!important;
+  top:6mm!important;
+  width:28mm!important;
+  height:28mm!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:hidden!important;
+  background:#fff!important;
+  z-index:5!important;
+}
+.correios-etiqueta .cor-qr canvas,
+.correios-etiqueta .cor-qr img{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  object-fit:contain!important;
+}
+.correios-etiqueta .cor-insta{
+  position:absolute!important;
+  right:39.5mm!important;
+  top:7mm!important;
+  width:5mm!important;
+  height:28mm!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:space-between!important;
+  align-items:center!important;
+  font-size:4.2mm!important;
+  font-weight:900!important;
+  line-height:1!important;
+  letter-spacing:0!important;
+  z-index:6!important;
+}
+.correios-etiqueta .cor-gram{
+  position:absolute!important;
+  right:10mm!important;
+  top:35mm!important;
+  width:28mm!important;
+  text-align:center!important;
+  font-size:4.2mm!important;
+  font-weight:900!important;
+  line-height:1!important;
+  letter-spacing:1.2mm!important;
+  white-space:nowrap!important;
+  z-index:6!important;
 }
 
 </style>
@@ -2951,11 +3005,14 @@ function montarLogoQrCorreios(container){
   container.innerHTML=`
     <img class="cor-logo" src="${escaparHtmlEmail(logoEtiquetaUrl() || "")}" alt="Sofisticatto" onerror="this.style.display='none'">
     <div class="cor-insta">I<br>N<br>S<br>T<br>A</div>
-    <div class="cor-gram">GRAM</div>
+    <div class="cor-gram">G R A M</div>
     <div class="cor-qr"></div>`;
 
   const alvo=container.querySelector(".cor-qr");
   if(!alvo) return;
+
+  // Evita duplicação quando a prévia é atualizada várias vezes.
+  alvo.replaceChildren();
 
   // Usa exatamente o mesmo QR Code da aba Etiquetas.
   montarQrEtiqueta(alvo);
