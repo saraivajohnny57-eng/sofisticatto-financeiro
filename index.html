@@ -1040,16 +1040,19 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <div id="toastContainer" class="toast-container"></div>
 
 <div id="modalEscolherEnderecoEtiqueta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.48);z-index:210000;align-items:center;justify-content:center;padding:20px;">
-  <div style="background:#fff;width:760px;max-width:100%;max-height:90vh;overflow:auto;border-radius:24px;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.28);">
+  <div style="background:#fff;width:860px;max-width:100%;max-height:92vh;overflow:auto;border-radius:24px;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.28);">
     <h2 style="margin-bottom:8px;">Escolher endereço da etiqueta</h2>
-    <p style="color:#7d73bd;margin-bottom:18px;">Este cliente possui endereço cadastrado e o XML também contém um endereço. Escolha qual será usado nesta etiqueta.</p>
+    <p style="color:#7d73bd;margin-bottom:18px;">
+      Escolha o endereço cadastrado, o endereço da NF-e ou informe um endereço diferente para esta entrega.
+    </p>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;">
       <label style="display:block;border:2px solid #ded7f3;border-radius:16px;padding:15px;cursor:pointer;background:#faf8ff;">
         <div style="display:flex;gap:9px;align-items:flex-start;">
-          <input type="radio" name="enderecoEtiquetaEscolhido" value="cadastrado" checked style="width:auto;margin-top:3px;">
+          <input type="radio" name="enderecoEtiquetaEscolhido" value="cadastrado" checked
+            onchange="alternarNovoEnderecoEtiqueta()" style="width:auto;margin-top:3px;">
           <div>
-            <strong style="display:block;margin-bottom:7px;">Usar endereço cadastrado</strong>
+            <strong style="display:block;margin-bottom:7px;">Endereço cadastrado</strong>
             <div id="enderecoCadastradoPrevia" style="line-height:1.5;color:#333;"></div>
           </div>
         </div>
@@ -1057,30 +1060,85 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
       <label style="display:block;border:2px solid #ded7f3;border-radius:16px;padding:15px;cursor:pointer;background:#faf8ff;">
         <div style="display:flex;gap:9px;align-items:flex-start;">
-          <input type="radio" name="enderecoEtiquetaEscolhido" value="xml" style="width:auto;margin-top:3px;">
+          <input type="radio" name="enderecoEtiquetaEscolhido" value="xml"
+            onchange="alternarNovoEnderecoEtiqueta()" style="width:auto;margin-top:3px;">
           <div>
-            <strong style="display:block;margin-bottom:7px;">Usar endereço da NF-e</strong>
+            <strong style="display:block;margin-bottom:7px;">Endereço da NF-e</strong>
             <div id="enderecoXmlPrevia" style="line-height:1.5;color:#333;"></div>
+          </div>
+        </div>
+      </label>
+
+      <label style="display:block;border:2px solid #ded7f3;border-radius:16px;padding:15px;cursor:pointer;background:#faf8ff;">
+        <div style="display:flex;gap:9px;align-items:flex-start;">
+          <input type="radio" name="enderecoEtiquetaEscolhido" value="novo"
+            onchange="alternarNovoEnderecoEtiqueta()" style="width:auto;margin-top:3px;">
+          <div>
+            <strong style="display:block;margin-bottom:7px;">Cadastrar outro endereço</strong>
+            <div style="line-height:1.45;color:#555;font-size:13px;">
+              Use para entregas em filiais, depósitos, lojas ou endereços diferentes da nota.
+            </div>
           </div>
         </div>
       </label>
     </div>
 
-    <label style="display:flex;gap:8px;align-items:flex-start;margin-top:16px;background:#fff7e6;border:1px solid #f2d49a;padding:12px;border-radius:12px;">
-      <input id="atualizarCadastroComEnderecoXml" type="checkbox" style="width:auto;margin-top:3px;">
-      <span>
-        <strong>Atualizar o cadastro do cliente com o endereço da NF-e</strong><br>
-        <small>Marque somente se esse endereço passar a ser o endereço padrão do cliente.</small>
-      </span>
-    </label>
+    <div id="novoEnderecoEtiquetaBox" style="display:none;margin-top:16px;background:#f8f6fd;border:1px solid #ded7f3;border-radius:16px;padding:16px;">
+      <h3 style="margin-bottom:12px;">Novo endereço de entrega</h3>
+      <div style="display:grid;grid-template-columns:2fr .7fr;gap:10px;">
+        <div>
+          <label class="relatorio-label">Endereço</label>
+          <input id="novoEtqEndereco" placeholder="Rua, avenida, rodovia...">
+        </div>
+        <div>
+          <label class="relatorio-label">Número</label>
+          <input id="novoEtqNumero" placeholder="Nº">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+        <div>
+          <label class="relatorio-label">Complemento</label>
+          <input id="novoEtqComplemento" placeholder="Sala, bloco, galpão...">
+        </div>
+        <div>
+          <label class="relatorio-label">Bairro</label>
+          <input id="novoEtqBairro" placeholder="Bairro">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1.4fr .5fr;gap:10px;margin-top:10px;">
+        <div>
+          <label class="relatorio-label">CEP</label>
+          <input id="novoEtqCep" maxlength="9" placeholder="00000-000"
+            oninput="formatarCepEtiquetaCampo(this)">
+        </div>
+        <div>
+          <label class="relatorio-label">Cidade</label>
+          <input id="novoEtqCidade" placeholder="Cidade">
+        </div>
+        <div>
+          <label class="relatorio-label">UF</label>
+          <input id="novoEtqUf" maxlength="2" placeholder="UF"
+            oninput="this.value=this.value.toUpperCase()">
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#fff7e6;border:1px solid #f2d49a;padding:12px;border-radius:12px;margin-top:16px;">
+      <strong>Como deseja usar o endereço escolhido?</strong>
+      <div style="font-size:13px;color:#6c5a2b;margin-top:5px;">
+        “Usar somente desta vez” não altera o cadastro. “Substituir endereço cadastrado” torna o endereço escolhido o novo padrão do cliente.
+      </div>
+    </div>
 
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:20px;">
       <button type="button" class="btn vermelho" onclick="cancelarEscolhaEnderecoEtiqueta()">Cancelar</button>
-      <button type="button" class="salvar" onclick="confirmarEscolhaEnderecoEtiqueta()">Continuar</button>
+      <button type="button" class="btn azul" onclick="confirmarEscolhaEnderecoEtiqueta(false)">Usar somente desta vez</button>
+      <button type="button" class="salvar" onclick="confirmarEscolhaEnderecoEtiqueta(true)">Substituir endereço cadastrado</button>
     </div>
   </div>
 </div>
-
 
 <div id="modalClienteEtiqueta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200000;align-items:center;justify-content:center;padding:20px;">
   <div style="background:#fff;width:520px;max-width:100%;border-radius:22px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.25);">
@@ -4132,6 +4190,32 @@ function cadastroPossuiEnderecoLogistico(cliente){
   return !!(cliente && (cliente.endereco || cliente.bairro || cliente.cep || cliente.cidade || cliente.uf));
 }
 
+function limparNovoEnderecoEtiqueta(){
+  ["novoEtqEndereco","novoEtqNumero","novoEtqComplemento","novoEtqBairro",
+   "novoEtqCep","novoEtqCidade","novoEtqUf"].forEach(id=>{
+    const campo=document.getElementById(id);
+    if(campo) campo.value="";
+  });
+}
+
+function alternarNovoEnderecoEtiqueta(){
+  const opcao=document.querySelector('input[name="enderecoEtiquetaEscolhido"]:checked')?.value;
+  const box=document.getElementById("novoEnderecoEtiquetaBox");
+  if(box) box.style.display=opcao==="novo" ? "block" : "none";
+}
+
+function dadosNovoEnderecoEtiqueta(){
+  return {
+    endereco:document.getElementById("novoEtqEndereco")?.value.trim() || "",
+    numero:document.getElementById("novoEtqNumero")?.value.trim() || "",
+    complemento:document.getElementById("novoEtqComplemento")?.value.trim() || "",
+    bairro:document.getElementById("novoEtqBairro")?.value.trim() || "",
+    cep:document.getElementById("novoEtqCep")?.value.trim() || "",
+    cidade:document.getElementById("novoEtqCidade")?.value.trim() || "",
+    uf:document.getElementById("novoEtqUf")?.value.trim().toUpperCase() || ""
+  };
+}
+
 function abrirEscolhaEnderecoEtiqueta(cliente,dadosXml){
   return new Promise(resolve=>{
     enderecoXmlPendenteEtiqueta={cliente,dadosXml};
@@ -4154,7 +4238,9 @@ function abrirEscolhaEnderecoEtiqueta(cliente,dadosXml){
     document.querySelectorAll('input[name="enderecoEtiquetaEscolhido"]').forEach(item=>{
       item.checked=item.value==="cadastrado";
     });
-    document.getElementById("atualizarCadastroComEnderecoXml").checked=false;
+
+    limparNovoEnderecoEtiqueta();
+    alternarNovoEnderecoEtiqueta();
     document.getElementById("modalEscolherEnderecoEtiqueta").style.display="flex";
   });
 }
@@ -4166,9 +4252,8 @@ function cancelarEscolhaEnderecoEtiqueta(){
   enderecoXmlPendenteEtiqueta=null;
 }
 
-async function confirmarEscolhaEnderecoEtiqueta(){
-  const opcao=document.querySelector('input[name="enderecoEtiquetaEscolhido"]:checked')?.value || "cadastrado";
-  const atualizarCadastro=document.getElementById("atualizarCadastroComEnderecoXml")?.checked || false;
+async function confirmarEscolhaEnderecoEtiqueta(substituirCadastro){
+  const tipo=document.querySelector('input[name="enderecoEtiquetaEscolhido"]:checked')?.value || "cadastrado";
   const pendente=enderecoXmlPendenteEtiqueta;
 
   if(!pendente){
@@ -4176,18 +4261,40 @@ async function confirmarEscolhaEnderecoEtiqueta(){
     return;
   }
 
-  if(atualizarCadastro){
-    const dados=pendente.dadosXml;
+  let dadosEscolhidos;
+
+  if(tipo==="cadastrado"){
+    dadosEscolhidos={
+      endereco:pendente.cliente.endereco || "",
+      numero:pendente.cliente.numero || "",
+      complemento:pendente.cliente.complemento || "",
+      bairro:pendente.cliente.bairro || "",
+      cep:pendente.cliente.cep || "",
+      cidade:pendente.cliente.cidade || "",
+      uf:pendente.cliente.uf || ""
+    };
+  }else if(tipo==="xml"){
+    dadosEscolhidos={...pendente.dadosXml};
+  }else{
+    dadosEscolhidos=dadosNovoEnderecoEtiqueta();
+
+    if(!dadosEscolhidos.endereco || !dadosEscolhidos.cidade || !dadosEscolhidos.uf){
+      alert("Para cadastrar outro endereço, informe pelo menos Endereço, Cidade e UF.");
+      return;
+    }
+  }
+
+  if(substituirCadastro && tipo!=="cadastrado"){
     const resposta=await banco
       .from("email_clientes")
       .update({
-        endereco:dados.endereco || "",
-        numero:dados.numero || "",
-        complemento:dados.complemento || "",
-        bairro:dados.bairro || "",
-        cep:dados.cep || "",
-        cidade:dados.cidade || "",
-        uf:dados.uf || "",
+        endereco:dadosEscolhidos.endereco || "",
+        numero:dadosEscolhidos.numero || "",
+        complemento:dadosEscolhidos.complemento || "",
+        bairro:dadosEscolhidos.bairro || "",
+        cep:dadosEscolhidos.cep || "",
+        cidade:dadosEscolhidos.cidade || "",
+        uf:dadosEscolhidos.uf || "",
         atualizado_em:new Date().toISOString()
       })
       .eq("id",pendente.cliente.id)
@@ -4195,7 +4302,7 @@ async function confirmarEscolhaEnderecoEtiqueta(){
       .single();
 
     if(resposta.error){
-      alert("Não foi possível atualizar o endereço do cliente: "+resposta.error.message);
+      alert("Não foi possível substituir o endereço cadastrado: "+resposta.error.message);
       return;
     }
 
@@ -4205,10 +4312,19 @@ async function confirmarEscolhaEnderecoEtiqueta(){
   }
 
   document.getElementById("modalEscolherEnderecoEtiqueta").style.display="none";
-  if(resolverEscolhaEnderecoEtiqueta) resolverEscolhaEnderecoEtiqueta(opcao);
+
+  if(resolverEscolhaEnderecoEtiqueta){
+    resolverEscolhaEnderecoEtiqueta({
+      tipo,
+      dados:dadosEscolhidos,
+      substituiu:!!substituirCadastro
+    });
+  }
+
   resolverEscolhaEnderecoEtiqueta=null;
   enderecoXmlPendenteEtiqueta=null;
 }
+
 
 function preencherEnderecoEtiquetaComCadastro(cliente){
   const enderecoNumero=[cliente.endereco,cliente.numero].filter(Boolean).join(", ");
@@ -4597,11 +4713,7 @@ async function lerXmlEtiqueta(evento){
         return;
       }
 
-      if(escolha==="cadastrado"){
-        preencherEnderecoEtiquetaComCadastro(cadastroEncontrado);
-      }else{
-        preencherEnderecoEtiquetaComXml(dadosEnderecoXml);
-      }
+      preencherEnderecoEtiquetaComXml(escolha.dados);
     }else{
       preencherEnderecoEtiquetaComXml(dadosEnderecoXml);
     }
