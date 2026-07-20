@@ -6,7 +6,7 @@
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
 
-<style>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=xDbAN-fGeRF8k5htHJrNf4gyaNvvg9b5A8MmW-FFwBEOLZ6iZihpnxuOZr0CNdV7z4qCzAz_xCuQzqe6xM2Cj8bcP38n7cr4AumNcT-KSxMFwn8tm_Iwj2Uhaw1nEYihKVbQ2253U_bv_ftfVfOWZvGGwiZMI-3NmEwjnWsnQt6idYnYksxNSzHNEw-LNSbb4uxgrpDj7ZnPSx7XI0OTwN14C-2wfgd-L3fSc81DJPyt8EFayLCp2eJdQI934mFS05pYeIq03mk0BB0ZOPHXcJ2g_K0Ec4DAolWtAr-yME_GPPQl7V1xcThaWUdyPSKxVFrhYVL_X2QSHFihAQ5a8j7SLf0sVSXhGJSClNsV1Rr0F79TE0XoEuw-4xXyXEzH" charset="UTF-8"></script><style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
 body{background:#f5f2fb;display:flex;min-height:100vh;color:#4d4694}
 .sidebar{width:250px;background:white;padding:25px;box-shadow:0 0 15px rgba(0,0,0,.08);display:flex;flex-direction:column;justify-content:space-between}
@@ -664,6 +664,66 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
   height:100%!important;
   max-width:100%!important;
   max-height:100%!important;
+}
+
+
+/* AJUSTE DAS COLUNAS QUANTIDADE E VALOR NA DECLARAÇÃO A4 */
+.correios-declaracao{
+  width:194mm!important;
+  max-width:194mm!important;
+  min-height:281mm!important;
+  padding:5mm!important;
+  overflow:hidden!important;
+}
+.correios-declaracao .cor-dec-bens{
+  width:100%!important;
+  max-width:100%!important;
+  table-layout:fixed!important;
+  border-collapse:collapse!important;
+}
+.correios-declaracao .cor-dec-bens col:nth-child(1){width:8%!important}
+.correios-declaracao .cor-dec-bens col:nth-child(2){width:54%!important}
+.correios-declaracao .cor-dec-bens col:nth-child(3){width:17%!important}
+.correios-declaracao .cor-dec-bens col:nth-child(4){width:21%!important}
+
+.correios-declaracao .cor-dec-bens th,
+.correios-declaracao .cor-dec-bens td{
+  box-sizing:border-box!important;
+  padding:3px 2px!important;
+  overflow:hidden!important;
+  white-space:normal!important;
+  word-break:break-word!important;
+  text-overflow:clip!important;
+  font-size:9px!important;
+  line-height:1.15!important;
+}
+
+.correios-declaracao .cor-dec-bens th:nth-child(3),
+.correios-declaracao .cor-dec-bens td:nth-child(3),
+.correios-declaracao .cor-dec-bens th:nth-child(4),
+.correios-declaracao .cor-dec-bens td:nth-child(4){
+  text-align:center!important;
+}
+
+.correios-declaracao .cor-dec-bens th:nth-child(4),
+.correios-declaracao .cor-dec-bens td:nth-child(4){
+  padding-left:1px!important;
+  padding-right:1px!important;
+}
+
+@media print{
+  .correios-declaracao{
+    width:194mm!important;
+    max-width:194mm!important;
+    min-height:281mm!important;
+    padding:5mm!important;
+    margin:0 auto!important;
+  }
+  .correios-declaracao .cor-dec-bens{
+    width:100%!important;
+    max-width:100%!important;
+    table-layout:fixed!important;
+  }
 }
 
 </style>
@@ -3183,7 +3243,7 @@ function montarDeclaracaoCorreios(){
     </div>
 
     <table class="cor-dec-bens">
-      <colgroup><col><col><col><col></colgroup>
+      <colgroup><col style="width:8%"><col style="width:54%"><col style="width:17%"><col style="width:21%"></colgroup>
       <thead><tr><th>ITEM</th><th>CONTEÚDO</th><th>QUANT.</th><th>VALOR</th></tr></thead>
       <tbody>
         ${d.itens.map((item,indice)=>`
@@ -3191,13 +3251,13 @@ function montarDeclaracaoCorreios(){
             <td style="text-align:center;">${String(indice+1).padStart(2,"0")}</td>
             <td>${escaparHtmlEmail(item.conteudo || "")}</td>
             <td style="text-align:center;">${Number(item.quantidade || 0)}</td>
-            <td style="text-align:center;">${item.valor ? "R$ "+escaparHtmlEmail(item.valor) : ""}</td>
+            <td style="text-align:center;font-size:8.5px;">${item.valor ? "R$ "+numeroCorreios(item.valor).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}) : ""}</td>
           </tr>`).join("")}
         ${Array.from({length:Math.max(0,10-d.itens.length)},()=>'<tr><td></td><td></td><td></td><td></td></tr>').join("")}
         <tr>
           <td colspan="2" style="text-align:right;font-weight:700;">TOTAIS</td>
           <td style="text-align:center;font-weight:700;">${d.quantidade}</td>
-          <td style="text-align:center;font-weight:700;">R$ ${totalCorreiosItens().toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+          <td style="text-align:center;font-weight:700;font-size:8.5px;">R$ ${totalCorreiosItens().toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
         </tr>
         <tr><td colspan="3" style="text-align:right;font-weight:700;">PESO TOTAL (kg)</td><td style="text-align:center;font-weight:700;">${escaparHtmlEmail(d.peso || "")}</td></tr>
       </tbody>
@@ -3317,10 +3377,12 @@ function imprimirEtiquetaCorreios(tipo){
 function imprimirDeclaracaoCorreios(){
   atualizarCorreiosTudo();
   const declaracao=document.getElementById("corDeclaracao").cloneNode(true);
-  declaracao.style.width="210mm";
-  declaracao.style.minHeight="297mm";
-  declaracao.style.margin="0";
-  declaracao.style.padding="8mm";
+  declaracao.style.width="194mm";
+  declaracao.style.maxWidth="194mm";
+  declaracao.style.minHeight="281mm";
+  declaracao.style.margin="0 auto";
+  declaracao.style.padding="5mm";
+  declaracao.style.boxSizing="border-box";
   declaracao.style.overflow="hidden";
   declaracao.querySelectorAll("table").forEach(tabela=>{
     tabela.style.width="100%";
