@@ -431,8 +431,6 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
   z-index:4!important;
   overflow:visible!important;
 }
-.correios-etiqueta .cor-barcode rect,
-.correios-etiqueta .cor-barcode path{fill:#000!important}
 
 .correios-declaracao{
   width:194mm!important;
@@ -525,6 +523,21 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .correios-remetente .cor-rem-texto{
   max-height:43mm;
   overflow:hidden;
+}
+
+
+/* CORREÇÃO DAS CORES DO CÓDIGO DE BARRAS */
+.correios-etiqueta svg.cor-barcode{
+  background:#fff!important;
+}
+.correios-etiqueta svg.cor-barcode rect{
+  fill:#fff;
+}
+.correios-etiqueta svg.cor-barcode g{
+  fill:#000;
+}
+.correios-etiqueta svg.cor-barcode g rect{
+  fill:#000;
 }
 
 </style>
@@ -2971,7 +2984,7 @@ function montarEtiquetaDestinoCorreios(){
       background:"#ffffff",
       lineColor:"#000000"
     });
-    barcodeDestino.setAttribute("preserveAspectRatio","none");
+    barcodeDestino.setAttribute("preserveAspectRatio","xMidYMid meet");
     barcodeDestino.setAttribute("width","272");
     barcodeDestino.setAttribute("height","53");
   }
@@ -3008,7 +3021,7 @@ function montarEtiquetaRemetenteCorreios(){
       background:"#ffffff",
       lineColor:"#000000"
     });
-    barcodeRemetente.setAttribute("preserveAspectRatio","none");
+    barcodeRemetente.setAttribute("preserveAspectRatio","xMidYMid meet");
     barcodeRemetente.setAttribute("width","272");
     barcodeRemetente.setAttribute("height","53");
   }
