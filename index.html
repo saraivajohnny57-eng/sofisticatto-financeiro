@@ -1039,6 +1039,49 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 <div id="toastContainer" class="toast-container"></div>
 
+<div id="modalEscolherEnderecoEtiqueta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.48);z-index:210000;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;width:760px;max-width:100%;max-height:90vh;overflow:auto;border-radius:24px;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.28);">
+    <h2 style="margin-bottom:8px;">Escolher endereço da etiqueta</h2>
+    <p style="color:#7d73bd;margin-bottom:18px;">Este cliente possui endereço cadastrado e o XML também contém um endereço. Escolha qual será usado nesta etiqueta.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;">
+      <label style="display:block;border:2px solid #ded7f3;border-radius:16px;padding:15px;cursor:pointer;background:#faf8ff;">
+        <div style="display:flex;gap:9px;align-items:flex-start;">
+          <input type="radio" name="enderecoEtiquetaEscolhido" value="cadastrado" checked style="width:auto;margin-top:3px;">
+          <div>
+            <strong style="display:block;margin-bottom:7px;">Usar endereço cadastrado</strong>
+            <div id="enderecoCadastradoPrevia" style="line-height:1.5;color:#333;"></div>
+          </div>
+        </div>
+      </label>
+
+      <label style="display:block;border:2px solid #ded7f3;border-radius:16px;padding:15px;cursor:pointer;background:#faf8ff;">
+        <div style="display:flex;gap:9px;align-items:flex-start;">
+          <input type="radio" name="enderecoEtiquetaEscolhido" value="xml" style="width:auto;margin-top:3px;">
+          <div>
+            <strong style="display:block;margin-bottom:7px;">Usar endereço da NF-e</strong>
+            <div id="enderecoXmlPrevia" style="line-height:1.5;color:#333;"></div>
+          </div>
+        </div>
+      </label>
+    </div>
+
+    <label style="display:flex;gap:8px;align-items:flex-start;margin-top:16px;background:#fff7e6;border:1px solid #f2d49a;padding:12px;border-radius:12px;">
+      <input id="atualizarCadastroComEnderecoXml" type="checkbox" style="width:auto;margin-top:3px;">
+      <span>
+        <strong>Atualizar o cadastro do cliente com o endereço da NF-e</strong><br>
+        <small>Marque somente se esse endereço passar a ser o endereço padrão do cliente.</small>
+      </span>
+    </label>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:20px;">
+      <button type="button" class="btn vermelho" onclick="cancelarEscolhaEnderecoEtiqueta()">Cancelar</button>
+      <button type="button" class="salvar" onclick="confirmarEscolhaEnderecoEtiqueta()">Continuar</button>
+    </div>
+  </div>
+</div>
+
+
 <div id="modalClienteEtiqueta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200000;align-items:center;justify-content:center;padding:20px;">
   <div style="background:#fff;width:520px;max-width:100%;border-radius:22px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.25);">
     <h2 style="margin-bottom:8px;">Cadastrar cliente</h2>
@@ -4070,6 +4113,125 @@ function atualizarPreviewsFaixasEtiqueta(){
 }
 
 
+
+let enderecoXmlPendenteEtiqueta=null;
+let resolverEscolhaEnderecoEtiqueta=null;
+
+function formatarEnderecoEscolhaEtiqueta(dados){
+  const enderecoNumero=[dados.endereco,dados.numero].filter(Boolean).join(", ");
+  const enderecoCompleto=[enderecoNumero,dados.complemento].filter(Boolean).join(" - ");
+  return [
+    enderecoCompleto,
+    dados.bairro ? `Bairro: ${dados.bairro}` : "",
+    dados.cep ? `CEP: ${formatarCepEtiqueta(dados.cep)}` : "",
+    [dados.cidade,dados.uf].filter(Boolean).join("/")
+  ].filter(Boolean).map(escaparHtmlEmail).join("<br>") || "Endereço não informado.";
+}
+
+function cadastroPossuiEnderecoLogistico(cliente){
+  return !!(cliente && (cliente.endereco || cliente.bairro || cliente.cep || cliente.cidade || cliente.uf));
+}
+
+function abrirEscolhaEnderecoEtiqueta(cliente,dadosXml){
+  return new Promise(resolve=>{
+    enderecoXmlPendenteEtiqueta={cliente,dadosXml};
+    resolverEscolhaEnderecoEtiqueta=resolve;
+
+    document.getElementById("enderecoCadastradoPrevia").innerHTML=
+      formatarEnderecoEscolhaEtiqueta({
+        endereco:cliente.endereco || "",
+        numero:cliente.numero || "",
+        complemento:cliente.complemento || "",
+        bairro:cliente.bairro || "",
+        cep:cliente.cep || "",
+        cidade:cliente.cidade || "",
+        uf:cliente.uf || ""
+      });
+
+    document.getElementById("enderecoXmlPrevia").innerHTML=
+      formatarEnderecoEscolhaEtiqueta(dadosXml);
+
+    document.querySelectorAll('input[name="enderecoEtiquetaEscolhido"]').forEach(item=>{
+      item.checked=item.value==="cadastrado";
+    });
+    document.getElementById("atualizarCadastroComEnderecoXml").checked=false;
+    document.getElementById("modalEscolherEnderecoEtiqueta").style.display="flex";
+  });
+}
+
+function cancelarEscolhaEnderecoEtiqueta(){
+  document.getElementById("modalEscolherEnderecoEtiqueta").style.display="none";
+  if(resolverEscolhaEnderecoEtiqueta) resolverEscolhaEnderecoEtiqueta(null);
+  resolverEscolhaEnderecoEtiqueta=null;
+  enderecoXmlPendenteEtiqueta=null;
+}
+
+async function confirmarEscolhaEnderecoEtiqueta(){
+  const opcao=document.querySelector('input[name="enderecoEtiquetaEscolhido"]:checked')?.value || "cadastrado";
+  const atualizarCadastro=document.getElementById("atualizarCadastroComEnderecoXml")?.checked || false;
+  const pendente=enderecoXmlPendenteEtiqueta;
+
+  if(!pendente){
+    cancelarEscolhaEnderecoEtiqueta();
+    return;
+  }
+
+  if(atualizarCadastro){
+    const dados=pendente.dadosXml;
+    const resposta=await banco
+      .from("email_clientes")
+      .update({
+        endereco:dados.endereco || "",
+        numero:dados.numero || "",
+        complemento:dados.complemento || "",
+        bairro:dados.bairro || "",
+        cep:dados.cep || "",
+        cidade:dados.cidade || "",
+        uf:dados.uf || "",
+        atualizado_em:new Date().toISOString()
+      })
+      .eq("id",pendente.cliente.id)
+      .select()
+      .single();
+
+    if(resposta.error){
+      alert("Não foi possível atualizar o endereço do cliente: "+resposta.error.message);
+      return;
+    }
+
+    const posicao=emailClientes.findIndex(item=>item.id===pendente.cliente.id);
+    if(posicao>=0) emailClientes[posicao]=resposta.data;
+    montarTabelaClientesEmail();
+  }
+
+  document.getElementById("modalEscolherEnderecoEtiqueta").style.display="none";
+  if(resolverEscolhaEnderecoEtiqueta) resolverEscolhaEnderecoEtiqueta(opcao);
+  resolverEscolhaEnderecoEtiqueta=null;
+  enderecoXmlPendenteEtiqueta=null;
+}
+
+function preencherEnderecoEtiquetaComCadastro(cliente){
+  const enderecoNumero=[cliente.endereco,cliente.numero].filter(Boolean).join(", ");
+  const enderecoCompleto=[enderecoNumero,cliente.complemento].filter(Boolean).join(" - ");
+
+  document.getElementById("etqEndereco").value=enderecoCompleto || "";
+  document.getElementById("etqBairro").value=cliente.bairro || "";
+  document.getElementById("etqCep").value=formatarCepEtiqueta(cliente.cep || "");
+  document.getElementById("etqCidade").value=cliente.cidade || "";
+  document.getElementById("etqUf").value=cliente.uf || "";
+}
+
+function preencherEnderecoEtiquetaComXml(dadosXml){
+  const enderecoNumero=[dadosXml.endereco,dadosXml.numero].filter(Boolean).join(", ");
+  const enderecoCompleto=[enderecoNumero,dadosXml.complemento].filter(Boolean).join(" - ");
+
+  document.getElementById("etqEndereco").value=enderecoCompleto || "";
+  document.getElementById("etqBairro").value=dadosXml.bairro || "";
+  document.getElementById("etqCep").value=formatarCepEtiqueta(dadosXml.cep || "");
+  document.getElementById("etqCidade").value=dadosXml.cidade || "";
+  document.getElementById("etqUf").value=dadosXml.uf || "";
+}
+
 function ajustarLinhasVisiveisEtiqueta(etiqueta,d){
   if(!etiqueta) return;
 
@@ -4410,15 +4572,39 @@ async function lerXmlEtiqueta(evento){
     }
 
     if(cliente) document.getElementById("etqCliente").value=cliente;
-    if(endereco) document.getElementById("etqEndereco").value=endereco;
-    if(bairro) document.getElementById("etqBairro").value=bairro;
-    if(cep) document.getElementById("etqCep").value=formatarCepEtiqueta(cep);
-    if(cidade) document.getElementById("etqCidade").value=cidade;
-    if(uf) document.getElementById("etqUf").value=uf;
     if(transportadoraPrimeiroNome) document.getElementById("etqTransportadora").value=transportadoraPrimeiroNome.toUpperCase();
     if(numeroNf) document.getElementById("etqNf").value=numeroNf;
     if(quantidadeVolumes>0) document.getElementById("etqVolumes").value=quantidadeVolumes;
     if(chave) document.getElementById("etqChave").value=chave.replace(/\D/g,"").slice(0,44);
+
+    const dadosEnderecoXml={
+      endereco:logradouro || "",
+      numero:numeroEndereco || "",
+      complemento:complemento || "",
+      bairro:bairro || "",
+      cep:cep || "",
+      cidade:cidade || "",
+      uf:uf || ""
+    };
+
+    const cadastroEncontrado=cliente ? clienteEtiquetaJaCadastrado(cliente) : null;
+
+    if(cadastroEncontrado && cadastroPossuiEnderecoLogistico(cadastroEncontrado)){
+      const escolha=await abrirEscolhaEnderecoEtiqueta(cadastroEncontrado,dadosEnderecoXml);
+
+      if(escolha===null){
+        evento.target.value="";
+        return;
+      }
+
+      if(escolha==="cadastrado"){
+        preencherEnderecoEtiquetaComCadastro(cadastroEncontrado);
+      }else{
+        preencherEnderecoEtiquetaComXml(dadosEnderecoXml);
+      }
+    }else{
+      preencherEnderecoEtiquetaComXml(dadosEnderecoXml);
+    }
 
     atualizarPreviewEtiqueta();
 
