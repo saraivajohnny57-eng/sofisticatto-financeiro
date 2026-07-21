@@ -3447,25 +3447,142 @@ function inicializarModuloCorreios(){
   setTimeout(atualizarCorreiosTudo,600);
 }
 
-function abrirJanelaImpressaoCorreios(conteudo,tamanho,titulo){
+function clonarElementoCorreiosParaImpressao(elemento){
+  const clone=elemento.cloneNode(true);
+  const canvasesOriginais=elemento.querySelectorAll("canvas");
+  const canvasesClone=clone.querySelectorAll("canvas");
+
+  canvasesOriginais.forEach((canvas,indice)=>{
+    const canvasClone=canvasesClone[indice];
+    if(!canvasClone) return;
+
+    try{
+      const imagem=document.createElement("img");
+      imagem.src=canvas.toDataURL("image/png");
+      imagem.style.width=getComputedStyle(canvas).width;
+      imagem.style.height=getComputedStyle(canvas).height;
+      imagem.style.display="block";
+      imagem.style.objectFit="contain";
+      canvasClone.replaceWith(imagem);
+    }catch(erro){
+      console.error("Não foi possível copiar um canvas para impressão:",erro);
+    }
+  });
+
+  return clone;
+}
+
+async function esperarImagensCorreios(container){
+  const imagens=Array.from(container.querySelectorAll("img"));
+  await Promise.all(imagens.map(imagem=>{
+    if(imagem.complete) return Promise.resolve();
+    return new Promise(resolve=>{
+      imagem.onload=resolve;
+      imagem.onerror=resolve;
+      setTimeout(resolve,2500);
+    });
+  }));
+}
+
+async function abrirJanelaImpressaoCorreios(elemento,tamanho,titulo){
   const janela=window.open("","_blank","width=1000,height=760");
-  if(!janela){alert("Permita pop-ups para imprimir.");return;}
-  janela.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${titulo}</title>
-  <style>@page{size:${tamanho};margin:0}html,body{margin:0;padding:0;background:#fff}body>*{margin:0 auto!important;box-shadow:none!important;border-radius:0!important}</style>
-  ${document.querySelector("style")?.outerHTML || ""}</head><body>${conteudo}</body></html>`);
+  if(!janela){
+    alert("Permita pop-ups para imprimir.");
+    return;
+  }
+
+  const clone=clonarElementoCorreiosParaImpressao(elemento);
+  const estilos=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]'))
+    .map(item=>item.outerHTML)
+    .join("\n");
+
+  janela.document.open();
+  janela.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>${titulo}</title>
+  ${estilos}
+  <style>
+    @page{size:${tamanho};margin:0}
+    html,body{
+      margin:0!important;
+      padding:0!important;
+      background:#fff!important;
+      width:100%;
+      min-height:100%;
+      overflow:visible!important;
+    }
+    body{
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+    body>*{
+      margin:0 auto!important;
+      box-shadow:none!important;
+      border-radius:0!important;
+      transform:none!important;
+    }
+    .correios-etiqueta{
+      width:150mm!important;
+      height:100mm!important;
+      min-width:150mm!important;
+      min-height:100mm!important;
+      max-width:150mm!important;
+      max-height:100mm!important;
+      overflow:hidden!important;
+    }
+    .correios-declaracao{
+      width:194mm!important;
+      max-width:194mm!important;
+      min-height:281mm!important;
+      padding:5mm!important;
+      box-sizing:border-box!important;
+      overflow:hidden!important;
+    }
+  </style>
+</head>
+<body></body>
+</html>`);
   janela.document.close();
-  setTimeout(()=>{janela.focus();janela.print();},700);
+
+  janela.document.body.appendChild(janela.document.importNode(clone,true));
+  await esperarImagensCorreios(janela.document.body);
+
+  await new Promise(resolve=>setTimeout(resolve,500));
+  janela.focus();
+  janela.print();
 }
 
-function imprimirEtiquetaCorreios(tipo){
-  atualizarCorreiosTudo();
+async function imprimirEtiquetaCorreios(tipo){
+  await atualizarCorreiosTudo();
+
   const id=tipo==="destino" ? "corEtiquetaDestino" : "corEtiquetaRemetente";
-  abrirJanelaImpressaoCorreios(document.getElementById(id).outerHTML,"150mm 100mm","Etiqueta Correios");
+  const elemento=document.getElementById(id);
+
+  if(!elemento){
+    alert("Não foi possível localizar a etiqueta para impressão.");
+    return;
+  }
+
+  await abrirJanelaImpressaoCorreios(
+    elemento,
+    "150mm 100mm",
+    tipo==="destino" ? "Etiqueta do Destinatário" : "Etiqueta do Remetente"
+  );
 }
 
-function imprimirDeclaracaoCorreios(){
-  atualizarCorreiosTudo();
-  const declaracao=document.getElementById("corDeclaracao").cloneNode(true);
+async function imprimirDeclaracaoCorreios(){
+  await atualizarCorreiosTudo();
+
+  const elemento=document.getElementById("corDeclaracao");
+  if(!elemento){
+    alert("Não foi possível localizar a Declaração de Conteúdo.");
+    return;
+  }
+
+  const declaracao=clonarElementoCorreiosParaImpressao(elemento);
   declaracao.style.width="194mm";
   declaracao.style.maxWidth="194mm";
   declaracao.style.minHeight="281mm";
@@ -3473,18 +3590,26 @@ function imprimirDeclaracaoCorreios(){
   declaracao.style.padding="5mm";
   declaracao.style.boxSizing="border-box";
   declaracao.style.overflow="hidden";
+
   declaracao.querySelectorAll("table").forEach(tabela=>{
     tabela.style.width="100%";
     tabela.style.maxWidth="100%";
     tabela.style.tableLayout="fixed";
   });
-  abrirJanelaImpressaoCorreios(declaracao.outerHTML,"A4","Declaração de Conteúdo");
+
+  await abrirJanelaImpressaoCorreios(
+    declaracao,
+    "A4 portrait",
+    "Declaração de Conteúdo"
+  );
 }
 
-function imprimirPacoteCorreios(){
-  imprimirEtiquetaCorreios("destino");
-  setTimeout(()=>imprimirEtiquetaCorreios("remetente"),900);
-  setTimeout(()=>imprimirDeclaracaoCorreios(),1800);
+async function imprimirPacoteCorreios(){
+  await imprimirEtiquetaCorreios("destino");
+  await new Promise(resolve=>setTimeout(resolve,600));
+  await imprimirEtiquetaCorreios("remetente");
+  await new Promise(resolve=>setTimeout(resolve,600));
+  await imprimirDeclaracaoCorreios();
 }
 
 async function salvarEnvioCorreios(){
