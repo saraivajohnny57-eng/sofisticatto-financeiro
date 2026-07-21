@@ -810,6 +810,23 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
   }
 }
 
+
+/* AJUSTE FINAL: CIDADE ACIMA DO CÓDIGO DE BARRAS */
+.correios-etiqueta .cor-cidade{
+  top:68mm!important;
+  max-height:6mm!important;
+  font-size:4.6mm!important;
+  line-height:1.05!important;
+}
+.correios-etiqueta .cor-barcode-area{
+  bottom:2.5mm!important;
+  height:18mm!important;
+}
+.correios-etiqueta .cor-barcode{
+  height:11mm!important;
+  max-height:11mm!important;
+}
+
 </style>
 </head>
 <body>
@@ -3622,13 +3639,13 @@ function estilosImpressaoCorreios(tipo){
       .cor-cidade{
         position:absolute!important;
         left:7mm!important;
-        top:71mm!important;
+        top:68mm!important;
         width:112mm!important;
-        max-height:7mm!important;
+        max-height:6mm!important;
         overflow:hidden!important;
-        font-size:4.8mm!important;
+        font-size:4.6mm!important;
         font-weight:700!important;
-        line-height:1.08!important;
+        line-height:1.05!important;
         white-space:nowrap!important;
         text-overflow:ellipsis!important;
       }
@@ -3646,9 +3663,9 @@ function estilosImpressaoCorreios(tipo){
       .cor-barcode-area{
         position:absolute!important;
         left:7mm!important;
-        bottom:4mm!important;
+        bottom:2.5mm!important;
         width:72mm!important;
-        height:22mm!important;
+        height:18mm!important;
         display:flex!important;
         flex-direction:column!important;
         align-items:center!important;
@@ -3660,9 +3677,9 @@ function estilosImpressaoCorreios(tipo){
         position:static!important;
         display:block!important;
         width:68mm!important;
-        height:14mm!important;
+        height:11mm!important;
         max-width:68mm!important;
-        max-height:14mm!important;
+        max-height:11mm!important;
         background:#fff!important;
       }
       .cor-cep{
