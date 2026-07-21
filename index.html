@@ -853,6 +853,25 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 tr.relatorio-alterado td{background:#fff8db!important}
 tr.relatorio-selecionado td{background:#f0ecff!important}
 
+
+/* CORREÇÃO DA LOGO NA IMPRESSÃO DAS ETIQUETAS */
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-logo{
+  left:34mm!important;
+  top:3mm!important;
+  width:58mm!important;
+  height:25mm!important;
+  max-width:58mm!important;
+  max-height:25mm!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  z-index:1!important;
+}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-destino{top:38mm!important}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-endereco{top:46mm!important}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-bairro{top:53mm!important}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cep{top:60mm!important}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cidade{top:66mm!important}
+
 </style>
 </head>
 <body>
@@ -6846,24 +6865,38 @@ async function esperarImagensEtiqueta(etiqueta){
 
 function normalizarLogoParaCaptura(etiqueta){
   const logoGerada=etiqueta.querySelector(".etiqueta-logo");
-  const logoPrevia=document.getElementById("etqLogo");
-  if(!logoGerada || !logoPrevia) return;
+  if(!logoGerada) return;
 
-  const estiloPrevia=getComputedStyle(logoPrevia);
-  const rectPrevia=logoPrevia.getBoundingClientRect();
-
+  // Mantém a logo dentro de uma área fixa do cabeçalho.
+  // Isso evita que a imagem aumente durante a captura e cubra o nome do cliente.
   logoGerada.style.position="absolute";
-  logoGerada.style.left=estiloPrevia.left;
-  logoGerada.style.top=estiloPrevia.top;
-  logoGerada.style.width="220px";
-  logoGerada.style.height="auto";
-  logoGerada.style.maxWidth="none";
-  logoGerada.style.maxHeight="none";
+  logoGerada.style.left="34mm";
+  logoGerada.style.top="3mm";
+  logoGerada.style.width="58mm";
+  logoGerada.style.height="25mm";
+  logoGerada.style.maxWidth="58mm";
+  logoGerada.style.maxHeight="25mm";
   logoGerada.style.objectFit="contain";
+  logoGerada.style.objectPosition="center";
   logoGerada.style.transform="none";
+  logoGerada.style.zIndex="1";
+
+  // Reserva uma faixa exclusiva para logo e QR Code na impressão.
+  const destino=etiqueta.querySelector(".etiqueta-destino");
+  const endereco=etiqueta.querySelector(".etiqueta-endereco");
+  const bairro=etiqueta.querySelector(".etiqueta-bairro");
+  const cep=etiqueta.querySelector(".etiqueta-cep");
+  const cidade=etiqueta.querySelector(".etiqueta-cidade");
+
+  if(destino) destino.style.top="38mm";
+  if(endereco) endereco.style.top="46mm";
+  if(bairro) bairro.style.top="53mm";
+  if(cep) cep.style.top="60mm";
+  if(cidade) cidade.style.top="66mm";
 }
 
 async function prepararEtiquetaParaCaptura(etiqueta){
+  etiqueta.classList.add("etiqueta-preparada-impressao");
   normalizarLogoParaCaptura(etiqueta);
   await esperarImagensEtiqueta(etiqueta);
   await converterSvgBarcodeParaCanvas(etiqueta);
