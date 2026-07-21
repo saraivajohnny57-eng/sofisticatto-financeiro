@@ -961,7 +961,7 @@ tr.relatorio-selecionado td{background:#f0ecff!important}
               <th id="cabecalhoSelecionarBanco" style="display:none;">
                 <input type="checkbox" id="marcarTodosBancos" class="relatorio-check" onchange="alternarTodosBancosRelatorio(this.checked)" title="Selecionar todos">
               </th>
-              <th>Cliente</th><th>Valor</th><th>Banco</th><th>Observação</th><th>Criado por</th><th>Status</th><th>Ação</th>
+              <th>Cliente</th><th>Valor</th><th>Banco</th><th>Observação</th><th>Criado por</th><th>Status</th><th id="cabecalhoAcaoRelatorios">Ação</th>
             </tr>
           </thead>
           <tbody id="tabela"></tbody>
@@ -2092,6 +2092,10 @@ function montarTabela(){
   if(cabecalhoSelecao) cabecalhoSelecao.style.display = podeSalvarEmLote ? "" : "none";
   if(barraLote) barraLote.classList.toggle("ativa", podeSalvarEmLote);
 
+  const cabecalhoAcao=document.getElementById("cabecalhoAcaoRelatorios");
+  const ocultarAcaoBanco=usuarioLogado && usuarioLogado.tipo==="banco";
+  if(cabecalhoAcao) cabecalhoAcao.style.display=ocultarAcaoBanco ? "none" : "";
+
   const andamento = todosBoletos
     .filter(item => item.status !== "Finalizado")
     .sort((a,b) => valorParaNumero(b.valor || 0) - valorParaNumero(a.valor || 0));
@@ -2114,7 +2118,7 @@ function montarTabela(){
     if(usuarioLogado.tipo === "banco"){
       bancoCampo = montarSelectBanco(item.id, item.banco || "");
       observacaoCampo = `<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação" oninput="marcarBancoRelatorioAlterado('${item.id}')">`;
-      botoes += `<button class="btn verde" onclick="salvarBanco('${item.id}')">Salvar Banco</button>`;
+      botoes = "";
     }
 
     if(usuarioLogado.tipo === "admin"){
@@ -2134,7 +2138,8 @@ function montarTabela(){
     tabela.innerHTML += `<tr id="linha_relatorio_${item.id}">
       <td style="${podeSalvarEmLote ? "" : "display:none;"}">${selecaoCampo}</td>
       <td>${nomeCampo}</td><td>${valorCampo}</td><td>${bancoCampo}</td><td>${observacaoCampo}</td>
-      <td>${item.criado_por || ""}</td><td><span class="status andamento">Em andamento</span></td><td>${botoes}</td>
+      <td>${item.criado_por || ""}</td><td><span class="status andamento">Em andamento</span></td>
+      <td style="${usuarioLogado && usuarioLogado.tipo === "banco" ? "display:none;" : ""}">${botoes}</td>
     </tr>`;
   });
 
