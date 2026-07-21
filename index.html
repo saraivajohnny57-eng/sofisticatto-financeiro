@@ -3177,7 +3177,14 @@ function aplicarAjustesCorreiosEtiqueta(etiqueta,tipo){
   aplicarFonte(".cor-rem-texto",23,"remetente",13);
 
   if(tipo==="declaracao"){
-    etiqueta.style.fontSize=`${Math.max(7,10+Number(ajuste.declaracao || 0))}px`;
+    const tamanho=Math.max(7,10+Number(ajuste.declaracao || 0));
+    etiqueta.style.fontSize=`${tamanho}px`;
+
+    etiqueta.querySelectorAll(
+      ".cor-dec-bens th,.cor-dec-bens td,.cor-dec-linha,.cor-dec-declaracao,.cor-dec-data,.cor-dec-texto-assinatura"
+    ).forEach(item=>{
+      item.style.fontSize="inherit";
+    });
   }
 }
 
@@ -3716,7 +3723,6 @@ function estilosImpressaoCorreios(tipo){
       background:#fff!important;
       color:#000!important;
       font-family:Arial,sans-serif!important;
-      font-size:9px!important;
       box-shadow:none!important;
       border-radius:0!important;
       transform:none!important;
@@ -3758,7 +3764,7 @@ function estilosImpressaoCorreios(tipo){
       border:1px solid #111!important;
       padding:3px 2px!important;
       height:24px!important;
-      font-size:8.5px!important;
+      font-size:inherit!important;
       line-height:1.1!important;
       overflow:hidden!important;
       word-break:break-word!important;
@@ -3871,8 +3877,22 @@ async function imprimirDeclaracaoCorreios(){
     return;
   }
 
+  const declaracaoParaImprimir=elemento.cloneNode(true);
+  const tamanhoAtual=Math.max(
+    7,
+    10 + Number(correiosAjustesTamanho.declaracao || 0)
+  );
+
+  declaracaoParaImprimir.style.fontSize=`${tamanhoAtual}px`;
+
+  declaracaoParaImprimir.querySelectorAll(
+    ".cor-dec-bens th,.cor-dec-bens td,.cor-dec-linha,.cor-dec-declaracao,.cor-dec-data,.cor-dec-texto-assinatura"
+  ).forEach(item=>{
+    item.style.fontSize="inherit";
+  });
+
   await abrirJanelaImpressaoCorreios(
-    elemento,
+    declaracaoParaImprimir,
     "declaracao",
     "Declaração de Conteúdo"
   );
