@@ -2032,7 +2032,9 @@ function montarSelectBanco(id, bancoAtual){
 function montarTabela(){
   const tabela = document.getElementById("tabela");
   tabela.innerHTML = "";
-  const andamento = todosBoletos.filter(item => item.status !== "Finalizado");
+  const andamento = todosBoletos
+    .filter(item => item.status !== "Finalizado")
+    .sort((a,b) => valorParaNumero(b.valor || 0) - valorParaNumero(a.valor || 0));
 
   andamento.forEach(item => {
     let bancoCampo = item.banco || "";
