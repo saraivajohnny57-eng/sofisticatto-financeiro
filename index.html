@@ -872,6 +872,55 @@ tr.relatorio-selecionado td{background:#f0ecff!important}
 .etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cep{top:60mm!important}
 .etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cidade{top:66mm!important}
 
+
+/* IMPRESSÃO SEM LINHAS OU TEXTOS SOBREPOSTOS */
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-destino,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-endereco,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-bairro,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cep,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cidade,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-nf,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-volume{
+  overflow:visible!important;
+  line-height:1.25!important;
+  background:transparent!important;
+  z-index:3!important;
+  box-sizing:border-box!important;
+}
+
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-destino{
+  top:36.5mm!important;
+  height:7.5mm!important;
+  min-height:7.5mm!important;
+}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-endereco{
+  top:44.5mm!important;
+  height:7mm!important;
+  min-height:7mm!important;
+}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-bairro{
+  top:52mm!important;
+  height:7mm!important;
+  min-height:7mm!important;
+}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cep{
+  top:59.5mm!important;
+  height:7mm!important;
+  min-height:7mm!important;
+}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cidade{
+  top:67mm!important;
+  height:7mm!important;
+  min-height:7mm!important;
+}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-nf,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-volume{
+  top:74.5mm!important;
+  height:7mm!important;
+  min-height:7mm!important;
+  line-height:1.2!important;
+}
+
 </style>
 </head>
 <body>
@@ -6865,34 +6914,65 @@ async function esperarImagensEtiqueta(etiqueta){
 
 function normalizarLogoParaCaptura(etiqueta){
   const logoGerada=etiqueta.querySelector(".etiqueta-logo");
-  if(!logoGerada) return;
+  if(logoGerada){
+    logoGerada.style.position="absolute";
+    logoGerada.style.left="34mm";
+    logoGerada.style.top="3mm";
+    logoGerada.style.width="58mm";
+    logoGerada.style.height="25mm";
+    logoGerada.style.maxWidth="58mm";
+    logoGerada.style.maxHeight="25mm";
+    logoGerada.style.objectFit="contain";
+    logoGerada.style.objectPosition="center";
+    logoGerada.style.transform="none";
+    logoGerada.style.zIndex="1";
+  }
 
-  // Mantém a logo dentro de uma área fixa do cabeçalho.
-  // Isso evita que a imagem aumente durante a captura e cubra o nome do cliente.
-  logoGerada.style.position="absolute";
-  logoGerada.style.left="34mm";
-  logoGerada.style.top="3mm";
-  logoGerada.style.width="58mm";
-  logoGerada.style.height="25mm";
-  logoGerada.style.maxWidth="58mm";
-  logoGerada.style.maxHeight="25mm";
-  logoGerada.style.objectFit="contain";
-  logoGerada.style.objectPosition="center";
-  logoGerada.style.transform="none";
-  logoGerada.style.zIndex="1";
+  // Organiza todas as linhas em áreas independentes.
+  // A altura e o espaçamento maiores evitam que o html2canvas corte
+  // letras ou crie faixas brancas sobre os textos.
+  const configuracoes=[
+    [".etiqueta-destino","36.5mm","7.5mm"],
+    [".etiqueta-endereco","44.5mm","7mm"],
+    [".etiqueta-bairro","52mm","7mm"],
+    [".etiqueta-cep","59.5mm","7mm"],
+    [".etiqueta-cidade","67mm","7mm"]
+  ];
 
-  // Reserva uma faixa exclusiva para logo e QR Code na impressão.
-  const destino=etiqueta.querySelector(".etiqueta-destino");
-  const endereco=etiqueta.querySelector(".etiqueta-endereco");
-  const bairro=etiqueta.querySelector(".etiqueta-bairro");
-  const cep=etiqueta.querySelector(".etiqueta-cep");
-  const cidade=etiqueta.querySelector(".etiqueta-cidade");
+  configuracoes.forEach(([seletor,top,altura])=>{
+    const elemento=etiqueta.querySelector(seletor);
+    if(!elemento) return;
 
-  if(destino) destino.style.top="38mm";
-  if(endereco) endereco.style.top="46mm";
-  if(bairro) bairro.style.top="53mm";
-  if(cep) cep.style.top="60mm";
-  if(cidade) cidade.style.top="66mm";
+    elemento.style.top=top;
+    elemento.style.height=altura;
+    elemento.style.minHeight=altura;
+    elemento.style.maxHeight=altura;
+    elemento.style.lineHeight="1.25";
+    elemento.style.display="block";
+    elemento.style.overflow="visible";
+    elemento.style.whiteSpace="nowrap";
+    elemento.style.background="transparent";
+    elemento.style.zIndex="3";
+    elemento.style.paddingTop="0.4mm";
+    elemento.style.paddingBottom="0.4mm";
+    elemento.style.boxSizing="border-box";
+  });
+
+  const nf=etiqueta.querySelector(".etiqueta-nf");
+  const volume=etiqueta.querySelector(".etiqueta-volume");
+
+  [nf,volume].forEach(elemento=>{
+    if(!elemento) return;
+    elemento.style.top="74.5mm";
+    elemento.style.height="7mm";
+    elemento.style.minHeight="7mm";
+    elemento.style.lineHeight="1.2";
+    elemento.style.overflow="visible";
+    elemento.style.background="transparent";
+    elemento.style.zIndex="3";
+    elemento.style.paddingTop="0.3mm";
+    elemento.style.boxSizing="border-box";
+  });
 }
 
 async function prepararEtiquetaParaCaptura(etiqueta){
