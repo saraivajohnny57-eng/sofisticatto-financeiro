@@ -827,6 +827,32 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
   max-height:11mm!important;
 }
 
+
+/* SALVAMENTO DE BANCOS EM LOTE */
+.relatorio-lote-barra{
+  display:none;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  margin:14px 0;
+  padding:12px 14px;
+  border:1px solid #ddd6f3;
+  border-radius:14px;
+  background:#faf8ff;
+}
+.relatorio-lote-barra.ativa{display:flex}
+.relatorio-lote-info{font-weight:700;color:#4d4694}
+.relatorio-lote-acoes{display:flex;gap:8px;flex-wrap:wrap}
+.relatorio-check{
+  width:18px!important;
+  height:18px!important;
+  min-width:18px!important;
+  cursor:pointer;
+}
+tr.relatorio-alterado td{background:#fff8db!important}
+tr.relatorio-selecionado td{background:#f0ecff!important}
+
 </style>
 </head>
 <body>
@@ -914,7 +940,33 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
     </div>
     <div class="card">
       <h2>Relatórios em Andamento</h2>
-      <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Valor</th><th>Banco</th><th>Observação</th><th>Criado por</th><th>Status</th><th>Ação</th></tr></thead><tbody id="tabela"></tbody></table></div>
+
+      <div id="barraSalvarBancosLote" class="relatorio-lote-barra">
+        <div class="relatorio-lote-info">
+          <span id="quantidadeBancosSelecionados">0</span> relatório(s) selecionado(s)
+          <span id="quantidadeBancosAlterados"></span>
+        </div>
+        <div class="relatorio-lote-acoes">
+          <button type="button" class="btn azul" onclick="selecionarTodosBancosRelatorio()">Selecionar todos</button>
+          <button type="button" class="btn roxo" onclick="selecionarBancosAlterados()">Selecionar alterados</button>
+          <button type="button" class="btn vermelho" onclick="limparSelecaoBancosRelatorio()">Limpar seleção</button>
+          <button type="button" class="btn verde" id="btnSalvarBancosLote" onclick="salvarBancosSelecionados()">Salvar bancos selecionados</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th id="cabecalhoSelecionarBanco" style="display:none;">
+                <input type="checkbox" id="marcarTodosBancos" class="relatorio-check" onchange="alternarTodosBancosRelatorio(this.checked)" title="Selecionar todos">
+              </th>
+              <th>Cliente</th><th>Valor</th><th>Banco</th><th>Observação</th><th>Criado por</th><th>Status</th><th>Ação</th>
+            </tr>
+          </thead>
+          <tbody id="tabela"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -2009,6 +2061,7 @@ async function carregarRelatorios(silencioso = false){
     }
 
     todosBoletos = resposta.data || [];
+    bancosRelatoriosAlterados.clear();
     montarTabela();
     montarHistorico();
     atualizarDashboard();
@@ -2023,7 +2076,7 @@ async function carregarRelatorios(silencioso = false){
 }
 
 function montarSelectBanco(id, bancoAtual){
-  let html = `<select id="banco_${id}" onchange="marcarEdicaoRelatorio()"><option value="">Selecione</option>`;
+  let html = `<select id="banco_${id}" onchange="marcarBancoRelatorioAlterado('${id}')"><option value="">Selecione</option>`;
   listaBancos.forEach(b => html += `<option value="${b.nome}" ${b.nome === bancoAtual ? "selected" : ""}>${b.nome}</option>`);
   html += `</select>`;
   return html;
@@ -2032,6 +2085,13 @@ function montarSelectBanco(id, bancoAtual){
 function montarTabela(){
   const tabela = document.getElementById("tabela");
   tabela.innerHTML = "";
+
+  const podeSalvarEmLote = usuarioLogado && (usuarioLogado.tipo === "banco" || usuarioLogado.tipo === "admin");
+  const cabecalhoSelecao = document.getElementById("cabecalhoSelecionarBanco");
+  const barraLote = document.getElementById("barraSalvarBancosLote");
+  if(cabecalhoSelecao) cabecalhoSelecao.style.display = podeSalvarEmLote ? "" : "none";
+  if(barraLote) barraLote.classList.toggle("ativa", podeSalvarEmLote);
+
   const andamento = todosBoletos
     .filter(item => item.status !== "Finalizado")
     .sort((a,b) => valorParaNumero(b.valor || 0) - valorParaNumero(a.valor || 0));
@@ -2053,7 +2113,7 @@ function montarTabela(){
 
     if(usuarioLogado.tipo === "banco"){
       bancoCampo = montarSelectBanco(item.id, item.banco || "");
-      observacaoCampo = `<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação" oninput="marcarEdicaoRelatorio()">`;
+      observacaoCampo = `<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação" oninput="marcarBancoRelatorioAlterado('${item.id}')">`;
       botoes += `<button class="btn verde" onclick="salvarBanco('${item.id}')">Salvar Banco</button>`;
     }
 
@@ -2061,16 +2121,25 @@ function montarTabela(){
       nomeCampo = `<input id="edit_nome_${item.id}" value="${item.nome || ""}" oninput="marcarEdicaoRelatorio()">`;
       valorCampo = `<input type="text" id="edit_valor_${item.id}" value="${valorParaInput(item.valor || 0)}" inputmode="decimal" oninput="mascaraValor(this);marcarEdicaoRelatorio()">`;
       bancoCampo = montarSelectBanco(item.id, item.banco || "");
-      observacaoCampo = `<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação" oninput="marcarEdicaoRelatorio()">`;
+      observacaoCampo = `<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação" oninput="marcarBancoRelatorioAlterado('${item.id}')">`;
       botoes += `<button class="btn azul" onclick="editarRelatorio('${item.id}')">Editar</button>`;
       if(item.banco){ botoes += `<button class="btn roxo" onclick="finalizar('${item.id}')">Finalizar</button>`; }
       botoes += `<button class="btn vermelho" onclick="excluir('${item.id}')">Excluir</button>`;
     }
 
-    tabela.innerHTML += `<tr><td>${nomeCampo}</td><td>${valorCampo}</td><td>${bancoCampo}</td><td>${observacaoCampo}</td><td>${item.criado_por || ""}</td><td><span class="status andamento">Em andamento</span></td><td>${botoes}</td></tr>`;
+    const selecaoCampo = podeSalvarEmLote
+      ? `<input type="checkbox" class="relatorio-check check-banco-lote" id="check_banco_${item.id}" data-id="${item.id}" onchange="atualizarSelecaoBancosRelatorio('${item.id}',this.checked)">`
+      : "";
+
+    tabela.innerHTML += `<tr id="linha_relatorio_${item.id}">
+      <td style="${podeSalvarEmLote ? "" : "display:none;"}">${selecaoCampo}</td>
+      <td>${nomeCampo}</td><td>${valorCampo}</td><td>${bancoCampo}</td><td>${observacaoCampo}</td>
+      <td>${item.criado_por || ""}</td><td><span class="status andamento">Em andamento</span></td><td>${botoes}</td>
+    </tr>`;
   });
 
   atualizarResumoRelatorios(andamento);
+  atualizarContadorBancosLote();
 }
 
 function atualizarResumoRelatorios(andamento){
@@ -2671,6 +2740,168 @@ async function salvarRelatorio(){
   document.getElementById("nome").value = "";
   document.getElementById("valor").value = "";
   carregarRelatorios();
+}
+
+
+const bancosRelatoriosAlterados = new Set();
+
+function marcarBancoRelatorioAlterado(id){
+  marcarEdicaoRelatorio();
+  bancosRelatoriosAlterados.add(String(id));
+
+  const linha=document.getElementById("linha_relatorio_"+id);
+  if(linha) linha.classList.add("relatorio-alterado");
+
+  const check=document.getElementById("check_banco_"+id);
+  if(check) check.checked=true;
+
+  atualizarSelecaoBancosRelatorio(id,true);
+}
+
+function atualizarSelecaoBancosRelatorio(id,selecionado){
+  const linha=document.getElementById("linha_relatorio_"+id);
+  if(linha) linha.classList.toggle("relatorio-selecionado",!!selecionado);
+  atualizarContadorBancosLote();
+}
+
+function checksBancosRelatorio(){
+  return Array.from(document.querySelectorAll(".check-banco-lote"));
+}
+
+function atualizarContadorBancosLote(){
+  const checks=checksBancosRelatorio();
+  const selecionados=checks.filter(item=>item.checked).length;
+  const contador=document.getElementById("quantidadeBancosSelecionados");
+  const alterados=document.getElementById("quantidadeBancosAlterados");
+  const marcarTodos=document.getElementById("marcarTodosBancos");
+  const botao=document.getElementById("btnSalvarBancosLote");
+
+  if(contador) contador.textContent=selecionados;
+  if(alterados){
+    alterados.textContent=bancosRelatoriosAlterados.size
+      ? ` • ${bancosRelatoriosAlterados.size} alteração(ões) pendente(s)`
+      : "";
+  }
+  if(marcarTodos){
+    marcarTodos.checked=checks.length>0 && selecionados===checks.length;
+    marcarTodos.indeterminate=selecionados>0 && selecionados<checks.length;
+  }
+  if(botao) botao.disabled=selecionados===0;
+}
+
+function alternarTodosBancosRelatorio(marcar){
+  checksBancosRelatorio().forEach(check=>{
+    check.checked=marcar;
+    atualizarSelecaoBancosRelatorio(check.dataset.id,marcar);
+  });
+  atualizarContadorBancosLote();
+}
+
+function selecionarTodosBancosRelatorio(){
+  alternarTodosBancosRelatorio(true);
+}
+
+function selecionarBancosAlterados(){
+  checksBancosRelatorio().forEach(check=>{
+    const marcar=bancosRelatoriosAlterados.has(String(check.dataset.id));
+    check.checked=marcar;
+    atualizarSelecaoBancosRelatorio(check.dataset.id,marcar);
+  });
+  atualizarContadorBancosLote();
+}
+
+function limparSelecaoBancosRelatorio(){
+  alternarTodosBancosRelatorio(false);
+}
+
+async function salvarBancosSelecionados(){
+  const selecionados=checksBancosRelatorio().filter(check=>check.checked);
+  if(!selecionados.length){
+    alert("Marque pelo menos um relatório.");
+    return;
+  }
+
+  const registros=[];
+  const semBanco=[];
+
+  selecionados.forEach(check=>{
+    const id=check.dataset.id;
+    const bancoInput=document.getElementById("banco_"+id);
+    const obsInput=document.getElementById("obs_"+id);
+    const bancoSelecionado=bancoInput ? bancoInput.value : "";
+
+    if(!bancoSelecionado){
+      semBanco.push(id);
+      return;
+    }
+
+    registros.push({
+      id,
+      banco:bancoSelecionado,
+      observacao:obsInput ? obsInput.value : ""
+    });
+  });
+
+  if(semBanco.length){
+    alert(`${semBanco.length} relatório(s) selecionado(s) ainda estão sem banco. Selecione o banco antes de salvar.`);
+    return;
+  }
+
+  const botao=document.getElementById("btnSalvarBancosLote");
+  const textoOriginal=botao ? botao.textContent : "";
+  if(botao){
+    botao.disabled=true;
+    botao.textContent=`Salvando ${registros.length}...`;
+  }
+
+  let salvos=0;
+  const erros=[];
+
+  try{
+    const resultados=await Promise.all(registros.map(async registro=>{
+      const resposta=await banco
+        .from("boletos")
+        .update({banco:registro.banco,observacao:registro.observacao})
+        .eq("id",registro.id);
+
+      return {registro,erro:resposta.error};
+    }));
+
+    resultados.forEach(resultado=>{
+      if(resultado.erro){
+        erros.push({id:resultado.registro.id,mensagem:resultado.erro.message});
+      }else{
+        salvos++;
+        bancosRelatoriosAlterados.delete(String(resultado.registro.id));
+      }
+    });
+
+    limparEdicaoRelatorio();
+
+    if(erros.length){
+      mostrarBalaoSistema(
+        "Salvamento concluído parcialmente",
+        `${salvos} relatório(s) salvo(s) e ${erros.length} com erro.`
+      );
+      console.error("Erros ao salvar bancos em lote:",erros);
+    }else{
+      mostrarBalaoSistema(
+        "Bancos salvos",
+        `${salvos} relatório(s) foram atualizados com sucesso.`
+      );
+    }
+
+    await carregarRelatorios();
+  }catch(erro){
+    console.error("Erro ao salvar bancos em lote:",erro);
+    alert("Não foi possível salvar os bancos selecionados.");
+  }finally{
+    if(botao){
+      botao.disabled=false;
+      botao.textContent=textoOriginal;
+    }
+    atualizarContadorBancosLote();
+  }
 }
 
 async function salvarBanco(id){
