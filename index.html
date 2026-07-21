@@ -3151,10 +3151,10 @@ function aplicarAjustesCorreiosEtiqueta(etiqueta,tipo){
     if(el) el.style.fontSize=`${Math.max(minimo,base+Number(ajuste[campo] || 0))}px`;
   };
 
-  aplicarFonte(".cor-destino",27,"destino",14);
-  aplicarFonte(".cor-endereco",21,"endereco",12);
-  aplicarFonte(".cor-bairro",21,"bairro",12);
-  aplicarFonte(".cor-cidade",21,"cidade",12);
+  aplicarFonte(".cor-destino",24,"destino",13);
+  aplicarFonte(".cor-endereco",18,"endereco",11);
+  aplicarFonte(".cor-bairro",18,"bairro",11);
+  aplicarFonte(".cor-cidade",19,"cidade",11);
   aplicarFonte(".cor-cep",15,"cep",9);
   aplicarFonte(".cor-servico",83,"servico",40);
   aplicarFonte(".cor-rem-texto",23,"remetente",13);
@@ -3223,7 +3223,10 @@ function montarEtiquetaDestinoCorreios(){
   if(!box) return;
 
   montarLogoQrCorreios(box);
-  const endereco=[d.endereco,d.numero].filter(Boolean).join(", ");
+  const enderecoBase=String(d.endereco || "").trim();
+  const numeroLimpo=String(d.numero || "").trim();
+  const enderecoJaTemNumero=numeroLimpo && enderecoBase.toUpperCase().includes(numeroLimpo.toUpperCase());
+  const endereco=[enderecoBase,enderecoJaTemNumero ? "" : numeroLimpo].filter(Boolean).join(", ");
   const enderecoCompleto=[endereco,d.complemento].filter(Boolean).join(" - ");
   box.insertAdjacentHTML("beforeend",`
     <div class="cor-destino">DESTINO:<br>${escaparHtmlEmail(d.cliente || "DESTINATÁRIO")}</div>
@@ -3582,34 +3585,52 @@ function estilosImpressaoCorreios(tipo){
         left:7mm!important;
         top:35mm!important;
         width:115mm!important;
-        font-size:7mm!important;
+        max-height:15mm!important;
+        overflow:hidden!important;
+        font-size:6.2mm!important;
         font-weight:900!important;
-        line-height:1.18!important;
+        line-height:1.08!important;
+        white-space:normal!important;
+        word-break:break-word!important;
       }
       .cor-endereco{
         position:absolute!important;
         left:7mm!important;
-        top:48mm!important;
-        width:117mm!important;
-        font-size:5.5mm!important;
+        top:52mm!important;
+        width:112mm!important;
+        max-height:10mm!important;
+        overflow:hidden!important;
+        font-size:4.6mm!important;
         font-weight:700!important;
-        line-height:1.18!important;
+        line-height:1.12!important;
+        white-space:normal!important;
+        word-break:break-word!important;
       }
       .cor-bairro{
         position:absolute!important;
         left:7mm!important;
-        top:59mm!important;
+        top:63mm!important;
         width:112mm!important;
-        font-size:5.5mm!important;
+        max-height:7mm!important;
+        overflow:hidden!important;
+        font-size:4.6mm!important;
         font-weight:700!important;
+        line-height:1.08!important;
+        white-space:nowrap!important;
+        text-overflow:ellipsis!important;
       }
       .cor-cidade{
         position:absolute!important;
         left:7mm!important;
-        top:68mm!important;
+        top:71mm!important;
         width:112mm!important;
-        font-size:5.5mm!important;
+        max-height:7mm!important;
+        overflow:hidden!important;
+        font-size:4.8mm!important;
         font-weight:700!important;
+        line-height:1.08!important;
+        white-space:nowrap!important;
+        text-overflow:ellipsis!important;
       }
       .cor-rem-texto{
         position:absolute!important;
