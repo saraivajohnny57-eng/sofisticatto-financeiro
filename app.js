@@ -1,3 +1,12 @@
+function formatarDataInput(data){
+  const valor = data instanceof Date ? data : new Date(data);
+  if(Number.isNaN(valor.getTime())) return "";
+  const ano = valor.getFullYear();
+  const mes = String(valor.getMonth() + 1).padStart(2, "0");
+  const dia = String(valor.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
 function mostrarCarregando(texto){
   const box = document.getElementById("carregandoSistema");
   if(!box) return;
