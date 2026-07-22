@@ -843,3 +843,71 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 }
 tr.relatorio-alterado td{background:#fff8db!important}
 tr.relatorio-selecionado td{background:#f0ecff!important}
+
+
+/* CORREÇÃO DA LOGO NA IMPRESSÃO DAS ETIQUETAS */
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-logo{
+  left:34mm!important;
+  top:3mm!important;
+  width:58mm!important;
+  height:25mm!important;
+  max-width:58mm!important;
+  max-height:25mm!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  z-index:1!important;
+}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-destino{top:38mm!important}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-endereco{top:46mm!important}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-bairro{top:53mm!important}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cep{top:60mm!important}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cidade{top:66mm!important}
+
+
+/* IMPRESSÃO SEM LINHAS OU TEXTOS SOBREPOSTOS */
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-destino,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-endereco,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-bairro,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cep,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cidade,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-nf,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-volume{
+  overflow:visible!important;
+  line-height:1.25!important;
+  background:transparent!important;
+  z-index:3!important;
+  box-sizing:border-box!important;
+}
+
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-destino{
+  top:36.5mm!important;
+  height:7.5mm!important;
+  min-height:7.5mm!important;
+}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-endereco{
+  top:44.5mm!important;
+  height:7mm!important;
+  min-height:7mm!important;
+}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-bairro{
+  top:52mm!important;
+  height:7mm!important;
+  min-height:7mm!important;
+}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cep{
+  top:59.5mm!important;
+  height:7mm!important;
+  min-height:7mm!important;
+}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-cidade{
+  top:67mm!important;
+  height:7mm!important;
+  min-height:7mm!important;
+}
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-nf,
+.etiqueta-papel.etiqueta-preparada-impressao .etiqueta-volume{
+  top:74.5mm!important;
+  height:7mm!important;
+  min-height:7mm!important;
+  line-height:1.2!important;
+}
