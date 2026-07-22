@@ -974,6 +974,63 @@ tr.relatorio-selecionado td{background:#f0ecff!important}
   overflow:hidden!important;
 }
 
+
+/* AJUSTE DEFINITIVO: CÓDIGO À ESQUERDA E PAC/SEDEX SEM CORTE */
+.correios-etiqueta .cor-barcode-area{
+  position:absolute!important;
+  left:3mm!important;
+  right:auto!important;
+  bottom:3mm!important;
+  width:57mm!important;
+  height:17mm!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  justify-content:flex-end!important;
+  background:#fff!important;
+  z-index:6!important;
+  overflow:visible!important;
+}
+.correios-etiqueta .cor-barcode{
+  position:static!important;
+  display:block!important;
+  width:54mm!important;
+  height:10mm!important;
+  max-width:54mm!important;
+  max-height:10mm!important;
+  margin:0!important;
+  overflow:visible!important;
+}
+.correios-etiqueta svg.cor-barcode{
+  width:54mm!important;
+  height:10mm!important;
+}
+.correios-etiqueta .cor-cep{
+  position:static!important;
+  width:54mm!important;
+  margin-top:1mm!important;
+  text-align:center!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+}
+.correios-etiqueta .cor-servico{
+  position:absolute!important;
+  right:3mm!important;
+  left:auto!important;
+  bottom:8mm!important;
+  width:auto!important;
+  min-width:46mm!important;
+  max-width:72mm!important;
+  padding:0 1mm!important;
+  text-align:right!important;
+  font-weight:900!important;
+  line-height:1!important;
+  z-index:3!important;
+  white-space:nowrap!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+}
+
 </style>
 </head>
 <body>
@@ -3524,7 +3581,9 @@ function aplicarAjustesCorreiosEtiqueta(etiqueta,tipo){
 
   const aplicarFonte=(seletor,base,campo,minimo=9)=>{
     const el=etiqueta.querySelector(seletor);
-    if(el) el.style.fontSize=`${Math.max(minimo,base+Number(ajuste[campo] || 0))}px`;
+    if(!el) return;
+    const tamanho=Math.max(minimo,base+Number(ajuste[campo] || 0));
+    el.style.setProperty("font-size",`${tamanho}px`,"important");
   };
 
   aplicarFonte(".cor-destino",24,"destino",13);
@@ -3532,7 +3591,7 @@ function aplicarAjustesCorreiosEtiqueta(etiqueta,tipo){
   aplicarFonte(".cor-bairro",18,"bairro",11);
   aplicarFonte(".cor-cidade",19,"cidade",11);
   aplicarFonte(".cor-cep",15,"cep",9);
-  aplicarFonte(".cor-servico",83,"servico",40);
+  aplicarFonte(".cor-servico",72,"servico",36);
   aplicarFonte(".cor-rem-texto",23,"remetente",13);
 
   if(tipo==="declaracao"){
@@ -3633,8 +3692,8 @@ function montarEtiquetaDestinoCorreios(){
       lineColor:"#000000"
     });
     barcodeDestino.setAttribute("preserveAspectRatio","xMidYMid meet");
-    barcodeDestino.setAttribute("width","272");
-    barcodeDestino.setAttribute("height","53");
+    barcodeDestino.setAttribute("width","204");
+    barcodeDestino.setAttribute("height","38");
   }
   aplicarAjustesCorreiosEtiqueta(box,"destino");
 }
@@ -3670,8 +3729,8 @@ function montarEtiquetaRemetenteCorreios(){
       lineColor:"#000000"
     });
     barcodeRemetente.setAttribute("preserveAspectRatio","xMidYMid meet");
-    barcodeRemetente.setAttribute("width","272");
-    barcodeRemetente.setAttribute("height","53");
+    barcodeRemetente.setAttribute("width","204");
+    barcodeRemetente.setAttribute("height","38");
   }
   aplicarAjustesCorreiosEtiqueta(box,"remetente");
 }
@@ -4028,10 +4087,10 @@ function estilosImpressaoCorreios(tipo){
       .cor-rem-label{font-size:4mm!important;font-weight:700!important}
       .cor-barcode-area{
         position:absolute!important;
-        left:7mm!important;
+        left:3mm!important;
         right:auto!important;
         bottom:3mm!important;
-        width:64mm!important;
+        width:57mm!important;
         height:17mm!important;
         display:flex!important;
         flex-direction:column!important;
@@ -4039,42 +4098,43 @@ function estilosImpressaoCorreios(tipo){
         justify-content:flex-end!important;
         background:#fff!important;
         z-index:6!important;
-        overflow:hidden!important;
+        overflow:visible!important;
       }
       .cor-barcode{
         position:static!important;
         display:block!important;
-        width:58mm!important;
+        width:54mm!important;
         height:10mm!important;
-        max-width:58mm!important;
+        max-width:54mm!important;
         max-height:10mm!important;
         margin:0!important;
         background:#fff!important;
+        overflow:visible!important;
       }
       .cor-cep{
         position:static!important;
-        width:58mm!important;
+        width:54mm!important;
         margin-top:1mm!important;
         text-align:center!important;
-        font-size:4mm!important;
         font-weight:900!important;
         line-height:1!important;
         white-space:nowrap!important;
       }
       .cor-servico{
         position:absolute!important;
-        right:8mm!important;
+        right:3mm!important;
         left:auto!important;
         bottom:8mm!important;
-        width:55mm!important;
-        max-width:55mm!important;
-        text-align:center!important;
-        font-size:20mm!important;
+        width:auto!important;
+        min-width:46mm!important;
+        max-width:72mm!important;
+        padding:0 1mm!important;
+        text-align:right!important;
         font-weight:900!important;
         line-height:1!important;
         z-index:3!important;
         white-space:nowrap!important;
-        overflow:hidden!important;
+        overflow:visible!important;
       }
     `;
   }
