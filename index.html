@@ -1031,6 +1031,36 @@ tr.relatorio-selecionado td{background:#f0ecff!important}
   text-overflow:clip!important;
 }
 
+
+/* DESTINO COMPACTO E CONTROLES DOS CORREIOS FUNCIONAIS */
+.correios-etiqueta .cor-destino{
+  top:37mm!important;
+  width:116mm!important;
+  min-height:8mm!important;
+  max-height:12mm!important;
+  display:block!important;
+  line-height:1.08!important;
+  white-space:normal!important;
+  overflow:hidden!important;
+  word-break:normal!important;
+}
+.correios-etiqueta .cor-destino-label{
+  font-weight:900!important;
+  margin-right:1.5mm!important;
+}
+.correios-etiqueta .cor-destino-nome{
+  font-weight:900!important;
+}
+.correios-etiqueta .cor-endereco{
+  top:48mm!important;
+}
+.correios-etiqueta .cor-bairro{
+  top:59mm!important;
+}
+.correios-etiqueta .cor-cidade{
+  top:68mm!important;
+}
+
 </style>
 </head>
 <body>
@@ -3567,16 +3597,29 @@ function aplicarAjustesCorreiosEtiqueta(etiqueta,tipo){
   const logo=etiqueta.querySelector(".cor-logo");
   if(logo){
     const largura=Math.max(120,220+Number(ajuste.logo || 0));
-    logo.style.width=`${largura}px`;
-    logo.style.height="106px";
-    logo.style.objectFit="contain";
+    const altura=Math.max(65,106+Math.round(Number(ajuste.logo || 0)*0.35));
+    logo.style.setProperty("width",`${largura}px`,"important");
+    logo.style.setProperty("max-width",`${largura}px`,"important");
+    logo.style.setProperty("height",`${altura}px`,"important");
+    logo.style.setProperty("max-height",`${altura}px`,"important");
+    logo.style.setProperty("object-fit","contain","important");
   }
 
   const qr=etiqueta.querySelector(".etiqueta-qr");
   if(qr){
     const tamanho=Math.max(55,113+Number(ajuste.qr || 0));
-    qr.style.width=`${tamanho}px`;
-    qr.style.height=`${tamanho}px`;
+    qr.style.setProperty("width",`${tamanho}px`,"important");
+    qr.style.setProperty("height",`${tamanho}px`,"important");
+    qr.style.setProperty("max-width",`${tamanho}px`,"important");
+    qr.style.setProperty("max-height",`${tamanho}px`,"important");
+
+    const qrImagem=qr.querySelector("canvas,img");
+    if(qrImagem){
+      qrImagem.style.setProperty("width",`${tamanho}px`,"important");
+      qrImagem.style.setProperty("height",`${tamanho}px`,"important");
+      qrImagem.style.setProperty("max-width",`${tamanho}px`,"important");
+      qrImagem.style.setProperty("max-height",`${tamanho}px`,"important");
+    }
   }
 
   const aplicarFonte=(seletor,base,campo,minimo=9)=>{
@@ -3596,12 +3639,12 @@ function aplicarAjustesCorreiosEtiqueta(etiqueta,tipo){
 
   if(tipo==="declaracao"){
     const tamanho=Math.max(7,10+Number(ajuste.declaracao || 0));
-    etiqueta.style.fontSize=`${tamanho}px`;
+    etiqueta.style.setProperty("font-size",`${tamanho}px`,"important");
 
     etiqueta.querySelectorAll(
       ".cor-dec-bens th,.cor-dec-bens td,.cor-dec-linha,.cor-dec-declaracao,.cor-dec-data,.cor-dec-texto-assinatura"
     ).forEach(item=>{
-      item.style.fontSize="inherit";
+      item.style.setProperty("font-size","inherit","important");
     });
   }
 }
@@ -3671,7 +3714,7 @@ function montarEtiquetaDestinoCorreios(){
   const endereco=[enderecoBase,enderecoJaTemNumero ? "" : numeroLimpo].filter(Boolean).join(", ");
   const enderecoCompleto=[endereco,d.complemento].filter(Boolean).join(" - ");
   box.insertAdjacentHTML("beforeend",`
-    <div class="cor-destino">DESTINO:<br>${escaparHtmlEmail(d.cliente || "DESTINATÁRIO")}</div>
+    <div class="cor-destino"><span class="cor-destino-label">DESTINO:</span> <span class="cor-destino-nome">${escaparHtmlEmail(d.cliente || "DESTINATÁRIO")}</span></div>
     <div class="cor-endereco">${escaparHtmlEmail(enderecoCompleto)}</div>
     <div class="cor-bairro">${d.bairro ? "BAIRRO: "+escaparHtmlEmail(d.bairro) : ""}</div>
     <div class="cor-cidade">${escaparHtmlEmail([d.cidade,d.uf].filter(Boolean).join("/"))}</div>
@@ -4025,15 +4068,22 @@ function estilosImpressaoCorreios(tipo){
       .cor-destino{
         position:absolute!important;
         left:7mm!important;
-        top:35mm!important;
-        width:115mm!important;
-        max-height:15mm!important;
+        top:37mm!important;
+        width:116mm!important;
+        min-height:8mm!important;
+        max-height:12mm!important;
         overflow:hidden!important;
-        font-size:6.2mm!important;
         font-weight:900!important;
         line-height:1.08!important;
         white-space:normal!important;
-        word-break:break-word!important;
+        word-break:normal!important;
+      }
+      .cor-destino-label{
+        font-weight:900!important;
+        margin-right:1.5mm!important;
+      }
+      .cor-destino-nome{
+        font-weight:900!important;
       }
       .cor-endereco{
         position:absolute!important;
