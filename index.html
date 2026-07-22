@@ -921,6 +921,59 @@ tr.relatorio-selecionado td{background:#f0ecff!important}
   line-height:1.2!important;
 }
 
+
+/* CORREÇÃO FINAL DA ETIQUETA DOS CORREIOS:
+   CÓDIGO DE BARRAS À ESQUERDA E SERVIÇO LIVRE À DIREITA */
+.correios-etiqueta .cor-barcode-area{
+  position:absolute!important;
+  left:7mm!important;
+  right:auto!important;
+  bottom:3mm!important;
+  width:64mm!important;
+  height:17mm!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  justify-content:flex-end!important;
+  background:#fff!important;
+  z-index:6!important;
+  overflow:hidden!important;
+}
+.correios-etiqueta .cor-barcode{
+  position:static!important;
+  display:block!important;
+  width:58mm!important;
+  height:10mm!important;
+  max-width:58mm!important;
+  max-height:10mm!important;
+  margin:0!important;
+}
+.correios-etiqueta .cor-cep{
+  position:static!important;
+  width:58mm!important;
+  margin-top:1mm!important;
+  text-align:center!important;
+  font-size:4mm!important;
+  font-weight:900!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+}
+.correios-etiqueta .cor-servico{
+  position:absolute!important;
+  right:8mm!important;
+  left:auto!important;
+  bottom:8mm!important;
+  width:55mm!important;
+  max-width:55mm!important;
+  text-align:center!important;
+  font-size:20mm!important;
+  font-weight:900!important;
+  line-height:1!important;
+  z-index:3!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+}
+
 </style>
 </head>
 <body>
@@ -3976,28 +4029,31 @@ function estilosImpressaoCorreios(tipo){
       .cor-barcode-area{
         position:absolute!important;
         left:7mm!important;
-        bottom:2.5mm!important;
-        width:72mm!important;
-        height:18mm!important;
+        right:auto!important;
+        bottom:3mm!important;
+        width:64mm!important;
+        height:17mm!important;
         display:flex!important;
         flex-direction:column!important;
-        align-items:center!important;
+        align-items:flex-start!important;
         justify-content:flex-end!important;
         background:#fff!important;
         z-index:6!important;
+        overflow:hidden!important;
       }
       .cor-barcode{
         position:static!important;
         display:block!important;
-        width:68mm!important;
-        height:11mm!important;
-        max-width:68mm!important;
-        max-height:11mm!important;
+        width:58mm!important;
+        height:10mm!important;
+        max-width:58mm!important;
+        max-height:10mm!important;
+        margin:0!important;
         background:#fff!important;
       }
       .cor-cep{
         position:static!important;
-        width:68mm!important;
+        width:58mm!important;
         margin-top:1mm!important;
         text-align:center!important;
         font-size:4mm!important;
@@ -4007,11 +4063,18 @@ function estilosImpressaoCorreios(tipo){
       }
       .cor-servico{
         position:absolute!important;
-        right:12mm!important;
+        right:8mm!important;
+        left:auto!important;
         bottom:8mm!important;
-        font-size:22mm!important;
+        width:55mm!important;
+        max-width:55mm!important;
+        text-align:center!important;
+        font-size:20mm!important;
         font-weight:900!important;
         line-height:1!important;
+        z-index:3!important;
+        white-space:nowrap!important;
+        overflow:hidden!important;
       }
     `;
   }
