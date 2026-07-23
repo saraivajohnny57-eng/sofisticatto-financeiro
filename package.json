@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "nodemailer": "^7.0.0"
+    "@supabase/supabase-js": "^2.57.4",
+    "nodemailer": "^7.0.5",
+    "web-push": "^3.6.7"
   }
 }

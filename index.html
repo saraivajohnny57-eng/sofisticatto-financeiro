@@ -1095,6 +1095,8 @@ tr.relatorio-selecionado td{background:#f0ecff!important}
 }
 
 </style>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#5f52b5">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -2156,6 +2158,7 @@ let banco = null;
 let realtimeIniciado = false;
 let realtimeNotificacoesIniciado = false;
 let notificacoesSistema = [];
+const VAPID_PUBLIC_KEY = "BAAB-gztS2ety7es5TNKzQJtfvnJJYiKCWT_tE08jChe6xCCTk7b9pup2xd5OTM-0e3opiCzS8zCRQa7ow7M-PU";
 
 
 function carregarSupabase(){
@@ -2812,19 +2815,7 @@ function atualizarBotaoNotificacao(){
 }
 
 async function solicitarPermissaoNotificacao(){
-  if(!("Notification" in window)){
-    alert("Este navegador não suporta notificação.");
-    return;
-  }
-
-  const permissao = await Notification.requestPermission();
-  atualizarBotaoNotificacao();
-
-  if(permissao === "granted"){
-    notificarChrome("Sofisticatto Financeiro", "Notificações ativadas com sucesso.");
-  }else{
-    alert("A notificação não foi liberada. Verifique as permissões do Chrome.");
-  }
+  await ativarNotificacoesPush();
 }
 
 function mostrarBalaoSistema(titulo, mensagem){
@@ -2889,6 +2880,101 @@ function processarNotificacaoTempoReal(payload){
     if(payload.eventType === "UPDATE" && novo.status === "Finalizado"){
       notificarChrome("Relatório finalizado", `${novo.nome || "cliente"} foi finalizado | Valor: ${formatarMoeda(novo.valor || 0)}`);
     }
+  }
+}
+
+
+function base64UrlParaUint8Array(base64String){
+  const padding="=".repeat((4-(base64String.length%4))%4);
+  const base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");
+  const rawData=window.atob(base64);
+  return Uint8Array.from([...rawData].map(char=>char.charCodeAt(0)));
+}
+
+async function registrarServiceWorkerPush(){
+  if(!("serviceWorker" in navigator)){
+    throw new Error("Este navegador não suporta Service Worker.");
+  }
+  return navigator.serviceWorker.register("/service-worker.js");
+}
+
+async function salvarInscricaoPush(inscricao){
+  if(!banco || !usuarioLogado){
+    throw new Error("Usuário não está conectado.");
+  }
+
+  const json=inscricao.toJSON();
+  const registro={
+    usuario:usuarioLogado.login || "usuario",
+    perfil:usuarioLogado.tipo,
+    endpoint:json.endpoint,
+    p256dh:json.keys?.p256dh || "",
+    auth:json.keys?.auth || "",
+    ativo:true,
+    user_agent:navigator.userAgent,
+    atualizado_em:new Date().toISOString()
+  };
+
+  const resposta=await banco
+    .from("push_subscriptions")
+    .upsert(registro,{onConflict:"endpoint"});
+
+  if(resposta.error) throw resposta.error;
+}
+
+async function ativarNotificacoesPush(){
+  try{
+    if(!("Notification" in window)){
+      alert("Este navegador não suporta notificações.");
+      return;
+    }
+
+    const permissao=await Notification.requestPermission();
+    if(permissao!=="granted"){
+      alert("A permissão de notificações não foi concedida.");
+      atualizarBotaoNotificacao();
+      return;
+    }
+
+    const registro=await registrarServiceWorkerPush();
+    let inscricao=await registro.pushManager.getSubscription();
+
+    if(!inscricao){
+      inscricao=await registro.pushManager.subscribe({
+        userVisibleOnly:true,
+        applicationServerKey:base64UrlParaUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+
+    await salvarInscricaoPush(inscricao);
+    localStorage.setItem("sofisticatto_push_ativo","1");
+
+    mostrarBalaoSistema(
+      "Notificações ativadas",
+      "Este dispositivo poderá receber avisos mesmo com o sistema fechado."
+    );
+    atualizarBotaoNotificacao();
+  }catch(erro){
+    console.error("Erro ao ativar Web Push:",erro);
+    alert("Não foi possível ativar as notificações neste dispositivo: "+(erro.message || erro));
+  }
+}
+
+async function enviarPushBanco(tipo,titulo,mensagem,boletoId=null){
+  try{
+    await fetch("/api/enviar-push",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        perfil:"banco",
+        tipo,
+        titulo,
+        mensagem,
+        boleto_id:boletoId
+      })
+    });
+  }catch(erro){
+    console.warn("O boleto foi salvo, mas o Push não pôde ser enviado:",erro);
   }
 }
 
@@ -3115,6 +3201,12 @@ async function salvarRelatorio(){
   }
 
   mostrarBalaoSistema("Boleto lançado","O usuário Banco receberá a notificação.");
+  await enviarPushBanco(
+    "boleto_adicionado",
+    "Novo boleto adicionado",
+    `Cliente: ${nome} | Valor: ${valor}`,
+    null
+  );
   document.getElementById("nome").value = "";
   document.getElementById("valor").value = "";
   carregarRelatorios();
@@ -3315,6 +3407,12 @@ async function finalizar(id){
   mostrarBalaoSistema(
     "Boleto finalizado",
     `${item?.nome || "Cliente"} foi finalizado e o usuário Banco será avisado.`
+  );
+  await enviarPushBanco(
+    "boleto_finalizado",
+    "Boleto finalizado",
+    `Cliente: ${item?.nome || "Cliente"} | Valor: ${formatarMoeda(item?.valor || 0)}`,
+    id
   );
 
   carregarRelatorios();
