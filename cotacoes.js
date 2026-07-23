@@ -432,9 +432,14 @@ async function salvarCotacaoFrete(){
     return;
   }
 
-  const clienteAtualizado = await perguntarAtualizacaoClienteFrete(dados);
-  if(clienteAtualizado){
-    dados.cliente_id = clienteAtualizado.id;
+  const decisaoCliente = await perguntarAtualizacaoClienteFrete(dados);
+
+  if(decisaoCliente?.acao==="cancelar" || decisaoCliente?.acao==="erro"){
+    return;
+  }
+
+  if(decisaoCliente?.cliente){
+    dados.cliente_id = decisaoCliente.cliente.id;
   }
 
   const cliente = clienteFretePorId(dados.cliente_id);

@@ -113,6 +113,76 @@ function dadosFreteDiferemDoCadastro(cliente, dados){
   );
 }
 
+function formatarEnderecoClienteFrete(cliente){
+  if(!cliente) return "Nenhum cadastro localizado.";
+  return [
+    cliente.cpf_cnpj ? `CNPJ/CPF: ${cliente.cpf_cnpj}` : "",
+    cliente.endereco || "",
+    cliente.numero || "",
+    cliente.complemento || "",
+    cliente.bairro || "",
+    cliente.cep || "",
+    [cliente.cidade,cliente.uf].filter(Boolean).join("/"),
+    cliente.possui_gnre ? "GNRE: Sim" : "GNRE: Não"
+  ].filter(Boolean).join("\n") || "Cadastro possui somente o nome.";
+}
+
+function formatarEnderecoCotacaoFrete(dados){
+  return [
+    dados.cpf_cnpj_destino ? `CNPJ/CPF: ${dados.cpf_cnpj_destino}` : "",
+    dados.endereco_destino || "",
+    dados.bairro_destino || "",
+    dados.cep_destino || "",
+    [dados.cidade_destino,dados.uf_destino].filter(Boolean).join("/"),
+    dados.gnre_modo !== "nao" ? "GNRE: Sim" : "GNRE: Não"
+  ].filter(Boolean).join("\n") || "Nenhum dado de endereço preenchido.";
+}
+
+function abrirPerguntaEnderecoFrete({titulo,texto,cliente,dados}){
+  return new Promise(resolve=>{
+    const modal=document.getElementById("modalEnderecoFrete");
+    const tituloEl=document.getElementById("freteModalTitulo");
+    const textoEl=document.getElementById("freteModalTexto");
+    const comparacao=document.getElementById("freteComparacaoEndereco");
+    const btnSalvar=document.getElementById("freteModalSalvarCadastro");
+    const btnSomente=document.getElementById("freteModalSomenteCotacao");
+    const btnCancelar=document.getElementById("freteModalCancelar");
+
+    if(!modal || !btnSalvar || !btnSomente || !btnCancelar){
+      resolve(confirm(texto) ? "salvar" : "somente");
+      return;
+    }
+
+    tituloEl.textContent=titulo;
+    textoEl.textContent=texto;
+
+    comparacao.innerHTML=`
+      <div class="frete-endereco-box">
+        <h3>CADASTRO ATUAL</h3>
+        <div>${escaparHtmlEmail(formatarEnderecoClienteFrete(cliente)).replace(/\n/g,"<br>")}</div>
+      </div>
+      <div class="frete-endereco-box">
+        <h3>DADOS DESTA COTAÇÃO</h3>
+        <div>${escaparHtmlEmail(formatarEnderecoCotacaoFrete(dados)).replace(/\n/g,"<br>")}</div>
+      </div>
+    `;
+
+    modal.style.display="flex";
+
+    const finalizar=acao=>{
+      modal.style.display="none";
+      btnSalvar.onclick=null;
+      btnSomente.onclick=null;
+      btnCancelar.onclick=null;
+      resolve(acao);
+    };
+
+    btnSalvar.onclick=()=>finalizar("salvar");
+    btnSomente.onclick=()=>finalizar("somente");
+    btnCancelar.onclick=()=>finalizar("cancelar");
+  });
+}
+
 async function perguntarAtualizacaoClienteFrete(dados){
   let cliente = clienteFretePorId(dados.cliente_id);
 
@@ -124,14 +194,20 @@ async function perguntarAtualizacaoClienteFrete(dados){
     }
   }
 
-  if(!cliente){
-    const criar = confirm(
-      "Este cliente ainda não está cadastrado.\n\n" +
-      "Clique em OK para criar o cadastro com os dados desta cotação.\n" +
-      "Clique em Cancelar para usar os dados somente nesta cotação."
-    );
+  if(!dados.endereco_destino && !dados.cep_destino && !dados.cidade_destino){
+    return {acao:"sem_endereco",cliente};
+  }
 
-    if(!criar) return null;
+  if(!cliente){
+    const acao=await abrirPerguntaEnderecoFrete({
+      titulo:"Cliente sem cadastro",
+      texto:"Este cliente ainda não possui cadastro. Deseja salvar os dados desta cotação no cadastro ou usar somente desta vez?",
+      cliente:null,
+      dados
+    });
+
+    if(acao==="cancelar") return {acao:"cancelar",cliente:null};
+    if(acao==="somente") return {acao:"somente",cliente:null};
 
     const novo = dadosCadastroClientePelaCotacao(dados);
     const resposta = await banco
@@ -141,8 +217,8 @@ async function perguntarAtualizacaoClienteFrete(dados){
       .single();
 
     if(resposta.error){
-      alert("A cotação poderá ser salva, mas não foi possível cadastrar o cliente: " + resposta.error.message);
-      return null;
+      alert("A cotação não foi salva no cadastro do cliente: " + resposta.error.message);
+      return {acao:"erro",cliente:null};
     }
 
     emailClientes.push(resposta.data);
@@ -150,20 +226,27 @@ async function perguntarAtualizacaoClienteFrete(dados){
     montarClientesFrete();
     if(freteCampo("freteCliente")) freteCampo("freteCliente").value = resposta.data.id;
     mostrarBalaoSistema("Cliente cadastrado", resposta.data.nome);
-    return resposta.data;
+    return {acao:"salvar",cliente:resposta.data};
   }
 
-  if(!cadastroClienteFreteEstaIncompleto(cliente) && !dadosFreteDiferemDoCadastro(cliente, dados)){
-    return cliente;
+  const incompleto=cadastroClienteFreteEstaIncompleto(cliente);
+  const diferente=dadosFreteDiferemDoCadastro(cliente,dados);
+
+  if(!incompleto && !diferente){
+    return {acao:"igual",cliente};
   }
 
-  const atualizar = confirm(
-    "O cadastro deste cliente está incompleto ou possui dados diferentes.\n\n" +
-    "Clique em OK para ATUALIZAR/SUBSTITUIR o cadastro com os dados desta cotação.\n" +
-    "Clique em Cancelar para usar os dados SOMENTE NESTA COTAÇÃO."
-  );
+  const acao=await abrirPerguntaEnderecoFrete({
+    titulo: incompleto ? "Cadastro incompleto" : "Endereço diferente",
+    texto: incompleto
+      ? "O cliente possui apenas parte dos dados cadastrados. Deseja completar o cadastro com os dados desta cotação ou usar somente desta vez?"
+      : "O endereço desta cotação é diferente do cadastro atual. Deseja substituir o cadastro ou usar este endereço somente nesta cotação?",
+    cliente,
+    dados
+  });
 
-  if(!atualizar) return cliente;
+  if(acao==="cancelar") return {acao:"cancelar",cliente};
+  if(acao==="somente") return {acao:"somente",cliente};
 
   const atualizacao = dadosCadastroClientePelaCotacao(dados);
   const resposta = await banco
@@ -174,8 +257,8 @@ async function perguntarAtualizacaoClienteFrete(dados){
     .single();
 
   if(resposta.error){
-    alert("A cotação poderá ser salva, mas o cadastro do cliente não foi atualizado: " + resposta.error.message);
-    return cliente;
+    alert("Não foi possível atualizar o cadastro do cliente: " + resposta.error.message);
+    return {acao:"erro",cliente};
   }
 
   const indice = emailClientes.findIndex(c => String(c.id) === String(cliente.id));
@@ -183,5 +266,5 @@ async function perguntarAtualizacaoClienteFrete(dados){
 
   montarClientesFrete();
   mostrarBalaoSistema("Cadastro atualizado", resposta.data.nome);
-  return resposta.data;
+  return {acao:"salvar",cliente:resposta.data};
 }

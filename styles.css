@@ -1145,3 +1145,58 @@ html,body{margin:0!important;padding:0!important;background:#fff!important}
 
 .frete-tipo.frete-tipo-triplo{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:650px){.frete-tipo.frete-tipo-triplo{grid-template-columns:1fr}}
+
+/* MODAL DE ENDEREÇO DA COTAÇÃO */
+.frete-modal-overlay{
+  position:fixed;
+  inset:0;
+  z-index:99999;
+  background:rgba(32,27,58,.58);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+}
+.frete-modal{
+  width:min(680px,100%);
+  max-height:90vh;
+  overflow:auto;
+  background:#fff;
+  border-radius:20px;
+  padding:22px;
+  box-shadow:0 22px 70px rgba(0,0,0,.28);
+}
+.frete-modal h2{color:#4d4694;margin:0 0 8px}
+.frete-modal p{color:#655d89;line-height:1.45}
+.frete-comparacao-endereco{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  margin:16px 0;
+}
+.frete-endereco-box{
+  border:1px solid #e2dcf3;
+  border-radius:14px;
+  padding:13px;
+  background:#faf8ff;
+}
+.frete-endereco-box h3{
+  color:#4d4694;
+  font-size:13px;
+  margin:0 0 8px;
+}
+.frete-endereco-box div{
+  font-size:13px;
+  line-height:1.5;
+}
+.frete-modal-acoes{
+  display:flex;
+  flex-wrap:wrap;
+  gap:9px;
+  justify-content:flex-end;
+}
+@media(max-width:650px){
+  .frete-comparacao-endereco{grid-template-columns:1fr}
+  .frete-modal-acoes{flex-direction:column}
+  .frete-modal-acoes button{width:100%}
+}
