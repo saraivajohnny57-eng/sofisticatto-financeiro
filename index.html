@@ -1094,6 +1094,42 @@ tr.relatorio-selecionado td{background:#f0ecff!important}
   cursor:pointer;
 }
 
+
+/* MÓDULO DE COTAÇÃO DE FRETES */
+.frete-grid{display:grid;grid-template-columns:minmax(340px,470px) minmax(0,1fr);gap:20px;align-items:start}
+.frete-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.frete-form-grid .campo-largo{grid-column:1/-1}
+.frete-subtabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.frete-subtabs button{border:0;background:#eee9fb;color:#4d4694;padding:10px 14px;border-radius:11px;font-weight:700;cursor:pointer}
+.frete-subtabs button.ativo{background:#5a4fa3;color:#fff}
+.frete-painel{display:none}.frete-painel.ativo{display:block}
+.frete-tipo{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.frete-tipo button{border:2px solid #d9d2ef;background:#fff;color:#4d4694;border-radius:13px;padding:13px;font-weight:900;cursor:pointer}
+.frete-tipo button.ativo{background:#5a4fa3;color:#fff;border-color:#5a4fa3}
+.frete-transportadoras{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:9px;margin-top:10px}
+.frete-check{display:flex;gap:9px;align-items:center;border:1px solid #e1dbf2;border-radius:12px;background:#faf8ff;padding:10px;cursor:pointer}
+.frete-check input{width:18px;height:18px;flex:none}
+.frete-preview-card{border:1px solid #dfd8f2;border-radius:16px;background:#fff;padding:15px;margin-bottom:13px}
+.frete-preview-card h3{display:flex;justify-content:space-between;gap:10px;align-items:center;color:#4d4694;margin-bottom:10px}
+.frete-texto{white-space:pre-wrap;background:#f7f5fc;border:1px solid #e8e3f5;border-radius:12px;padding:13px;color:#222;line-height:1.45;font-family:Arial,sans-serif}
+.frete-resposta-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-top:12px}
+.frete-status{display:inline-block;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800}
+.frete-status.aguardando{background:#fff1cc;color:#7d5a00}
+.frete-status.autorizada{background:#dff5e8;color:#17683d}
+.frete-status.nao_autorizada{background:#fbe2e2;color:#922}
+.frete-melhor{border:2px solid #27ae60;box-shadow:0 0 0 3px rgba(39,174,96,.08)}
+.frete-melhor::before{content:"MENOR FRETE";display:inline-block;background:#27ae60;color:#fff;font-size:10px;font-weight:900;padding:4px 8px;border-radius:999px;margin-bottom:8px}
+.frete-cadastro-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.frete-cadastro-grid .campo-largo{grid-column:1/-1}
+.frete-modelo-editor{min-height:310px;font-family:monospace;font-size:12px;line-height:1.45}
+.frete-variaveis{background:#f6f3fc;border-radius:12px;padding:11px;font-size:12px;line-height:1.6;color:#574e91}
+.frete-whatsapp-preview{background:#e9f7e9;border:1px solid #c8e7c8;border-radius:16px;padding:15px;white-space:pre-wrap;color:#1e2a1e;line-height:1.5}
+.frete-alerta-fiscal{background:#fff4d8;color:#735400;border:1px solid #ead18c;border-radius:12px;padding:11px;font-size:12px;margin-top:10px}
+.frete-kpis{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;margin-bottom:14px}
+.frete-kpi{background:#faf8ff;border-left:5px solid #5a4fa3;border-radius:12px;padding:12px}.frete-kpi b{display:block;font-size:22px}
+@media(max-width:1150px){.frete-grid{grid-template-columns:1fr}}
+@media(max-width:760px){.frete-form-grid,.frete-cadastro-grid{grid-template-columns:1fr}.frete-form-grid .campo-largo,.frete-cadastro-grid .campo-largo{grid-column:auto}.frete-resposta-grid{grid-template-columns:1fr 1fr}.frete-kpis{grid-template-columns:1fr 1fr}}
+
 </style>
 </head>
 <body>
@@ -1244,6 +1280,7 @@ tr.relatorio-selecionado td{background:#f0ecff!important}
       <button id="emailAbaGerador" onclick="mostrarAbaEmail('gerador')">Gerar Relatório</button>
       <button id="emailAbaEtiquetas" onclick="mostrarAbaEmail('etiquetas')">Etiquetas</button>
       <button id="emailAbaCorreios" onclick="mostrarAbaEmail('correios')">Correios</button>
+      <button id="emailAbaCotacoes" onclick="mostrarAbaEmail('cotacoes')">Cotação de Fretes</button>
       <button id="emailAbaClientes" onclick="mostrarAbaEmail('clientes')">Clientes</button>
       <button id="emailAbaVendedoras" onclick="mostrarAbaEmail('vendedoras')">Vendedoras</button>
       <button id="emailAbaAssinaturas" onclick="mostrarAbaEmail('assinaturas')">Assinatura</button>
@@ -1901,6 +1938,235 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <thead><tr><th>Data</th><th>Cliente</th><th>CEP</th><th>Serviço</th><th>Peso</th><th>Rastreio</th><th>Ações</th></tr></thead>
             <tbody id="corTabelaHistorico"></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+
+    <div id="emailSubCotacoes" class="email-subsecao">
+      <div class="frete-subtabs">
+        <button id="freteTabNova" class="ativo" onclick="mostrarPainelFrete('nova')">Nova cotação</button>
+        <button id="freteTabHistorico" onclick="mostrarPainelFrete('historico')">Histórico</button>
+        <button id="freteTabTransportadoras" onclick="mostrarPainelFrete('transportadoras')">Transportadoras</button>
+        <button id="freteTabModelos" onclick="mostrarPainelFrete('modelos')">Modelos</button>
+        <button id="freteTabAliquotas" onclick="mostrarPainelFrete('aliquotas')">GNRE / Alíquotas</button>
+      </div>
+
+      <div id="fretePainelNova" class="frete-painel ativo">
+        <div class="frete-grid">
+          <div class="card">
+            <h2>Nova cotação de frete</h2>
+            <p style="margin:5px 0 16px;color:#7d73bd;">Preencha uma vez e gere os textos no modelo de várias transportadoras.</p>
+
+            <input type="hidden" id="freteCotacaoId">
+            <div class="frete-form-grid">
+              <div class="campo-largo">
+                <label class="relatorio-label">Cliente cadastrado</label>
+                <select id="freteCliente" onchange="preencherClienteFrete()">
+                  <option value="">Selecione ou preencha manualmente</option>
+                </select>
+              </div>
+              <div class="campo-largo">
+                <label class="relatorio-label">Razão/Nome do destino</label>
+                <input id="freteClienteNome" placeholder="Nome do cliente">
+              </div>
+              <div>
+                <label class="relatorio-label">CNPJ/CPF destino</label>
+                <input id="freteCpfCnpj" placeholder="CNPJ ou CPF">
+              </div>
+              <div>
+                <label class="relatorio-label">CEP destino</label>
+                <input id="freteCep" placeholder="00000-000">
+              </div>
+              <div>
+                <label class="relatorio-label">Cidade destino</label>
+                <input id="freteCidade" placeholder="Cidade">
+              </div>
+              <div>
+                <label class="relatorio-label">UF</label>
+                <input id="freteUf" maxlength="2" placeholder="UF">
+              </div>
+              <div class="campo-largo">
+                <label class="relatorio-label">Endereço destino</label>
+                <input id="freteEndereco" placeholder="Endereço, número e complemento">
+              </div>
+              <div>
+                <label class="relatorio-label">Bairro</label>
+                <input id="freteBairro" placeholder="Bairro">
+              </div>
+              <div>
+                <label class="relatorio-label">Número da NF</label>
+                <input id="freteNumeroNf" placeholder="NF">
+              </div>
+              <div>
+                <label class="relatorio-label">Valor da NF</label>
+                <input id="freteValorNf" inputmode="decimal" placeholder="0,00" oninput="mascaraValor(this);calcularGnreFrete()">
+              </div>
+              <div>
+                <label class="relatorio-label">Volumes</label>
+                <input id="freteVolumes" type="number" min="1" value="1">
+              </div>
+              <div>
+                <label class="relatorio-label">Peso total (kg)</label>
+                <input id="fretePeso" inputmode="decimal" placeholder="0,000">
+              </div>
+              <div class="campo-largo">
+                <label class="relatorio-label">Medidas dos volumes</label>
+                <input id="freteMedidas" value="0,38 x 0,29 x 0,35" placeholder="Altura x Largura x Comprimento">
+              </div>
+              <div>
+                <label class="relatorio-label">Tipo de mercadoria</label>
+                <input id="freteMaterial" value="Cosméticos">
+              </div>
+              <div>
+                <label class="relatorio-label">Embalagem</label>
+                <input id="freteEmbalagem" value="Caixas">
+              </div>
+              <div>
+                <label class="relatorio-label">Com coleta?</label>
+                <select id="freteColeta"><option>Sim</option><option>Não</option></select>
+              </div>
+              <div>
+                <label class="relatorio-label">Solicitante</label>
+                <input id="freteSolicitante" value="Johnny">
+              </div>
+
+              <div class="campo-largo">
+                <label class="relatorio-label">Frete pago por</label>
+                <div class="frete-tipo">
+                  <button type="button" id="freteBtnCif" class="ativo" onclick="selecionarTipoFrete('CIF')">CIF — Remetente</button>
+                  <button type="button" id="freteBtnFob" onclick="selecionarTipoFrete('FOB')">FOB — Destino</button>
+                </div>
+                <input type="hidden" id="freteTipo" value="CIF">
+              </div>
+
+              <div>
+                <label class="relatorio-label">GNRE/DIFAL</label>
+                <select id="freteGnreModo" onchange="calcularGnreFrete()">
+                  <option value="nao">Não se aplica</option>
+                  <option value="automatico">Calcular estimativa</option>
+                  <option value="manual">Informar manualmente</option>
+                </select>
+              </div>
+              <div>
+                <label class="relatorio-label">Origem do produto</label>
+                <select id="freteOrigemProduto" onchange="calcularGnreFrete()">
+                  <option value="nacional">Nacional</option>
+                  <option value="nacionalizado">Nacionalizado</option>
+                </select>
+              </div>
+              <div>
+                <label class="relatorio-label">GNRE estimada/manual</label>
+                <input id="freteGnreValor" inputmode="decimal" placeholder="0,00">
+              </div>
+              <div>
+                <label class="relatorio-label">Alíquota interna aplicada</label>
+                <input id="freteAliquotaInfo" readonly placeholder="Selecione UF e valor">
+              </div>
+
+              <div class="campo-largo">
+                <label class="relatorio-label">Transportadoras para cotação</label>
+                <div id="freteTransportadorasSelecao" class="frete-transportadoras"></div>
+              </div>
+            </div>
+
+            <div class="frete-alerta-fiscal">
+              O cálculo de GNRE/DIFAL é uma estimativa baseada na planilha fornecida. Confirme o valor com o setor fiscal antes da emissão da guia.
+            </div>
+
+            <div class="email-acoes" style="margin-top:15px;">
+              <button class="salvar" onclick="gerarCotacoesFrete()">Gerar modelos</button>
+              <button class="btn verde" onclick="salvarCotacaoFrete()">Salvar cotação</button>
+              <button class="btn azul" onclick="limparCotacaoFrete()">Nova/Limpar</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="card">
+              <div class="top">
+                <div><h2>Solicitações para as transportadoras</h2><p>Copie o texto no padrão de cada transportadora.</p></div>
+              </div>
+              <div id="fretePreviews"><div class="texto-vazio">Selecione as transportadoras e clique em “Gerar modelos”.</div></div>
+            </div>
+
+            <div class="card">
+              <div class="top">
+                <div><h2>Mensagem para a vendedora</h2><p>Registre as respostas e gere a comparação pronta para WhatsApp.</p></div>
+              </div>
+              <div id="freteWhatsappPreview" class="frete-whatsapp-preview">Nenhuma resposta cadastrada.</div>
+              <div class="email-acoes">
+                <button class="btn verde" onclick="copiarMensagemVendedoraFrete()">Copiar mensagem</button>
+                <button class="btn verde" onclick="abrirWhatsAppVendedoraFrete()">Abrir WhatsApp</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="fretePainelHistorico" class="frete-painel">
+        <div class="card">
+          <div class="top">
+            <div><h2>Histórico de cotações</h2><p>Cotações, respostas e transportadora autorizada.</p></div>
+            <button class="buscar" onclick="carregarHistoricoFrete()">Atualizar</button>
+          </div>
+          <div class="busca-clientes-box">
+            <input id="freteBuscaHistorico" placeholder="Buscar cliente, NF ou transportadora" oninput="montarHistoricoFrete()">
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>NF</th><th>Tipo</th><th>Autorizada</th><th>Vendedora</th><th>Ações</th></tr></thead>
+            <tbody id="freteTabelaHistorico"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <div id="fretePainelTransportadoras" class="frete-painel">
+        <div class="frete-grid">
+          <div class="card">
+            <h2>Cadastro de transportadora</h2>
+            <input type="hidden" id="freteTransportadoraId">
+            <div class="frete-cadastro-grid">
+              <div class="campo-largo"><label class="relatorio-label">Nome</label><input id="freteTransNome"></div>
+              <div><label class="relatorio-label">WhatsApp</label><input id="freteTransWhatsapp"></div>
+              <div><label class="relatorio-label">E-mail</label><input id="freteTransEmail"></div>
+              <div><label class="relatorio-label">Contato</label><input id="freteTransContato"></div>
+              <div><label class="relatorio-label">Modelo de cotação</label><select id="freteTransModelo"></select></div>
+              <div><label class="relatorio-label">Ativa</label><select id="freteTransAtiva"><option value="true">Sim</option><option value="false">Não</option></select></div>
+              <div class="campo-largo"><label class="relatorio-label">Observação</label><textarea id="freteTransObs"></textarea></div>
+            </div>
+            <div class="email-acoes"><button class="salvar" onclick="salvarTransportadoraFrete()">Salvar</button><button class="btn vermelho" onclick="limparTransportadoraFrete()">Cancelar</button></div>
+          </div>
+          <div class="card">
+            <h2>Transportadoras cadastradas</h2>
+            <div class="table-wrap"><table><thead><tr><th>Nome</th><th>Modelo</th><th>Contato</th><th>Ativa</th><th>Ações</th></tr></thead><tbody id="freteTabelaTransportadoras"></tbody></table></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="fretePainelModelos" class="frete-painel">
+        <div class="frete-grid">
+          <div class="card">
+            <h2>Cadastro de modelo</h2>
+            <input type="hidden" id="freteModeloId">
+            <label class="relatorio-label">Nome do modelo</label>
+            <input id="freteModeloNome" placeholder="Ex.: Modelo RTE">
+            <label class="relatorio-label" style="margin-top:10px;">Texto do modelo</label>
+            <textarea id="freteModeloTexto" class="frete-modelo-editor"></textarea>
+            <div class="frete-variaveis">
+              Variáveis disponíveis: {{SOLICITANTE}}, {{CNPJ_PAGADOR}}, {{CNPJ_DESTINO}}, {{RAZAO_DESTINO}}, {{CNPJ_REMETENTE}}, {{CEP_ORIGEM}}, {{CEP_DESTINO}}, {{CIDADE_DESTINO}}, {{ENDERECO_DESTINO}}, {{BAIRRO_DESTINO}}, {{VALOR_NF}}, {{VOLUMES}}, {{PESO}}, {{MEDIDAS}}, {{TIPO_FRETE}}, {{PAGADOR}}, {{MATERIAL}}, {{EMBALAGEM}}, {{COLETA}}.
+            </div>
+            <div class="email-acoes"><button class="salvar" onclick="salvarModeloFrete()">Salvar modelo</button><button class="btn vermelho" onclick="limparModeloFrete()">Cancelar</button></div>
+          </div>
+          <div class="card">
+            <h2>Modelos cadastrados</h2>
+            <div class="table-wrap"><table><thead><tr><th>Modelo</th><th>Transportadoras</th><th>Ações</th></tr></thead><tbody id="freteTabelaModelos"></tbody></table></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="fretePainelAliquotas" class="frete-painel">
+        <div class="card">
+          <div class="top"><div><h2>Alíquotas para estimativa GNRE/DIFAL</h2><p>Valores importados da planilha enviada.</p></div><button class="buscar" onclick="carregarAliquotasFrete()">Atualizar</button></div>
+          <div class="table-wrap"><table><thead><tr><th>UF</th><th>Origem produto</th><th>Interestadual GO</th><th>Interna destino</th><th>FCP</th><th>Ações</th></tr></thead><tbody id="freteTabelaAliquotas"></tbody></table></div>
         </div>
       </div>
     </div>
@@ -3801,11 +4067,11 @@ async function carregarModuloEmail(){
 
 function mostrarAbaEmail(aba){
   if(!garantirFinanceiroEmail()) return;
-  ["Preparar","Gerador","Etiquetas","Correios","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
+  ["Preparar","Gerador","Etiquetas","Correios","Cotacoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
     document.getElementById("emailSub" + nome).classList.remove("ativa");
     document.getElementById("emailAba" + nome).classList.remove("ativo");
   });
-  const mapa = {preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",correios:"Correios",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
+  const mapa = {preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",correios:"Correios",cotacoes:"Cotacoes",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
   const nome = mapa[aba];
   document.getElementById("emailSub" + nome).classList.add("ativa");
   document.getElementById("emailAba" + nome).classList.add("ativo");
@@ -3821,6 +4087,9 @@ function mostrarAbaEmail(aba){
   }
   if(aba === "correios"){
     inicializarModuloCorreios();
+  }
+  if(aba === "cotacoes"){
+    inicializarModuloFretes();
   }
 }
 
@@ -4926,6 +5195,7 @@ async function carregarClientesEmail(){
   }
   emailClientes = resposta.data || [];
   montarTabelaClientesEmail();
+  montarClientesFrete();
   prepararEnviosEmail();
 }
 
