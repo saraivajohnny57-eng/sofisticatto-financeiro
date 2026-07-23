@@ -2155,9 +2155,9 @@ const SUPABASE_KEY = "sb_publishable_h0Ep974nBED88dimAY0BGQ_KLqoQ7po";
 let banco = null;
 let realtimeIniciado = false;
 let registroNotificacaoMobile = null;
-let monitoramentoBancoIntervalo = null;
-let ultimaNotificacaoBancoId = null;
-let monitoramentoBancoPreparado = false;
+let monitoramentoPerfilIntervalo = null;
+let ultimaNotificacaoPerfilId = null;
+let monitoramentoPerfilPreparado = false;
 
 
 async function prepararNotificacaoMobile(){
@@ -2964,39 +2964,42 @@ function processarNotificacaoTempoReal(payload){
 }
 
 
-async function sincronizarBancoImediatamente(mostrarAvisos=true){
-  if(!banco || !usuarioLogado || usuarioLogado.tipo!=="banco") return;
+async function sincronizarPerfilImediatamente(mostrarAvisos=true){
+  if(!banco || !usuarioLogado) return;
+  if(!["banco","financeiro","admin"].includes(usuarioLogado.tipo)) return;
+
+  const perfilConsulta=usuarioLogado.tipo==="admin" ? "financeiro" : usuarioLogado.tipo;
 
   try{
     const resposta=await banco
       .from("notificacoes_sistema")
       .select("*")
-      .eq("destinatario_tipo","banco")
+      .eq("destinatario_tipo",perfilConsulta)
       .order("id",{ascending:false})
-      .limit(10);
+      .limit(20);
 
     if(resposta.error){
-      console.warn("Falha ao consultar notificações do Banco:",resposta.error.message);
+      console.warn("Falha ao consultar notificações do perfil:",resposta.error.message);
       return;
     }
 
     const registros=resposta.data || [];
     const maiorId=registros.length ? Number(registros[0].id) : 0;
 
-    if(!monitoramentoBancoPreparado){
-      ultimaNotificacaoBancoId=maiorId;
-      monitoramentoBancoPreparado=true;
+    if(!monitoramentoPerfilPreparado){
+      ultimaNotificacaoPerfilId=maiorId;
+      monitoramentoPerfilPreparado=true;
       await carregarRelatorios(true);
       await carregarNotificacoesPersistentes();
       return;
     }
 
     const novas=registros
-      .filter(item=>Number(item.id)>Number(ultimaNotificacaoBancoId || 0))
+      .filter(item=>Number(item.id)>Number(ultimaNotificacaoPerfilId || 0))
       .sort((a,b)=>Number(a.id)-Number(b.id));
 
     if(novas.length){
-      ultimaNotificacaoBancoId=Math.max(...novas.map(item=>Number(item.id)));
+      ultimaNotificacaoPerfilId=Math.max(...novas.map(item=>Number(item.id)));
 
       await carregarRelatorios(true);
       await carregarNotificacoesPersistentes();
@@ -3010,38 +3013,38 @@ async function sincronizarBancoImediatamente(mostrarAvisos=true){
         }
       }
     }else{
-      // Mesmo sem notificação nova, mantém a tabela sincronizada.
       await carregarRelatorios(true);
     }
   }catch(erro){
-    console.warn("Erro no monitoramento alternativo do Banco:",erro);
+    console.warn("Erro no monitoramento alternativo do perfil:",erro);
   }
 }
 
-function iniciarMonitoramentoBancoFallback(){
-  if(!usuarioLogado || usuarioLogado.tipo!=="banco") return;
+function iniciarMonitoramentoPerfilFallback(){
+  if(!usuarioLogado) return;
+  if(!["banco","financeiro","admin"].includes(usuarioLogado.tipo)) return;
 
-  if(monitoramentoBancoIntervalo){
-    clearInterval(monitoramentoBancoIntervalo);
+  if(monitoramentoPerfilIntervalo){
+    clearInterval(monitoramentoPerfilIntervalo);
   }
 
-  monitoramentoBancoPreparado=false;
-  sincronizarBancoImediatamente(false);
+  monitoramentoPerfilPreparado=false;
+  sincronizarPerfilImediatamente(false);
 
-  monitoramentoBancoIntervalo=setInterval(()=>{
-    sincronizarBancoImediatamente(true);
+  monitoramentoPerfilIntervalo=setInterval(()=>{
+    sincronizarPerfilImediatamente(true);
   },4000);
 }
 
 document.addEventListener("visibilitychange",()=>{
-  if(!document.hidden && usuarioLogado?.tipo==="banco"){
-    sincronizarBancoImediatamente(true);
+  if(!document.hidden && usuarioLogado){
+    sincronizarPerfilImediatamente(true);
   }
 });
 
 window.addEventListener("focus",()=>{
-  if(usuarioLogado?.tipo==="banco"){
-    sincronizarBancoImediatamente(true);
+  if(usuarioLogado){
+    sincronizarPerfilImediatamente(true);
   }
 });
 
@@ -3052,7 +3055,7 @@ async function carregarNotificacoesPersistentes(){
     const resposta=await banco
       .from("notificacoes_sistema")
       .select("*")
-      .eq("destinatario_tipo",usuarioLogado.tipo)
+      .eq("destinatario_tipo",usuarioLogado.tipo==="admin" ? "financeiro" : usuarioLogado.tipo)
       .order("created_at",{ascending:false})
       .limit(30);
 
@@ -3125,9 +3128,9 @@ function iniciarRealtimeNotificacoes(){
           ...notificacoesSistema.filter(item=>item.id!==nova.id)
         ].slice(0,30);
 
-        if(usuarioLogado.tipo==="banco"){
-          ultimaNotificacaoBancoId=Math.max(
-            Number(ultimaNotificacaoBancoId || 0),
+        if(["banco","financeiro","admin"].includes(usuarioLogado.tipo)){
+          ultimaNotificacaoPerfilId=Math.max(
+            Number(ultimaNotificacaoPerfilId || 0),
             Number(nova.id || 0)
           );
 
@@ -7746,7 +7749,7 @@ document.addEventListener("DOMContentLoaded", async function(){
     iniciarRealtime();
     prepararNotificacaoMobile();
     iniciarRealtimeNotificacoes();
-    iniciarMonitoramentoBancoFallback();
+    iniciarMonitoramentoPerfilFallback();
     carregarNotificacoesPersistentes();
     esconderCarregando();
 
