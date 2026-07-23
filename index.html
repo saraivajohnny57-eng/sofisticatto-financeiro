@@ -2155,13 +2155,24 @@ const SUPABASE_KEY = "sb_publishable_h0Ep974nBED88dimAY0BGQ_KLqoQ7po";
 let banco = null;
 let realtimeIniciado = false;
 let registroNotificacaoMobile = null;
+let monitoramentoBancoIntervalo = null;
+let ultimaNotificacaoBancoId = null;
+let monitoramentoBancoPreparado = false;
+
 
 async function prepararNotificacaoMobile(){
   if(!("serviceWorker" in navigator)) return null;
 
   try{
-    registroNotificacaoMobile = await navigator.serviceWorker.register("/service-worker-notificacoes.js");
-    await navigator.serviceWorker.ready;
+    registroNotificacaoMobile=await navigator.serviceWorker.register(
+      "/service-worker-notificacoes.js?v=2",
+      {scope:"/"}
+    );
+
+    await registroNotificacaoMobile.update();
+    registroNotificacaoMobile=await navigator.serviceWorker.ready;
+
+    console.log("Service Worker de notificações ativo:",registroNotificacaoMobile.scope);
     return registroNotificacaoMobile;
   }catch(erro){
     console.warn("Não foi possível registrar o Service Worker de notificações:",erro);
@@ -2849,7 +2860,12 @@ async function solicitarPermissaoNotificacao(){
 
     mostrarBalaoSistema(
       "Notificações ativadas",
-      "Você receberá avisos enquanto o sistema estiver aberto ou minimizado."
+      "Uma notificação de teste foi enviada para este dispositivo."
+    );
+
+    alert(
+      "Notificações ativadas. Uma mensagem de teste foi enviada. " +
+      "Caso ela não apareça, confira nas configurações do Android se o Chrome pode mostrar notificações."
     );
 
     atualizarBotaoNotificacao();
@@ -2947,6 +2963,88 @@ function processarNotificacaoTempoReal(payload){
   }
 }
 
+
+async function sincronizarBancoImediatamente(mostrarAvisos=true){
+  if(!banco || !usuarioLogado || usuarioLogado.tipo!=="banco") return;
+
+  try{
+    const resposta=await banco
+      .from("notificacoes_sistema")
+      .select("*")
+      .eq("destinatario_tipo","banco")
+      .order("id",{ascending:false})
+      .limit(10);
+
+    if(resposta.error){
+      console.warn("Falha ao consultar notificações do Banco:",resposta.error.message);
+      return;
+    }
+
+    const registros=resposta.data || [];
+    const maiorId=registros.length ? Number(registros[0].id) : 0;
+
+    if(!monitoramentoBancoPreparado){
+      ultimaNotificacaoBancoId=maiorId;
+      monitoramentoBancoPreparado=true;
+      await carregarRelatorios(true);
+      await carregarNotificacoesPersistentes();
+      return;
+    }
+
+    const novas=registros
+      .filter(item=>Number(item.id)>Number(ultimaNotificacaoBancoId || 0))
+      .sort((a,b)=>Number(a.id)-Number(b.id));
+
+    if(novas.length){
+      ultimaNotificacaoBancoId=Math.max(...novas.map(item=>Number(item.id)));
+
+      await carregarRelatorios(true);
+      await carregarNotificacoesPersistentes();
+
+      if(mostrarAvisos){
+        for(const item of novas){
+          await notificarChrome(
+            item.titulo || "Sofisticatto Financeiro",
+            item.mensagem || "Existe uma nova atualização."
+          );
+        }
+      }
+    }else{
+      // Mesmo sem notificação nova, mantém a tabela sincronizada.
+      await carregarRelatorios(true);
+    }
+  }catch(erro){
+    console.warn("Erro no monitoramento alternativo do Banco:",erro);
+  }
+}
+
+function iniciarMonitoramentoBancoFallback(){
+  if(!usuarioLogado || usuarioLogado.tipo!=="banco") return;
+
+  if(monitoramentoBancoIntervalo){
+    clearInterval(monitoramentoBancoIntervalo);
+  }
+
+  monitoramentoBancoPreparado=false;
+  sincronizarBancoImediatamente(false);
+
+  monitoramentoBancoIntervalo=setInterval(()=>{
+    sincronizarBancoImediatamente(true);
+  },4000);
+}
+
+document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden && usuarioLogado?.tipo==="banco"){
+    sincronizarBancoImediatamente(true);
+  }
+});
+
+window.addEventListener("focus",()=>{
+  if(usuarioLogado?.tipo==="banco"){
+    sincronizarBancoImediatamente(true);
+  }
+});
+
 async function carregarNotificacoesPersistentes(){
   if(!banco || !usuarioLogado) return;
 
@@ -3028,11 +3126,18 @@ function iniciarRealtimeNotificacoes(){
         ].slice(0,30);
 
         if(usuarioLogado.tipo==="banco"){
+          ultimaNotificacaoBancoId=Math.max(
+            Number(ultimaNotificacaoBancoId || 0),
+            Number(nova.id || 0)
+          );
+
           notificarChrome(
             nova.titulo || "Sofisticatto Financeiro",
             nova.mensagem || "Existe uma nova atualização."
           );
+
           carregarRelatorios(true);
+          carregarNotificacoesPersistentes();
         }
 
         carregarNotificacoes();
@@ -7641,6 +7746,7 @@ document.addEventListener("DOMContentLoaded", async function(){
     iniciarRealtime();
     prepararNotificacaoMobile();
     iniciarRealtimeNotificacoes();
+    iniciarMonitoramentoBancoFallback();
     carregarNotificacoesPersistentes();
     esconderCarregando();
 
