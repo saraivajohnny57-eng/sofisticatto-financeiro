@@ -2154,6 +2154,21 @@ const SUPABASE_URL = "https://drtgtwwsbxrmqcaabzcs.supabase.co";
 const SUPABASE_KEY = "sb_publishable_h0Ep974nBED88dimAY0BGQ_KLqoQ7po";
 let banco = null;
 let realtimeIniciado = false;
+let registroNotificacaoMobile = null;
+
+async function prepararNotificacaoMobile(){
+  if(!("serviceWorker" in navigator)) return null;
+
+  try{
+    registroNotificacaoMobile = await navigator.serviceWorker.register("/service-worker-notificacoes.js");
+    await navigator.serviceWorker.ready;
+    return registroNotificacaoMobile;
+  }catch(erro){
+    console.warn("Não foi possível registrar o Service Worker de notificações:",erro);
+    return null;
+  }
+}
+
 let realtimeNotificacoesIniciado = false;
 let notificacoesSistema = [];
 
@@ -2804,26 +2819,44 @@ async function solicitarPermissaoNotificacao(){
     return;
   }
 
-  const permissao=await Notification.requestPermission();
+  try{
+    const permissao=await Notification.requestPermission();
 
-  if(permissao==="granted"){
+    if(permissao!=="granted"){
+      localStorage.removeItem("sofisticatto_notificacoes_ativas");
+      alert("A permissão de notificações não foi concedida.");
+      atualizarBotaoNotificacao();
+      return;
+    }
+
     localStorage.setItem("sofisticatto_notificacoes_ativas","1");
 
-    new Notification("Sofisticatto Financeiro",{
-      body:"Notificações ativadas neste dispositivo.",
-      tag:"sofisticatto-teste"
-    });
+    const registro=await prepararNotificacaoMobile();
+
+    if(registro && registro.showNotification){
+      await registro.showNotification("Sofisticatto Financeiro",{
+        body:"Notificações ativadas neste dispositivo.",
+        tag:"sofisticatto-teste",
+        renotify:true,
+        data:{url:"/"}
+      });
+    }else{
+      new Notification("Sofisticatto Financeiro",{
+        body:"Notificações ativadas neste dispositivo.",
+        tag:"sofisticatto-teste"
+      });
+    }
 
     mostrarBalaoSistema(
       "Notificações ativadas",
       "Você receberá avisos enquanto o sistema estiver aberto ou minimizado."
     );
-  }else{
-    localStorage.removeItem("sofisticatto_notificacoes_ativas");
-    alert("A permissão de notificações não foi concedida.");
-  }
 
-  atualizarBotaoNotificacao();
+    atualizarBotaoNotificacao();
+  }catch(erro){
+    console.error("Erro ao ativar notificações:",erro);
+    alert("Não foi possível ativar notificações neste dispositivo: "+(erro.message || erro));
+  }
 }
 
 function mostrarBalaoSistema(titulo, mensagem){
@@ -2847,17 +2880,40 @@ function mostrarToastSistema(titulo, mensagem){
   mostrarBalaoSistema(titulo, mensagem);
 }
 
-function notificarChrome(titulo, mensagem){
-  mostrarBalaoSistema(titulo, mensagem);
-
+async function notificarChrome(titulo,mensagem){
   if(!("Notification" in window)) return;
-  if(Notification.permission !== "granted") return;
+  if(Notification.permission!=="granted") return;
+  if(localStorage.getItem("sofisticatto_notificacoes_ativas")!=="1") return;
 
-  new Notification(titulo, {
-    body: mensagem,
-    tag: "sofisticatto-financeiro-" + Date.now(),
-    requireInteraction: false
-  });
+  try{
+    const registro=
+      registroNotificacaoMobile ||
+      await prepararNotificacaoMobile();
+
+    if(registro && registro.showNotification){
+      await registro.showNotification(titulo,{
+        body:mensagem,
+        tag:`sofisticatto-${Date.now()}`,
+        renotify:true,
+        data:{url:"/"}
+      });
+      return;
+    }
+
+    const notificacao=new Notification(titulo,{
+      body:mensagem,
+      tag:`sofisticatto-${Date.now()}`,
+      renotify:true
+    });
+
+    notificacao.onclick=()=>{
+      window.focus();
+      mostrarSecao("relatorios");
+      notificacao.close();
+    };
+  }catch(erro){
+    console.warn("Não foi possível mostrar a notificação:",erro);
+  }
 }
 
 function processarNotificacaoTempoReal(payload){
@@ -7583,6 +7639,7 @@ document.addEventListener("DOMContentLoaded", async function(){
     mostrarCarregando("Conectando...");
     await carregarSupabase();
     iniciarRealtime();
+    prepararNotificacaoMobile();
     iniciarRealtimeNotificacoes();
     carregarNotificacoesPersistentes();
     esconderCarregando();
