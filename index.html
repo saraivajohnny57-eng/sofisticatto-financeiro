@@ -908,11 +908,13 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
               <div class="campo-largo">
                 <label class="relatorio-label">Frete pago por</label>
-                <div class="frete-tipo">
+                <div class="frete-tipo frete-tipo-triplo">
                   <button type="button" id="freteBtnCif" class="ativo" onclick="selecionarTipoFrete('CIF')">CIF — Remetente</button>
                   <button type="button" id="freteBtnFob" onclick="selecionarTipoFrete('FOB')">FOB — Destino</button>
+                  <button type="button" id="freteBtnMisto" onclick="selecionarTipoFrete('MISTO')">CIF + FOB</button>
                 </div>
                 <input type="hidden" id="freteTipo" value="CIF">
+                <small style="display:block;margin-top:7px;color:#756cae;">Use CIF + FOB quando precisar registrar duas cotações da mesma transportadora para o mesmo pedido.</small>
               </div>
 
               <div>
@@ -1090,6 +1092,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div class="inputs">
           <input id="emailVendedoraNome" placeholder="Nome">
           <input id="emailVendedoraEmail" type="email" placeholder="E-mail">
+          <input id="emailVendedoraWhatsapp" inputmode="tel" placeholder="WhatsApp">
         </div>
         <div class="email-acoes">
           <button class="salvar" onclick="salvarVendedoraEmail()">Salvar Vendedora</button>
@@ -1098,7 +1101,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
       </div>
       <div class="card">
         <h2>Vendedoras cadastradas</h2>
-        <div class="table-wrap"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Ações</th></tr></thead><tbody id="emailTabelaVendedoras"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Nome</th><th>E-mail</th><th>WhatsApp</th><th>Ações</th></tr></thead><tbody id="emailTabelaVendedoras"></tbody></table></div>
       </div>
     </div>
 

@@ -61,10 +61,11 @@ async function inicializarModuloFretes(){
 }
 
 function selecionarTipoFrete(tipo){
-  tipo = tipo === "FOB" ? "FOB" : "CIF";
+  tipo = ["CIF","FOB","MISTO"].includes(tipo) ? tipo : "CIF";
   freteCampo("freteTipo").value = tipo;
   freteCampo("freteBtnCif")?.classList.toggle("ativo", tipo === "CIF");
   freteCampo("freteBtnFob")?.classList.toggle("ativo", tipo === "FOB");
+  freteCampo("freteBtnMisto")?.classList.toggle("ativo", tipo === "MISTO");
 }
 
 function numeroFrete(valor){
@@ -77,6 +78,21 @@ function moedaFrete(valor){
     style:"currency",
     currency:"BRL"
   });
+}
+
+function tiposRespostaFrete(tipoPrincipal){
+  return tipoPrincipal === "MISTO" ? ["FOB","CIF"] : [tipoPrincipal || "CIF"];
+}
+
+function chaveRespostaFrete(transportadoraId, tipoFrete){
+  return `${transportadoraId}_${tipoFrete}`;
+}
+
+function respostaAtualFrete(transportadoraId, tipoFrete){
+  return freteRespostasAtuais.find(r =>
+    String(r.transportadora_id) === String(transportadoraId) &&
+    String(r.tipo_frete || "CIF") === String(tipoFrete)
+  );
 }
 
 function dadosFormularioFrete(){
@@ -109,10 +125,10 @@ function dadosFormularioFrete(){
   };
 }
 
-function variaveisFrete(dados){
+function variaveisFrete(dados, tipoResposta = dados.tipo_frete){
   return {
     SOLICITANTE: dados.solicitante,
-    CNPJ_PAGADOR: dados.tipo_frete === "CIF"
+    CNPJ_PAGADOR: tipoResposta === "CIF"
       ? FRETE_REMETENTE.cnpj
       : dados.cpf_cnpj_destino,
     CNPJ_DESTINO: dados.cpf_cnpj_destino,
@@ -132,16 +148,16 @@ function variaveisFrete(dados){
       maximumFractionDigits:3
     }) + " Kg",
     MEDIDAS: dados.medidas,
-    TIPO_FRETE: dados.tipo_frete,
-    PAGADOR: dados.tipo_frete === "CIF" ? "REMETENTE (CIF)" : "DESTINO (FOB)",
+    TIPO_FRETE: tipoResposta,
+    PAGADOR: tipoResposta === "CIF" ? "REMETENTE (CIF)" : "DESTINO (FOB)",
     MATERIAL: dados.material,
     EMBALAGEM: dados.embalagem,
     COLETA: dados.coleta
   };
 }
 
-function aplicarModeloFrete(texto, dados){
-  const variaveis = variaveisFrete(dados);
+function aplicarModeloFrete(texto, dados, tipoResposta){
+  const variaveis = variaveisFrete(dados, tipoResposta);
   return String(texto || "").replace(
     /\{\{([A-Z0-9_]+)\}\}/g,
     (trecho, chave) => variaveis[chave] ?? ""
@@ -263,91 +279,101 @@ function gerarCotacoesFrete(){
     return;
   }
 
-  freteRespostasAtuais = freteRespostasAtuais.filter(
-    r => dados.transportadoras_ids.includes(String(r.transportadora_id))
+  const tipos = tiposRespostaFrete(dados.tipo_frete);
+  const chavesValidas = dados.transportadoras_ids.flatMap(id =>
+    tipos.map(tipo => chaveRespostaFrete(id, tipo))
+  );
+
+  freteRespostasAtuais = freteRespostasAtuais.filter(r =>
+    chavesValidas.includes(chaveRespostaFrete(r.transportadora_id, r.tipo_frete || "CIF"))
   );
 
   const box = freteCampo("fretePreviews");
-  box.innerHTML = dados.transportadoras_ids.map(id => {
+  box.innerHTML = dados.transportadoras_ids.flatMap(id => {
     const transportadora = freteTransportadoras.find(
       t => String(t.id) === String(id)
     );
 
-    const texto = aplicarModeloFrete(
-      transportadora?.frete_modelos?.texto_modelo || "",
-      dados
-    );
+    return tipos.map(tipoResposta => {
+      const chave = chaveRespostaFrete(id, tipoResposta);
+      const texto = aplicarModeloFrete(
+        transportadora?.frete_modelos?.texto_modelo || "",
+        dados,
+        tipoResposta
+      );
 
-    const existente = freteRespostasAtuais.find(
-      r => String(r.transportadora_id) === String(id)
-    ) || {};
+      const existente = respostaAtualFrete(id, tipoResposta) || {};
+      const gnrePadrao = Number(existente.gnre_valor || dados.gnre_valor || 0);
 
-    return `<div class="frete-preview-card" id="freteCard_${id}">
-      <h3>
-        <span>${escaparHtmlEmail(transportadora?.nome || "")}</span>
-        <button class="btn azul" onclick="copiarTextoFrete('${id}')">Copiar solicitação</button>
-      </h3>
+      return `<div class="frete-preview-card" id="freteCard_${chave}">
+        <h3>
+          <span>${escaparHtmlEmail(transportadora?.nome || "")} — ${tipoResposta}</span>
+          <button class="btn azul" onclick="copiarTextoFrete('${chave}')">Copiar solicitação</button>
+        </h3>
 
-      <div class="frete-texto" id="freteTexto_${id}">${escaparHtmlEmail(texto)}</div>
+        <div class="frete-texto" id="freteTexto_${chave}">${escaparHtmlEmail(texto)}</div>
 
-      <div class="frete-resposta-grid">
-        <div>
-          <label class="relatorio-label">Nº/Referência</label>
-          <input id="freteRespNumero_${id}" value="${escaparHtmlEmail(existente.numero_cotacao || "")}">
+        <div class="frete-resposta-grid">
+          <div>
+            <label class="relatorio-label">Nº/Referência</label>
+            <input id="freteRespNumero_${chave}" value="${escaparHtmlEmail(existente.numero_cotacao || "")}">
+          </div>
+          <div>
+            <label class="relatorio-label">Frete (${tipoResposta})</label>
+            <input id="freteRespValor_${chave}" inputmode="decimal"
+              value="${existente.valor_frete ? Number(existente.valor_frete).toLocaleString("pt-BR",{minimumFractionDigits:2}) : ""}">
+          </div>
+          <div>
+            <label class="relatorio-label">Prazo</label>
+            <input id="freteRespPrazo_${chave}" value="${escaparHtmlEmail(existente.prazo || "")}"
+              placeholder="03 dias úteis">
+          </div>
+          <div>
+            <label class="relatorio-label">GNRE</label>
+            <input id="freteRespGnre_${chave}" inputmode="decimal"
+              value="${gnrePadrao ? gnrePadrao.toLocaleString("pt-BR",{minimumFractionDigits:2}) : ""}">
+          </div>
+          <button class="btn verde" onclick="registrarRespostaFrete('${id}','${tipoResposta}')">Registrar</button>
         </div>
-        <div>
-          <label class="relatorio-label">Frete (R$)</label>
-          <input id="freteRespValor_${id}" inputmode="decimal"
-            value="${existente.valor_frete ? Number(existente.valor_frete).toLocaleString("pt-BR",{minimumFractionDigits:2}) : ""}">
-        </div>
-        <div>
-          <label class="relatorio-label">Prazo</label>
-          <input id="freteRespPrazo_${id}" value="${escaparHtmlEmail(existente.prazo || "")}"
-            placeholder="03 dias úteis">
-        </div>
-        <div>
-          <label class="relatorio-label">GNRE</label>
-          <input id="freteRespGnre_${id}"
-            value="${existente.gnre_valor ? Number(existente.gnre_valor).toLocaleString("pt-BR",{minimumFractionDigits:2}) : (dados.gnre_valor ? dados.gnre_valor.toLocaleString("pt-BR",{minimumFractionDigits:2}) : "")}">
-        </div>
-        <button class="btn verde" onclick="registrarRespostaFrete('${id}')">Registrar</button>
-      </div>
 
-      <div class="email-acoes">
-        <button class="btn roxo" onclick="autorizarRespostaFrete('${id}')">✅ Marcar autorizada</button>
-        <span class="frete-status ${existente.status || "aguardando"}">
-          ${existente.status === "autorizada" ? "AUTORIZADA" : "AGUARDANDO"}
-        </span>
-      </div>
-    </div>`;
+        <div class="email-acoes">
+          <button class="btn roxo" onclick="autorizarRespostaFrete('${id}','${tipoResposta}')">✅ Marcar autorizada</button>
+          <span class="frete-status ${existente.status || "aguardando"}">
+            ${existente.status === "autorizada" ? "AUTORIZADA" : "AGUARDANDO"}
+          </span>
+        </div>
+      </div>`;
+    });
   }).join("");
 
   atualizarMensagemVendedoraFrete();
   destacarMenorFrete();
 }
 
-function coletarRespostaTela(id){
+function coletarRespostaTela(id, tipoFrete){
   const transportadora = freteTransportadoras.find(
     t => String(t.id) === String(id)
   );
+  const chave = chaveRespostaFrete(id, tipoFrete);
+  const gnreGeral = numeroFrete(freteValor("freteGnreValor"));
 
   return {
     transportadora_id: id,
     transportadora_nome: transportadora?.nome || "",
-    numero_cotacao: freteValor("freteRespNumero_" + id),
-    valor_frete: numeroFrete(freteValor("freteRespValor_" + id)),
-    prazo: freteValor("freteRespPrazo_" + id),
-    gnre_valor: numeroFrete(freteValor("freteRespGnre_" + id)),
-    status: freteRespostasAtuais.find(
-      r => String(r.transportadora_id) === String(id)
-    )?.status || "aguardando"
+    tipo_frete: tipoFrete,
+    numero_cotacao: freteValor("freteRespNumero_" + chave),
+    valor_frete: numeroFrete(freteValor("freteRespValor_" + chave)),
+    prazo: freteValor("freteRespPrazo_" + chave),
+    gnre_valor: numeroFrete(freteValor("freteRespGnre_" + chave)) || gnreGeral,
+    status: respostaAtualFrete(id, tipoFrete)?.status || "aguardando"
   };
 }
 
-async function registrarRespostaFrete(id){
-  const respostaTela = coletarRespostaTela(id);
+async function registrarRespostaFrete(id, tipoFrete){
+  const respostaTela = coletarRespostaTela(id, tipoFrete);
   const indice = freteRespostasAtuais.findIndex(
-    r => String(r.transportadora_id) === String(id)
+    r => String(r.transportadora_id) === String(id) &&
+         String(r.tipo_frete || "CIF") === String(tipoFrete)
   );
 
   if(indice >= 0){
@@ -370,13 +396,14 @@ async function registrarRespostaFrete(id){
     .upsert({
       cotacao_id: cotacaoId,
       transportadora_id: id,
+      tipo_frete: tipoFrete,
       numero_cotacao: respostaTela.numero_cotacao,
       valor_frete: respostaTela.valor_frete,
       prazo: respostaTela.prazo,
       gnre_valor: respostaTela.gnre_valor,
       status: respostaTela.status,
       atualizado_em: new Date().toISOString()
-    }, { onConflict:"cotacao_id,transportadora_id" });
+    }, { onConflict:"cotacao_id,transportadora_id,tipo_frete" });
 
   if(resposta.error) alert(resposta.error.message);
   else mostrarBalaoSistema("Resposta registrada", respostaTela.transportadora_nome);
@@ -394,7 +421,7 @@ function destacarMenorFrete(){
     (a,b) => Number(a.valor_frete) <= Number(b.valor_frete) ? a : b
   );
 
-  freteCampo("freteCard_" + menor.transportadora_id)?.classList.add("frete-melhor");
+  freteCampo("freteCard_" + chaveRespostaFrete(menor.transportadora_id, menor.tipo_frete || "CIF"))?.classList.add("frete-melhor");
 }
 
 async function salvarCotacaoFrete(){
@@ -455,13 +482,14 @@ async function salvarCotacaoFrete(){
     await banco.from("frete_cotacao_respostas").upsert({
       cotacao_id: resposta.data.id,
       transportadora_id: item.transportadora_id,
+      tipo_frete: item.tipo_frete || "CIF",
       numero_cotacao: item.numero_cotacao,
       valor_frete: item.valor_frete,
       prazo: item.prazo,
       gnre_valor: item.gnre_valor,
       status: item.status || "aguardando",
       atualizado_em: new Date().toISOString()
-    }, { onConflict:"cotacao_id,transportadora_id" });
+    }, { onConflict:"cotacao_id,transportadora_id,tipo_frete" });
   }
 
   mostrarBalaoSistema("Cotação salva", dados.cliente_nome);
@@ -469,8 +497,8 @@ async function salvarCotacaoFrete(){
   atualizarDashboardFretes();
 }
 
-async function autorizarRespostaFrete(id){
-  const respostaTela = coletarRespostaTela(id);
+async function autorizarRespostaFrete(id, tipoFrete){
+  const respostaTela = coletarRespostaTela(id, tipoFrete);
 
   if(!respostaTela.valor_frete && !confirm("Autorizar sem valor de frete?")) return;
 
@@ -495,6 +523,7 @@ async function autorizarRespostaFrete(id){
     .upsert({
       cotacao_id: cotacaoId,
       transportadora_id: id,
+      tipo_frete: tipoFrete,
       numero_cotacao: respostaTela.numero_cotacao,
       valor_frete: respostaTela.valor_frete,
       prazo: respostaTela.prazo,
@@ -503,7 +532,7 @@ async function autorizarRespostaFrete(id){
       autorizada: true,
       autorizado_em: new Date().toISOString(),
       autorizado_por: usuarioLogado.login
-    }, { onConflict:"cotacao_id,transportadora_id" });
+    }, { onConflict:"cotacao_id,transportadora_id,tipo_frete" });
 
   if(resposta.error){
     alert(resposta.error.message);
@@ -523,7 +552,8 @@ async function autorizarRespostaFrete(id){
 
   freteRespostasAtuais = freteRespostasAtuais.map(item => ({
     ...item,
-    status: String(item.transportadora_id) === String(id)
+    status: String(item.transportadora_id) === String(id) &&
+            String(item.tipo_frete || "CIF") === String(tipoFrete)
       ? "autorizada"
       : "nao_autorizada"
   }));
@@ -644,6 +674,7 @@ async function abrirCotacaoFrete(id){
 
   freteRespostasAtuais = (cotacao.frete_cotacao_respostas || []).map(r => ({
     ...r,
+    tipo_frete: r.tipo_frete || cotacao.tipo_frete || "CIF",
     transportadora_nome: r.frete_transportadoras?.nome || ""
   }));
 

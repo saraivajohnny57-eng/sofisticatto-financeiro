@@ -2697,11 +2697,12 @@ function montarTabelaVendedorasEmail(){
     <tr>
       <td>${escaparHtmlEmail(item.nome)}</td>
       <td>${escaparHtmlEmail(item.email)}</td>
+      <td>${escaparHtmlEmail(item.whatsapp || "")}</td>
       <td>
         <button class="btn azul" onclick="editarVendedoraEmail('${item.id}')">Editar</button>
         <button class="btn vermelho" onclick="excluirVendedoraEmail('${item.id}')">Excluir</button>
       </td>
-    </tr>`).join("") : `<tr><td colspan="3">Nenhuma vendedora cadastrada.</td></tr>`;
+    </tr>`).join("") : `<tr><td colspan="4">Nenhuma vendedora cadastrada.</td></tr>`;
 }
 
 function montarSelectVendedorasEmail(){
@@ -2725,10 +2726,11 @@ async function salvarVendedoraEmail(){
   const id = document.getElementById("emailVendedoraId").value;
   const nome = document.getElementById("emailVendedoraNome").value.trim();
   const email = document.getElementById("emailVendedoraEmail").value.trim();
+  const whatsapp = document.getElementById("emailVendedoraWhatsapp").value.trim();
 
   if(!nome || !email){ alert("Preencha o nome e o e-mail da vendedora."); return; }
 
-  const dados = {nome,email,atualizado_em:new Date().toISOString()};
+  const dados = {nome,email,whatsapp,atualizado_em:new Date().toISOString()};
   const resposta = id
     ? await banco.from("email_vendedoras").update(dados).eq("id",id)
     : await banco.from("email_vendedoras").insert([{...dados,criado_por:usuarioLogado.login}]);
@@ -2746,6 +2748,7 @@ function editarVendedoraEmail(id){
   document.getElementById("emailVendedoraId").value = item.id;
   document.getElementById("emailVendedoraNome").value = item.nome || "";
   document.getElementById("emailVendedoraEmail").value = item.email || "";
+  document.getElementById("emailVendedoraWhatsapp").value = item.whatsapp || "";
   document.getElementById("emailCancelarVendedora").style.display = "inline-block";
   mostrarAbaEmail("vendedoras");
 }
@@ -2754,6 +2757,7 @@ function cancelarEdicaoVendedoraEmail(){
   document.getElementById("emailVendedoraId").value = "";
   document.getElementById("emailVendedoraNome").value = "";
   document.getElementById("emailVendedoraEmail").value = "";
+  document.getElementById("emailVendedoraWhatsapp").value = "";
   document.getElementById("emailCancelarVendedora").style.display = "none";
 }
 

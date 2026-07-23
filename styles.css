@@ -1142,3 +1142,6 @@ html,body{margin:0!important;padding:0!important;background:#fff!important}
   html,body{width:150mm;margin:0!important;padding:0!important}
   .pagina{width:150mm;height:100mm;margin:0!important;padding:0!important}
 }
+
+.frete-tipo.frete-tipo-triplo{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:650px){.frete-tipo.frete-tipo-triplo{grid-template-columns:1fr}}
