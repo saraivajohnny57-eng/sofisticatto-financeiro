@@ -1061,6 +1061,39 @@ tr.relatorio-selecionado td{background:#f0ecff!important}
   top:68mm!important;
 }
 
+
+/* NOTIFICAÇÕES PERSISTENTES */
+.notificacao-item.notificacao-nova{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  border-left:4px solid #5f52b5;
+  background:#fff;
+  cursor:pointer;
+}
+.notificacao-item.notificacao-nova b{
+  color:#463c94;
+  font-size:13px;
+}
+.notificacao-item.notificacao-nova span{
+  font-size:12px;
+  line-height:1.3;
+}
+.notificacao-item.notificacao-nova small{
+  color:#8a83aa;
+  font-size:10px;
+}
+.btn-notificacao-lida{
+  width:100%;
+  border:0;
+  border-radius:10px;
+  padding:9px;
+  background:#5f52b5;
+  color:#fff;
+  font-weight:700;
+  cursor:pointer;
+}
+
 </style>
 </head>
 <body>
@@ -2121,6 +2154,9 @@ const SUPABASE_URL = "https://drtgtwwsbxrmqcaabzcs.supabase.co";
 const SUPABASE_KEY = "sb_publishable_h0Ep974nBED88dimAY0BGQ_KLqoQ7po";
 let banco = null;
 let realtimeIniciado = false;
+let realtimeNotificacoesIniciado = false;
+let notificacoesSistema = [];
+
 
 function carregarSupabase(){
   return new Promise((resolve, reject) => {
@@ -2855,31 +2891,146 @@ function processarNotificacaoTempoReal(payload){
     }
   }
 }
+
+async function carregarNotificacoesPersistentes(){
+  if(!banco || !usuarioLogado) return;
+
+  try{
+    const resposta=await banco
+      .from("notificacoes_sistema")
+      .select("*")
+      .eq("destinatario_tipo",usuarioLogado.tipo)
+      .order("created_at",{ascending:false})
+      .limit(30);
+
+    if(resposta.error){
+      console.warn("Tabela notificacoes_sistema ainda não disponível:",resposta.error.message);
+      notificacoesSistema=[];
+      carregarNotificacoes();
+      return;
+    }
+
+    notificacoesSistema=resposta.data || [];
+    carregarNotificacoes();
+  }catch(erro){
+    console.warn("Não foi possível carregar notificações persistentes:",erro);
+  }
+}
+
+async function marcarNotificacoesComoLidas(){
+  if(!banco || !usuarioLogado) return;
+
+  const ids=notificacoesSistema
+    .filter(item=>!item.lida)
+    .map(item=>item.id);
+
+  if(ids.length){
+    const resposta=await banco
+      .from("notificacoes_sistema")
+      .update({lida:true,lida_em:new Date().toISOString()})
+      .in("id",ids);
+
+    if(resposta.error){
+      console.warn("Não foi possível marcar notificações como lidas:",resposta.error.message);
+    }
+  }
+
+  notificacoesSistema=notificacoesSistema.map(item=>({
+    ...item,
+    lida:true,
+    lida_em:item.lida_em || new Date().toISOString()
+  }));
+
+  carregarNotificacoes();
+}
+
+function abrirRelatoriosPelaNotificacao(){
+  mostrarSecao("relatorios");
+  marcarNotificacoesComoLidas();
+}
+
+function iniciarRealtimeNotificacoes(){
+  if(realtimeNotificacoesIniciado || !banco || !usuarioLogado) return;
+  realtimeNotificacoesIniciado=true;
+
+  banco
+    .channel("notificacoes-sistema-"+usuarioLogado.tipo)
+    .on(
+      "postgres_changes",
+      {
+        event:"INSERT",
+        schema:"public",
+        table:"notificacoes_sistema",
+        filter:`destinatario_tipo=eq.${usuarioLogado.tipo}`
+      },
+      payload=>{
+        const nova=payload.new;
+        if(!nova) return;
+
+        notificacoesSistema=[
+          nova,
+          ...notificacoesSistema.filter(item=>item.id!==nova.id)
+        ].slice(0,30);
+
+        notificarChrome(
+          nova.titulo || "Sofisticatto Financeiro",
+          nova.mensagem || "Existe uma nova atualização."
+        );
+
+        carregarNotificacoes();
+
+        if(usuarioLogado.tipo==="banco"){
+          carregarRelatorios(true);
+        }
+      }
+    )
+    .subscribe(status=>{
+      if(status==="CHANNEL_ERROR"){
+        console.warn("Não foi possível iniciar o Realtime das notificações.");
+      }
+    });
+}
+
 function carregarNotificacoes(){
-  const lista = document.getElementById("listaNotificacoes");
-  const contador = document.getElementById("contadorNotificacoes");
+  const lista=document.getElementById("listaNotificacoes");
+  const contador=document.getElementById("contadorNotificacoes");
   if(!lista || !contador || !usuarioLogado) return;
 
-  lista.innerHTML = "";
-  let total = 0;
+  const naoLidas=notificacoesSistema.filter(item=>!item.lida);
+  let totalPendentes=0;
+  let resumo="";
 
-  if(usuarioLogado.tipo === "banco"){
-    const pendentes = todosBoletos.filter(item => item.status !== "Finalizado" && !item.banco);
-    total = pendentes.length;
-    contador.innerHTML = total;
-    lista.innerHTML = total > 0
-      ? `<div class="notificacao-item" onclick="mostrarSecao('relatorios')">🔔 Existem <b>${total}</b> boletos aguardando banco.</div>`
-      : `<div class="notificacao-item">Nenhum boleto aguardando banco.</div>`;
+  if(usuarioLogado.tipo==="banco"){
+    const pendentes=todosBoletos.filter(item=>item.status!=="Finalizado" && !item.banco);
+    totalPendentes=pendentes.length;
+    resumo=totalPendentes>0
+      ? `Existem <b>${totalPendentes}</b> boletos aguardando banco.`
+      : "Nenhum boleto aguardando banco.";
   }
 
-  if(usuarioLogado.tipo === "financeiro" || usuarioLogado.tipo === "admin"){
-    const aguardando = todosBoletos.filter(item => item.status !== "Finalizado" && item.banco);
-    total = aguardando.length;
-    contador.innerHTML = total;
-    lista.innerHTML = total > 0
-      ? `<div class="notificacao-item" onclick="mostrarSecao('relatorios')">🔔 Existem <b>${total}</b> boletos aguardando finalização.</div>`
-      : `<div class="notificacao-item">Nenhum boleto aguardando finalização.</div>`;
+  if(usuarioLogado.tipo==="financeiro" || usuarioLogado.tipo==="admin"){
+    const aguardando=todosBoletos.filter(item=>item.status!=="Finalizado" && item.banco);
+    totalPendentes=aguardando.length;
+    resumo=totalPendentes>0
+      ? `Existem <b>${totalPendentes}</b> boletos aguardando finalização.`
+      : "Nenhum boleto aguardando finalização.";
   }
+
+  contador.textContent=naoLidas.length || totalPendentes;
+
+  const recentes=naoLidas.slice(0,4).map(item=>`
+    <div class="notificacao-item notificacao-nova" onclick="abrirRelatoriosPelaNotificacao()">
+      <b>${escaparHtmlEmail(item.titulo || "Notificação")}</b>
+      <span>${escaparHtmlEmail(item.mensagem || "")}</span>
+      <small>${item.created_at ? new Date(item.created_at).toLocaleString("pt-BR") : "Agora"}</small>
+    </div>
+  `).join("");
+
+  lista.innerHTML=`
+    ${recentes}
+    <div class="notificacao-item" onclick="abrirRelatoriosPelaNotificacao()">🔔 ${resumo}</div>
+    ${naoLidas.length ? '<button type="button" class="btn-notificacao-lida" onclick="marcarNotificacoesComoLidas()">Marcar como lidas</button>' : ""}
+  `;
 }
 
 function obterClientesParaSugestaoRelatorio(){
@@ -2948,8 +3099,22 @@ async function salvarRelatorio(){
 
   if(!nome || !valorTexto){ alert("Preencha nome e valor"); return; }
 
-  await banco.from("boletos").insert([{nome:nome,valor:valor,status:"Em andamento",banco:"",observacao:"",data_finalizacao:null,criado_por:usuarioLogado.login}]);
-  mostrarBalaoSistema("Relatório lançado", "O usuário banco já pode ver esse novo relatório.");
+  const resposta=await banco.from("boletos").insert([{
+    nome:nome,
+    valor:valor,
+    status:"Em andamento",
+    banco:"",
+    observacao:"",
+    data_finalizacao:null,
+    criado_por:usuarioLogado.login
+  }]);
+
+  if(resposta.error){
+    alert("Não foi possível salvar o boleto: "+resposta.error.message);
+    return;
+  }
+
+  mostrarBalaoSistema("Boleto lançado","O usuário Banco receberá a notificação.");
   document.getElementById("nome").value = "";
   document.getElementById("valor").value = "";
   carregarRelatorios();
@@ -3130,7 +3295,28 @@ async function salvarBanco(id){
 }
 
 async function finalizar(id){
-  await banco.from("boletos").update({status:"Finalizado",data_finalizacao:new Date()}).eq("id",id);
+  const item=todosBoletos.find(registro=>String(registro.id)===String(id));
+
+  const resposta=await banco
+    .from("boletos")
+    .update({
+      status:"Finalizado",
+      data_finalizacao:new Date().toISOString(),
+      editado_por:usuarioLogado?.login || null,
+      data_edicao:new Date().toISOString()
+    })
+    .eq("id",id);
+
+  if(resposta.error){
+    alert("Não foi possível finalizar o boleto: "+resposta.error.message);
+    return;
+  }
+
+  mostrarBalaoSistema(
+    "Boleto finalizado",
+    `${item?.nome || "Cliente"} foi finalizado e o usuário Banco será avisado.`
+  );
+
   carregarRelatorios();
 }
 
@@ -7398,6 +7584,8 @@ document.addEventListener("DOMContentLoaded", async function(){
     mostrarCarregando("Conectando...");
     await carregarSupabase();
     iniciarRealtime();
+    iniciarRealtimeNotificacoes();
+    carregarNotificacoesPersistentes();
     esconderCarregando();
 
     const salvo = localStorage.getItem("usuarioLogado");
