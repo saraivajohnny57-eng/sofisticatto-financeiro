@@ -1,58 +1,67 @@
-const nodemailer = require('nodemailer');
+const webpush = require("web-push");
+const { createClient } = require("@supabase/supabase-js");
 
-module.exports = async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método não permitido.' });
+webpush.setVapidDetails(
+  process.env.VAPID_SUBJECT || "mailto:faturamento@sofisticatto.com.br",
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
+
+module.exports = async function handler(req,res){
+  if(req.method!=="POST"){
+    return res.status(405).json({error:"Método não permitido"});
   }
 
-  try {
-    const { para, cc = [], assunto, texto, html, anexos = [] } = req.body || {};
+  try{
+    const {perfil="banco",tipo,titulo,mensagem,boleto_id}=req.body || {};
 
-    if (!Array.isArray(para) || para.length === 0) {
-      return res.status(400).json({ error: 'Nenhum destinatário informado.' });
-    }
-    if (!assunto) {
-      return res.status(400).json({ error: 'Assunto não informado.' });
-    }
+    const supabase=createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
 
-    const required = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'];
-    const missing = required.filter((name) => !process.env[name]);
-    if (missing.length) {
-      return res.status(500).json({ error: `Variáveis ausentes na Vercel: ${missing.join(', ')}` });
-    }
+    const {data:inscricoes,error}=await supabase
+      .from("push_subscriptions")
+      .select("id,endpoint,p256dh,auth")
+      .eq("perfil",perfil)
+      .eq("ativo",true);
 
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 465),
-      secure: String(process.env.SMTP_SECURE || 'true').toLowerCase() === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
+    if(error) throw error;
+
+    const payload=JSON.stringify({
+      tipo,
+      titulo:titulo || "Sofisticatto Financeiro",
+      mensagem:mensagem || "Existe uma nova atualização.",
+      boleto_id,
+      url:"/"
     });
 
-    const attachments = anexos.map((item) => ({
-      filename: item.nome,
-      content: Buffer.from(item.conteudo_base64, 'base64'),
-      contentType: item.tipo || 'application/octet-stream',
-    }));
+    let enviados=0;
+    let removidos=0;
 
-    const info = await transporter.sendMail({
-      from: process.env.SMTP_FROM_NAME
-        ? `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_USER}>`
-        : process.env.SMTP_USER,
-      to: para,
-      cc: Array.isArray(cc) && cc.length ? cc : undefined,
-      replyTo: process.env.SMTP_REPLY_TO || process.env.SMTP_USER,
-      subject: assunto,
-      text: texto || '',
-      html: html || undefined,
-      attachments,
-    });
+    for(const item of inscricoes || []){
+      try{
+        await webpush.sendNotification({
+          endpoint:item.endpoint,
+          keys:{p256dh:item.p256dh,auth:item.auth}
+        },payload);
+        enviados++;
+      }catch(erroEnvio){
+        if(erroEnvio.statusCode===404 || erroEnvio.statusCode===410){
+          await supabase
+            .from("push_subscriptions")
+            .update({ativo:false})
+            .eq("id",item.id);
+          removidos++;
+        }else{
+          console.error("Erro ao enviar push:",erroEnvio);
+        }
+      }
+    }
 
-    return res.status(200).json({ ok: true, messageId: info.messageId });
-  } catch (error) {
-    console.error('Erro no envio SMTP:', error);
-    return res.status(500).json({ error: error.message || 'Falha ao enviar e-mail.' });
+    return res.status(200).json({ok:true,enviados,removidos});
+  }catch(erro){
+    console.error("Erro em enviar-push:",erro);
+    return res.status(500).json({error:erro.message || "Erro ao enviar push"});
   }
 };
