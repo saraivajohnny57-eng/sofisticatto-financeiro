@@ -1147,7 +1147,14 @@ SOFISTICATTO COSMÉTICOS</textarea>
           </label>
           <div class="importador-opcoes">
             <label><span>Vendedora padrão</span><select id="importadorClienteVendedora"><option value="">Não definir</option></select></label>
-            <label><span>Quando o CNPJ já existir</span>
+            <label><span>Formato do arquivo</span>
+              <select id="importadorClienteFormato">
+                <option value="automatico">Detectar automaticamente</option>
+                <option value="pipe">Cadastro individual separado por |</option>
+                <option value="relatorio">Relatório completo de clientes</option>
+              </select>
+            </label>
+            <label><span>Quando o cliente já existir</span>
               <select id="importadorClienteAcaoDuplicado">
                 <option value="perguntar">Perguntar antes de atualizar</option>
                 <option value="atualizar_vazios">Preencher somente campos vazios</option>
@@ -1425,5 +1432,15 @@ SOFISTICATTO COSMÉTICOS</textarea>
   </div>
 </div>
 
+<div id="modalImportacaoNomeSemelhante" class="frete-modal-overlay" style="display:none;">
+<div class="frete-modal"><h2>Possível cliente encontrado</h2>
+<p>O CNPJ não foi localizado, mas encontramos um nome semelhante.</p>
+<div id="importacaoNomeComparacao" class="frete-comparacao-endereco"></div>
+<div class="frete-modal-acoes">
+<button class="btn verde" id="importacaoNomeCompletar">Completar cadastro existente</button>
+<button class="btn azul" id="importacaoNomeCriarNovo">Criar novo cliente</button>
+<button class="btn roxo" id="importacaoNomeIgnorar">Ignorar</button>
+<button class="btn vermelho" id="importacaoNomeCancelar">Cancelar importação</button>
+</div></div></div>
 </body>
 </html>
