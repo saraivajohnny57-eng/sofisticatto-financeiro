@@ -1130,6 +1130,41 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <button id="emailCancelarCliente" class="btn azul" style="display:none;" onclick="cancelarEdicaoClienteEmail()">Cancelar edição</button>
         </div>
       </div>
+
+      <div class="card">
+        <div class="top">
+          <div>
+            <h2>Importar cadastro de clientes</h2>
+            <p>Selecione um ou vários arquivos TXT estruturados por “|”.</p>
+          </div>
+        </div>
+        <div class="importador-clientes">
+          <label class="importador-drop" id="importadorClientesDrop">
+            <input id="importadorClientesArquivos" type="file" accept=".txt,.csv,text/plain" multiple onchange="analisarArquivosClientesImportados(this.files)">
+            <span class="importador-icone">📥</span>
+            <b>Selecionar ou arrastar arquivos</b>
+            <small>Formatos aceitos: TXT e CSV</small>
+          </label>
+          <div class="importador-opcoes">
+            <label><span>Vendedora padrão</span><select id="importadorClienteVendedora"><option value="">Não definir</option></select></label>
+            <label><span>Quando o CNPJ já existir</span>
+              <select id="importadorClienteAcaoDuplicado">
+                <option value="perguntar">Perguntar antes de atualizar</option>
+                <option value="atualizar_vazios">Preencher somente campos vazios</option>
+                <option value="atualizar_tudo">Substituir dados existentes</option>
+                <option value="ignorar">Ignorar o arquivo</option>
+              </select>
+            </label>
+          </div>
+          <div id="importadorClientesResumo" class="importador-resumo" style="display:none;"></div>
+          <div id="importadorClientesLista" class="importador-lista"></div>
+          <div class="email-acoes">
+            <button class="btn verde" id="btnImportarClientesConfirmar" onclick="confirmarImportacaoClientes()" style="display:none;">Importar selecionados</button>
+            <button class="btn azul" onclick="limparImportacaoClientes()">Limpar</button>
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <h2>Clientes cadastrados</h2>
         <div class="busca-clientes-box">
@@ -1371,6 +1406,21 @@ SOFISTICATTO COSMÉTICOS</textarea>
       <button type="button" class="btn verde" id="freteModalSalvarCadastro">Salvar/Atualizar cadastro</button>
       <button type="button" class="btn azul" id="freteModalSomenteCotacao">Usar somente nesta cotação</button>
       <button type="button" class="btn vermelho" id="freteModalCancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="modalImportacaoClienteDuplicado" class="frete-modal-overlay" style="display:none;">
+  <div class="frete-modal">
+    <h2>Cliente já cadastrado</h2>
+    <p>Compare os dados antes de atualizar.</p>
+    <div id="importacaoDuplicadoComparacao" class="frete-comparacao-endereco"></div>
+    <div class="frete-modal-acoes">
+      <button class="btn verde" id="importacaoDuplicadoAtualizarTudo">Atualizar tudo</button>
+      <button class="btn azul" id="importacaoDuplicadoPreencherVazios">Preencher somente vazios</button>
+      <button class="btn roxo" id="importacaoDuplicadoIgnorar">Ignorar</button>
+      <button class="btn vermelho" id="importacaoDuplicadoCancelar">Cancelar importação</button>
     </div>
   </div>
 </div>

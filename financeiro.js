@@ -2688,6 +2688,7 @@ async function carregarVendedorasEmail(){
   emailVendedoras = resposta.data || [];
   montarTabelaVendedorasEmail();
   montarSelectVendedorasEmail();
+  if(typeof preencherSelectVendedoraImportacao==="function") preencherSelectVendedoraImportacao();
 }
 
 function montarTabelaVendedorasEmail(){
