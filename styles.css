@@ -99,9 +99,43 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .etiqueta-form-grid .campo-largo{grid-column:1/-1}
 .etiqueta-preview-area{background:#d8dce5;border-radius:18px;padding:24px;overflow:auto}
 .etiqueta-papel{position:relative;width:150mm;height:100mm;background:#fff;color:#000;margin:auto;border-radius:4mm;box-shadow:0 8px 28px rgba(0,0,0,.22);overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-sizing:border-box}
-.etiqueta-pedido-tag{position:absolute;left:8mm;top:7mm;min-width:25mm;max-width:31mm;height:12mm;padding:1.5mm 3mm;border:.55mm solid #111;background:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-size:5.5mm;font-weight:900;line-height:1;white-space:nowrap;overflow:hidden;z-index:5}
+.etiqueta-pedido-tag{
+  position:absolute;
+  left:7mm;
+  top:7mm;
+  width:31mm;
+  height:18mm;
+  padding:1.4mm 2mm;
+  border:.55mm solid #111;
+  background:#fff;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:center;
+  text-align:left;
+  font-weight:900;
+  line-height:1.05;
+  overflow:hidden;
+  z-index:5;
+}
+.etiqueta-pedido-tag .pedido-nome{
+  display:block;
+  width:100%;
+  white-space:nowrap;
+  overflow:hidden;
+  line-height:1.05;
+}
+.etiqueta-pedido-tag .pedido-volume-linha{
+  display:block;
+  width:100%;
+  margin-top:1.3mm;
+  font-size:3.9mm;
+  line-height:1;
+  white-space:nowrap;
+  overflow:hidden;
+}
 .etiqueta-pedido-tag.vazia{display:none}
-.etiqueta-logo{position:absolute;left:34mm;top:3mm;width:70mm;height:31mm;object-fit:contain}
+.etiqueta-logo{position:absolute;left:40mm;top:3mm;width:58mm;height:27mm;object-fit:contain}
 .etiqueta-qr{position:absolute;right:16mm;top:8mm;width:22mm;height:22mm}
 .etiqueta-qr canvas,.etiqueta-qr img{width:22mm!important;height:22mm!important}
 .etiqueta-qr-texto{position:absolute;right:14mm;top:7mm;width:31mm;height:27mm;font-weight:900;color:#000;line-height:1;pointer-events:none}

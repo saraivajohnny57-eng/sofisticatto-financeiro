@@ -4350,7 +4350,7 @@ function pedidoParaVolumeEtiqueta(volume,faixas=etiquetaPedidosFaixas){
 
 function fonteAutomaticaPedidoEtiqueta(texto){
   const tamanho=String(texto || "").length;
-  return tamanho>16 ? 14 : tamanho>11 ? 17 : 21;
+  return tamanho>18 ? 13 : tamanho>14 ? 15 : tamanho>10 ? 17 : 20;
 }
 
 function ajustarFontePedidoEtiqueta(elemento,texto,fonte="auto"){
@@ -4743,9 +4743,26 @@ function atualizarPreviewEtiqueta(){
   const pedidoVolumeUm=pedidoParaVolumeEtiqueta(1,d.pedidos_faixas);
   const pedidoTag=document.getElementById("etqPrevPedidoTag");
   if(pedidoTag){
-    pedidoTag.textContent=pedidoVolumeUm?.nome || "";
+    let pedidoNomeTag=pedidoTag.querySelector(".pedido-nome");
+    let pedidoVolumeLinha=pedidoTag.querySelector(".pedido-volume-linha");
+
+    if(!pedidoNomeTag || !pedidoVolumeLinha){
+      pedidoTag.innerHTML='<span class="pedido-nome"></span><span class="pedido-volume-linha"></span>';
+      pedidoNomeTag=pedidoTag.querySelector(".pedido-nome");
+      pedidoVolumeLinha=pedidoTag.querySelector(".pedido-volume-linha");
+    }
+
+    pedidoNomeTag.textContent=pedidoVolumeUm?.nome || "";
+    pedidoVolumeLinha.textContent=pedidoVolumeUm
+      ? `VOLUME 01 DE ${String(d.quantidade_volumes).padStart(2,"0")}`
+      : "";
+
     pedidoTag.classList.toggle("vazia",!pedidoVolumeUm);
-    ajustarFontePedidoEtiqueta(pedidoTag,pedidoVolumeUm?.nome || "",pedidoVolumeUm?.fonte || "auto");
+    ajustarFontePedidoEtiqueta(
+      pedidoNomeTag,
+      pedidoVolumeUm?.nome || "",
+      pedidoVolumeUm?.fonte || "auto"
+    );
   }
 
   const destino=document.querySelector("#etqPreview .etiqueta-destino");
@@ -5102,7 +5119,10 @@ function criarElementoEtiqueta(d,volumeAtual){
   etiqueta.className="etiqueta-papel";
   const pedidoVolume=pedidoParaVolumeEtiqueta(volumeAtual,d.pedidos_faixas);
   etiqueta.innerHTML=`
-    <div class="etiqueta-pedido-tag ${pedidoVolume ? "" : "vazia"}">${pedidoVolume ? escaparHtmlEmail(pedidoVolume.nome) : ""}</div>
+    <div class="etiqueta-pedido-tag ${pedidoVolume ? "" : "vazia"}">
+      <span class="pedido-nome">${pedidoVolume ? escaparHtmlEmail(pedidoVolume.nome) : ""}</span>
+      <span class="pedido-volume-linha">${pedidoVolume ? `VOLUME ${String(volumeAtual).padStart(2,"0")} DE ${String(d.quantidade_volumes).padStart(2,"0")}` : ""}</span>
+    </div>
     <img class="etiqueta-logo" alt="Logo Sofisticatto">
     <div class="etiqueta-qr-texto">
                 <div class="insta-vertical">I<br>N<br>S<br>T<br>A</div>
@@ -5121,7 +5141,8 @@ function criarElementoEtiqueta(d,volumeAtual){
     <div class="etiqueta-transportadora ${d.transportadora ? "" : "vazia"} ${d.transportadora_duas_linhas ? "duas-linhas" : ""}"></div>`;
 
   const pedidoTag=etiqueta.querySelector(".etiqueta-pedido-tag");
-  ajustarFontePedidoEtiqueta(pedidoTag,pedidoVolume?.nome || "",pedidoVolume?.fonte || "auto");
+  const pedidoNomeTag=pedidoTag?.querySelector(".pedido-nome");
+  ajustarFontePedidoEtiqueta(pedidoNomeTag,pedidoVolume?.nome || "",pedidoVolume?.fonte || "auto");
 
   const destino=etiqueta.querySelector(".etiqueta-destino");
   const endereco=etiqueta.querySelector(".etiqueta-endereco");
@@ -5292,7 +5313,7 @@ function normalizarLogoParaCaptura(etiqueta){
   const logoGerada=etiqueta.querySelector(".etiqueta-logo");
   if(logoGerada){
     logoGerada.style.position="absolute";
-    logoGerada.style.left="34mm";
+    logoGerada.style.left="40mm";
     logoGerada.style.top="3mm";
     logoGerada.style.width="58mm";
     logoGerada.style.height="25mm";
@@ -5302,6 +5323,24 @@ function normalizarLogoParaCaptura(etiqueta){
     logoGerada.style.objectPosition="center";
     logoGerada.style.transform="none";
     logoGerada.style.zIndex="1";
+  }
+
+  const pedidoGerado=etiqueta.querySelector(".etiqueta-pedido-tag");
+  if(pedidoGerado){
+    pedidoGerado.style.position="absolute";
+    pedidoGerado.style.left="7mm";
+    pedidoGerado.style.top="7mm";
+    pedidoGerado.style.width="31mm";
+    pedidoGerado.style.height="18mm";
+    pedidoGerado.style.maxWidth="31mm";
+    pedidoGerado.style.padding="1.4mm 2mm";
+    pedidoGerado.style.display=pedidoGerado.classList.contains("vazia") ? "none" : "flex";
+    pedidoGerado.style.flexDirection="column";
+    pedidoGerado.style.alignItems="flex-start";
+    pedidoGerado.style.justifyContent="center";
+    pedidoGerado.style.whiteSpace="normal";
+    pedidoGerado.style.overflow="hidden";
+    pedidoGerado.style.zIndex="5";
   }
 
   // Organiza todas as linhas em áreas independentes.

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=11">
+<link rel="stylesheet" href="styles.css?v=11.2">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -728,7 +728,10 @@ SOFISTICATTO COSMÉTICOS</textarea>
           </div>
           <div class="etiqueta-preview-area">
             <div id="etqPreview" class="etiqueta-papel">
-              <div id="etqPrevPedidoTag" class="etiqueta-pedido-tag vazia"></div>
+              <div id="etqPrevPedidoTag" class="etiqueta-pedido-tag vazia">
+                  <span class="pedido-nome"></span>
+                  <span class="pedido-volume-linha"></span>
+                </div>
               <img id="etqLogo" class="etiqueta-logo" alt="Logo Sofisticatto">
               <div class="etiqueta-qr-texto">
                 <div class="insta-vertical">I<br>N<br>S<br>T<br>A</div>
@@ -1461,7 +1464,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=11.1"></script>
+<script src="financeiro.js?v=11.2"></script>
 <script src="clientes.js?v=11"></script>
 <script src="transportadoras.js?v=11"></script>
 <script src="cotacoes.js?v=11"></script>
