@@ -10,6 +10,41 @@ async function copiarTextoFrete(chave){
   mostrarBalaoSistema("Texto copiado", "Cole no WhatsApp ou e-mail da transportadora.");
 }
 
+function normalizarTelefoneWhatsappFrete(valor){
+  const numero = String(valor || "").replace(/\D/g, "");
+  if(!numero) return "";
+  return numero.startsWith("55") ? numero : "55" + numero;
+}
+
+async function abrirWhatsAppTransportadoraFrete(transportadoraId, tipoFrete){
+  const transportadora = freteTransportadoras.find(
+    item => String(item.id) === String(transportadoraId)
+  );
+
+  const chave = chaveRespostaFrete(transportadoraId, tipoFrete);
+  const texto = freteCampo("freteTexto_" + chave)?.innerText || "";
+  const telefone = normalizarTelefoneWhatsappFrete(transportadora?.whatsapp);
+
+  if(!texto){
+    alert("Gere o modelo da cotação antes de enviar.");
+    return;
+  }
+
+  if(!telefone){
+    await navigator.clipboard.writeText(texto);
+    alert(
+      "A transportadora não possui WhatsApp cadastrado.\n\n" +
+      "A mensagem foi copiada para você colar manualmente."
+    );
+    return;
+  }
+
+  window.open(
+    `https://wa.me/${telefone}?text=${encodeURIComponent(texto)}`,
+    "_blank"
+  );
+}
+
 function sincronizarRespostasDaTelaFrete(){
   const dados = dadosFormularioFrete();
   const tipos = tiposRespostaFrete(dados.tipo_frete);
@@ -97,8 +132,9 @@ function abrirWhatsAppVendedoraFrete(){
     v => String(v.id) === String(cliente?.vendedora_id)
   );
 
-  const telefone = String(vendedora?.whatsapp || vendedora?.telefone || "")
-    .replace(/\D/g, "");
+  const telefone = normalizarTelefoneWhatsappFrete(
+    vendedora?.whatsapp || vendedora?.telefone || ""
+  );
 
   const texto = atualizarMensagemVendedoraFrete();
 
@@ -113,6 +149,5 @@ function abrirWhatsAppVendedoraFrete(){
     return;
   }
 
-  const numero = telefone.startsWith("55") ? telefone : "55" + telefone;
-  window.open(`https://wa.me/${numero}?text=${encodeURIComponent(texto)}`, "_blank");
+  window.open(`https://wa.me/${telefone}?text=${encodeURIComponent(texto)}`, "_blank");
 }

@@ -308,7 +308,10 @@ function gerarCotacoesFrete(){
       return `<div class="frete-preview-card" id="freteCard_${chave}">
         <h3>
           <span>${escaparHtmlEmail(transportadora?.nome || "")} — ${tipoResposta}</span>
-          <button class="btn azul" onclick="copiarTextoFrete('${chave}')">Copiar solicitação</button>
+          <span style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;">
+            <button class="btn azul" onclick="copiarTextoFrete('${chave}')">Copiar solicitação</button>
+            <button class="btn verde" onclick="abrirWhatsAppTransportadoraFrete('${id}','${tipoResposta}')">📱 Enviar WhatsApp</button>
+          </span>
         </h3>
 
         <div class="frete-texto" id="freteTexto_${chave}">${escaparHtmlEmail(texto)}</div>

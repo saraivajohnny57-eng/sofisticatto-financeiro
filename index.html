@@ -973,7 +973,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <div id="freteWhatsappPreview" class="frete-whatsapp-preview">Nenhuma resposta cadastrada.</div>
               <div class="email-acoes">
                 <button class="btn verde" onclick="copiarMensagemVendedoraFrete()">Copiar mensagem</button>
-                <button class="btn verde" onclick="abrirWhatsAppVendedoraFrete()">Abrir WhatsApp</button>
+                <button class="btn verde" onclick="abrirWhatsAppVendedoraFrete()">📱 Enviar para vendedora</button>
               </div>
             </div>
           </div>
@@ -1055,6 +1055,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <input type="hidden" id="emailClienteId">
         <div class="inputs">
           <input id="emailClienteNome" placeholder="Nome do cliente">
+          <input id="emailClienteCpfCnpj" placeholder="CNPJ/CPF (opcional)" inputmode="numeric">
           <textarea id="emailClienteEmails" placeholder="E-mails separados por ponto e vírgula, vírgula ou uma linha para cada e-mail"></textarea>
           <input id="emailClienteEndereco" placeholder="Endereço (opcional)">
           <input id="emailClienteNumero" placeholder="Número (opcional)">
@@ -1081,7 +1082,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
             oninput="filtrarTabelaClientesEmail()">
           <button class="buscar" type="button" onclick="limparBuscaClienteEmail()">Limpar pesquisa</button>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>E-mails</th><th>Cidade/UF</th><th>Vendedora</th><th>E-mail vendedora</th><th>Ações</th></tr></thead><tbody id="emailTabelaClientes"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>CNPJ/CPF</th><th>E-mails</th><th>Cidade/UF</th><th>Vendedora</th><th>E-mail vendedora</th><th>Ações</th></tr></thead><tbody id="emailTabelaClientes"></tbody></table></div>
       </div>
     </div>
 

@@ -2792,6 +2792,7 @@ function montarTabelaClientesEmail(lista = emailClientes){
     const vendedora = emailVendedoras.find(v => v.id === item.vendedora_id);
     return `<tr>
       <td>${escaparHtmlEmail(item.nome)}</td>
+      <td>${escaparHtmlEmail(item.cpf_cnpj || "")}</td>
       <td>${(item.emails || []).map(escaparHtmlEmail).join("<br>")}</td>
       <td>${escaparHtmlEmail([item.cidade,item.uf].filter(Boolean).join("/"))}</td>
       <td>${escaparHtmlEmail(vendedora?.nome || "")}</td>
@@ -2801,7 +2802,7 @@ function montarTabelaClientesEmail(lista = emailClientes){
         <button class="btn vermelho" onclick="excluirClienteEmail('${item.id}')">Excluir</button>
       </td>
     </tr>`;
-  }).join("") : `<tr><td colspan="6">Nenhum cliente encontrado.</td></tr>`;
+  }).join("") : `<tr><td colspan="7">Nenhum cliente encontrado.</td></tr>`;
 }
 
 function filtrarTabelaClientesEmail(){
@@ -2816,6 +2817,7 @@ function filtrarTabelaClientesEmail(){
     const vendedora = emailVendedoras.find(v => v.id === item.vendedora_id);
     const texto = [
       item.nome,
+      item.cpf_cnpj || "",
       ...(item.emails || []),
       item.endereco || "",
       item.numero || "",
@@ -2846,6 +2848,7 @@ async function salvarClienteEmail(){
   if(!garantirFinanceiroEmail()) return;
   const id = document.getElementById("emailClienteId").value;
   const nome = document.getElementById("emailClienteNome").value.trim();
+  const cpf_cnpj = document.getElementById("emailClienteCpfCnpj")?.value.trim() || "";
   const emails = separarEmailsEmail(document.getElementById("emailClienteEmails").value);
   const vendedora_id = document.getElementById("emailClienteVendedora").value;
 
@@ -2865,7 +2868,7 @@ async function salvarClienteEmail(){
   const observacao_logistica = document.getElementById("emailClienteObservacaoLogistica")?.value.trim() || "";
 
   const dados = {
-    nome,emails,vendedora_id,endereco,numero,complemento,bairro,cep,cidade,uf,
+    nome,cpf_cnpj,emails,vendedora_id,endereco,numero,complemento,bairro,cep,cidade,uf,
     transportadora_preferencial,observacao_logistica,
     ativo:true,atualizado_em:new Date().toISOString()
   };
@@ -2884,6 +2887,7 @@ function editarClienteEmail(id){
   if(!item) return;
   document.getElementById("emailClienteId").value = item.id;
   document.getElementById("emailClienteNome").value = item.nome || "";
+  document.getElementById("emailClienteCpfCnpj").value = item.cpf_cnpj || "";
   document.getElementById("emailClienteEmails").value = (item.emails || []).join("; ");
   document.getElementById("emailClienteEndereco").value = item.endereco || "";
   document.getElementById("emailClienteNumero").value = item.numero || "";
@@ -2903,6 +2907,7 @@ function editarClienteEmail(id){
 function cancelarEdicaoClienteEmail(){
   document.getElementById("emailClienteId").value = "";
   document.getElementById("emailClienteNome").value = "";
+  document.getElementById("emailClienteCpfCnpj").value = "";
   document.getElementById("emailClienteEmails").value = "";
   ["emailClienteEndereco","emailClienteNumero","emailClienteComplemento","emailClienteBairro",
    "emailClienteCep","emailClienteCidade","emailClienteUf","emailClienteTransportadora",
