@@ -329,6 +329,43 @@ function dadosBancoImportacaoCliente(i){const vend=document.getElementById("impo
 function preencherSomenteVaziosCliente(e,n){const r={};Object.entries(n).forEach(([k,v])=>{const a=e?.[k];r[k]=Array.isArray(v)?((Array.isArray(a)&&a.length)?a:v):((a!==null&&a!==undefined&&String(a).trim()!=="")?a:v)});r.atualizado_em=new Date().toISOString();return r}
 function perguntarDuplicadoImportacao(i){return new Promise(resolve=>{const m=document.getElementById("modalImportacaoClienteDuplicado"),c=document.getElementById("importacaoDuplicadoComparacao");if(!m||!c){resolve("ignorar");return}const a=i.existente||{};c.innerHTML=`<div class="frete-endereco-box"><h3>CADASTRO ATUAL</h3><div>${escaparHtmlEmail(a.nome||"")}<br>CNPJ/CPF: ${escaparHtmlEmail(a.cpf_cnpj||"-")}<br>${escaparHtmlEmail([a.endereco,a.numero,a.bairro].filter(Boolean).join(", ")||"-")}<br>${escaparHtmlEmail([a.cep,a.cidade,a.uf].filter(Boolean).join(" - ")||"-")}</div></div><div class="frete-endereco-box"><h3>DADOS DO ARQUIVO</h3><div>${escaparHtmlEmail(i.nome||"")}<br>CNPJ/CPF: ${escaparHtmlEmail(i.cpf_cnpj||"-")}<br>${escaparHtmlEmail([i.endereco,i.numero,i.bairro].filter(Boolean).join(", ")||"-")}<br>${escaparHtmlEmail([i.cep,i.cidade,i.uf].filter(Boolean).join(" - ")||"-")}</div></div>`;m.style.display="flex";const fim=x=>{m.style.display="none";resolve(x)};document.getElementById("importacaoDuplicadoAtualizarTudo").onclick=()=>fim("atualizar_tudo");document.getElementById("importacaoDuplicadoPreencherVazios").onclick=()=>fim("atualizar_vazios");document.getElementById("importacaoDuplicadoIgnorar").onclick=()=>fim("ignorar");document.getElementById("importacaoDuplicadoCancelar").onclick=()=>fim("cancelar")})}
 function perguntarNomeSemelhanteImportacao(i){return new Promise(resolve=>{const m=document.getElementById("modalImportacaoNomeSemelhante"),c=document.getElementById("importacaoNomeComparacao"),a=i.match?.cliente;if(!m||!c||!a){resolve("criar_novo");return}c.innerHTML=`<div class="frete-endereco-box"><h3>CADASTRO ENCONTRADO</h3><div>${escaparHtmlEmail(a.nome||"")}<br>CNPJ/CPF: ${escaparHtmlEmail(a.cpf_cnpj||"Não cadastrado")}<br>${escaparHtmlEmail([a.endereco,a.numero,a.bairro].filter(Boolean).join(", ")||"Sem endereço")}</div></div><div class="frete-endereco-box"><h3>DADOS DO RELATÓRIO</h3><div>${escaparHtmlEmail(i.nome||"")}<br>CNPJ/CPF: ${escaparHtmlEmail(i.cpf_cnpj||"Não informado")}<br>${escaparHtmlEmail([i.endereco,i.numero,i.bairro].filter(Boolean).join(", ")||"Sem endereço")}</div></div>`;m.style.display="flex";const f=x=>{m.style.display="none";resolve(x)};document.getElementById("importacaoNomeCompletar").onclick=()=>f("completar");document.getElementById("importacaoNomeCriarNovo").onclick=()=>f("criar_novo");document.getElementById("importacaoNomeIgnorar").onclick=()=>f("ignorar");document.getElementById("importacaoNomeCancelar").onclick=()=>f("cancelar")})}
+
+function colunaAusenteErroImportacao(erro){
+  const mensagem=String(erro?.message || erro || "");
+  const resultado=mensagem.match(/Could not find the ['"]([^'"]+)['"] column/i);
+  return resultado ? resultado[1] : "";
+}
+
+async function gravarClienteImportacaoSeguro({tipo,id,dados}){
+  const payload={...dados};
+  const ignoradas=[];
+
+  for(let tentativa=0;tentativa<15;tentativa++){
+    const resposta=tipo==="insert"
+      ? await banco.from("email_clientes").insert([payload]).select().single()
+      : await banco.from("email_clientes").update(payload).eq("id",id).select().single();
+
+    if(!resposta.error){
+      return {data:resposta.data,error:null,ignoradas};
+    }
+
+    const coluna=colunaAusenteErroImportacao(resposta.error);
+    if(!coluna || !(coluna in payload)){
+      return {data:null,error:resposta.error,ignoradas};
+    }
+
+    delete payload[coluna];
+    ignoradas.push(coluna);
+    console.warn(`Importação: campo "${coluna}" ignorado porque a coluna não existe no Supabase.`);
+  }
+
+  return {
+    data:null,
+    error:new Error("Não foi possível adaptar o cadastro às colunas disponíveis."),
+    ignoradas
+  };
+}
+
 async function confirmarImportacaoClientes(){
  const itens=clientesImportacaoPendentes.filter(i=>i.selecionado&&i.status!=="erro");if(!itens.length){alert("Selecione pelo menos um cadastro.");return}
  const padrao=document.getElementById("importadorClienteAcaoDuplicado")?.value||"automatico_vazios";let novos=0,atualizados=0,ignorados=0,erros=0;
@@ -359,7 +396,7 @@ async function confirmarImportacaoClientes(){
 
  const dados=dadosBancoImportacaoCliente(i);
  if(!existente){
-   const r=await banco.from("email_clientes").insert([dados]).select().single();
+   const r=await gravarClienteImportacaoSeguro({tipo:"insert",dados});
    if(r.error)throw r.error;
    emailClientes.push(r.data);
    novos++;
@@ -375,7 +412,7 @@ async function confirmarImportacaoClientes(){
  }
  if(acao==="cancelar")break;if(acao==="ignorar"){ignorados++;continue}
  const up=acao==="atualizar_vazios"?preencherSomenteVaziosCliente(existente,dados):dados;
- const r=await banco.from("email_clientes").update(up).eq("id",existente.id).select().single();if(r.error)throw r.error;
+ const r=await gravarClienteImportacaoSeguro({tipo:"update",id:existente.id,dados:up});if(r.error)throw r.error;
  const idx=emailClientes.findIndex(c=>String(c.id)===String(existente.id));if(idx>=0)emailClientes[idx]=r.data;atualizados++
  }catch(e){console.error(e);erros++}}
  montarTabelaClientesEmail();montarClientesFrete();prepararEnviosEmail();limparImportacaoClientes();alert(`Importação concluída.\n\nNovos: ${novos}\nAtualizados: ${atualizados}\nIgnorados: ${ignorados}\nErros: ${erros}`)
