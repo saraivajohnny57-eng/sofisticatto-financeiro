@@ -33,12 +33,16 @@ async function carregarPainelLogistico(){
 
   const [cotacoes,boletos,envios,correios,pendencias,respostas]=await Promise.all([
     logisticaConsultaSegura("frete_cotacoes","id,numero,cliente_nome,status,prioridade,created_at,atualizado_em,total_solicitacoes",q=>q.not("status","in",'("autorizada","cancelada")').order("atualizado_em",{ascending:true})),
-    logisticaConsultaSegura("boletos","id,cliente,valor,status,created_at",q=>q.neq("status","finalizado").order("created_at",{ascending:true})),
+    logisticaConsultaSegura("boletos","*",q=>q.order("id",{ascending:true})),
     logisticaConsultaSegura("email_envios","id,cliente_nome,status,created_at",q=>q.in("status",["pendente","erro"]).order("created_at",{ascending:true})),
     logisticaConsultaSegura("correios_envios","id,cliente_nome,servico,created_at",q=>q.gte("created_at",hoje.toISOString())),
     logisticaConsultaSegura("painel_logistico_pendencias","*",q=>q.neq("status","concluida").order("prioridade",{ascending:false}).order("created_at",{ascending:true})),
     logisticaConsultaSegura("frete_cotacao_respostas","valor_frete,prazo,status,transportadora_id,frete_transportadoras(nome)")
   ]);
+
+  boletos = (boletos || []).filter(item =>
+    String(item.status || "").trim().toLowerCase() !== "finalizado"
+  );
 
   logisticaDados.pendencias=pendencias;
   logisticaDados.respostas=respostas;
@@ -57,9 +61,9 @@ async function carregarPainelLogistico(){
 
   boletos.forEach(b=>logisticaDados.fila.push({
     tipo:"boleto",icone:"📄",prioridade:"normal",
-    titulo:b.cliente||"Boleto em aberto",
+    titulo:b.nome||"Boleto em aberto",
     descricao:`Valor: ${typeof moedaFrete==="function"?moedaFrete(b.valor||0):b.valor||""}`,
-    tempo:logisticaTempo(b.created_at),acao:"mostrarSecao('relatorios')"
+    tempo:logisticaTempo(b.created_at || b.data || b.data_criacao),acao:"mostrarSecao('relatorios')"
   }));
 
   envios.forEach(e=>logisticaDados.fila.push({
