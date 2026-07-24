@@ -336,12 +336,18 @@ async function confirmarImportacaoClientes(){
 
  if(i.match?.tipo==="nome_semelhante"){
    if(padrao==="automatico_vazios"){
-     // Nomes apenas semelhantes continuam exigindo confirmação para evitar atualizar o cliente errado.
-     const d=await perguntarNomeSemelhanteImportacao(i);
-     if(d==="cancelar")break;
-     if(d==="ignorar"){ignorados++;continue}
-     if(d==="criar_novo"){existente=null;i.existente=null;i.match=null}
-     else{existente=i.match.cliente;i.existente=existente;acao="atualizar_vazios"}
+     // No modo automático não pergunta um por um.
+     // Só completa automaticamente quando a semelhança for alta.
+     if(Number(i.match.score || 0) >= 0.88){
+       existente=i.match.cliente;
+       i.existente=existente;
+       acao="atualizar_vazios";
+     }else{
+       // Semelhança baixa ou duvidosa: cria novo cadastro para não alterar o cliente errado.
+       existente=null;
+       i.existente=null;
+       i.match=null;
+     }
    }else{
      const d=await perguntarNomeSemelhanteImportacao(i);
      if(d==="cancelar")break;
