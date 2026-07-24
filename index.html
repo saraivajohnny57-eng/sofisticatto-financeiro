@@ -1156,11 +1156,15 @@ SOFISTICATTO COSMÉTICOS</textarea>
             </label>
             <label><span>Quando o cliente já existir</span>
               <select id="importadorClienteAcaoDuplicado">
+                <option value="automatico_vazios" selected>Atualizar campos vazios automaticamente</option>
                 <option value="perguntar">Perguntar antes de atualizar</option>
                 <option value="atualizar_vazios">Preencher somente campos vazios</option>
                 <option value="atualizar_tudo">Substituir dados existentes</option>
                 <option value="ignorar">Ignorar o arquivo</option>
               </select>
+              <small style="color:#71689b;line-height:1.35;">
+                No modo automático, clientes encontrados por CNPJ/CPF ou nome exato terão apenas os campos vazios preenchidos. Dados já cadastrados não serão substituídos.
+              </small>
             </label>
           </div>
           <div id="importadorClientesResumo" class="importador-resumo" style="display:none;"></div>

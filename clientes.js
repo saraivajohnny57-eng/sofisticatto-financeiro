@@ -331,12 +331,42 @@ function perguntarDuplicadoImportacao(i){return new Promise(resolve=>{const m=do
 function perguntarNomeSemelhanteImportacao(i){return new Promise(resolve=>{const m=document.getElementById("modalImportacaoNomeSemelhante"),c=document.getElementById("importacaoNomeComparacao"),a=i.match?.cliente;if(!m||!c||!a){resolve("criar_novo");return}c.innerHTML=`<div class="frete-endereco-box"><h3>CADASTRO ENCONTRADO</h3><div>${escaparHtmlEmail(a.nome||"")}<br>CNPJ/CPF: ${escaparHtmlEmail(a.cpf_cnpj||"Não cadastrado")}<br>${escaparHtmlEmail([a.endereco,a.numero,a.bairro].filter(Boolean).join(", ")||"Sem endereço")}</div></div><div class="frete-endereco-box"><h3>DADOS DO RELATÓRIO</h3><div>${escaparHtmlEmail(i.nome||"")}<br>CNPJ/CPF: ${escaparHtmlEmail(i.cpf_cnpj||"Não informado")}<br>${escaparHtmlEmail([i.endereco,i.numero,i.bairro].filter(Boolean).join(", ")||"Sem endereço")}</div></div>`;m.style.display="flex";const f=x=>{m.style.display="none";resolve(x)};document.getElementById("importacaoNomeCompletar").onclick=()=>f("completar");document.getElementById("importacaoNomeCriarNovo").onclick=()=>f("criar_novo");document.getElementById("importacaoNomeIgnorar").onclick=()=>f("ignorar");document.getElementById("importacaoNomeCancelar").onclick=()=>f("cancelar")})}
 async function confirmarImportacaoClientes(){
  const itens=clientesImportacaoPendentes.filter(i=>i.selecionado&&i.status!=="erro");if(!itens.length){alert("Selecione pelo menos um cadastro.");return}
- const padrao=document.getElementById("importadorClienteAcaoDuplicado")?.value||"perguntar";let novos=0,atualizados=0,ignorados=0,erros=0;
+ const padrao=document.getElementById("importadorClienteAcaoDuplicado")?.value||"automatico_vazios";let novos=0,atualizados=0,ignorados=0,erros=0;
  for(const i of itens){try{let existente=i.existente||null,acao=padrao;
- if(i.match?.tipo==="nome_semelhante"){const d=await perguntarNomeSemelhanteImportacao(i);if(d==="cancelar")break;if(d==="ignorar"){ignorados++;continue}if(d==="criar_novo"){existente=null;i.existente=null;i.match=null}else{existente=i.match.cliente;i.existente=existente;acao="atualizar_vazios"}}
+
+ if(i.match?.tipo==="nome_semelhante"){
+   if(padrao==="automatico_vazios"){
+     // Nomes apenas semelhantes continuam exigindo confirmação para evitar atualizar o cliente errado.
+     const d=await perguntarNomeSemelhanteImportacao(i);
+     if(d==="cancelar")break;
+     if(d==="ignorar"){ignorados++;continue}
+     if(d==="criar_novo"){existente=null;i.existente=null;i.match=null}
+     else{existente=i.match.cliente;i.existente=existente;acao="atualizar_vazios"}
+   }else{
+     const d=await perguntarNomeSemelhanteImportacao(i);
+     if(d==="cancelar")break;
+     if(d==="ignorar"){ignorados++;continue}
+     if(d==="criar_novo"){existente=null;i.existente=null;i.match=null}
+     else{existente=i.match.cliente;i.existente=existente;acao="atualizar_vazios"}
+   }
+ }
+
  const dados=dadosBancoImportacaoCliente(i);
- if(!existente){const r=await banco.from("email_clientes").insert([dados]).select().single();if(r.error)throw r.error;emailClientes.push(r.data);novos++;continue}
- if(i.match?.tipo==="nome_exato"&&!normalizarDocumentoCliente(existente.cpf_cnpj))acao="atualizar_vazios";else if(acao==="perguntar")acao=await perguntarDuplicadoImportacao(i);
+ if(!existente){
+   const r=await banco.from("email_clientes").insert([dados]).select().single();
+   if(r.error)throw r.error;
+   emailClientes.push(r.data);
+   novos++;
+   continue
+ }
+
+ if(padrao==="automatico_vazios" && ["cnpj","nome_exato"].includes(i.match?.tipo)){
+   acao="atualizar_vazios";
+ }else if(i.match?.tipo==="nome_exato"&&!normalizarDocumentoCliente(existente.cpf_cnpj)){
+   acao="atualizar_vazios";
+ }else if(acao==="perguntar"){
+   acao=await perguntarDuplicadoImportacao(i);
+ }
  if(acao==="cancelar")break;if(acao==="ignorar"){ignorados++;continue}
  const up=acao==="atualizar_vazios"?preencherSomenteVaziosCliente(existente,dados):dados;
  const r=await banco.from("email_clientes").update(up).eq("id",existente.id).select().single();if(r.error)throw r.error;
