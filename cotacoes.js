@@ -6,6 +6,8 @@ let freteAliquotas = [];
 let freteHistorico = [];
 let freteRespostasAtuais = [];
 let freteModuloCarregado = false;
+let freteAndamento = [];
+let freteTimerAndamento = null;
 
 const FRETE_REMETENTE = {
   razao: "SOFISTICATTO COSMÉTICOS",
@@ -18,6 +20,7 @@ const FRETE_REMETENTE = {
 function mostrarPainelFrete(painel){
   const mapa = {
     nova:"Nova",
+    andamento:"Andamento",
     historico:"Historico",
     transportadoras:"Transportadoras",
     modelos:"Modelos",
@@ -33,6 +36,7 @@ function mostrarPainelFrete(painel){
   document.getElementById("fretePainel" + nome)?.classList.add("ativo");
   document.getElementById("freteTab" + nome)?.classList.add("ativo");
 
+  if(painel === "andamento") carregarCotacoesAndamento();
   if(painel === "historico") carregarHistoricoFrete();
   if(painel === "transportadoras") carregarTransportadorasFrete();
   if(painel === "modelos") carregarModelosFrete();
@@ -48,7 +52,8 @@ async function inicializarModuloFretes(){
       carregarModelosFrete(),
       carregarTransportadorasFrete(),
       carregarAliquotasFrete(),
-      carregarHistoricoFrete()
+      carregarHistoricoFrete(),
+      carregarCotacoesAndamento()
     ]);
 
     montarClientesFrete();
@@ -115,6 +120,8 @@ function dadosFormularioFrete(){
     embalagem: freteValor("freteEmbalagem") || "Caixas",
     coleta: freteValor("freteColeta") || "Sim",
     solicitante: freteValor("freteSolicitante") || "Johnny",
+    prioridade: freteValor("fretePrioridade") || "normal",
+    lembrete_minutos: Number(freteValor("freteLembreteMinutos") || 0),
     tipo_frete: freteValor("freteTipo") || "CIF",
     gnre_modo: freteValor("freteGnreModo") || "nao",
     origem_produto: freteValor("freteOrigemProduto") || "nacional",
@@ -408,8 +415,28 @@ async function registrarRespostaFrete(id, tipoFrete){
       atualizado_em: new Date().toISOString()
     }, { onConflict:"cotacao_id,transportadora_id,tipo_frete" });
 
-  if(resposta.error) alert(resposta.error.message);
-  else mostrarBalaoSistema("Resposta registrada", respostaTela.transportadora_nome);
+  if(resposta.error){
+    alert(resposta.error.message);
+  }else{
+    const cotacaoAtual=freteAndamento.find(c=>String(c.id)===String(cotacaoId)) ||
+                       freteHistorico.find(c=>String(c.id)===String(cotacaoId));
+    const respostasAtualizadas=(cotacaoAtual?.frete_cotacao_respostas || []).filter(
+      r=>!(String(r.transportadora_id)===String(id) &&
+           String(r.tipo_frete || "CIF")===String(tipoFrete))
+    );
+    respostasAtualizadas.push(respostaTela);
+    const novoStatus=calcularStatusCotacaoFrete({
+      ...cotacaoAtual,
+      frete_cotacao_respostas:respostasAtualizadas
+    });
+    await banco.from("frete_cotacoes").update({
+      status:novoStatus,
+      atualizado_em:new Date().toISOString()
+    }).eq("id",cotacaoId);
+
+    mostrarBalaoSistema("Resposta registrada", respostaTela.transportadora_nome);
+    carregarCotacoesAndamento();
+  }
 }
 
 function destacarMenorFrete(){
@@ -427,7 +454,97 @@ function destacarMenorFrete(){
   freteCampo("freteCard_" + chaveRespostaFrete(menor.transportadora_id, menor.tipo_frete || "CIF"))?.classList.add("frete-melhor");
 }
 
-async function salvarCotacaoFrete(){
+
+function calcularStatusCotacaoFrete(cotacao){
+  const respostas=cotacao?.frete_cotacao_respostas || [];
+  const totalEsperado=Number(cotacao?.total_solicitacoes || respostas.length || 0);
+  const respondidas=respostas.filter(r =>
+    r.numero_cotacao || Number(r.valor_frete)>0 || r.prazo
+  ).length;
+
+  if(cotacao?.status==="autorizada" || cotacao?.status==="cancelada") return cotacao.status;
+  if(cotacao?.status==="aguardando_autorizacao") return "aguardando_autorizacao";
+  if(respondidas===0) return cotacao?.status==="rascunho" ? "rascunho" : "aguardando_retorno";
+  if(totalEsperado>0 && respondidas<totalEsperado) return "retorno_parcial";
+  return "pronta_vendedora";
+}
+
+function statusFreteLabel(status){
+  const mapa={
+    rascunho:"Rascunho",
+    solicitacao_enviada:"Solicitação enviada",
+    aguardando_retorno:"Aguardando retorno",
+    retorno_parcial:"Retorno parcial",
+    pronta_vendedora:"Pronta para vendedora",
+    aguardando_autorizacao:"Aguardando autorização",
+    autorizada:"Autorizada",
+    cancelada:"Cancelada"
+  };
+  return mapa[status] || status || "Aguardando";
+}
+
+function prioridadeFreteLabel(prioridade){
+  return prioridade==="muito_urgente" ? "Muito urgente" :
+         prioridade==="urgente" ? "Urgente" : "Normal";
+}
+
+function minutosDesdeFrete(data){
+  if(!data) return 0;
+  return Math.max(0,Math.floor((Date.now()-new Date(data).getTime())/60000));
+}
+
+function tempoEsperaFrete(data){
+  const minutos=minutosDesdeFrete(data);
+  if(minutos<60) return `${minutos} min`;
+  const horas=Math.floor(minutos/60);
+  const resto=minutos%60;
+  if(horas<24) return `${horas}h ${resto}min`;
+  return `${Math.floor(horas/24)}d ${horas%24}h`;
+}
+
+function classeTempoFrete(data){
+  const minutos=minutosDesdeFrete(data);
+  if(minutos>=1440) return "vermelho";
+  if(minutos>=120) return "laranja";
+  if(minutos>=30) return "amarelo";
+  return "";
+}
+
+async function salvarEAguardarFrete(){
+  const salvo=await salvarCotacaoFrete("aguardando_retorno");
+  if(!salvo) return;
+
+  mostrarBalaoSistema(
+    "Cotação guardada",
+    "Ela foi enviada para Cotações em andamento. Você já pode começar outra."
+  );
+
+  limparCotacaoFrete();
+  mostrarPainelFrete("andamento");
+}
+
+async function marcarSolicitacaoEnviadaFrete(){
+  const salvo=await salvarCotacaoFrete("solicitacao_enviada");
+  if(!salvo) return;
+  mostrarBalaoSistema("Solicitação registrada","A cotação ficará aguardando retorno.");
+}
+
+async function definirStatusCotacaoFrete(id,status){
+  const resposta=await banco
+    .from("frete_cotacoes")
+    .update({status,atualizado_em:new Date().toISOString()})
+    .eq("id",id);
+
+  if(resposta.error){
+    alert(resposta.error.message);
+    return;
+  }
+
+  await carregarCotacoesAndamento();
+  await carregarHistoricoFrete();
+}
+
+async function salvarCotacaoFrete(statusForcado = null){
   const dados = dadosFormularioFrete();
 
   if(!dados.cliente_nome){
@@ -467,13 +584,20 @@ async function salvarCotacaoFrete(){
     embalagem: dados.embalagem,
     coleta: dados.coleta,
     solicitante: dados.solicitante,
+    prioridade: dados.prioridade,
+    lembrete_em: dados.lembrete_minutos
+      ? new Date(Date.now()+dados.lembrete_minutos*60000).toISOString()
+      : null,
+    total_solicitacoes: dados.transportadoras_ids.length * tiposRespostaFrete(dados.tipo_frete).length,
     gnre_modo: dados.gnre_modo,
     origem_produto: dados.origem_produto,
     gnre_estimado: dados.gnre_valor,
-    status: "aguardando_autorizacao",
+    status: statusForcado || (dados.id ? undefined : "rascunho"),
     criado_por: usuarioLogado.login,
     atualizado_em: new Date().toISOString()
   };
+
+  if(registro.status===undefined) delete registro.status;
 
   const resposta = dados.id
     ? await banco.from("frete_cotacoes").update(registro).eq("id", dados.id).select().single()
@@ -503,6 +627,8 @@ async function salvarCotacaoFrete(){
   mostrarBalaoSistema("Cotação salva", dados.cliente_nome);
   carregarHistoricoFrete();
   atualizarDashboardFretes();
+  carregarCotacoesAndamento();
+  return resposta.data;
 }
 
 async function autorizarRespostaFrete(id, tipoFrete){
@@ -584,12 +710,158 @@ function limparCotacaoFrete(){
 
   if(freteCampo("freteCliente")) freteCampo("freteCliente").value = "";
   if(freteCampo("freteVolumes")) freteCampo("freteVolumes").value = "1";
+  if(freteCampo("fretePrioridade")) freteCampo("fretePrioridade").value = "normal";
+  if(freteCampo("freteLembreteMinutos")) freteCampo("freteLembreteMinutos").value = "";
 
   freteRespostasAtuais = [];
   freteCampo("fretePreviews").innerHTML =
     '<div class="texto-vazio">Selecione as transportadoras e clique em “Gerar modelos”.</div>';
 
   atualizarMensagemVendedoraFrete();
+}
+
+
+async function carregarCotacoesAndamento(){
+  const resposta=await banco
+    .from("frete_cotacoes")
+    .select("*,frete_transportadoras!frete_cotacoes_transportadora_autorizada_id_fkey(nome),frete_cotacao_respostas(*,frete_transportadoras(nome))")
+    .not("status","in",'("autorizada","cancelada")')
+    .order("prioridade",{ascending:false})
+    .order("atualizado_em",{ascending:true});
+
+  if(resposta.error){
+    console.warn("Cotações em andamento:",resposta.error.message);
+    return;
+  }
+
+  freteAndamento=(resposta.data || []).map(c=>({
+    ...c,
+    status:calcularStatusCotacaoFrete(c)
+  }));
+
+  const badge=document.getElementById("freteBadgeAndamento");
+  if(badge) badge.textContent=freteAndamento.length;
+
+  montarCotacoesAndamento();
+  atualizarKpisAndamentoFrete();
+  iniciarAtualizacaoTempoFrete();
+  verificarLembretesFrete();
+}
+
+function montarCotacoesAndamento(){
+  const box=document.getElementById("freteListaAndamento");
+  if(!box) return;
+
+  const busca=normalizarNomeEmail(freteValor("freteBuscaAndamento"));
+  const filtroStatus=freteValor("freteFiltroStatus");
+  const filtroPrioridade=freteValor("freteFiltroPrioridade");
+
+  const lista=freteAndamento.filter(c=>{
+    const transportadoras=(c.frete_cotacao_respostas || [])
+      .map(r=>r.frete_transportadoras?.nome || "")
+      .join(" ");
+
+    const texto=normalizarNomeEmail(
+      `${c.cliente_nome} ${c.numero_nf || ""} ${transportadoras}`
+    );
+
+    return (!busca || texto.includes(busca)) &&
+           (!filtroStatus || c.status===filtroStatus) &&
+           (!filtroPrioridade || c.prioridade===filtroPrioridade);
+  });
+
+  box.innerHTML=lista.length ? lista.map(c=>{
+    const respostas=c.frete_cotacao_respostas || [];
+    const total=Number(c.total_solicitacoes || respostas.length || 0);
+    const respondidas=respostas.filter(r=>r.numero_cotacao || Number(r.valor_frete)>0 || r.prazo).length;
+    const percentual=total ? Math.min(100,Math.round(respondidas/total*100)) : 0;
+    const esperaBase=c.atualizado_em || c.created_at;
+
+    return `<div class="frete-andamento-card prioridade-${c.prioridade || "normal"}">
+      <div>
+        <div class="frete-andamento-topo">
+          <h3>Cotação ${String(c.numero || "").padStart(2,"0")} — ${escaparHtmlEmail(c.cliente_nome)}</h3>
+          <span class="frete-chip ${c.status}">${statusFreteLabel(c.status)}</span>
+          <span class="frete-chip prioridade-${c.prioridade || "normal"}">${prioridadeFreteLabel(c.prioridade)}</span>
+        </div>
+
+        <div class="frete-andamento-meta">
+          <span><b>NF:</b> ${escaparHtmlEmail(c.numero_nf || "-")}</span>
+          <span><b>Destino:</b> ${escaparHtmlEmail([c.cidade_destino,c.uf_destino].filter(Boolean).join("/") || "-")}</span>
+          <span><b>Tipo:</b> ${c.tipo_frete}</span>
+          <span><b>Respostas:</b> ${respondidas} de ${total}</span>
+          <span><b>Espera:</b> <span class="frete-tempo-alerta ${classeTempoFrete(esperaBase)}">${tempoEsperaFrete(esperaBase)}</span></span>
+          ${c.lembrete_em ? `<span><b>Lembrete:</b> ${new Date(c.lembrete_em).toLocaleString("pt-BR")}</span>` : ""}
+        </div>
+
+        <div class="frete-progresso">
+          <div class="frete-progresso-barra"><span style="width:${percentual}%"></span></div>
+          <small>${percentual}% das respostas recebidas</small>
+        </div>
+      </div>
+
+      <div class="frete-andamento-acoes">
+        <button class="btn azul" onclick="abrirCotacaoFrete('${c.id}')">Continuar cotação</button>
+        <button class="btn verde" onclick="reenviarSolicitacoesFrete('${c.id}')">Reenviar solicitações</button>
+        <button class="btn roxo" onclick="definirStatusCotacaoFrete('${c.id}','aguardando_autorizacao')">Enviada à vendedora</button>
+        <button class="btn vermelho" onclick="definirStatusCotacaoFrete('${c.id}','cancelada')">Cancelar</button>
+      </div>
+    </div>`;
+  }).join("") : '<div class="texto-vazio">Nenhuma cotação em andamento.</div>';
+}
+
+function atualizarKpisAndamentoFrete(){
+  const box=document.getElementById("freteAndamentoKpis");
+  if(!box) return;
+
+  const contar=status=>freteAndamento.filter(c=>c.status===status).length;
+  box.innerHTML=`
+    <div class="frete-kpi"><span>Em andamento</span><b>${freteAndamento.length}</b></div>
+    <div class="frete-kpi"><span>Aguardando retorno</span><b>${contar("aguardando_retorno")}</b></div>
+    <div class="frete-kpi"><span>Retorno parcial</span><b>${contar("retorno_parcial")}</b></div>
+    <div class="frete-kpi"><span>Aguardando vendedora</span><b>${contar("aguardando_autorizacao")}</b></div>
+  `;
+}
+
+function iniciarAtualizacaoTempoFrete(){
+  if(freteTimerAndamento) clearInterval(freteTimerAndamento);
+  freteTimerAndamento=setInterval(()=>{
+    if(document.getElementById("fretePainelAndamento")?.classList.contains("ativo")){
+      montarCotacoesAndamento();
+    }
+    verificarLembretesFrete();
+  },60000);
+}
+
+function verificarLembretesFrete(){
+  const agora=Date.now();
+  freteAndamento.forEach(c=>{
+    if(!c.lembrete_em || c.lembrete_disparado) return;
+    if(new Date(c.lembrete_em).getTime()>agora) return;
+
+    const chave=`frete_lembrete_${c.id}_${c.lembrete_em}`;
+    if(localStorage.getItem(chave)) return;
+    localStorage.setItem(chave,"1");
+
+    if(typeof notificarChrome==="function"){
+      notificarChrome(
+        "Cotação pendente",
+        `${c.cliente_nome} ainda está aguardando retorno.`
+      );
+    }
+    if(typeof mostrarBalaoSistema==="function"){
+      mostrarBalaoSistema("Cotação pendente",c.cliente_nome);
+    }
+  });
+}
+
+async function reenviarSolicitacoesFrete(id){
+  await abrirCotacaoFrete(id);
+  mostrarPainelFrete("nova");
+  setTimeout(()=>{
+    const primeiro=document.querySelector("#fretePreviews .frete-preview-card");
+    primeiro?.scrollIntoView({behavior:"smooth",block:"start"});
+  },200);
 }
 
 async function carregarHistoricoFrete(){
@@ -646,7 +918,9 @@ function montarHistoricoFrete(){
 }
 
 async function abrirCotacaoFrete(id){
-  const cotacao = freteHistorico.find(c => String(c.id) === String(id));
+  const cotacao =
+    freteAndamento.find(c => String(c.id) === String(id)) ||
+    freteHistorico.find(c => String(c.id) === String(id));
   if(!cotacao) return;
 
   mostrarPainelFrete("nova");
@@ -674,6 +948,8 @@ async function abrirCotacaoFrete(id){
   set("freteEmbalagem", cotacao.embalagem);
   set("freteColeta", cotacao.coleta);
   set("freteSolicitante", cotacao.solicitante);
+  set("fretePrioridade", cotacao.prioridade || "normal");
+  set("freteLembreteMinutos", "");
   set("freteGnreModo", cotacao.gnre_modo);
   set("freteOrigemProduto", cotacao.origem_produto);
   set("freteGnreValor", Number(cotacao.gnre_estimado || 0).toLocaleString("pt-BR",{minimumFractionDigits:2}));

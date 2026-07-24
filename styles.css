@@ -1200,3 +1200,68 @@ html,body{margin:0!important;padding:0!important;background:#fff!important}
   .frete-modal-acoes{flex-direction:column}
   .frete-modal-acoes button{width:100%}
 }
+
+/* COTAÇÕES EM ANDAMENTO */
+.frete-badge{
+  display:inline-flex;
+  min-width:22px;
+  height:22px;
+  padding:0 6px;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  background:#fff;
+  color:#5a4fa3;
+  margin-left:5px;
+  font-size:11px;
+}
+.frete-filtros-andamento{
+  display:grid;
+  grid-template-columns:minmax(220px,1fr) 210px 190px;
+  gap:10px;
+  margin:14px 0;
+}
+.frete-lista-andamento{display:grid;gap:12px}
+.frete-andamento-card{
+  border:1px solid #e1dbf2;
+  border-left:7px solid #8d83c7;
+  border-radius:16px;
+  padding:15px;
+  background:#fff;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:14px;
+}
+.frete-andamento-card.prioridade-urgente{border-left-color:#f39c12}
+.frete-andamento-card.prioridade-muito_urgente{border-left-color:#d63031}
+.frete-andamento-topo{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.frete-andamento-topo h3{color:#4d4694;margin:0}
+.frete-chip{
+  display:inline-flex;
+  align-items:center;
+  border-radius:999px;
+  padding:5px 9px;
+  font-size:11px;
+  font-weight:900;
+}
+.frete-chip.rascunho{background:#ececec;color:#555}
+.frete-chip.solicitacao_enviada{background:#e7f1ff;color:#2365a8}
+.frete-chip.aguardando_retorno{background:#fff1c8;color:#765500}
+.frete-chip.retorno_parcial{background:#ffe3bd;color:#8a4b00}
+.frete-chip.pronta_vendedora{background:#dff5e8;color:#17683d}
+.frete-chip.aguardando_autorizacao{background:#e8e2ff;color:#4d3ca0}
+.frete-andamento-meta{display:flex;flex-wrap:wrap;gap:7px 18px;color:#625b82;font-size:12px}
+.frete-progresso{margin-top:10px}
+.frete-progresso-barra{height:9px;background:#eee9f8;border-radius:999px;overflow:hidden}
+.frete-progresso-barra span{display:block;height:100%;background:#5a4fa3;border-radius:999px}
+.frete-andamento-acoes{display:flex;flex-direction:column;gap:8px;min-width:155px}
+.frete-tempo-alerta{font-weight:800}
+.frete-tempo-alerta.amarelo{color:#b07800}
+.frete-tempo-alerta.laranja{color:#d35400}
+.frete-tempo-alerta.vermelho{color:#c0392b}
+.btn.amarelo{background:#e0a800;color:#fff}
+@media(max-width:800px){
+  .frete-filtros-andamento{grid-template-columns:1fr}
+  .frete-andamento-card{grid-template-columns:1fr}
+  .frete-andamento-acoes{flex-direction:row;flex-wrap:wrap;min-width:0}
+}

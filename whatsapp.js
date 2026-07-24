@@ -150,4 +150,9 @@ function abrirWhatsAppVendedoraFrete(){
   }
 
   window.open(`https://wa.me/${telefone}?text=${encodeURIComponent(texto)}`, "_blank");
+
+  const cotacaoId=freteValor("freteCotacaoId");
+  if(cotacaoId && typeof definirStatusCotacaoFrete==="function"){
+    definirStatusCotacaoFrete(cotacaoId,"aguardando_autorizacao");
+  }
 }

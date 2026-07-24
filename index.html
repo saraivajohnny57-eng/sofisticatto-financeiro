@@ -821,6 +821,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <div id="emailSubCotacoes" class="email-subsecao">
       <div class="frete-subtabs">
         <button id="freteTabNova" class="ativo" onclick="mostrarPainelFrete('nova')">Nova cotação</button>
+        <button id="freteTabAndamento" onclick="mostrarPainelFrete('andamento')">Em andamento <span id="freteBadgeAndamento" class="frete-badge">0</span></button>
         <button id="freteTabHistorico" onclick="mostrarPainelFrete('historico')">Histórico</button>
         <button id="freteTabTransportadoras" onclick="mostrarPainelFrete('transportadoras')">Transportadoras</button>
         <button id="freteTabModelos" onclick="mostrarPainelFrete('modelos')">Modelos</button>
@@ -905,6 +906,24 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <label class="relatorio-label">Solicitante</label>
                 <input id="freteSolicitante" value="Johnny">
               </div>
+              <div>
+                <label class="relatorio-label">Prioridade</label>
+                <select id="fretePrioridade">
+                  <option value="normal">Normal</option>
+                  <option value="urgente">Urgente</option>
+                  <option value="muito_urgente">Muito urgente</option>
+                </select>
+              </div>
+              <div>
+                <label class="relatorio-label">Lembrar em</label>
+                <select id="freteLembreteMinutos">
+                  <option value="">Sem lembrete</option>
+                  <option value="30">30 minutos</option>
+                  <option value="60">1 hora</option>
+                  <option value="120">2 horas</option>
+                  <option value="1440">Amanhã</option>
+                </select>
+              </div>
 
               <div class="campo-largo">
                 <label class="relatorio-label">Frete pago por</label>
@@ -953,6 +972,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
             <div class="email-acoes" style="margin-top:15px;">
               <button class="salvar" onclick="gerarCotacoesFrete()">Gerar modelos</button>
+              <button class="btn amarelo" onclick="salvarEAguardarFrete()">⏳ Salvar e aguardar retorno</button>
               <button class="btn verde" onclick="salvarCotacaoFrete()">Salvar cotação</button>
               <button class="btn azul" onclick="limparCotacaoFrete()">Nova/Limpar</button>
             </div>
@@ -977,6 +997,42 @@ SOFISTICATTO COSMÉTICOS</textarea>
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+
+      <div id="fretePainelAndamento" class="frete-painel">
+        <div id="freteAndamentoKpis" class="frete-kpis"></div>
+
+        <div class="card">
+          <div class="top">
+            <div>
+              <h2>Cotações em andamento</h2>
+              <p>Continue trabalhando em outras cotações enquanto aguarda o retorno das transportadoras.</p>
+            </div>
+            <button class="buscar" onclick="carregarCotacoesAndamento()">Atualizar</button>
+          </div>
+
+          <div class="frete-filtros-andamento">
+            <input id="freteBuscaAndamento" placeholder="Buscar cliente, NF ou transportadora" oninput="montarCotacoesAndamento()">
+            <select id="freteFiltroStatus" onchange="montarCotacoesAndamento()">
+              <option value="">Todos os status</option>
+              <option value="rascunho">Rascunho</option>
+              <option value="solicitacao_enviada">Solicitação enviada</option>
+              <option value="aguardando_retorno">Aguardando retorno</option>
+              <option value="retorno_parcial">Retorno parcial</option>
+              <option value="pronta_vendedora">Pronta para vendedora</option>
+              <option value="aguardando_autorizacao">Aguardando autorização</option>
+            </select>
+            <select id="freteFiltroPrioridade" onchange="montarCotacoesAndamento()">
+              <option value="">Todas as prioridades</option>
+              <option value="normal">Normal</option>
+              <option value="urgente">Urgente</option>
+              <option value="muito_urgente">Muito urgente</option>
+            </select>
+          </div>
+
+          <div id="freteListaAndamento" class="frete-lista-andamento"></div>
         </div>
       </div>
 

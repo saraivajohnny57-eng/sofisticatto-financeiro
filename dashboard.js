@@ -27,3 +27,10 @@ function atualizarDashboardFretes(){
     <div class="frete-kpi"><span>GNRE registrada</span><b>${moedaFrete(gnre)}</b></div>
   `;
 }
+
+
+window.addEventListener("focus",()=>{
+  if(typeof carregarCotacoesAndamento==="function" && usuarioLogado?.tipo==="financeiro"){
+    carregarCotacoesAndamento();
+  }
+});
