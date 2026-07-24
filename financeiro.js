@@ -4744,20 +4744,15 @@ function atualizarPreviewEtiqueta(){
   const pedidoTag=document.getElementById("etqPrevPedidoTag");
   if(pedidoTag){
     let pedidoNomeTag=pedidoTag.querySelector(".pedido-nome");
-    let pedidoVolumeLinha=pedidoTag.querySelector(".pedido-volume-linha");
 
-    if(!pedidoNomeTag || !pedidoVolumeLinha){
-      pedidoTag.innerHTML='<span class="pedido-nome"></span><span class="pedido-volume-linha"></span>';
+    if(!pedidoNomeTag){
+      pedidoTag.innerHTML='<span class="pedido-nome"></span>';
       pedidoNomeTag=pedidoTag.querySelector(".pedido-nome");
-      pedidoVolumeLinha=pedidoTag.querySelector(".pedido-volume-linha");
     }
 
     pedidoNomeTag.textContent=pedidoVolumeUm?.nome || "";
-    pedidoVolumeLinha.textContent=pedidoVolumeUm
-      ? `VOLUME 01 DE ${String(d.quantidade_volumes).padStart(2,"0")}`
-      : "";
-
     pedidoTag.classList.toggle("vazia",!pedidoVolumeUm);
+
     ajustarFontePedidoEtiqueta(
       pedidoNomeTag,
       pedidoVolumeUm?.nome || "",
@@ -5121,7 +5116,6 @@ function criarElementoEtiqueta(d,volumeAtual){
   etiqueta.innerHTML=`
     <div class="etiqueta-pedido-tag ${pedidoVolume ? "" : "vazia"}">
       <span class="pedido-nome">${pedidoVolume ? escaparHtmlEmail(pedidoVolume.nome) : ""}</span>
-      <span class="pedido-volume-linha">${pedidoVolume ? `VOLUME ${String(volumeAtual).padStart(2,"0")} DE ${String(d.quantidade_volumes).padStart(2,"0")}` : ""}</span>
     </div>
     <img class="etiqueta-logo" alt="Logo Sofisticatto">
     <div class="etiqueta-qr-texto">
@@ -5329,16 +5323,16 @@ function normalizarLogoParaCaptura(etiqueta){
   if(pedidoGerado){
     pedidoGerado.style.position="absolute";
     pedidoGerado.style.left="7mm";
-    pedidoGerado.style.top="7mm";
+    pedidoGerado.style.top="8mm";
     pedidoGerado.style.width="31mm";
-    pedidoGerado.style.height="18mm";
+    pedidoGerado.style.height="13mm";
     pedidoGerado.style.maxWidth="31mm";
     pedidoGerado.style.padding="1.4mm 2mm";
     pedidoGerado.style.display=pedidoGerado.classList.contains("vazia") ? "none" : "flex";
-    pedidoGerado.style.flexDirection="column";
-    pedidoGerado.style.alignItems="flex-start";
+    pedidoGerado.style.flexDirection="row";
+    pedidoGerado.style.alignItems="center";
     pedidoGerado.style.justifyContent="center";
-    pedidoGerado.style.whiteSpace="normal";
+    pedidoGerado.style.whiteSpace="nowrap";
     pedidoGerado.style.overflow="hidden";
     pedidoGerado.style.zIndex="5";
   }
