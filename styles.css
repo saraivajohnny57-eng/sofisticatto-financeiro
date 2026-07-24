@@ -1270,3 +1270,21 @@ html,body{margin:0!important;padding:0!important;background:#fff!important}
 .importador-clientes{display:grid;gap:14px}.importador-drop{min-height:155px;border:2px dashed #a89bd6;border-radius:18px;background:#faf8ff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:5px;cursor:pointer;padding:18px;transition:.2s}.importador-drop:hover,.importador-drop.arrastando{border-color:#5a4fa3;background:#f1edff}.importador-drop input{display:none}.importador-icone{font-size:38px}.importador-drop b{color:#4d4694}.importador-opcoes{display:grid;grid-template-columns:1fr 1fr;gap:12px}.importador-opcoes label{display:grid;gap:5px}.importador-opcoes span{font-size:12px;font-weight:800;color:#574e91}.importador-resumo{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:9px}.importador-resumo div{background:#f7f4ff;border:1px solid #e3dcf5;border-radius:13px;padding:11px}.importador-resumo b{display:block;font-size:21px;color:#4d4694}.importador-lista{display:grid;gap:10px}.importador-item{border:1px solid #e2dcf3;border-radius:15px;padding:12px;background:#fff;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:start}.importador-item.erro{border-left:6px solid #d63031}.importador-item.novo{border-left:6px solid #27ae60}.importador-item.duplicado{border-left:6px solid #f39c12}.importador-item input[type="checkbox"]{width:19px;height:19px}.importador-dados{font-size:12px;line-height:1.55;color:#514a72}.importador-dados strong{font-size:14px;color:#342d68}.importador-selo{border-radius:999px;padding:5px 9px;font-size:10px;font-weight:900}.importador-selo.novo{background:#dff5e8;color:#17683d}.importador-selo.duplicado{background:#fff0cc;color:#765500}.importador-selo.erro{background:#fbe2e2;color:#922}@media(max-width:700px){.importador-opcoes{grid-template-columns:1fr}.importador-resumo{grid-template-columns:1fr 1fr}.importador-item{grid-template-columns:auto 1fr}.importador-item .importador-selo{grid-column:2}}
 
 .importador-match-score{display:inline-block;margin-top:5px;padding:4px 7px;border-radius:999px;background:#eee9fb;color:#51458f;font-size:10px;font-weight:900}
+
+/* PAINEL LOGÍSTICO V11 */
+.logistica-cabecalho{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-bottom:16px}
+.logistica-cabecalho h2{color:#4d4694;margin:0}.logistica-cabecalho p{color:#71689b;margin:4px 0 0}
+.logistica-kpis{display:grid;grid-template-columns:repeat(6,minmax(135px,1fr));gap:11px;margin-bottom:16px}
+.logistica-kpi{background:#fff;border-radius:16px;padding:14px;border-left:6px solid #5a4fa3;box-shadow:0 5px 18px rgba(67,55,119,.08)}
+.logistica-kpi span{font-size:12px;color:#756c9e}.logistica-kpi b{display:block;font-size:26px;color:#453b8b;margin-top:5px}
+.logistica-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,.65fr);gap:16px}
+.logistica-fila{display:grid;gap:9px}
+.logistica-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:11px;align-items:center;border:1px solid #e4def4;border-radius:14px;padding:11px;background:#fff}
+.logistica-item.urgente{border-left:6px solid #f39c12}.logistica-item.muito_urgente{border-left:6px solid #d63031}
+.logistica-icone{font-size:23px}.logistica-item h3{font-size:14px;color:#453b8b;margin:0 0 3px}.logistica-item p{font-size:12px;color:#71698d;margin:0}
+.logistica-item small{font-size:11px;color:#8a83a3}.logistica-ranking{display:grid;gap:9px}
+.logistica-rank-item{display:grid;grid-template-columns:35px 1fr auto;gap:9px;align-items:center;border-bottom:1px solid #eee9f7;padding:9px 0}
+.logistica-posicao{width:30px;height:30px;border-radius:50%;background:#eee9fb;color:#4d4694;display:flex;align-items:center;justify-content:center;font-weight:900}
+.logistica-rank-item b{color:#4d4694}.logistica-rank-item small{display:block;color:#81799f}
+@media(max-width:1150px){.logistica-kpis{grid-template-columns:repeat(3,1fr)}.logistica-grid{grid-template-columns:1fr}}
+@media(max-width:680px){.logistica-cabecalho{align-items:flex-start;flex-direction:column}.logistica-kpis{grid-template-columns:1fr 1fr}.logistica-item{grid-template-columns:auto 1fr}.logistica-item>button{grid-column:2}}

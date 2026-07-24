@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=10">
+<link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -151,7 +151,8 @@
     </div>
 
     <div class="email-abas">
-      <button id="emailAbaPreparar" class="ativo" onclick="mostrarAbaEmail('preparar')">Preparar Envios</button>
+      <button id="emailAbaLogistica" class="ativo" onclick="mostrarAbaEmail('logistica')">Painel Logístico</button>
+      <button id="emailAbaPreparar" onclick="mostrarAbaEmail('preparar')">Preparar Envios</button>
       <button id="emailAbaGerador" onclick="mostrarAbaEmail('gerador')">Gerar Relatório</button>
       <button id="emailAbaEtiquetas" onclick="mostrarAbaEmail('etiquetas')">Etiquetas</button>
       <button id="emailAbaCorreios" onclick="mostrarAbaEmail('correios')">Correios</button>
@@ -162,7 +163,70 @@
       <button id="emailAbaHistorico" onclick="mostrarAbaEmail('historico')">Histórico</button>
     </div>
 
-    <div id="emailSubPreparar" class="email-subsecao ativa">
+    
+    <div id="emailSubLogistica" class="email-subsecao ativa">
+      <div class="logistica-cabecalho">
+        <div>
+          <h2>Painel Logístico</h2>
+          <p>Visão geral das cotações, boletos, envios e pendências do financeiro.</p>
+        </div>
+        <div class="email-acoes">
+          <button class="btn azul" onclick="carregarPainelLogistico()">Atualizar painel</button>
+          <button class="btn verde" onclick="abrirNovaPendenciaLogistica()">+ Nova pendência</button>
+        </div>
+      </div>
+
+      <div id="logisticaKpis" class="logistica-kpis">
+        <div class="logistica-kpi"><span>Cotações aguardando</span><b>0</b></div>
+        <div class="logistica-kpi"><span>Retorno parcial</span><b>0</b></div>
+        <div class="logistica-kpi"><span>Boletos em aberto</span><b>0</b></div>
+        <div class="logistica-kpi"><span>E-mails pendentes</span><b>0</b></div>
+        <div class="logistica-kpi"><span>Correios hoje</span><b>0</b></div>
+        <div class="logistica-kpi"><span>Pendências manuais</span><b>0</b></div>
+      </div>
+
+      <div class="logistica-grid">
+        <div class="card">
+          <div class="top">
+            <div><h2>Fila de trabalho</h2><p>Itens que precisam de atenção.</p></div>
+            <select id="logisticaFiltroStatus" onchange="montarFilaLogistica()">
+              <option value="">Todos</option>
+              <option value="urgente">Urgentes</option>
+              <option value="cotacao">Cotações</option>
+              <option value="boleto">Boletos</option>
+              <option value="email">E-mails</option>
+              <option value="manual">Pendências manuais</option>
+            </select>
+          </div>
+          <div id="logisticaFila" class="logistica-fila">
+            <div class="texto-vazio">Carregando...</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="top">
+            <div><h2>Resumo das transportadoras</h2><p>Desempenho das respostas cadastradas.</p></div>
+          </div>
+          <div id="logisticaTransportadoras" class="logistica-ranking">
+            <div class="texto-vazio">Ainda não há dados suficientes.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="top">
+          <div><h2>Pendências internas</h2><p>Registre tarefas que não podem ser esquecidas.</p></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Prioridade</th><th>Título</th><th>Cliente</th><th>Responsável</th><th>Lembrete</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="logisticaTabelaPendencias"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="emailSubPreparar" class="email-subsecao">
       <div class="card">
         <h2>Tipo de envio</h2>
         <div class="email-modos">
@@ -1397,13 +1461,14 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=10"></script>
-<script src="clientes.js?v=10"></script>
-<script src="transportadoras.js?v=10"></script>
-<script src="cotacoes.js?v=10"></script>
-<script src="whatsapp.js?v=10"></script>
-<script src="dashboard.js?v=10"></script>
-<script src="notificacoes.js?v=10"></script>
+<script src="financeiro.js?v=11"></script>
+<script src="clientes.js?v=11"></script>
+<script src="transportadoras.js?v=11"></script>
+<script src="cotacoes.js?v=11"></script>
+<script src="whatsapp.js?v=11"></script>
+<script src="dashboard.js?v=11"></script>
+<script src="notificacoes.js?v=11"></script>
+<script src="painel-logistico.js?v=11"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">
@@ -1446,5 +1511,25 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <button class="btn roxo" id="importacaoNomeIgnorar">Ignorar</button>
 <button class="btn vermelho" id="importacaoNomeCancelar">Cancelar importação</button>
 </div></div></div>
+
+<div id="modalPendenciaLogistica" class="frete-modal-overlay" style="display:none;">
+  <div class="frete-modal">
+    <h2>Nova pendência logística</h2>
+    <input type="hidden" id="logisticaPendenciaId">
+    <div class="frete-cadastro-grid">
+      <div class="campo-largo"><label class="relatorio-label">Título</label><input id="logisticaPendenciaTitulo" placeholder="Ex.: Cobrar retorno da transportadora"></div>
+      <div><label class="relatorio-label">Cliente</label><input id="logisticaPendenciaCliente" placeholder="Cliente relacionado"></div>
+      <div><label class="relatorio-label">Prioridade</label><select id="logisticaPendenciaPrioridade"><option value="normal">Normal</option><option value="urgente">Urgente</option><option value="muito_urgente">Muito urgente</option></select></div>
+      <div><label class="relatorio-label">Responsável</label><input id="logisticaPendenciaResponsavel" placeholder="Nome do responsável"></div>
+      <div><label class="relatorio-label">Lembrar em</label><input id="logisticaPendenciaLembrete" type="datetime-local"></div>
+      <div class="campo-largo"><label class="relatorio-label">Observação</label><textarea id="logisticaPendenciaObservacao"></textarea></div>
+    </div>
+    <div class="frete-modal-acoes">
+      <button class="btn verde" onclick="salvarPendenciaLogistica()">Salvar</button>
+      <button class="btn vermelho" onclick="fecharPendenciaLogistica()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
