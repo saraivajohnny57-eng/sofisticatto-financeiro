@@ -83,22 +83,22 @@ function atualizarMensagemVendedoraFrete(){
       ).padStart(2,"0")
     : String((freteHistorico.length || 0) + 1).padStart(2,"0");
 
-  let texto = `Cotação: ${numeroCotacao}\n\n`;
+  let texto = `*Cotação: ${numeroCotacao}*\n\n`;
   texto += `${(dados.cliente_nome || "CLIENTE").toUpperCase()}\n\n`;
 
   respostas.forEach((resposta, indice) => {
     const tipo = resposta.tipo_frete || (dados.tipo_frete === "MISTO" ? "CIF" : dados.tipo_frete);
     const gnre = Number(resposta.gnre_valor || gnreGeral || 0);
 
-    texto += `${String(resposta.transportadora_nome || "").toUpperCase()} 🚛\n\n`;
-    texto += `🚚 Cotação: ${resposta.numero_cotacao || "-"}\n`;
-    texto += `💰 Frete (${tipo}): ${moedaFrete(resposta.valor_frete)}\n`;
+    texto += `*${String(resposta.transportadora_nome || "").toUpperCase()} 🚛*\n\n`;
+    texto += `🚚 Cotação: *${resposta.numero_cotacao || "-"}*\n`;
+    texto += `💰 Frete (${tipo}): *${moedaFrete(resposta.valor_frete)}*\n`;
 
     if(gnre > 0){
-      texto += `🪙 GNRE: ${moedaFrete(gnre)}\n`;
+      texto += `🪙 GNRE: *${moedaFrete(gnre)}*\n`;
     }
 
-    texto += `⏰ Prazo aproximado: ${resposta.prazo || "A confirmar"}\n`;
+    texto += `⏰ Prazo aproximado: *${resposta.prazo || "A confirmar"}*\n`;
 
     if(indice < respostas.length - 1){
       texto += "\n--------------------------------------------------\n\n";
