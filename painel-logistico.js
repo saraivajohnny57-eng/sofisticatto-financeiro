@@ -40,7 +40,7 @@ async function carregarPainelLogistico(){
     logisticaConsultaSegura("frete_cotacao_respostas","valor_frete,prazo,status,transportadora_id,frete_transportadoras(nome)")
   ]);
 
-  boletos = (boletos || []).filter(item =>
+  const boletosAbertos = (boletos || []).filter(item =>
     String(item.status || "").trim().toLowerCase() !== "finalizado"
   );
 
@@ -59,7 +59,7 @@ async function carregarPainelLogistico(){
     });
   });
 
-  boletos.forEach(b=>logisticaDados.fila.push({
+  boletosAbertos.forEach(b=>logisticaDados.fila.push({
     tipo:"boleto",icone:"📄",prioridade:"normal",
     titulo:b.nome||"Boleto em aberto",
     descricao:`Valor: ${typeof moedaFrete==="function"?moedaFrete(b.valor||0):b.valor||""}`,
@@ -84,7 +84,7 @@ async function carregarPainelLogistico(){
   document.getElementById("logisticaKpis").innerHTML=`
     <div class="logistica-kpi"><span>Cotações aguardando</span><b>${aguardando}</b></div>
     <div class="logistica-kpi"><span>Retorno parcial</span><b>${parcial}</b></div>
-    <div class="logistica-kpi"><span>Boletos em aberto</span><b>${boletos.length}</b></div>
+    <div class="logistica-kpi"><span>Boletos em aberto</span><b>${boletosAbertos.length}</b></div>
     <div class="logistica-kpi"><span>E-mails pendentes</span><b>${envios.length}</b></div>
     <div class="logistica-kpi"><span>Correios hoje</span><b>${correios.length}</b></div>
     <div class="logistica-kpi"><span>Pendências manuais</span><b>${pendencias.length}</b></div>`;
