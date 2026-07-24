@@ -325,7 +325,30 @@ function montarImportacaoClientes(){
 }
 function alterarSelecaoImportacaoCliente(i,v){if(clientesImportacaoPendentes[i])clientesImportacaoPendentes[i].selecionado=v;montarImportacaoClientes()}
 function preencherSelectVendedoraImportacao(){const s=document.getElementById("importadorClienteVendedora");if(!s)return;const a=s.value;s.innerHTML='<option value="">Não definir</option>'+(emailVendedoras||[]).map(v=>`<option value="${v.id}">${escaparHtmlEmail(v.nome||"")}</option>`).join("");s.value=a}
-function dadosBancoImportacaoCliente(i){const vend=document.getElementById("importadorClienteVendedora")?.value||null;return{nome:i.nome,cpf_cnpj:i.cpf_cnpj||null,emails:i.emails||[],vendedora_id:vend||i.existente?.vendedora_id||null,endereco:i.endereco||null,numero:i.numero||null,complemento:i.complemento||null,bairro:i.bairro||null,cep:i.cep||null,cidade:i.cidade||null,uf:i.uf||null,observacao:i.observacao||null,inscricao_estadual:i.inscricao_estadual||null,telefone:i.telefone||null,celular:i.celular||null,contato:i.contato||null,importado_em:new Date().toISOString(),importado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()}}
+function dadosBancoImportacaoCliente(i){
+  const vend=document.getElementById("importadorClienteVendedora")?.value||null;
+  return{
+    nome:i.nome,
+    cpf_cnpj:i.cpf_cnpj||null,
+    emails:i.emails||[],
+    vendedora_id:vend||i.existente?.vendedora_id||null,
+    endereco:i.endereco||null,
+    numero:i.numero||null,
+    complemento:i.complemento||null,
+    bairro:i.bairro||null,
+    cep:i.cep||null,
+    cidade:i.cidade||null,
+    uf:i.uf||null,
+    observacao:i.observacao||null,
+    inscricao_estadual:i.inscricao_estadual||null,
+    telefone:i.telefone||null,
+    celular:i.celular||null,
+    contato:i.contato||null,
+    importado_em:new Date().toISOString(),
+    importado_por:usuarioLogado?.login||null,
+    atualizado_em:new Date().toISOString()
+  };
+}
 function preencherSomenteVaziosCliente(e,n){const r={};Object.entries(n).forEach(([k,v])=>{const a=e?.[k];r[k]=Array.isArray(v)?((Array.isArray(a)&&a.length)?a:v):((a!==null&&a!==undefined&&String(a).trim()!=="")?a:v)});r.atualizado_em=new Date().toISOString();return r}
 function perguntarDuplicadoImportacao(i){return new Promise(resolve=>{const m=document.getElementById("modalImportacaoClienteDuplicado"),c=document.getElementById("importacaoDuplicadoComparacao");if(!m||!c){resolve("ignorar");return}const a=i.existente||{};c.innerHTML=`<div class="frete-endereco-box"><h3>CADASTRO ATUAL</h3><div>${escaparHtmlEmail(a.nome||"")}<br>CNPJ/CPF: ${escaparHtmlEmail(a.cpf_cnpj||"-")}<br>${escaparHtmlEmail([a.endereco,a.numero,a.bairro].filter(Boolean).join(", ")||"-")}<br>${escaparHtmlEmail([a.cep,a.cidade,a.uf].filter(Boolean).join(" - ")||"-")}</div></div><div class="frete-endereco-box"><h3>DADOS DO ARQUIVO</h3><div>${escaparHtmlEmail(i.nome||"")}<br>CNPJ/CPF: ${escaparHtmlEmail(i.cpf_cnpj||"-")}<br>${escaparHtmlEmail([i.endereco,i.numero,i.bairro].filter(Boolean).join(", ")||"-")}<br>${escaparHtmlEmail([i.cep,i.cidade,i.uf].filter(Boolean).join(" - ")||"-")}</div></div>`;m.style.display="flex";const fim=x=>{m.style.display="none";resolve(x)};document.getElementById("importacaoDuplicadoAtualizarTudo").onclick=()=>fim("atualizar_tudo");document.getElementById("importacaoDuplicadoPreencherVazios").onclick=()=>fim("atualizar_vazios");document.getElementById("importacaoDuplicadoIgnorar").onclick=()=>fim("ignorar");document.getElementById("importacaoDuplicadoCancelar").onclick=()=>fim("cancelar")})}
 function perguntarNomeSemelhanteImportacao(i){return new Promise(resolve=>{const m=document.getElementById("modalImportacaoNomeSemelhante"),c=document.getElementById("importacaoNomeComparacao"),a=i.match?.cliente;if(!m||!c||!a){resolve("criar_novo");return}c.innerHTML=`<div class="frete-endereco-box"><h3>CADASTRO ENCONTRADO</h3><div>${escaparHtmlEmail(a.nome||"")}<br>CNPJ/CPF: ${escaparHtmlEmail(a.cpf_cnpj||"Não cadastrado")}<br>${escaparHtmlEmail([a.endereco,a.numero,a.bairro].filter(Boolean).join(", ")||"Sem endereço")}</div></div><div class="frete-endereco-box"><h3>DADOS DO RELATÓRIO</h3><div>${escaparHtmlEmail(i.nome||"")}<br>CNPJ/CPF: ${escaparHtmlEmail(i.cpf_cnpj||"Não informado")}<br>${escaparHtmlEmail([i.endereco,i.numero,i.bairro].filter(Boolean).join(", ")||"Sem endereço")}</div></div>`;m.style.display="flex";const f=x=>{m.style.display="none";resolve(x)};document.getElementById("importacaoNomeCompletar").onclick=()=>f("completar");document.getElementById("importacaoNomeCriarNovo").onclick=()=>f("criar_novo");document.getElementById("importacaoNomeIgnorar").onclick=()=>f("ignorar");document.getElementById("importacaoNomeCancelar").onclick=()=>f("cancelar")})}
