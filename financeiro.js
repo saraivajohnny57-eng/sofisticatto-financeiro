@@ -5379,6 +5379,88 @@ async function imprimirEtiquetas(){
 <head>
 <meta charset="UTF-8">
 <title>Etiquetas ${escaparHtmlEmail(d.cliente)}</title>
+<style>
+  @page{
+    size:150mm 100mm;
+    margin:0;
+  }
+
+  *{
+    box-sizing:border-box;
+  }
+
+  html,
+  body{
+    width:150mm;
+    margin:0 !important;
+    padding:0 !important;
+    background:#fff !important;
+    overflow:visible;
+  }
+
+  #paginas{
+    width:150mm;
+    margin:0;
+    padding:0;
+  }
+
+  .pagina{
+    width:150mm !important;
+    height:100mm !important;
+    min-width:150mm !important;
+    min-height:100mm !important;
+    max-width:150mm !important;
+    max-height:100mm !important;
+    margin:0 !important;
+    padding:0 !important;
+    overflow:hidden !important;
+    position:relative;
+    display:block;
+    page-break-after:always;
+    break-after:page;
+    page-break-inside:avoid;
+    break-inside:avoid;
+  }
+
+  .pagina:last-child{
+    page-break-after:auto;
+    break-after:auto;
+  }
+
+  .pagina img{
+    position:absolute;
+    inset:0;
+    display:block !important;
+    width:150mm !important;
+    height:100mm !important;
+    min-width:150mm !important;
+    min-height:100mm !important;
+    max-width:150mm !important;
+    max-height:100mm !important;
+    margin:0 !important;
+    padding:0 !important;
+    border:0 !important;
+    object-fit:fill !important;
+  }
+
+  @media print{
+    html,
+    body,
+    #paginas{
+      width:150mm !important;
+      margin:0 !important;
+      padding:0 !important;
+    }
+
+    .pagina{
+      width:150mm !important;
+      height:100mm !important;
+      margin:0 !important;
+      padding:0 !important;
+      overflow:hidden !important;
+    }
+  }
+</style>
 </head>
 <body><div id="paginas"></div></body>
 </html>`);
@@ -5432,7 +5514,20 @@ async function imprimirEtiquetas(){
 
     temporario.remove();
 
-    await new Promise(resolve=>setTimeout(resolve,700));
+    const imagensImpressao=[...janela.document.querySelectorAll(".pagina img")];
+
+    await Promise.all(imagensImpressao.map(imagem=>{
+      if(imagem.complete && imagem.naturalWidth>0) return Promise.resolve();
+
+      return new Promise(resolve=>{
+        const finalizar=()=>resolve();
+        imagem.addEventListener("load",finalizar,{once:true});
+        imagem.addEventListener("error",finalizar,{once:true});
+        setTimeout(finalizar,2500);
+      });
+    }));
+
+    await new Promise(resolve=>setTimeout(resolve,250));
     janela.focus();
     janela.print();
   }catch(erro){
