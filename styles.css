@@ -1583,3 +1583,68 @@ html.modo-portal-publico .portal-conteudo{
     margin-right:-4px;
   }
 }
+
+
+/* V13.3 — BUSCA DE CLIENTES NA COTAÇÃO */
+.frete-busca-cliente{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:8px;
+}
+.frete-busca-cliente input{
+  min-width:0;
+}
+.frete-ajuda-cliente{
+  display:block;
+  margin-top:6px;
+  color:#756d93;
+  font-size:11px;
+}
+.frete-cliente-resultados{
+  display:none;
+  position:relative;
+  z-index:20;
+  margin-top:7px;
+  max-height:300px;
+  overflow:auto;
+  border:1px solid #ded7f0;
+  border-radius:13px;
+  background:#fff;
+  box-shadow:0 14px 35px rgba(61,49,113,.14);
+}
+.frete-cliente-resultado{
+  width:100%;
+  border:0;
+  border-bottom:1px solid #eeeaf7;
+  background:#fff;
+  padding:11px 13px;
+  text-align:left;
+  cursor:pointer;
+}
+.frete-cliente-resultado:last-child{
+  border-bottom:0;
+}
+.frete-cliente-resultado:hover{
+  background:#f5f1ff;
+}
+.frete-cliente-resultado strong{
+  display:block;
+  color:#443a82;
+  font-size:13px;
+}
+.frete-cliente-resultado span{
+  display:block;
+  margin-top:3px;
+  color:#746c8e;
+  font-size:11px;
+}
+.frete-cliente-sem-resultado{
+  padding:13px;
+  color:#71698c;
+  font-size:12px;
+}
+@media(max-width:600px){
+  .frete-busca-cliente{
+    grid-template-columns:1fr;
+  }
+}

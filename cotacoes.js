@@ -48,6 +48,10 @@ async function inicializarModuloFretes(){
   if(typeof bancoPronto === "function" && !bancoPronto()) return;
 
   try{
+    if(!(emailClientes||[]).length && typeof carregarClientesEmail==="function"){
+      await carregarClientesEmail();
+    }
+
     await Promise.all([
       carregarModelosFrete(),
       carregarTransportadorasFrete(),
@@ -708,7 +712,12 @@ function limparCotacaoFrete(){
     if(el) el.value = "";
   });
 
-  if(freteCampo("freteCliente")) freteCampo("freteCliente").value = "";
+  if(freteCampo("freteCliente")) freteCampo("freteCliente").value="";
+  if(freteCampo("freteClienteBusca")) freteCampo("freteClienteBusca").value="";
+  if(freteCampo("freteClienteResultados")){
+    freteCampo("freteClienteResultados").innerHTML="";
+    freteCampo("freteClienteResultados").style.display="none";
+  }
   if(freteCampo("freteVolumes")) freteCampo("freteVolumes").value = "1";
   if(freteCampo("fretePrioridade")) freteCampo("fretePrioridade").value = "normal";
   if(freteCampo("freteLembreteMinutos")) freteCampo("freteLembreteMinutos").value = "";
@@ -931,8 +940,9 @@ async function abrirCotacaoFrete(id){
   };
 
   set("freteCotacaoId", cotacao.id);
-  set("freteCliente", cotacao.cliente_id);
-  set("freteClienteNome", cotacao.cliente_nome);
+  set("freteCliente",cotacao.cliente_id);
+  set("freteClienteBusca",cotacao.cliente_nome);
+  set("freteClienteNome",cotacao.cliente_nome);
   set("freteCpfCnpj", cotacao.cpf_cnpj_destino);
   set("freteCep", cotacao.cep_destino);
   set("freteCidade", cotacao.cidade_destino);

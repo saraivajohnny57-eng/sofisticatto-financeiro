@@ -19,27 +19,245 @@ function clienteFretePorNome(nome){
   return (emailClientes || []).find(c => normalizarNomeEmail(c.nome || "") === procurado);
 }
 
-function montarClientesFrete(){
-  const select = freteCampo("freteCliente");
-  if(!select) return;
+function textoPesquisaClienteFrete(cliente){
+  return [
+    cliente.nome,
+    cliente.cpf_cnpj,
+    ...(Array.isArray(cliente.emails)?cliente.emails:[]),
+    cliente.cidade,
+    cliente.uf,
+    cliente.telefone,
+    cliente.celular
+  ].filter(Boolean).join(" ");
+}
 
-  const selecionado = select.value;
-  const lista = [...(emailClientes || [])].sort((a,b) =>
-    String(a.nome || "").localeCompare(String(b.nome || ""), "pt-BR")
+function montarClientesFrete(){
+  const listaHtml=freteCampo("freteClientesLista");
+  const contador=freteCampo("freteClientesCarregados");
+  if(!listaHtml) return;
+
+  const lista=[...(emailClientes || [])].sort((a,b)=>
+    String(a.nome || "").localeCompare(String(b.nome || ""),"pt-BR")
   );
 
-  select.innerHTML =
-    '<option value="">Selecione ou preencha manualmente</option>' +
-    lista.map(c => `<option value="${c.id}">${escaparHtmlEmail(c.nome || "")}</option>`).join("");
+  // O datalist fica leve mostrando nome + documento/cidade.
+  listaHtml.innerHTML=lista.map(cliente=>{
+    const complemento=[
+      cliente.cpf_cnpj,
+      [cliente.cidade,cliente.uf].filter(Boolean).join("/")
+    ].filter(Boolean).join(" • ");
 
-  if(lista.some(c => String(c.id) === String(selecionado))){
-    select.value = selecionado;
+    return `<option value="${escaparHtmlEmail(cliente.nome || "")}" label="${escaparHtmlEmail(complemento)}"></option>`;
+  }).join("");
+
+  if(contador){
+    contador.textContent=`${lista.length.toLocaleString("pt-BR")} clientes disponíveis`;
   }
 }
 
-function preencherClienteFrete(){
-  const cliente = clienteFretePorId(freteValor("freteCliente"));
+function limparSelecaoClienteFrete(){
+  const id=freteCampo("freteCliente");
+  if(id) id.value="";
+}
+
+function clientesFreteFiltrados(termo,limite=12){
+  const busca=normalizarNomeEmail(termo || "");
+  if(!busca) return [];
+
+  const palavras=busca.split(" ").filter(Boolean);
+
+  return (emailClientes || [])
+    .map(cliente=>{
+      const nome=normalizarNomeEmail(cliente.nome || "");
+      const texto=normalizarNomeEmail(textoPesquisaClienteFrete(cliente));
+      let pontos=0;
+
+      if(nome===busca) pontos+=100;
+      if(nome.startsWith(busca)) pontos+=60;
+      if(nome.includes(busca)) pontos+=40;
+      if(palavras.every(p=>texto.includes(p))) pontos+=25;
+      if(texto.includes(busca)) pontos+=15;
+
+      return {cliente,pontos};
+    })
+    .filter(item=>item.pontos>0)
+    .sort((a,b)=>b.pontos-a.pontos||
+      String(a.cliente.nome||"").localeCompare(String(b.cliente.nome||""),"pt-BR")
+    )
+    .slice(0,limite)
+    .map(item=>item.cliente);
+}
+
+function pesquisarClienteFreteDigitado(){
+  limparSelecaoClienteFrete();
+
+  const campo=freteCampo("freteClienteBusca");
+  const resultados=freteCampo("freteClienteResultados");
+  if(!campo || !resultados) return;
+
+  const termo=campo.value.trim();
+
+  if(termo.length<2){
+    resultados.innerHTML="";
+    resultados.style.display="none";
+    return;
+  }
+
+  const lista=clientesFreteFiltrados(termo);
+
+  resultados.innerHTML=lista.length
+    ? lista.map(cliente=>`
+      <button type="button" class="frete-cliente-resultado"
+        onclick="selecionarClienteFretePorId('${cliente.id}')">
+        <strong>${escaparHtmlEmail(cliente.nome||"")}</strong>
+        <span>${escaparHtmlEmail([
+          cliente.cpf_cnpj,
+          [cliente.cidade,cliente.uf].filter(Boolean).join("/"),
+          Array.isArray(cliente.emails)?cliente.emails[0]:""
+        ].filter(Boolean).join(" • "))}</span>
+      </button>`).join("")
+    : `<div class="frete-cliente-sem-resultado">
+        Nenhum cliente carregado encontrado. Clique em <b>Buscar</b> para consultar diretamente no banco.
+      </div>`;
+
+  resultados.style.display="block";
+}
+
+function selecionarClienteFreteDigitado(){
+  const nome=freteValor("freteClienteBusca");
+  if(!nome) return;
+
+  const exato=clienteFretePorNome(nome);
+  if(exato){
+    selecionarClienteFretePorId(exato.id);
+  }
+}
+
+function selecionarClienteFretePorId(id){
+  const cliente=clienteFretePorId(id);
   if(!cliente) return;
+
+  const campoId=freteCampo("freteCliente");
+  const busca=freteCampo("freteClienteBusca");
+  const resultados=freteCampo("freteClienteResultados");
+
+  if(campoId) campoId.value=cliente.id;
+  if(busca) busca.value=cliente.nome || "";
+  if(resultados){
+    resultados.innerHTML="";
+    resultados.style.display="none";
+  }
+
+  preencherClienteFrete();
+}
+
+async function buscarClienteFreteNoBanco(){
+  const termo=freteValor("freteClienteBusca");
+
+  if(termo.length<2){
+    alert("Digite pelo menos duas letras do nome, CNPJ/CPF ou e-mail.");
+    return;
+  }
+
+  const botao=document.querySelector(".frete-busca-cliente .btn");
+  if(botao){
+    botao.disabled=true;
+    botao.textContent="Buscando...";
+  }
+
+  try{
+    // Primeiro tenta nos clientes já carregados.
+    const locais=clientesFreteFiltrados(termo,30);
+    if(locais.length){
+      pesquisarClienteFreteDigitado();
+      return;
+    }
+
+    // Busca por nome diretamente no Supabase.
+    const respostaNome=await banco
+      .from("email_clientes")
+      .select("*")
+      .ilike("nome",`%${termo}%`)
+      .order("nome",{ascending:true})
+      .limit(30);
+
+    if(respostaNome.error) throw respostaNome.error;
+
+    let encontrados=respostaNome.data || [];
+
+    // Se o termo for parecido com documento, tenta CNPJ/CPF também.
+    const documento=String(termo).replace(/\D/g,"");
+    if(documento.length>=5){
+      const respostaDocumento=await banco
+        .from("email_clientes")
+        .select("*")
+        .ilike("cpf_cnpj",`%${documento}%`)
+        .limit(30);
+
+      if(!respostaDocumento.error){
+        encontrados.push(...(respostaDocumento.data || []));
+      }
+    }
+
+    const mapa=new Map();
+    encontrados.forEach(cliente=>mapa.set(String(cliente.id),cliente));
+    encontrados=[...mapa.values()];
+
+    // Incorpora resultados à memória sem apagar a lista atual.
+    encontrados.forEach(cliente=>{
+      const indice=emailClientes.findIndex(c=>String(c.id)===String(cliente.id));
+      if(indice>=0) emailClientes[indice]=cliente;
+      else emailClientes.push(cliente);
+    });
+
+    emailClientes.sort((a,b)=>
+      String(a.nome||"").localeCompare(String(b.nome||""),"pt-BR")
+    );
+
+    montarClientesFrete();
+
+    const resultados=freteCampo("freteClienteResultados");
+    if(resultados){
+      resultados.innerHTML=encontrados.length
+        ? encontrados.map(cliente=>`
+          <button type="button" class="frete-cliente-resultado"
+            onclick="selecionarClienteFretePorId('${cliente.id}')">
+            <strong>${escaparHtmlEmail(cliente.nome||"")}</strong>
+            <span>${escaparHtmlEmail([
+              cliente.cpf_cnpj,
+              [cliente.cidade,cliente.uf].filter(Boolean).join("/")
+            ].filter(Boolean).join(" • "))}</span>
+          </button>`).join("")
+        : `<div class="frete-cliente-sem-resultado">
+            Nenhum cliente encontrado no banco. Você pode preencher os dados manualmente.
+          </div>`;
+      resultados.style.display="block";
+    }
+  }catch(erro){
+    console.error("Erro ao buscar cliente para cotação:",erro);
+    alert("Não foi possível buscar o cliente: "+(erro.message||erro));
+  }finally{
+    if(botao){
+      botao.disabled=false;
+      botao.textContent="Buscar";
+    }
+  }
+}
+
+
+function preencherClienteFrete(){
+  let cliente=clienteFretePorId(freteValor("freteCliente"));
+
+  if(!cliente){
+    cliente=clienteFretePorNome(freteValor("freteClienteBusca"));
+  }
+
+  if(!cliente) return;
+
+  const campoId=freteCampo("freteCliente");
+  const campoBusca=freteCampo("freteClienteBusca");
+  if(campoId) campoId.value=cliente.id;
+  if(campoBusca) campoBusca.value=cliente.nome||"";
 
   const set = (id, valor) => {
     const el = freteCampo(id);
@@ -190,7 +408,8 @@ async function perguntarAtualizacaoClienteFrete(dados){
     cliente = clienteFretePorNome(dados.cliente_nome);
     if(cliente){
       dados.cliente_id = cliente.id;
-      if(freteCampo("freteCliente")) freteCampo("freteCliente").value = cliente.id;
+      if(freteCampo("freteCliente")) freteCampo("freteCliente").value=cliente.id;
+      if(freteCampo("freteClienteBusca")) freteCampo("freteClienteBusca").value=cliente.nome||"";
     }
   }
 
@@ -224,7 +443,8 @@ async function perguntarAtualizacaoClienteFrete(dados){
     emailClientes.push(resposta.data);
     dados.cliente_id = resposta.data.id;
     montarClientesFrete();
-    if(freteCampo("freteCliente")) freteCampo("freteCliente").value = resposta.data.id;
+    if(freteCampo("freteCliente")) freteCampo("freteCliente").value=resposta.data.id;
+    if(freteCampo("freteClienteBusca")) freteCampo("freteClienteBusca").value=resposta.data.nome||"";
     mostrarBalaoSistema("Cliente cadastrado", resposta.data.nome);
     return {acao:"salvar",cliente:resposta.data};
   }

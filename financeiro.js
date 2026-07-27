@@ -2818,15 +2818,58 @@ async function excluirVendedoraEmail(id){
 
 async function carregarClientesEmail(){
   if(!garantirFinanceiroEmail()) return;
-  const resposta = await banco.from("email_clientes").select("*").order("nome",{ascending:true});
-  if(resposta.error){
-    console.error("Erro ao carregar clientes de e-mail:", resposta.error);
-    return;
+
+  const tamanhoPagina=1000;
+  let inicio=0;
+  let todos=[];
+
+  while(true){
+    const resposta=await banco
+      .from("email_clientes")
+      .select("*")
+      .order("nome",{ascending:true})
+      .range(inicio,inicio+tamanhoPagina-1);
+
+    if(resposta.error){
+      console.error("Erro ao carregar clientes de e-mail:",resposta.error);
+      mostrarBalaoSistema?.(
+        "Erro ao carregar clientes",
+        resposta.error.message || "Não foi possível buscar a lista completa."
+      );
+      return;
+    }
+
+    const pagina=resposta.data || [];
+    todos.push(...pagina);
+
+    if(pagina.length<tamanhoPagina) break;
+
+    inicio+=tamanhoPagina;
+
+    // Evita uma consulta infinita em caso de resposta inesperada.
+    if(inicio>=100000) break;
   }
-  emailClientes = resposta.data || [];
+
+  // Remove IDs repetidos caso um registro seja alterado durante a paginação.
+  const porId=new Map();
+  todos.forEach(cliente=>porId.set(String(cliente.id),cliente));
+
+  emailClientes=[...porId.values()].sort((a,b)=>
+    String(a.nome||"").localeCompare(String(b.nome||""),"pt-BR")
+  );
+
   montarTabelaClientesEmail();
-  if(typeof montarClientesFrete === 'function') montarClientesFrete();
+
+  if(typeof montarClientesFrete==="function"){
+    montarClientesFrete();
+  }
+
   prepararEnviosEmail();
+
+  const contador=document.getElementById("freteClientesCarregados");
+  if(contador){
+    contador.textContent=`${emailClientes.length.toLocaleString("pt-BR")} clientes disponíveis`;
+  }
 }
 
 function montarTabelaClientesEmail(lista = emailClientes){
