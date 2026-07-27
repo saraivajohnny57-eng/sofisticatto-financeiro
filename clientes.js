@@ -359,9 +359,167 @@ function colunaAusenteErroImportacao(erro){
   return resultado ? resultado[1] : "";
 }
 
+
+let importacaoClientesCancelada=false;
+let importacaoClientesInicio=0;
+
+function abrirProgressoImportacaoClientes(total){
+  importacaoClientesCancelada=false;
+  importacaoClientesInicio=Date.now();
+
+  const modal=document.getElementById("modalProgressoImportacaoClientes");
+  if(modal) modal.style.display="flex";
+
+  document.getElementById("btnCancelarImportacaoClientes").style.display="inline-block";
+  document.getElementById("btnFecharImportacaoClientes").style.display="none";
+  document.getElementById("importacaoProgressoTitulo").textContent="Importando clientes...";
+  document.getElementById("importacaoProgressoCliente").textContent="Preparando importação.";
+  document.getElementById("importacaoProgressoPercentual").textContent="0%";
+  document.getElementById("importacaoProgressoBarraInterna").style.width="0%";
+  document.getElementById("importacaoProgressoContagem").textContent=`0 de ${total}`;
+  document.getElementById("importacaoProgressoTempo").textContent="Calculando tempo...";
+  document.getElementById("importacaoQtdNovos").textContent="0";
+  document.getElementById("importacaoQtdAtualizados").textContent="0";
+  document.getElementById("importacaoQtdIgnorados").textContent="0";
+  document.getElementById("importacaoQtdErros").textContent="0";
+  document.getElementById("importacaoProgressoLog").innerHTML="";
+}
+
+function atualizarProgressoImportacaoClientes({
+  atual,total,nome,novos,atualizados,ignorados,erros,tipo,mensagem
+}){
+  const percentual=total ? Math.round(atual/total*100) : 0;
+  const decorrido=Math.max(1,(Date.now()-importacaoClientesInicio)/1000);
+  const porItem=atual ? decorrido/atual : 0;
+  const restante=Math.max(0,Math.round((total-atual)*porItem));
+
+  document.getElementById("importacaoProgressoCliente").textContent=
+    nome ? `Processando: ${nome}` : "Processando...";
+  document.getElementById("importacaoProgressoPercentual").textContent=`${percentual}%`;
+  document.getElementById("importacaoProgressoBarraInterna").style.width=`${percentual}%`;
+  document.getElementById("importacaoProgressoContagem").textContent=`${atual} de ${total}`;
+  document.getElementById("importacaoProgressoTempo").textContent=
+    restante>60
+      ? `Tempo restante aproximado: ${Math.floor(restante/60)} min ${restante%60} s`
+      : `Tempo restante aproximado: ${restante} s`;
+
+  document.getElementById("importacaoQtdNovos").textContent=novos;
+  document.getElementById("importacaoQtdAtualizados").textContent=atualizados;
+  document.getElementById("importacaoQtdIgnorados").textContent=ignorados;
+  document.getElementById("importacaoQtdErros").textContent=erros;
+
+  if(mensagem){
+    const log=document.getElementById("importacaoProgressoLog");
+    const linha=document.createElement("div");
+    linha.className=`importacao-log-linha ${tipo || ""}`;
+    linha.textContent=mensagem;
+    log.appendChild(linha);
+    log.scrollTop=log.scrollHeight;
+  }
+}
+
+function finalizarProgressoImportacaoClientes(cancelada=false){
+  document.getElementById("importacaoProgressoTitulo").textContent=
+    cancelada ? "Importação cancelada" : "Importação concluída";
+  document.getElementById("importacaoProgressoCliente").textContent=
+    cancelada
+      ? "Os clientes já processados foram mantidos."
+      : "Todos os clientes selecionados foram processados.";
+  document.getElementById("btnCancelarImportacaoClientes").style.display="none";
+  document.getElementById("btnFecharImportacaoClientes").style.display="inline-block";
+}
+
+function cancelarImportacaoClientesEmAndamento(){
+  importacaoClientesCancelada=true;
+  document.getElementById("importacaoProgressoCliente").textContent=
+    "Cancelando após o cliente atual...";
+  document.getElementById("btnCancelarImportacaoClientes").disabled=true;
+}
+
+function fecharProgressoImportacaoClientes(){
+  const modal=document.getElementById("modalProgressoImportacaoClientes");
+  if(modal) modal.style.display="none";
+  const cancelar=document.getElementById("btnCancelarImportacaoClientes");
+  if(cancelar) cancelar.disabled=false;
+}
+
+function pausaInterfaceImportacao(){
+  return new Promise(resolve=>setTimeout(resolve,0));
+}
+
+async function buscarClienteExistenteAntesDeInserir(dados){
+  const documento=normalizarDocumentoCliente(dados?.cpf_cnpj);
+
+  if(documento){
+    const local=(emailClientes || []).find(cliente =>
+      normalizarDocumentoCliente(cliente.cpf_cnpj)===documento
+    );
+    if(local) return local;
+
+    const porDocumento=await banco
+      .from("email_clientes")
+      .select("*")
+      .eq("cpf_cnpj",dados.cpf_cnpj)
+      .limit(1);
+
+    if(!porDocumento.error && porDocumento.data?.length){
+      return porDocumento.data[0];
+    }
+  }
+
+  const nome=String(dados?.nome || "").trim();
+  if(!nome) return null;
+
+  const nomeNormalizado=nomeComparacaoCliente(nome);
+  const local=(emailClientes || []).find(cliente =>
+    nomeComparacaoCliente(cliente.nome || "")===nomeNormalizado
+  );
+  if(local) return local;
+
+  // Consulta exata antes do INSERT para não gerar conflito 409 no console.
+  const porNome=await banco
+    .from("email_clientes")
+    .select("*")
+    .eq("nome",nome)
+    .limit(5);
+
+  if(!porNome.error && porNome.data?.length){
+    return porNome.data.find(cliente =>
+      nomeComparacaoCliente(cliente.nome || "")===nomeNormalizado
+    ) || porNome.data[0];
+  }
+
+  return null;
+}
+
 async function gravarClienteImportacaoSeguro({tipo,id,dados}){
   const payload={...dados};
   const ignoradas=[];
+
+  if(tipo==="insert"){
+    const existenteAntes=await buscarClienteExistenteAntesDeInserir(payload);
+
+    if(existenteAntes){
+      const atualizacao=preencherSomenteVaziosCliente(existenteAntes,payload);
+      const atualizado=await banco
+        .from("email_clientes")
+        .update(atualizacao)
+        .eq("id",existenteAntes.id)
+        .select()
+        .single();
+
+      if(!atualizado.error){
+        return {
+          data:atualizado.data,
+          error:null,
+          ignoradas,
+          convertidoEmAtualizacao:true
+        };
+      }
+
+      return {data:null,error:atualizado.error,ignoradas};
+    }
+  }
 
   for(let tentativa=0;tentativa<15;tentativa++){
     const resposta=tipo==="insert"
@@ -433,59 +591,203 @@ async function gravarClienteImportacaoSeguro({tipo,id,dados}){
 }
 
 async function confirmarImportacaoClientes(){
- const itens=clientesImportacaoPendentes.filter(i=>i.selecionado&&i.status!=="erro");if(!itens.length){alert("Selecione pelo menos um cadastro.");return}
- const padrao=document.getElementById("importadorClienteAcaoDuplicado")?.value||"automatico_vazios";let novos=0,atualizados=0,ignorados=0,erros=0;
- for(const i of itens){try{let existente=i.existente||null,acao=padrao;
+  const itens=clientesImportacaoPendentes.filter(
+    item=>item.selecionado && item.status!=="erro"
+  );
 
- if(i.match?.tipo==="nome_semelhante"){
-   if(padrao==="automatico_vazios"){
-     // No modo automático não pergunta um por um.
-     // Só completa automaticamente quando a semelhança for alta.
-     if(Number(i.match.score || 0) >= 0.88){
-       existente=i.match.cliente;
-       i.existente=existente;
-       acao="atualizar_vazios";
-     }else{
-       // Semelhança baixa ou duvidosa: cria novo cadastro para não alterar o cliente errado.
-       existente=null;
-       i.existente=null;
-       i.match=null;
-     }
-   }else{
-     const d=await perguntarNomeSemelhanteImportacao(i);
-     if(d==="cancelar")break;
-     if(d==="ignorar"){ignorados++;continue}
-     if(d==="criar_novo"){existente=null;i.existente=null;i.match=null}
-     else{existente=i.match.cliente;i.existente=existente;acao="atualizar_vazios"}
-   }
- }
+  if(!itens.length){
+    alert("Selecione pelo menos um cadastro.");
+    return;
+  }
 
- const dados=dadosBancoImportacaoCliente(i);
- if(!existente){
-   const r=await gravarClienteImportacaoSeguro({tipo:"insert",dados});
-   if(r.error)throw r.error;
-   const posExistente=emailClientes.findIndex(c=>String(c.id)===String(r.data.id));
-   if(posExistente>=0) emailClientes[posExistente]=r.data;
-   else emailClientes.push(r.data);
+  const botao=document.getElementById("btnImportarClientesConfirmar");
+  if(botao) botao.disabled=true;
 
-   if(r.convertidoEmAtualizacao) atualizados++;
-   else novos++;
-   continue
- }
+  abrirProgressoImportacaoClientes(itens.length);
 
- if(padrao==="automatico_vazios" && ["cnpj","nome_exato"].includes(i.match?.tipo)){
-   acao="atualizar_vazios";
- }else if(i.match?.tipo==="nome_exato"&&!normalizarDocumentoCliente(existente.cpf_cnpj)){
-   acao="atualizar_vazios";
- }else if(acao==="perguntar"){
-   acao=await perguntarDuplicadoImportacao(i);
- }
- if(acao==="cancelar")break;if(acao==="ignorar"){ignorados++;continue}
- const up=acao==="atualizar_vazios"?preencherSomenteVaziosCliente(existente,dados):dados;
- const r=await gravarClienteImportacaoSeguro({tipo:"update",id:existente.id,dados:up});if(r.error)throw r.error;
- const idx=emailClientes.findIndex(c=>String(c.id)===String(existente.id));if(idx>=0)emailClientes[idx]=r.data;atualizados++
- }catch(e){console.error(e);erros++}}
- montarTabelaClientesEmail();montarClientesFrete();prepararEnviosEmail();limparImportacaoClientes();alert(`Importação concluída.\n\nNovos: ${novos}\nAtualizados: ${atualizados}\nIgnorados: ${ignorados}\nErros: ${erros}`)
+  const padrao=document.getElementById("importadorClienteAcaoDuplicado")?.value
+    || "automatico_vazios";
+
+  let novos=0;
+  let atualizados=0;
+  let ignorados=0;
+  let erros=0;
+  let processados=0;
+
+  for(const item of itens){
+    if(importacaoClientesCancelada) break;
+
+    let tipoLog="";
+    let mensagemLog="";
+
+    try{
+      let existente=item.existente || null;
+      let acao=padrao;
+
+      atualizarProgressoImportacaoClientes({
+        atual:processados,
+        total:itens.length,
+        nome:item.nome,
+        novos,atualizados,ignorados,erros
+      });
+
+      if(item.match?.tipo==="nome_semelhante"){
+        if(padrao==="automatico_vazios"){
+          if(Number(item.match.score || 0)>=0.88){
+            existente=item.match.cliente;
+            item.existente=existente;
+            acao="atualizar_vazios";
+          }else{
+            existente=null;
+            item.existente=null;
+            item.match=null;
+          }
+        }else{
+          const decisao=await perguntarNomeSemelhanteImportacao(item);
+
+          if(decisao==="cancelar"){
+            importacaoClientesCancelada=true;
+            break;
+          }
+
+          if(decisao==="ignorar"){
+            ignorados++;
+            tipoLog="ignorado";
+            mensagemLog=`Ignorado: ${item.nome}`;
+            processados++;
+            atualizarProgressoImportacaoClientes({
+              atual:processados,total:itens.length,nome:item.nome,
+              novos,atualizados,ignorados,erros,
+              tipo:tipoLog,mensagem:mensagemLog
+            });
+            continue;
+          }
+
+          if(decisao==="criar_novo"){
+            existente=null;
+            item.existente=null;
+            item.match=null;
+          }else{
+            existente=item.match.cliente;
+            item.existente=existente;
+            acao="atualizar_vazios";
+          }
+        }
+      }
+
+      const dados=dadosBancoImportacaoCliente(item);
+
+      if(!existente){
+        const resultado=await gravarClienteImportacaoSeguro({
+          tipo:"insert",
+          dados
+        });
+
+        if(resultado.error) throw resultado.error;
+
+        const indice=emailClientes.findIndex(
+          cliente=>String(cliente.id)===String(resultado.data.id)
+        );
+
+        if(indice>=0) emailClientes[indice]=resultado.data;
+        else emailClientes.push(resultado.data);
+
+        if(resultado.convertidoEmAtualizacao){
+          atualizados++;
+          tipoLog="atualizado";
+          mensagemLog=`Atualizado: ${item.nome}`;
+        }else{
+          novos++;
+          tipoLog="sucesso";
+          mensagemLog=`Novo: ${item.nome}`;
+        }
+      }else{
+        if(
+          padrao==="automatico_vazios" &&
+          ["cnpj","nome_exato"].includes(item.match?.tipo)
+        ){
+          acao="atualizar_vazios";
+        }else if(
+          item.match?.tipo==="nome_exato" &&
+          !normalizarDocumentoCliente(existente.cpf_cnpj)
+        ){
+          acao="atualizar_vazios";
+        }else if(acao==="perguntar"){
+          acao=await perguntarDuplicadoImportacao(item);
+        }
+
+        if(acao==="cancelar"){
+          importacaoClientesCancelada=true;
+          break;
+        }
+
+        if(acao==="ignorar"){
+          ignorados++;
+          tipoLog="ignorado";
+          mensagemLog=`Ignorado: ${item.nome}`;
+        }else{
+          const atualizacao=acao==="atualizar_vazios"
+            ? preencherSomenteVaziosCliente(existente,dados)
+            : dados;
+
+          const resultado=await gravarClienteImportacaoSeguro({
+            tipo:"update",
+            id:existente.id,
+            dados:atualizacao
+          });
+
+          if(resultado.error) throw resultado.error;
+
+          const indice=emailClientes.findIndex(
+            cliente=>String(cliente.id)===String(existente.id)
+          );
+          if(indice>=0) emailClientes[indice]=resultado.data;
+
+          atualizados++;
+          tipoLog="atualizado";
+          mensagemLog=`Atualizado: ${item.nome}`;
+        }
+      }
+    }catch(erro){
+      console.error("Erro ao importar cliente:",item.nome,erro);
+      erros++;
+      tipoLog="erro";
+      mensagemLog=`Erro em ${item.nome}: ${erro?.message || erro}`;
+    }
+
+    processados++;
+
+    atualizarProgressoImportacaoClientes({
+      atual:processados,
+      total:itens.length,
+      nome:item.nome,
+      novos,atualizados,ignorados,erros,
+      tipo:tipoLog,
+      mensagem:mensagemLog
+    });
+
+    // Libera o navegador para atualizar a barra e não parecer travado.
+    await pausaInterfaceImportacao();
+  }
+
+  montarTabelaClientesEmail();
+  if(typeof montarClientesFrete==="function") montarClientesFrete();
+  if(typeof prepararEnviosEmail==="function") prepararEnviosEmail();
+
+  finalizarProgressoImportacaoClientes(importacaoClientesCancelada);
+
+  atualizarProgressoImportacaoClientes({
+    atual:processados,
+    total:itens.length,
+    nome:importacaoClientesCancelada ? "Importação interrompida." : "Importação finalizada.",
+    novos,atualizados,ignorados,erros
+  });
+
+  if(!importacaoClientesCancelada){
+    limparImportacaoClientes();
+  }
+
+  if(botao) botao.disabled=false;
 }
 function limparImportacaoClientes(){clientesImportacaoPendentes=[];const a=document.getElementById("importadorClientesArquivos"),l=document.getElementById("importadorClientesLista"),r=document.getElementById("importadorClientesResumo"),b=document.getElementById("btnImportarClientesConfirmar");if(a)a.value="";if(l)l.innerHTML="";if(r){r.innerHTML="";r.style.display="none"}if(b)b.style.display="none"}
 function configurarArrastarClientesImportacao(){const d=document.getElementById("importadorClientesDrop");if(!d||d.dataset.configurado==="1")return;d.dataset.configurado="1";["dragenter","dragover"].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.add("arrastando")}));["dragleave","drop"].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.remove("arrastando")}));d.addEventListener("drop",e=>analisarArquivosClientesImportados(e.dataTransfer.files))}

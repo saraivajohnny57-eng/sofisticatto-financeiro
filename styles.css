@@ -1373,3 +1373,114 @@ html,body{margin:0!important;padding:0!important;background:#fff!important}
   font-size:12px;
   line-height:1.45;
 }
+
+/* IMPORTAÇÃO COM PROGRESSO — V12.1 */
+.importacao-progresso-overlay{
+  position:fixed;
+  inset:0;
+  z-index:99999;
+  background:rgba(26,20,55,.58);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+}
+.importacao-progresso-modal{
+  width:min(680px,96vw);
+  max-height:92vh;
+  overflow:auto;
+  background:#fff;
+  border-radius:22px;
+  padding:22px;
+  box-shadow:0 24px 80px rgba(0,0,0,.3);
+}
+.importacao-progresso-topo{
+  display:flex;
+  justify-content:space-between;
+  gap:15px;
+  align-items:flex-start;
+}
+.importacao-progresso-topo h2{
+  margin:0;
+  color:#493f8d;
+}
+.importacao-progresso-topo p{
+  margin:5px 0 0;
+  color:#71698e;
+  word-break:break-word;
+}
+#importacaoProgressoPercentual{
+  min-width:64px;
+  font-size:24px;
+  font-weight:900;
+  color:#5a4fa3;
+  text-align:right;
+}
+.importacao-progresso-barra{
+  height:16px;
+  margin:18px 0 9px;
+  border-radius:999px;
+  background:#ece8f7;
+  overflow:hidden;
+}
+.importacao-progresso-barra span{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:linear-gradient(90deg,#5a4fa3,#806fd1);
+  transition:width .18s ease;
+}
+.importacao-progresso-numeros{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  color:#655d82;
+  font-size:13px;
+}
+.importacao-progresso-resumo{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:9px;
+  margin:16px 0;
+}
+.importacao-progresso-resumo div{
+  background:#f7f4ff;
+  border:1px solid #e3dcf5;
+  border-radius:14px;
+  padding:11px;
+  text-align:center;
+}
+.importacao-progresso-resumo span{
+  display:block;
+  color:#746c94;
+  font-size:11px;
+}
+.importacao-progresso-resumo b{
+  display:block;
+  margin-top:4px;
+  color:#493f8d;
+  font-size:22px;
+}
+.importacao-progresso-log{
+  max-height:230px;
+  overflow:auto;
+  border:1px solid #e4def2;
+  border-radius:14px;
+  background:#fbfaff;
+  padding:9px;
+}
+.importacao-log-linha{
+  padding:7px 8px;
+  border-bottom:1px solid #eeeaf7;
+  font-size:12px;
+  color:#5f577d;
+}
+.importacao-log-linha:last-child{border-bottom:0}
+.importacao-log-linha.sucesso{color:#17683d}
+.importacao-log-linha.atualizado{color:#3d54a5}
+.importacao-log-linha.erro{color:#ad2d2d}
+.importacao-log-linha.ignorado{color:#8a6700}
+@media(max-width:620px){
+  .importacao-progresso-resumo{grid-template-columns:1fr 1fr}
+  .importacao-progresso-numeros{flex-direction:column}
+}

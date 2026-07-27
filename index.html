@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=11.8">
+<link rel="stylesheet" href="styles.css?v=12.1">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -1479,7 +1479,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 
 <script src="financeiro.js?v=12"></script>
-<script src="clientes.js?v=12"></script>
+<script src="clientes.js?v=12.1"></script>
 <script src="transportadoras.js?v=11"></script>
 <script src="cotacoes.js?v=11"></script>
 <script src="whatsapp.js?v=11"></script>
@@ -1544,6 +1544,42 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <div class="frete-modal-acoes">
       <button class="btn verde" onclick="salvarPendenciaLogistica()">Salvar</button>
       <button class="btn vermelho" onclick="fecharPendenciaLogistica()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="modalProgressoImportacaoClientes" class="importacao-progresso-overlay" style="display:none;">
+  <div class="importacao-progresso-modal">
+    <div class="importacao-progresso-topo">
+      <div>
+        <h2 id="importacaoProgressoTitulo">Importando clientes...</h2>
+        <p id="importacaoProgressoCliente">Preparando importação.</p>
+      </div>
+      <span id="importacaoProgressoPercentual">0%</span>
+    </div>
+
+    <div class="importacao-progresso-barra">
+      <span id="importacaoProgressoBarraInterna" style="width:0%"></span>
+    </div>
+
+    <div class="importacao-progresso-numeros">
+      <strong id="importacaoProgressoContagem">0 de 0</strong>
+      <span id="importacaoProgressoTempo">Calculando tempo...</span>
+    </div>
+
+    <div class="importacao-progresso-resumo">
+      <div><span>Novos</span><b id="importacaoQtdNovos">0</b></div>
+      <div><span>Atualizados</span><b id="importacaoQtdAtualizados">0</b></div>
+      <div><span>Ignorados</span><b id="importacaoQtdIgnorados">0</b></div>
+      <div><span>Erros</span><b id="importacaoQtdErros">0</b></div>
+    </div>
+
+    <div id="importacaoProgressoLog" class="importacao-progresso-log"></div>
+
+    <div class="email-acoes">
+      <button id="btnCancelarImportacaoClientes" class="btn vermelho" onclick="cancelarImportacaoClientesEmAndamento()">Cancelar importação</button>
+      <button id="btnFecharImportacaoClientes" class="btn azul" onclick="fecharProgressoImportacaoClientes()" style="display:none;">Fechar</button>
     </div>
   </div>
 </div>
