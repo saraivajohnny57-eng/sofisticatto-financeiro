@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=12.1">
+<link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -157,6 +157,7 @@
       <button id="emailAbaEtiquetas" onclick="mostrarAbaEmail('etiquetas')">Etiquetas</button>
       <button id="emailAbaCorreios" onclick="mostrarAbaEmail('correios')">Correios</button>
       <button id="emailAbaCotacoes" onclick="mostrarAbaEmail('cotacoes')">Cotação de Fretes</button>
+      <button id="emailAbaIntegracoes" onclick="mostrarAbaEmail('integracoes')">Central de Integrações</button>
       <button id="emailAbaClientes" onclick="mostrarAbaEmail('clientes')">Clientes</button>
       <button id="emailAbaVendedoras" onclick="mostrarAbaEmail('vendedoras')">Vendedoras</button>
       <button id="emailAbaAssinaturas" onclick="mostrarAbaEmail('assinaturas')">Assinatura</button>
@@ -1171,6 +1172,63 @@ SOFISTICATTO COSMÉTICOS</textarea>
       </div>
     </div>
 
+
+    <div id="emailSubIntegracoes" class="email-subsecao">
+      <div class="integracoes-cabecalho">
+        <div>
+          <h2>Central de Integrações</h2>
+          <p>Convide transportadoras, acompanhe o preenchimento e organize a documentação técnica.</p>
+        </div>
+        <div class="email-acoes">
+          <button class="btn verde" onclick="abrirNovaIntegracaoTransportadora()">+ Novo convite</button>
+          <button class="btn azul" onclick="carregarIntegracoesTransportadoras()">Atualizar</button>
+        </div>
+      </div>
+
+      <div id="integracoesKpis" class="integracoes-kpis">
+        <div><span>Convites</span><b>0</b></div>
+        <div><span>Em preenchimento</span><b>0</b></div>
+        <div><span>Enviados para análise</span><b>0</b></div>
+        <div><span>Aprovados</span><b>0</b></div>
+      </div>
+
+      <div class="card">
+        <div class="top">
+          <div>
+            <h2>Transportadoras convidadas</h2>
+            <p>Gere e copie um link exclusivo para cada empresa.</p>
+          </div>
+          <input id="integracoesBusca" placeholder="Pesquisar transportadora" oninput="montarTabelaIntegracoes()">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Transportadora</th>
+                <th>Contato</th>
+                <th>Status</th>
+                <th>Progresso</th>
+                <th>Última atualização</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="integracoesTabela"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="integracaoDetalhesCard" class="card" style="display:none;">
+        <div class="top">
+          <div>
+            <h2 id="integracaoDetalhesTitulo">Detalhes da integração</h2>
+            <p id="integracaoDetalhesSubtitulo"></p>
+          </div>
+          <button class="btn azul" onclick="fecharDetalhesIntegracao()">Fechar</button>
+        </div>
+        <div id="integracaoDetalhesConteudo"></div>
+      </div>
+    </div>
+
     <div id="emailSubClientes" class="email-subsecao">
       <div class="card">
         <h2>Cadastro de Cliente</h2>
@@ -1486,6 +1544,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="dashboard.js?v=11"></script>
 <script src="notificacoes.js?v=11"></script>
 <script src="painel-logistico.js?v=11.6"></script>
+<script src="portal-integracoes.js?v=13"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">
@@ -1580,6 +1639,221 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <div class="email-acoes">
       <button id="btnCancelarImportacaoClientes" class="btn vermelho" onclick="cancelarImportacaoClientesEmAndamento()">Cancelar importação</button>
       <button id="btnFecharImportacaoClientes" class="btn azul" onclick="fecharProgressoImportacaoClientes()" style="display:none;">Fechar</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="portalIntegracaoTransportadora" class="portal-integracao" style="display:none;">
+  <header class="portal-topo">
+    <div class="portal-marca">
+      <div class="portal-logo-simbolo">S</div>
+      <div>
+        <h1>Sofisticatto</h1>
+        <p>COSMÉTICOS</p>
+      </div>
+    </div>
+    <div class="portal-seguranca">🔒 Link seguro de cadastro</div>
+  </header>
+
+  <main class="portal-conteudo">
+    <section class="portal-boas-vindas">
+      <span class="portal-selo">CENTRAL DE INTEGRAÇÕES</span>
+      <h2>Cadastro técnico da transportadora</h2>
+      <p>
+        Este portal foi criado para organizar as informações necessárias para cotação,
+        coleta, rastreamento, etiquetas e integração entre os sistemas.
+      </p>
+      <div class="portal-empresa-convidada">
+        <span>Transportadora convidada</span>
+        <strong id="portalNomeTransportadora">Carregando...</strong>
+      </div>
+    </section>
+
+    <section class="portal-formulario-card">
+      <div class="portal-progresso-topo">
+        <div>
+          <strong id="portalEtapaNome">Empresa e contatos</strong>
+          <span id="portalProgressoTexto">Etapa 1 de 7</span>
+        </div>
+        <b id="portalProgressoPercentual">14%</b>
+      </div>
+      <div class="portal-barra"><span id="portalBarraInterna" style="width:14%"></span></div>
+
+      <div class="portal-etapas">
+        <button class="ativo" data-etapa="1" onclick="irEtapaPortal(1)">1. Empresa</button>
+        <button data-etapa="2" onclick="irEtapaPortal(2)">2. Integração</button>
+        <button data-etapa="3" onclick="irEtapaPortal(3)">3. Cotação</button>
+        <button data-etapa="4" onclick="irEtapaPortal(4)">4. Coleta</button>
+        <button data-etapa="5" onclick="irEtapaPortal(5)">5. Rastreamento</button>
+        <button data-etapa="6" onclick="irEtapaPortal(6)">6. Documentação</button>
+        <button data-etapa="7" onclick="irEtapaPortal(7)">7. Finalizar</button>
+      </div>
+
+      <form id="portalFormIntegracao" onsubmit="event.preventDefault();">
+        <section class="portal-etapa ativa" data-etapa="1">
+          <h3>Empresa e contatos</h3>
+          <div class="portal-grid">
+            <label><span>Razão social *</span><input id="piRazaoSocial" required></label>
+            <label><span>Nome fantasia</span><input id="piNomeFantasia"></label>
+            <label><span>CNPJ *</span><input id="piCnpj" inputmode="numeric" required></label>
+            <label><span>Site</span><input id="piSite" placeholder="https://"></label>
+            <label><span>Responsável comercial</span><input id="piContatoComercial"></label>
+            <label><span>E-mail comercial</span><input id="piEmailComercial" type="email"></label>
+            <label><span>Telefone/WhatsApp</span><input id="piTelefoneComercial"></label>
+            <label><span>Responsável técnico *</span><input id="piContatoTecnico" required></label>
+            <label><span>E-mail técnico *</span><input id="piEmailTecnico" type="email" required></label>
+            <label><span>Telefone técnico</span><input id="piTelefoneTecnico"></label>
+          </div>
+        </section>
+
+        <section class="portal-etapa" data-etapa="2">
+          <h3>Tipo de integração</h3>
+          <div class="portal-grid">
+            <label><span>Tecnologia disponível *</span>
+              <select id="piTipoIntegracao">
+                <option value="">Selecione</option>
+                <option>API REST</option>
+                <option>API SOAP / Webservice</option>
+                <option>EDI</option>
+                <option>SFTP / Arquivos</option>
+                <option>Integração por e-mail</option>
+                <option>Não possui integração</option>
+                <option>Outro</option>
+              </select>
+            </label>
+            <label><span>Formato principal</span>
+              <select id="piFormato">
+                <option value="">Selecione</option>
+                <option>JSON</option><option>XML</option><option>CSV/TXT</option>
+                <option>EDI</option><option>Outro</option>
+              </select>
+            </label>
+            <label><span>Autenticação</span>
+              <select id="piAutenticacao">
+                <option value="">Selecione</option>
+                <option>Bearer Token</option><option>API Key</option>
+                <option>Basic Auth</option><option>OAuth 2.0</option>
+                <option>Certificado digital</option><option>Usuário e senha</option>
+                <option>Assinatura/HMAC</option><option>Outro</option>
+              </select>
+            </label>
+            <label><span>Existe ambiente de homologação?</span>
+              <select id="piTemHomologacao"><option value="">Selecione</option><option value="sim">Sim</option><option value="nao">Não</option></select>
+            </label>
+            <label class="portal-largo"><span>URL de homologação</span><input id="piUrlHomologacao" placeholder="https://"></label>
+            <label class="portal-largo"><span>URL de produção</span><input id="piUrlProducao" placeholder="https://"></label>
+            <label><span>Token expira?</span><select id="piTokenExpira"><option value="">Selecione</option><option value="sim">Sim</option><option value="nao">Não</option></select></label>
+            <label><span>Validade aproximada</span><input id="piValidadeToken" placeholder="Ex.: 60 minutos"></label>
+            <label><span>Exige liberação de IP?</span><select id="piExigeIp"><option value="">Selecione</option><option value="sim">Sim</option><option value="nao">Não</option></select></label>
+            <label><span>Exige certificado?</span><select id="piExigeCertificado"><option value="">Selecione</option><option value="sim">Sim</option><option value="nao">Não</option></select></label>
+          </div>
+          <div class="portal-aviso">
+            Não envie senhas, tokens, chaves privadas ou certificados neste formulário.
+            As credenciais serão solicitadas posteriormente por um canal protegido.
+          </div>
+        </section>
+
+        <section class="portal-etapa" data-etapa="3">
+          <h3>Cotação de frete</h3>
+          <div class="portal-grid">
+            <label><span>Possui cotação automática?</span><select id="piCotacaoDisponivel"><option value="">Selecione</option><option value="sim">Sim</option><option value="nao">Não</option></select></label>
+            <label class="portal-largo"><span>Endpoint/operação de cotação</span><input id="piEndpointCotacao"></label>
+            <label><span>Retorna número da cotação?</span><select id="piRetornaNumero"><option value="">Selecione</option><option value="sim">Sim</option><option value="nao">Não</option></select></label>
+            <label><span>Retorna prazo?</span><select id="piRetornaPrazo"><option value="">Selecione</option><option value="sim">Sim</option><option value="nao">Não</option></select></label>
+            <label><span>Aceita CIF e FOB?</span><select id="piCifFob"><option value="">Selecione</option><option value="ambos">Ambos</option><option value="cif">Somente CIF</option><option value="fob">Somente FOB</option></select></label>
+            <label><span>Validade da cotação</span><input id="piValidadeCotacao"></label>
+            <label class="portal-largo"><span>Campos obrigatórios para cotação</span><textarea id="piCamposCotacao" placeholder="Ex.: CNPJ remetente, CEP destino, peso, volumes, valor da NF..."></textarea></label>
+            <label class="portal-largo"><span>Taxas retornadas</span><textarea id="piTaxasCotacao" placeholder="Ex.: pedágio, ad valorem, GRIS, ICMS..."></textarea></label>
+            <label class="portal-largo"><span>Exemplo de requisição</span><textarea id="piExemploReqCotacao" class="portal-codigo" placeholder='{"cepOrigem":"..."}'></textarea></label>
+            <label class="portal-largo"><span>Exemplo de resposta</span><textarea id="piExemploRespCotacao" class="portal-codigo" placeholder='{"numeroCotacao":"...","valor":0}'></textarea></label>
+          </div>
+        </section>
+
+        <section class="portal-etapa" data-etapa="4">
+          <h3>Solicitação de coleta</h3>
+          <div class="portal-grid">
+            <label><span>Permite solicitar coleta?</span><select id="piColetaDisponivel"><option value="">Selecione</option><option value="sim">Sim</option><option value="nao">Não</option></select></label>
+            <label class="portal-largo"><span>Endpoint/operação de coleta</span><input id="piEndpointColeta"></label>
+            <label><span>Permite cancelar coleta?</span><select id="piCancelarColeta"><option value="">Selecione</option><option value="sim">Sim</option><option value="nao">Não</option></select></label>
+            <label><span>Permite consultar coleta?</span><select id="piConsultarColeta"><option value="">Selecione</option><option value="sim">Sim</option><option value="nao">Não</option></select></label>
+            <label class="portal-largo"><span>Dados obrigatórios e regras</span><textarea id="piRegrasColeta"></textarea></label>
+            <label class="portal-largo"><span>Dados retornados</span><textarea id="piRetornoColeta" placeholder="Ex.: protocolo, data, período, status..."></textarea></label>
+          </div>
+        </section>
+
+        <section class="portal-etapa" data-etapa="5">
+          <h3>Rastreamento, etiquetas e webhooks</h3>
+          <div class="portal-grid">
+            <label><span>Possui rastreamento?</span><select id="piRastreioDisponivel"><option value="">Selecione</option><option value="sim">Sim</option><option value="nao">Não</option></select></label>
+            <label class="portal-largo"><span>Endpoint/operação de rastreamento</span><input id="piEndpointRastreio"></label>
+            <label><span>Possui webhook?</span><select id="piWebhookDisponivel"><option value="">Selecione</option><option value="sim">Sim</option><option value="nao">Não</option></select></label>
+            <label class="portal-largo"><span>Eventos do webhook</span><textarea id="piEventosWebhook" placeholder="Ex.: coletado, em trânsito, saiu para entrega, entregue..."></textarea></label>
+            <label><span>Gera etiqueta?</span><select id="piEtiquetaDisponivel"><option value="">Selecione</option><option value="sim">Sim</option><option value="nao">Não</option></select></label>
+            <label><span>Formato da etiqueta</span><input id="piFormatoEtiqueta" placeholder="PDF, ZPL, URL, Base64..."></label>
+            <label class="portal-largo"><span>Chaves disponíveis para consulta</span><textarea id="piChavesRastreio" placeholder="NF, chave NF-e, conhecimento, código de rastreio..."></textarea></label>
+          </div>
+        </section>
+
+        <section class="portal-etapa" data-etapa="6">
+          <h3>Documentação e arquivos</h3>
+          <p class="portal-texto-apoio">Anexe manuais, Swagger/OpenAPI, Postman, exemplos JSON/XML, planilhas e outros documentos técnicos.</p>
+          <label class="portal-upload">
+            <input id="piArquivos" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.json,.xml,.yaml,.yml,.txt,.csv,.zip">
+            <span>📎 Selecionar documentos</span>
+            <small>Não envie credenciais ou chaves privadas.</small>
+          </label>
+          <div id="piArquivosLista" class="portal-arquivos-lista"></div>
+          <div class="portal-grid">
+            <label class="portal-largo"><span>Link da documentação</span><input id="piLinkDocumentacao" placeholder="https://"></label>
+            <label class="portal-largo"><span>Limites, custos e regras técnicas</span><textarea id="piLimitesRegras" placeholder="Limite de requisições, bloqueios, cobrança, tempo médio de resposta..."></textarea></label>
+            <label class="portal-largo"><span>Canal de suporte técnico</span><textarea id="piSuporteTecnico" placeholder="E-mail, telefone, horário e prazo médio de atendimento."></textarea></label>
+          </div>
+        </section>
+
+        <section class="portal-etapa" data-etapa="7">
+          <h3>Revisão e envio</h3>
+          <div class="portal-revisao">
+            <p>Antes de enviar, confirme que as informações técnicas e os documentos anexados estão corretos.</p>
+            <label class="portal-confirmacao">
+              <input id="piConfirmacao" type="checkbox">
+              <span>Confirmo que possuo autorização para fornecer essas informações em nome da transportadora.</span>
+            </label>
+          </div>
+          <div id="portalMensagemFinal" class="portal-mensagem-final"></div>
+        </section>
+      </form>
+
+      <div class="portal-acoes">
+        <button id="portalBtnAnterior" class="portal-btn secundario" onclick="etapaAnteriorPortal()" style="visibility:hidden;">Voltar</button>
+        <div>
+          <button class="portal-btn rascunho" onclick="salvarRascunhoPortal()">Salvar rascunho</button>
+          <button id="portalBtnProximo" class="portal-btn principal" onclick="proximaEtapaPortal()">Próximo</button>
+          <button id="portalBtnEnviar" class="portal-btn principal" onclick="enviarIntegracaoPortal()" style="display:none;">Enviar para análise</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="portal-rodape">
+    Sofisticatto Cosméticos • Portal seguro para integração de parceiros logísticos
+  </footer>
+</div>
+
+
+<div id="modalNovaIntegracao" class="frete-modal-overlay" style="display:none;">
+  <div class="frete-modal">
+    <h2>Novo convite de integração</h2>
+    <div class="frete-cadastro-grid">
+      <div class="campo-largo"><label class="relatorio-label">Nome da transportadora</label><input id="integracaoConviteNome"></div>
+      <div><label class="relatorio-label">CNPJ</label><input id="integracaoConviteCnpj"></div>
+      <div><label class="relatorio-label">E-mail do contato</label><input id="integracaoConviteEmail" type="email"></div>
+      <div><label class="relatorio-label">Nome do contato</label><input id="integracaoConviteContato"></div>
+      <div><label class="relatorio-label">Validade do link</label><select id="integracaoConviteValidade"><option value="15">15 dias</option><option value="30" selected>30 dias</option><option value="60">60 dias</option><option value="90">90 dias</option></select></div>
+    </div>
+    <div class="frete-modal-acoes">
+      <button class="btn verde" onclick="criarConviteIntegracao()">Gerar convite</button>
+      <button class="btn vermelho" onclick="fecharNovaIntegracaoTransportadora()">Cancelar</button>
     </div>
   </div>
 </div>
