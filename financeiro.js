@@ -32,32 +32,70 @@ let realtimeNotificacoesIniciado = false;
 let notificacoesSistema = [];
 
 
+let promessaCarregarSupabase = null;
+
 function carregarSupabase(){
-  return new Promise((resolve, reject) => {
+  if(banco){
+    window.banco = banco;
+    return Promise.resolve(banco);
+  }
+
+  if(promessaCarregarSupabase){
+    return promessaCarregarSupabase;
+  }
+
+  promessaCarregarSupabase = new Promise((resolve, reject) => {
+    const finalizar = () => {
+      try{
+        if(!banco){
+          banco = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        }
+        window.banco = banco;
+        resolve(banco);
+      }catch(erro){
+        promessaCarregarSupabase = null;
+        reject(erro);
+      }
+    };
+
     if(window.supabase){
-      banco = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      resolve();
+      finalizar();
       return;
     }
 
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
-    script.async = true;
-    script.onload = () => {
+    let script = document.querySelector('script[data-supabase-sdk="true"]');
+
+    if(!script){
+      script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+      script.async = true;
+      script.dataset.supabaseSdk = "true";
+      document.head.appendChild(script);
+    }
+
+    script.addEventListener("load", () => {
       if(window.supabase){
-        banco = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        resolve();
+        finalizar();
       }else{
+        promessaCarregarSupabase = null;
         reject(new Error("Supabase não carregou"));
       }
-    };
-    script.onerror = () => reject(new Error("Falha ao carregar Supabase"));
-    document.head.appendChild(script);
+    }, {once:true});
+
+    script.addEventListener("error", () => {
+      promessaCarregarSupabase = null;
+      reject(new Error("Falha ao carregar Supabase"));
+    }, {once:true});
 
     setTimeout(() => {
-      if(!banco) reject(new Error("Tempo limite ao carregar Supabase"));
+      if(!banco){
+        promessaCarregarSupabase = null;
+        reject(new Error("Tempo limite ao carregar Supabase"));
+      }
     }, 15000);
   });
+
+  return promessaCarregarSupabase;
 }
 
 function bancoPronto(){

@@ -79,7 +79,14 @@ async function criarConviteIntegracao(){
 }
 
 async function carregarIntegracoesTransportadoras(){
-  if(!window.banco) return;
+  if(!banco){
+    try{
+      await carregarSupabase();
+    }catch(erro){
+      console.warn("Central de Integrações: falha ao conectar",erro);
+      return;
+    }
+  }
   const resposta=await banco.from("integracao_convites").select("*").order("created_at",{ascending:false});
   if(resposta.error){
     console.warn("Central de Integrações:",resposta.error.message);
@@ -227,18 +234,23 @@ function etapaAnteriorPortal(){irEtapaPortal(portalEtapaAtual-1)}
 
 
 async function aguardarBancoPortal(){
+  if(banco) return banco;
+
+  if(typeof carregarSupabase==="function"){
+    try{
+      await carregarSupabase();
+    }catch(erro){
+      console.error("Portal: falha ao carregar Supabase",erro);
+    }
+  }
+
   const inicio=Date.now();
 
-  while(!window.banco && Date.now()-inicio<18000){
-    if(typeof carregarSupabase==="function" && !window.banco){
-      try{
-        await carregarSupabase();
-      }catch(e){}
-    }
-
-    if(window.banco) return window.banco;
+  while(!banco && Date.now()-inicio<18000){
     await new Promise(resolve=>setTimeout(resolve,150));
   }
+
+  if(banco) return banco;
 
   throw new Error("Não foi possível conectar ao banco de dados.");
 }
