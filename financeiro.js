@@ -5718,8 +5718,19 @@ function limparFormularioEtiqueta(){
 
 document.addEventListener("DOMContentLoaded", async function(){
   try{
-    mostrarCarregando("Conectando...");
+    const modoPortalPublico=new URLSearchParams(location.search).has("integracao");
+
+    if(!modoPortalPublico){
+      mostrarCarregando("Conectando...");
+    }
+
     await carregarSupabase();
+
+    if(modoPortalPublico){
+      esconderCarregando();
+      return;
+    }
+
     iniciarRealtime();
     prepararNotificacaoMobile();
     iniciarRealtimeNotificacoes();

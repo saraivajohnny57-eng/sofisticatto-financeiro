@@ -235,3 +235,12 @@ V13 — PORTAL DE INTEGRAÇÕES
 - Credenciais secretas não são solicitadas no formulário público.
 - Área administrativa para acompanhar status, progresso e respostas.
 - Execute obrigatoriamente sql_portal_integracoes_v13.sql no Supabase.
+
+
+CORREÇÃO V13.1 — LINK PÚBLICO:
+- O link da transportadora abre sem exigir login.
+- Login, menu interno e painel administrativo ficam ocultos no modo público.
+- Corrigido o seletor da área principal (.main).
+- O portal aguarda a conexão com o Supabase antes de consultar o convite.
+- Corrigido o layout geral no computador e no celular.
+- Não é necessário executar SQL novo.

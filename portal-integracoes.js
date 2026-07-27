@@ -225,13 +225,50 @@ function irEtapaPortal(etapa){
 function proximaEtapaPortal(){irEtapaPortal(portalEtapaAtual+1)}
 function etapaAnteriorPortal(){irEtapaPortal(portalEtapaAtual-1)}
 
+
+async function aguardarBancoPortal(){
+  const inicio=Date.now();
+
+  while(!window.banco && Date.now()-inicio<18000){
+    if(typeof carregarSupabase==="function" && !window.banco){
+      try{
+        await carregarSupabase();
+      }catch(e){}
+    }
+
+    if(window.banco) return window.banco;
+    await new Promise(resolve=>setTimeout(resolve,150));
+  }
+
+  throw new Error("Não foi possível conectar ao banco de dados.");
+}
+
 async function carregarPortalIntegracao(){
   const token=tokenIntegracaoUrl();
   if(!token)return false;
-  document.querySelector(".sidebar")?.remove();
-  const conteudo=document.querySelector(".conteudo");
-  if(conteudo)conteudo.style.display="none";
-  document.getElementById("portalIntegracaoTransportadora").style.display="block";
+
+  document.documentElement.classList.add("modo-portal-publico");
+
+  const login=document.getElementById("loginTela");
+  const carregando=document.getElementById("carregandoSistema");
+  const sidebar=document.querySelector(".sidebar");
+  const main=document.querySelector(".main");
+  const portal=document.getElementById("portalIntegracaoTransportadora");
+
+  if(login)login.style.display="none";
+  if(carregando)carregando.style.display="none";
+  if(sidebar)sidebar.style.display="none";
+  if(main)main.style.display="none";
+  if(portal)portal.style.display="block";
+
+  try{
+    await aguardarBancoPortal();
+  }catch(erro){
+    document.getElementById("portalNomeTransportadora").textContent="Falha de conexão";
+    document.querySelector(".portal-formulario-card").innerHTML=
+      `<h2>Não foi possível abrir o cadastro.</h2><p>${escaparIntegracao(erro.message)}</p>`;
+    return true;
+  }
 
   const convite=await banco.from("integracao_convites").select("*").eq("token",token).maybeSingle();
   if(convite.error||!convite.data){
@@ -336,8 +373,8 @@ async function enviarIntegracaoPortal(){
   }
 }
 
-document.addEventListener("DOMContentLoaded",()=>{
-  setTimeout(async()=>{
-    if(tokenIntegracaoUrl())await carregarPortalIntegracao();
-  },500);
+document.addEventListener("DOMContentLoaded",async()=>{
+  if(tokenIntegracaoUrl()){
+    await carregarPortalIntegracao();
+  }
 });
