@@ -372,6 +372,49 @@ async function gravarClienteImportacaoSeguro({tipo,id,dados}){
       return {data:resposta.data,error:null,ignoradas};
     }
 
+    const codigo=String(resposta.error?.code || "");
+    const mensagem=String(resposta.error?.message || "");
+
+    if(tipo==="insert" && codigo==="23505" && mensagem.includes("email_clientes_nome_unico")){
+      const nomeNormalizado=nomeComparacaoCliente(payload.nome || "");
+      let existente=(emailClientes || []).find(cliente =>
+        nomeComparacaoCliente(cliente.nome || "")===nomeNormalizado
+      );
+
+      if(!existente){
+        const busca=await banco
+          .from("email_clientes")
+          .select("*")
+          .ilike("nome",payload.nome)
+          .limit(10);
+
+        existente=(busca.data || []).find(cliente =>
+          nomeComparacaoCliente(cliente.nome || "")===nomeNormalizado
+        );
+      }
+
+      if(existente){
+        const atualizacao=preencherSomenteVaziosCliente(existente,payload);
+        const atualizado=await banco
+          .from("email_clientes")
+          .update(atualizacao)
+          .eq("id",existente.id)
+          .select()
+          .single();
+
+        if(!atualizado.error){
+          return {
+            data:atualizado.data,
+            error:null,
+            ignoradas,
+            convertidoEmAtualizacao:true
+          };
+        }
+
+        return {data:null,error:atualizado.error,ignoradas};
+      }
+    }
+
     const coluna=colunaAusenteErroImportacao(resposta.error);
     if(!coluna || !(coluna in payload)){
       return {data:null,error:resposta.error,ignoradas};
@@ -421,8 +464,12 @@ async function confirmarImportacaoClientes(){
  if(!existente){
    const r=await gravarClienteImportacaoSeguro({tipo:"insert",dados});
    if(r.error)throw r.error;
-   emailClientes.push(r.data);
-   novos++;
+   const posExistente=emailClientes.findIndex(c=>String(c.id)===String(r.data.id));
+   if(posExistente>=0) emailClientes[posExistente]=r.data;
+   else emailClientes.push(r.data);
+
+   if(r.convertidoEmAtualizacao) atualizados++;
+   else novos++;
    continue
  }
 
@@ -443,4 +490,277 @@ async function confirmarImportacaoClientes(){
 function limparImportacaoClientes(){clientesImportacaoPendentes=[];const a=document.getElementById("importadorClientesArquivos"),l=document.getElementById("importadorClientesLista"),r=document.getElementById("importadorClientesResumo"),b=document.getElementById("btnImportarClientesConfirmar");if(a)a.value="";if(l)l.innerHTML="";if(r){r.innerHTML="";r.style.display="none"}if(b)b.style.display="none"}
 function configurarArrastarClientesImportacao(){const d=document.getElementById("importadorClientesDrop");if(!d||d.dataset.configurado==="1")return;d.dataset.configurado="1";["dragenter","dragover"].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.add("arrastando")}));["dragleave","drop"].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.remove("arrastando")}));d.addEventListener("drop",e=>analisarArquivosClientesImportados(e.dataTransfer.files))}
 document.addEventListener("DOMContentLoaded",()=>setTimeout(()=>{configurarArrastarClientesImportacao();preencherSelectVendedoraImportacao()},500));
+
+
+
+/* =========================================================
+   LOCALIZADOR E MESCLAGEM DE CLIENTES DUPLICADOS — V11.8
+   ========================================================= */
+let clientesDuplicadosEncontrados=[];
+
+function qualidadeCadastroCliente(cliente){
+  const campos=[
+    "cpf_cnpj","endereco","numero","complemento","bairro","cep",
+    "cidade","uf","telefone","celular","contato","observacao",
+    "inscricao_estadual","vendedora_id"
+  ];
+  let pontos=campos.reduce((total,campo)=>{
+    const valor=cliente?.[campo];
+    return total+(valor!==null && valor!==undefined && String(valor).trim()!=="" ? 1 : 0);
+  },0);
+  pontos+=Array.isArray(cliente?.emails) ? cliente.emails.filter(Boolean).length : 0;
+  return pontos;
+}
+
+function gruposDuplicadosClientes(){
+  const mapa=new Map();
+
+  (emailClientes || []).forEach(cliente=>{
+    const chave=nomeComparacaoCliente(cliente.nome || "");
+    if(!chave) return;
+    if(!mapa.has(chave)) mapa.set(chave,[]);
+    mapa.get(chave).push(cliente);
+  });
+
+  const exatos=[...mapa.entries()]
+    .filter(([,lista])=>lista.length>1)
+    .map(([chave,lista])=>({tipo:"nome_exato",chave,clientes:lista,score:1}));
+
+  const unicos=[...mapa.entries()]
+    .filter(([,lista])=>lista.length===1)
+    .map(([chave,lista])=>({chave,cliente:lista[0]}));
+
+  const semelhantes=[];
+  const usados=new Set();
+
+  for(let i=0;i<unicos.length;i++){
+    for(let j=i+1;j<unicos.length;j++){
+      const a=unicos[i],b=unicos[j];
+      const score=similaridadeNomesCliente(a.chave,b.chave);
+      if(score<0.9) continue;
+
+      const idPar=[String(a.cliente.id),String(b.cliente.id)].sort().join("|");
+      if(usados.has(idPar)) continue;
+      usados.add(idPar);
+
+      semelhantes.push({
+        tipo:"nome_semelhante",
+        chave:idPar,
+        clientes:[a.cliente,b.cliente],
+        score
+      });
+    }
+  }
+
+  return [...exatos,...semelhantes]
+    .sort((a,b)=>b.score-a.score);
+}
+
+function localizarDuplicadosClientes(){
+  clientesDuplicadosEncontrados=gruposDuplicadosClientes();
+  montarDuplicadosClientes();
+  const secao=document.getElementById("clientesDuplicadosSecao");
+  if(secao) secao.scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+function montarDuplicadosClientes(){
+  const box=document.getElementById("clientesDuplicadosLista");
+  const resumo=document.getElementById("clientesDuplicadosResumo");
+  if(!box || !resumo) return;
+
+  resumo.textContent=clientesDuplicadosEncontrados.length
+    ? `${clientesDuplicadosEncontrados.length} grupo(s) possível(is) encontrado(s).`
+    : "Nenhum possível duplicado encontrado.";
+
+  box.innerHTML=clientesDuplicadosEncontrados.length
+    ? clientesDuplicadosEncontrados.map((grupo,indice)=>{
+        const ordenados=[...grupo.clientes].sort(
+          (a,b)=>qualidadeCadastroCliente(b)-qualidadeCadastroCliente(a)
+        );
+        const principal=ordenados[0];
+
+        return `<div class="duplicado-grupo">
+          <div class="duplicado-grupo-topo">
+            <div>
+              <h3>${grupo.tipo==="nome_exato" ? "Mesmo nome" : `Nome ${Math.round(grupo.score*100)}% semelhante`}</h3>
+              <small>Escolha o cadastro principal antes de mesclar.</small>
+            </div>
+          </div>
+
+          <div class="duplicado-clientes-grid">
+            ${ordenados.map(cliente=>`
+              <label class="duplicado-cliente-card">
+                <input type="radio" name="duplicadoPrincipal_${indice}"
+                  value="${cliente.id}" ${String(cliente.id)===String(principal.id)?"checked":""}>
+                <div>
+                  <strong>${escaparHtmlEmail(cliente.nome || "")}</strong>
+                  <span>CNPJ/CPF: ${escaparHtmlEmail(cliente.cpf_cnpj || "não cadastrado")}</span>
+                  <span>${escaparHtmlEmail([cliente.endereco,cliente.numero,cliente.bairro].filter(Boolean).join(", ") || "Sem endereço")}</span>
+                  <span>${escaparHtmlEmail([cliente.cep,cliente.cidade,cliente.uf].filter(Boolean).join(" - ") || "")}</span>
+                  <span>E-mails: ${escaparHtmlEmail((cliente.emails || []).join("; ") || "nenhum")}</span>
+                  <span>Completude: ${qualidadeCadastroCliente(cliente)} ponto(s)</span>
+                </div>
+              </label>`).join("")}
+          </div>
+
+          <div class="email-acoes">
+            <button class="btn verde" onclick="mesclarGrupoClientesDuplicados(${indice})">Mesclar no principal</button>
+            <button class="btn azul" onclick="ignorarGrupoClienteDuplicado(${indice})">Manter separados</button>
+          </div>
+        </div>`;
+      }).join("")
+    : '<div class="texto-vazio">Nenhum possível duplicado encontrado.</div>';
+}
+
+function unirEmailsClientes(...listas){
+  return [...new Set(
+    listas.flatMap(lista=>Array.isArray(lista)?lista:[])
+      .map(email=>String(email || "").trim().toLowerCase())
+      .filter(Boolean)
+  )];
+}
+
+function combinarCadastrosClientes(principal,secundarios){
+  const campos=[
+    "cpf_cnpj","endereco","numero","complemento","bairro","cep","cidade","uf",
+    "telefone","celular","contato","observacao","inscricao_estadual",
+    "codigo_cliente","nome_fantasia","whatsapp","vendedora_id"
+  ];
+
+  const resultado={...principal};
+  resultado.emails=unirEmailsClientes(
+    principal.emails,
+    ...secundarios.map(c=>c.emails)
+  );
+
+  campos.forEach(campo=>{
+    const atual=resultado[campo];
+    if(atual!==null && atual!==undefined && String(atual).trim()!=="") return;
+
+    const encontrado=secundarios.find(cliente=>{
+      const valor=cliente?.[campo];
+      return valor!==null && valor!==undefined && String(valor).trim()!=="";
+    });
+
+    if(encontrado) resultado[campo]=encontrado[campo];
+  });
+
+  resultado.atualizado_em=new Date().toISOString();
+  return resultado;
+}
+
+async function transferirReferenciasClienteDuplicado(principalId,secundarioId){
+  const tentativas=[
+    ["frete_cotacoes","cliente_id"],
+    ["email_envios","cliente_id"],
+    ["correios_envios","cliente_id"],
+    ["email_relatorios_clientes","cliente_id"]
+  ];
+
+  for(const [tabela,coluna] of tentativas){
+    try{
+      const resposta=await banco
+        .from(tabela)
+        .update({[coluna]:principalId})
+        .eq(coluna,secundarioId);
+
+      if(resposta.error){
+        const mensagem=String(resposta.error.message || "");
+        if(!mensagem.includes("does not exist") &&
+           !mensagem.includes("Could not find") &&
+           !mensagem.includes("schema cache")){
+          console.warn(`Não foi possível transferir ${tabela}.${coluna}:`,mensagem);
+        }
+      }
+    }catch(erro){
+      console.warn(`Transferência ignorada em ${tabela}:`,erro);
+    }
+  }
+}
+
+async function mesclarGrupoClientesDuplicados(indice){
+  const grupo=clientesDuplicadosEncontrados[indice];
+  if(!grupo) return;
+
+  const radio=document.querySelector(`input[name="duplicadoPrincipal_${indice}"]:checked`);
+  const principalId=radio?.value;
+  const principal=grupo.clientes.find(c=>String(c.id)===String(principalId));
+
+  if(!principal){
+    alert("Selecione o cadastro principal.");
+    return;
+  }
+
+  const secundarios=grupo.clientes.filter(c=>String(c.id)!==String(principal.id));
+
+  if(!confirm(
+    `Mesclar ${secundarios.length} cadastro(s) em "${principal.nome}"?\n\n`+
+    "Os campos vazios do principal serão completados e os cadastros secundários serão excluídos."
+  )) return;
+
+  const combinado=combinarCadastrosClientes(principal,secundarios);
+  const camposPermitidos=[
+    "cpf_cnpj","emails","vendedora_id","endereco","numero","complemento",
+    "bairro","cep","cidade","uf","observacao","inscricao_estadual",
+    "telefone","celular","contato","codigo_cliente","nome_fantasia",
+    "whatsapp","atualizado_em"
+  ];
+  const payload=Object.fromEntries(
+    camposPermitidos
+      .filter(campo=>campo in combinado)
+      .map(campo=>[campo,combinado[campo]])
+  );
+
+  const atualizado=await gravarClienteImportacaoSeguro({
+    tipo:"update",
+    id:principal.id,
+    dados:payload
+  });
+
+  if(atualizado.error){
+    alert("Não foi possível atualizar o cadastro principal: "+atualizado.error.message);
+    return;
+  }
+
+  let removidos=0;
+  let falhas=0;
+
+  for(const secundario of secundarios){
+    await transferirReferenciasClienteDuplicado(principal.id,secundario.id);
+
+    const exclusao=await banco
+      .from("email_clientes")
+      .delete()
+      .eq("id",secundario.id);
+
+    if(exclusao.error){
+      console.warn("Não foi possível excluir cadastro secundário:",exclusao.error.message);
+      falhas++;
+    }else{
+      removidos++;
+    }
+  }
+
+  const idsRemovidos=new Set(secundarios.map(c=>String(c.id)));
+  emailClientes=emailClientes.filter(c=>!idsRemovidos.has(String(c.id)));
+
+  const pos=emailClientes.findIndex(c=>String(c.id)===String(principal.id));
+  if(pos>=0) emailClientes[pos]=atualizado.data;
+
+  montarTabelaClientesEmail();
+  montarClientesFrete();
+  prepararEnviosEmail();
+  localizarDuplicadosClientes();
+
+  alert(
+    `Mesclagem concluída.\n\n`+
+    `Cadastros removidos: ${removidos}\n`+
+    `Cadastros que não puderam ser removidos: ${falhas}`
+  );
+}
+
+function ignorarGrupoClienteDuplicado(indice){
+  clientesDuplicadosEncontrados.splice(indice,1);
+  montarDuplicadosClientes();
+}
 

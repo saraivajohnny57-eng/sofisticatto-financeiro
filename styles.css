@@ -1313,3 +1313,63 @@ html,body{margin:0!important;padding:0!important;background:#fff!important}
 .logistica-rank-item b{color:#4d4694}.logistica-rank-item small{display:block;color:#81799f}
 @media(max-width:1150px){.logistica-kpis{grid-template-columns:repeat(3,1fr)}.logistica-grid{grid-template-columns:1fr}}
 @media(max-width:680px){.logistica-cabecalho{align-items:flex-start;flex-direction:column}.logistica-kpis{grid-template-columns:1fr 1fr}.logistica-item{grid-template-columns:auto 1fr}.logistica-item>button{grid-column:2}}
+
+/* CLIENTES DUPLICADOS V11.8 */
+.duplicado-resumo{
+  margin:12px 0;
+  padding:11px 13px;
+  border-radius:12px;
+  background:#f5f1ff;
+  color:#554a91;
+  font-weight:800;
+}
+.duplicado-lista{display:grid;gap:14px}
+.duplicado-grupo{
+  border:1px solid #ded7f2;
+  border-left:6px solid #f39c12;
+  border-radius:16px;
+  padding:14px;
+  background:#fff;
+}
+.duplicado-grupo-topo h3{
+  margin:0;
+  color:#4d4694;
+}
+.duplicado-grupo-topo small{color:#777092}
+.duplicado-clientes-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:10px;
+  margin:12px 0;
+}
+.duplicado-cliente-card{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:9px;
+  border:1px solid #e4def3;
+  border-radius:13px;
+  padding:11px;
+  cursor:pointer;
+  background:#faf9ff;
+}
+.duplicado-cliente-card:has(input:checked){
+  border-color:#5a4fa3;
+  box-shadow:0 0 0 2px rgba(90,79,163,.12);
+}
+.duplicado-cliente-card input{
+  width:18px;
+  height:18px;
+}
+.duplicado-cliente-card strong,
+.duplicado-cliente-card span{
+  display:block;
+}
+.duplicado-cliente-card strong{
+  color:#393074;
+  margin-bottom:5px;
+}
+.duplicado-cliente-card span{
+  color:#676080;
+  font-size:12px;
+  line-height:1.45;
+}

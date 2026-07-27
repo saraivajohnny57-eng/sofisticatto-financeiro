@@ -2732,7 +2732,7 @@ async function salvarVendedoraEmail(){
   const email = document.getElementById("emailVendedoraEmail").value.trim();
   const whatsapp = document.getElementById("emailVendedoraWhatsapp").value.trim();
 
-  if(!nome || !email){ alert("Preencha o nome e o e-mail da vendedora."); return; }
+  if(!nome){ alert("Informe o nome da vendedora."); return; }
 
   const dados = {nome,email,whatsapp,atualizado_em:new Date().toISOString()};
   const resposta = id
