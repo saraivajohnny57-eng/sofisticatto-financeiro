@@ -1808,7 +1808,7 @@ function salvarCorreiosTamanhos(){
 }
 function ajustarCorreiosTamanho(campo,delta){
   const limites={
-    logo:[-80,120],qr:[-18,35],destino:[-8,20],endereco:[-6,16],bairro:[-6,16],
+    logo:[-80,120],qr:[-35,40],destino:[-8,20],endereco:[-6,16],bairro:[-6,16],
     cidade:[-6,16],cep:[-5,12],servico:[-12,30],remetente:[-5,15],declaracao:[-3,6]
   };
   const [min,max]=limites[campo] || [-20,20];
@@ -1854,7 +1854,7 @@ function aplicarAjustesCorreiosEtiqueta(etiqueta,tipo){
 
   const qr=etiqueta.querySelector(".etiqueta-qr");
   if(qr){
-    const tamanho=Math.max(55,113+Number(ajuste.qr || 0));
+    const tamanho=Math.max(45,83+Number(ajuste.qr || 0));
     qr.style.setProperty("width",`${tamanho}px`,"important");
     qr.style.setProperty("height",`${tamanho}px`,"important");
     qr.style.setProperty("max-width",`${tamanho}px`,"important");
@@ -2270,13 +2270,13 @@ function estilosImpressaoCorreios(tipo){
         height:28mm!important;
         object-fit:contain!important;
       }
-      /* Instagram em formato de L: INSTA na vertical e GRAM completando na base. */
+      /* Mesmo conjunto visual utilizado na aba Etiquetas. */
       .etiqueta-qr-texto{
         position:absolute!important;
-        right:8mm!important;
-        top:5mm!important;
-        width:34mm!important;
-        height:30mm!important;
+        right:14mm!important;
+        top:7mm!important;
+        width:31mm!important;
+        height:27mm!important;
         font-weight:900!important;
         color:#000!important;
         line-height:1!important;
@@ -2287,29 +2287,27 @@ function estilosImpressaoCorreios(tipo){
         position:absolute!important;
         left:0!important;
         top:0!important;
-        width:5.5mm!important;
-        height:24mm!important;
-        font-size:3.7mm!important;
-        line-height:1.18!important;
+        width:6mm!important;
+        font-size:4mm!important;
+        line-height:1.08!important;
         text-align:center!important;
         letter-spacing:0!important;
       }
       .gram-horizontal{
         position:absolute!important;
-        left:6.3mm!important;
-        top:24.1mm!important;
-        width:25mm!important;
-        height:5mm!important;
-        font-size:3.7mm!important;
+        left:0!important;
+        bottom:0!important;
+        width:31mm!important;
+        font-size:4mm!important;
         line-height:1!important;
-        letter-spacing:.95mm!important;
+        letter-spacing:1.05mm!important;
         text-align:left!important;
         white-space:nowrap!important;
       }
       .etiqueta-qr{
         position:absolute!important;
-        right:9.8mm!important;
-        top:5mm!important;
+        right:16mm!important;
+        top:8mm!important;
         width:22mm!important;
         height:22mm!important;
         overflow:hidden!important;
