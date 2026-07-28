@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=13.4">
+<link rel="stylesheet" href="styles.css?v=13.5">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -1157,6 +1157,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <div><label class="relatorio-label">E-mail</label><input id="freteTransEmail"></div>
               <div><label class="relatorio-label">Contato</label><input id="freteTransContato"></div>
               <div><label class="relatorio-label">Modelo de cotação</label><select id="freteTransModelo"></select></div>
+              <div><label class="relatorio-label">Modelo de coleta</label><select id="freteTransModeloColeta"><option value="">Perguntar/escolher depois</option></select></div>
+              <div><label class="relatorio-label">Criar coleta ao autorizar?</label><select id="freteTransColetaAutomatica"><option value="false">Não, perguntar</option><option value="true">Sim, criar automaticamente</option></select></div>
               <div><label class="relatorio-label">Ativa</label><select id="freteTransAtiva"><option value="true">Sim</option><option value="false">Não</option></select></div>
               <div class="campo-largo"><label class="relatorio-label">Observação</label><textarea id="freteTransObs"></textarea></div>
             </div>
@@ -1164,7 +1166,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
           </div>
           <div class="card">
             <h2>Transportadoras cadastradas</h2>
-            <div class="table-wrap"><table><thead><tr><th>Nome</th><th>Modelo</th><th>Contato</th><th>Ativa</th><th>Ações</th></tr></thead><tbody id="freteTabelaTransportadoras"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>Nome</th><th>Modelo cotação</th><th>Coleta automática</th><th>Contato</th><th>Ativa</th><th>Ações</th></tr></thead><tbody id="freteTabelaTransportadoras"></tbody></table></div>
           </div>
         </div>
       </div>
@@ -1219,6 +1221,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
             </div>
 
             <input type="hidden" id="coletaAgendamentoId">
+            <input type="hidden" id="coletaCotacaoId">
+            <input type="hidden" id="coletaRespostaId">
             <div class="coleta-form-grid">
               <div class="campo-largo">
                 <label class="relatorio-label">Pesquisar cliente</label>
@@ -1288,7 +1292,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Data</th><th>Cliente</th><th>Transportadora</th><th>Volumes</th><th>Peso</th><th>Status</th><th>Ações</th></tr></thead>
+              <thead><tr><th>Data</th><th>Hora</th><th>Cliente</th><th>Transportadora</th><th>Volumes</th><th>Peso</th><th>Status</th><th>Ações</th></tr></thead>
               <tbody id="coletaTabelaHistorico"></tbody>
             </table>
           </div>
@@ -1696,14 +1700,14 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 <script src="financeiro.js?v=13.4"></script>
 <script src="clientes.js?v=13.3"></script>
-<script src="transportadoras.js?v=11"></script>
-<script src="cotacoes.js?v=13.3"></script>
+<script src="transportadoras.js?v=13.5"></script>
+<script src="cotacoes.js?v=13.5"></script>
 <script src="whatsapp.js?v=11"></script>
 <script src="dashboard.js?v=11"></script>
 <script src="notificacoes.js?v=11"></script>
 <script src="painel-logistico.js?v=11.6"></script>
 <script src="portal-integracoes.js?v=13.2"></script>
-<script src="coletas.js?v=13.4"></script>
+<script src="coletas.js?v=13.5"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">

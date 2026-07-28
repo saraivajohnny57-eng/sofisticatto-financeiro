@@ -118,6 +118,7 @@ async function carregarTransportadorasFrete(){
   freteTransportadoras = resposta.data || [];
   montarTransportadorasSelecao();
   montarTabelaTransportadorasFrete();
+  preencherSelectModelosColetaTransportadora();
   montarTabelaModelosFrete();
 }
 
@@ -140,6 +141,29 @@ function montarTransportadorasSelecao(){
     : '<div class="texto-vazio">Cadastre transportadoras primeiro.</div>';
 }
 
+
+async function preencherSelectModelosColetaTransportadora(){
+  const select=freteCampo("freteTransModeloColeta");
+  if(!select)return;
+
+  try{
+    const resposta=await banco
+      .from("coleta_modelos")
+      .select("id,nome")
+      .eq("ativo",true)
+      .order("nome");
+
+    const atual=select.value;
+    select.innerHTML='<option value="">Perguntar/escolher depois</option>'+
+      (resposta.data||[]).map(modelo=>
+        `<option value="${modelo.id}">${escaparHtmlEmail(modelo.nome||"")}</option>`
+      ).join("");
+    select.value=atual;
+  }catch(erro){
+    console.warn("Modelos de coleta:",erro);
+  }
+}
+
 function montarTabelaTransportadorasFrete(){
   const tbody = document.getElementById("freteTabelaTransportadoras");
   if(!tbody) return;
@@ -149,6 +173,7 @@ function montarTabelaTransportadorasFrete(){
       <tr>
         <td>${escaparHtmlEmail(t.nome)}</td>
         <td>${escaparHtmlEmail(t.frete_modelos?.nome || "")}</td>
+        <td>${t.criar_coleta_ao_autorizar ? "Sim" : "Não"}</td>
         <td>${escaparHtmlEmail(t.contato || t.whatsapp || t.email || "")}</td>
         <td>${t.ativa !== false ? "Sim" : "Não"}</td>
         <td>
@@ -157,7 +182,7 @@ function montarTabelaTransportadorasFrete(){
         </td>
       </tr>
     `).join("")
-    : '<tr><td colspan="5">Nenhuma transportadora cadastrada.</td></tr>';
+    : '<tr><td colspan="6">Nenhuma transportadora cadastrada.</td></tr>';
 }
 
 async function salvarTransportadoraFrete(){
@@ -175,6 +200,8 @@ async function salvarTransportadoraFrete(){
     email: freteValor("freteTransEmail"),
     contato: freteValor("freteTransContato"),
     modelo_id: freteValor("freteTransModelo") || null,
+    modelo_coleta_id: freteValor("freteTransModeloColeta") || null,
+    criar_coleta_ao_autorizar: freteValor("freteTransColetaAutomatica") === "true",
     ativa: freteValor("freteTransAtiva") === "true",
     observacao: freteValor("freteTransObs")
   };
@@ -207,6 +234,10 @@ function editarTransportadoraFrete(id){
   set("freteTransEmail", t.email);
   set("freteTransContato", t.contato);
   set("freteTransModelo", t.modelo_id);
+  preencherSelectModelosColetaTransportadora().then(()=>{
+    set("freteTransModeloColeta",t.modelo_coleta_id);
+  });
+  set("freteTransColetaAutomatica",String(t.criar_coleta_ao_autorizar===true));
   set("freteTransAtiva", String(t.ativa !== false));
   set("freteTransObs", t.observacao);
 }
@@ -220,8 +251,10 @@ function limparTransportadoraFrete(){
     if(el) el.value = "";
   });
 
-  if(freteCampo("freteTransModelo")) freteCampo("freteTransModelo").value = "";
-  if(freteCampo("freteTransAtiva")) freteCampo("freteTransAtiva").value = "true";
+  if(freteCampo("freteTransModelo")) freteCampo("freteTransModelo").value="";
+  if(freteCampo("freteTransModeloColeta")) freteCampo("freteTransModeloColeta").value="";
+  if(freteCampo("freteTransColetaAutomatica")) freteCampo("freteTransColetaAutomatica").value="false";
+  if(freteCampo("freteTransAtiva")) freteCampo("freteTransAtiva").value="true";
 }
 
 async function excluirTransportadoraFrete(id){

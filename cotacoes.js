@@ -700,6 +700,27 @@ async function autorizarRespostaFrete(id, tipoFrete){
   carregarHistoricoFrete();
   atualizarDashboardFretes();
   mostrarBalaoSistema("Transportadora autorizada", respostaTela.transportadora_nome);
+
+  if(typeof tratarColetaAposAutorizacao==="function"){
+    const [cotacaoDb,respostaDb]=await Promise.all([
+      banco.from("frete_cotacoes").select("*").eq("id",cotacaoId).single(),
+      banco.from("frete_cotacao_respostas")
+        .select("*")
+        .eq("cotacao_id",cotacaoId)
+        .eq("transportadora_id",id)
+        .eq("tipo_frete",tipoFrete)
+        .single()
+    ]);
+
+    const transportadora=freteTransportadoras.find(t=>String(t.id)===String(id));
+    if(!cotacaoDb.error){
+      await tratarColetaAposAutorizacao(
+        cotacaoDb.data,
+        respostaDb.data||{...respostaTela,transportadora_id:id,tipo_frete:tipoFrete},
+        transportadora
+      );
+    }
+  }
 }
 
 function limparCotacaoFrete(){

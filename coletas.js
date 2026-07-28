@@ -76,10 +76,10 @@ function aplicarModeloDaTransportadoraColeta(){const tid=cv("coletaTransportador
 async function copiarMensagemColeta(){atualizarPreviaColeta();const t=cv("coletaPreviaMensagem");if(!t)return alert("Preencha os dados da coleta.");try{await navigator.clipboard.writeText(t);alert("Mensagem copiada para o WhatsApp.")}catch{ce("coletaPreviaMensagem").select();document.execCommand("copy")}}
 function whatsappTransportadoraColeta(){const t=coletaTransportadoras.find(x=>String(x.id)===cv("coletaTransportadoraId"));return String(t?.whatsapp||t?.telefone||"").replace(/\D/g,"")}
 function abrirWhatsAppColeta(){atualizarPreviaColeta();const tel=whatsappTransportadoraColeta();const url=tel?`https://wa.me/55${tel.replace(/^55/,"")}?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`:`https://wa.me/?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`;window.open(url,"_blank")}
-async function salvarAgendamentoColeta(){const d=dadosColeta();if(!d.razao_destino)return alert("Informe o cliente/destino.");if(!cv("coletaModeloId"))return alert("Selecione um modelo.");atualizarPreviaColeta();const payload={cliente_id:cv("coletaClienteId")||null,cliente_nome:d.razao_destino,transportadora_id:cv("coletaTransportadoraId")||null,modelo_id:String(cv("coletaModeloId")).startsWith("padrao-")?null:cv("coletaModeloId"),tipo_frete:cv("coletaTipoFrete"),dados:d,mensagem:cv("coletaPreviaMensagem"),volumes:Number(d.volumes)||null,peso:Number(String(d.peso).replace(",","."))||null,numero_nf:d.numero_nf||null,status:"solicitado",observacao:cv("coletaObservacao")||null,criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};const id=cv("coletaAgendamentoId");const r=id?await banco.from("coleta_agendamentos").update(payload).eq("id",id):await banco.from("coleta_agendamentos").insert([payload]);if(r.error)return alert(r.error.message);alert("Agendamento salvo.");await carregarAgendamentosColeta();mostrarPainelColeta("historico")}
-function limparFormularioColeta(){["coletaAgendamentoId","coletaClienteId","coletaClienteBusca","coletaCnpjDestino","coletaRazaoDestino","coletaCepDestino","coletaCidadeDestino","coletaVolumes","coletaPeso","coletaValorNf","coletaNumeroNf","coletaLocalizacao","coletaObservacao"].forEach(id=>{if(ce(id))ce(id).value=""});atualizarPreviaColeta()}
-function montarHistoricoColetas(){const tb=ce("coletaTabelaHistorico");if(!tb)return;const q=normalizarNomeEmail(cv("coletaBuscaHistorico"));const s=cv("coletaFiltroStatus");const lista=coletaAgendamentos.filter(a=>(!s||a.status===s)&&(!q||normalizarNomeEmail([a.cliente_nome,a.numero_nf,a.frete_transportadoras?.nome].filter(Boolean).join(" ")).includes(q)));tb.innerHTML=lista.length?lista.map(a=>`<tr><td>${new Date(a.created_at).toLocaleDateString("pt-BR")}</td><td>${escaparHtmlEmail(a.cliente_nome||"")}</td><td>${escaparHtmlEmail(a.frete_transportadoras?.nome||"—")}</td><td>${a.volumes||"—"}</td><td>${a.peso?`${a.peso} Kg`:"—"}</td><td><span class="coleta-status ${a.status}">${a.status}</span></td><td><button class="btn azul" onclick="editarAgendamentoColeta('${a.id}')">Editar</button><button class="btn verde" onclick="copiarAgendamentoColeta('${a.id}')">Copiar</button><button class="btn roxo" onclick="alterarStatusColeta('${a.id}','confirmado')">Confirmar</button><button class="btn verde" onclick="alterarStatusColeta('${a.id}','coletado')">Coletado</button></td></tr>`).join(""):'<tr><td colspan="7">Nenhum agendamento encontrado.</td></tr>'}
-function editarAgendamentoColeta(id){const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(!a)return;const d=a.dados||{};ce("coletaAgendamentoId").value=a.id;ce("coletaClienteId").value=a.cliente_id||"";ce("coletaClienteBusca").value=a.cliente_nome||"";ce("coletaTransportadoraId").value=a.transportadora_id||"";if(a.modelo_id)ce("coletaModeloId").value=a.modelo_id;ce("coletaTipoFrete").value=a.tipo_frete||"CIF";const map={solicitante:"coletaSolicitante",telefone_origem:"coletaTelefoneOrigem",cnpj_origem:"coletaCnpjOrigem",razao_origem:"coletaRazaoOrigem",cep_origem:"coletaCepOrigem",endereco_origem:"coletaEnderecoOrigem",cnpj_destino:"coletaCnpjDestino",razao_destino:"coletaRazaoDestino",cep_destino:"coletaCepDestino",cidade_destino:"coletaCidadeDestino",volumes:"coletaVolumes",peso:"coletaPeso",numero_nf:"coletaNumeroNf",medidas:"coletaMedidas",natureza:"coletaNatureza",mercadoria:"coletaMercadoria",embalagem:"coletaEmbalagem",horario_limite:"coletaHorarioLimite",pausa:"coletaPausa",referencia:"coletaReferencia",localizacao:"coletaLocalizacao"};Object.entries(map).forEach(([k,id])=>{if(ce(id))ce(id).value=d[k]||""});ce("coletaObservacao").value=a.observacao||"";atualizarPreviaColeta();mostrarPainelColeta("nova")}
+async function salvarAgendamentoColeta(){const d=dadosColeta();if(!d.razao_destino)return alert("Informe o cliente/destino.");if(!cv("coletaModeloId"))return alert("Selecione um modelo.");atualizarPreviaColeta();const payload={cotacao_id:cv("coletaCotacaoId")||null,resposta_cotacao_id:cv("coletaRespostaId")||null,cliente_id:cv("coletaClienteId")||null,cliente_nome:d.razao_destino,transportadora_id:cv("coletaTransportadoraId")||null,modelo_id:String(cv("coletaModeloId")).startsWith("padrao-")?null:cv("coletaModeloId"),tipo_frete:cv("coletaTipoFrete"),dados:d,mensagem:cv("coletaPreviaMensagem"),volumes:Number(d.volumes)||null,peso:Number(String(d.peso).replace(",","."))||null,numero_nf:d.numero_nf||null,status:"solicitado",origem:cv("coletaCotacaoId")?"autorizacao_cotacao":"manual",observacao:cv("coletaObservacao")||null,criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};const id=cv("coletaAgendamentoId");const r=id?await banco.from("coleta_agendamentos").update(payload).eq("id",id):await banco.from("coleta_agendamentos").insert([payload]);if(r.error)return alert(r.error.message);alert("Agendamento salvo.");await carregarAgendamentosColeta();mostrarPainelColeta("historico")}
+function limparFormularioColeta(){["coletaAgendamentoId","coletaCotacaoId","coletaRespostaId","coletaClienteId","coletaClienteBusca","coletaCnpjDestino","coletaRazaoDestino","coletaCepDestino","coletaCidadeDestino","coletaVolumes","coletaPeso","coletaValorNf","coletaNumeroNf","coletaLocalizacao","coletaObservacao"].forEach(id=>{if(ce(id))ce(id).value=""});atualizarPreviaColeta()}
+function montarHistoricoColetas(){const tb=ce("coletaTabelaHistorico");if(!tb)return;const q=normalizarNomeEmail(cv("coletaBuscaHistorico"));const s=cv("coletaFiltroStatus");const lista=coletaAgendamentos.filter(a=>(!s||a.status===s)&&(!q||normalizarNomeEmail([a.cliente_nome,a.numero_nf,a.frete_transportadoras?.nome].filter(Boolean).join(" ")).includes(q)));tb.innerHTML=lista.length?lista.map(a=>`<tr><td>${new Date(a.created_at).toLocaleDateString("pt-BR")}</td><td>${new Date(a.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</td><td>${escaparHtmlEmail(a.cliente_nome||"")}</td><td>${escaparHtmlEmail(a.frete_transportadoras?.nome||"—")}</td><td>${a.volumes||"—"}</td><td>${a.peso?`${Number(a.peso).toLocaleString("pt-BR",{maximumFractionDigits:3})} Kg`:"—"}</td><td><span class="coleta-status ${a.status}">${a.status}</span></td><td><button class="btn azul" onclick="editarAgendamentoColeta('${a.id}')">Editar</button><button class="btn verde" onclick="copiarAgendamentoColeta('${a.id}')">Copiar</button><button class="btn roxo" onclick="alterarStatusColeta('${a.id}','confirmado')">Confirmar</button><button class="btn verde" onclick="alterarStatusColeta('${a.id}','coletado')">Coletado</button></td></tr>`).join(""):'<tr><td colspan="8">Nenhum agendamento encontrado.</td></tr>'}
+function editarAgendamentoColeta(id){const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(!a)return;const d=a.dados||{};ce("coletaAgendamentoId").value=a.id;ce("coletaCotacaoId").value=a.cotacao_id||"";ce("coletaRespostaId").value=a.resposta_cotacao_id||"";ce("coletaClienteId").value=a.cliente_id||"";ce("coletaClienteBusca").value=a.cliente_nome||"";ce("coletaTransportadoraId").value=a.transportadora_id||"";if(a.modelo_id)ce("coletaModeloId").value=a.modelo_id;ce("coletaTipoFrete").value=a.tipo_frete||"CIF";const map={solicitante:"coletaSolicitante",telefone_origem:"coletaTelefoneOrigem",cnpj_origem:"coletaCnpjOrigem",razao_origem:"coletaRazaoOrigem",cep_origem:"coletaCepOrigem",endereco_origem:"coletaEnderecoOrigem",cnpj_destino:"coletaCnpjDestino",razao_destino:"coletaRazaoDestino",cep_destino:"coletaCepDestino",cidade_destino:"coletaCidadeDestino",volumes:"coletaVolumes",peso:"coletaPeso",numero_nf:"coletaNumeroNf",medidas:"coletaMedidas",natureza:"coletaNatureza",mercadoria:"coletaMercadoria",embalagem:"coletaEmbalagem",horario_limite:"coletaHorarioLimite",pausa:"coletaPausa",referencia:"coletaReferencia",localizacao:"coletaLocalizacao"};Object.entries(map).forEach(([k,id])=>{if(ce(id))ce(id).value=d[k]||""});ce("coletaObservacao").value=a.observacao||"";atualizarPreviaColeta();mostrarPainelColeta("nova")}
 async function copiarAgendamentoColeta(id){const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(a){await navigator.clipboard.writeText(a.mensagem||"");alert("Mensagem copiada.")}}
 async function alterarStatusColeta(id,status){const r=await banco.from("coleta_agendamentos").update({status,atualizado_em:new Date().toISOString()}).eq("id",id);if(r.error)alert(r.error.message);else carregarAgendamentosColeta()}
 function montarModelosColeta(){const box=ce("coletaListaModelos");if(!box)return;box.innerHTML=coletaModelos.map(m=>`<div class="coleta-modelo-card"><h3>${escaparHtmlEmail(m.nome)}</h3><p>${escaparHtmlEmail(m.texto)}</p><div class="email-acoes">${!String(m.id).startsWith("padrao-")?`<button class="btn azul" onclick="editarModeloColeta('${m.id}')">Editar</button><button class="btn vermelho" onclick="excluirModeloColeta('${m.id}')">Excluir</button>`:"<small>Modelo padrão</small>"}</div></div>`).join("")}
@@ -87,3 +87,133 @@ function editarModeloColeta(id){const m=coletaModelos.find(x=>String(x.id)===Str
 function limparModeloColeta(){["coletaModeloEditarId","coletaModeloNome","coletaModeloTexto"].forEach(id=>ce(id).value="");ce("coletaModeloTransportadoraId").value=""}
 async function salvarModeloColeta(){const nome=cv("coletaModeloNome"),texto=cv("coletaModeloTexto");if(!nome||!texto)return alert("Informe nome e texto do modelo.");const p={nome,texto,transportadora_id:cv("coletaModeloTransportadoraId")||null,ativo:true,atualizado_em:new Date().toISOString()};const id=cv("coletaModeloEditarId");const r=id?await banco.from("coleta_modelos").update(p).eq("id",id):await banco.from("coleta_modelos").insert([p]);if(r.error)return alert(r.error.message);limparModeloColeta();await carregarModelosColeta();alert("Modelo salvo.")}
 async function excluirModeloColeta(id){if(!confirm("Excluir este modelo?"))return;const r=await banco.from("coleta_modelos").update({ativo:false}).eq("id",id);if(r.error)alert(r.error.message);else carregarModelosColeta()}
+
+
+function dadosColetaDaCotacao(cotacao,tipoFrete){
+  return {
+    solicitante:cotacao.solicitante||"Johnny",
+    telefone_origem:"(62) 3293-0035",
+    tipo_frete:tipoFrete==="FOB"?"DESTINO (FOB)":"REMETENTE (CIF)",
+    cnpj_origem:"05.451.985/0001-95",
+    razao_origem:"SOFISTICATTO COSMÉTICOS",
+    cep_origem:"74550-470",
+    endereco_origem:"Rua 03, Qd.35, Lt.14E, Nº217, Vila Abajá - Goiânia/GO",
+    cnpj_destino:cotacao.cpf_cnpj_destino||"",
+    razao_destino:cotacao.cliente_nome||"",
+    cep_destino:cotacao.cep_destino||"",
+    cidade_destino:[cotacao.cidade_destino,cotacao.uf_destino].filter(Boolean).join("/"),
+    volumes:cotacao.volumes||"",
+    peso:cotacao.peso_total||"",
+    valor_nf:cotacao.valor_nf||"",
+    numero_nf:cotacao.numero_nf||"",
+    medidas:cotacao.medidas||"38 x 29 x 35",
+    natureza:"Vendas",
+    mercadoria:cotacao.material||"Cosméticos",
+    embalagem:cotacao.embalagem||"Caixas",
+    horario_limite:"Hoje até as 17:30 h",
+    pausa:"Das 13:00 h às 14:00 h",
+    referencia:"Próximo ao Tático de Campinas",
+    localizacao:""
+  };
+}
+
+async function abrirColetaComDadosCotacao(cotacao,resposta,transportadora,agendamentoId=""){
+  mostrarAbaEmail("coletas");
+  await inicializarModuloColetas();
+  mostrarPainelColeta("nova");
+
+  const d=dadosColetaDaCotacao(cotacao,resposta.tipo_frete);
+  ce("coletaAgendamentoId").value=agendamentoId||"";
+  ce("coletaCotacaoId").value=cotacao.id||"";
+  ce("coletaRespostaId").value=resposta.id||"";
+  ce("coletaClienteId").value=cotacao.cliente_id||"";
+  ce("coletaClienteBusca").value=cotacao.cliente_nome||"";
+  ce("coletaTransportadoraId").value=transportadora?.id||resposta.transportadora_id||"";
+  ce("coletaTipoFrete").value=resposta.tipo_frete||cotacao.tipo_frete||"CIF";
+
+  if(transportadora?.modelo_coleta_id){
+    ce("coletaModeloId").value=transportadora.modelo_coleta_id;
+  }
+
+  const mapa={
+    solicitante:"coletaSolicitante",telefone_origem:"coletaTelefoneOrigem",
+    cnpj_origem:"coletaCnpjOrigem",razao_origem:"coletaRazaoOrigem",
+    cep_origem:"coletaCepOrigem",endereco_origem:"coletaEnderecoOrigem",
+    cnpj_destino:"coletaCnpjDestino",razao_destino:"coletaRazaoDestino",
+    cep_destino:"coletaCepDestino",cidade_destino:"coletaCidadeDestino",
+    volumes:"coletaVolumes",peso:"coletaPeso",numero_nf:"coletaNumeroNf",
+    medidas:"coletaMedidas",natureza:"coletaNatureza",mercadoria:"coletaMercadoria",
+    embalagem:"coletaEmbalagem",horario_limite:"coletaHorarioLimite",
+    pausa:"coletaPausa",referencia:"coletaReferencia",localizacao:"coletaLocalizacao"
+  };
+  Object.entries(mapa).forEach(([chave,id])=>{if(ce(id))ce(id).value=d[chave]??""});
+  ce("coletaValorNf").value=Number(cotacao.valor_nf||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+  atualizarPreviaColeta();
+  setTimeout(()=>ce("coletaPreviaMensagem")?.scrollIntoView({behavior:"smooth",block:"center"}),150);
+}
+
+async function criarColetaAutomaticaDaCotacao(cotacao,resposta,transportadora){
+  const existente=await banco
+    .from("coleta_agendamentos")
+    .select("id")
+    .eq("cotacao_id",cotacao.id)
+    .eq("transportadora_id",transportadora.id)
+    .neq("status","cancelado")
+    .maybeSingle();
+
+  if(existente.data?.id)return existente.data.id;
+
+  const dados=dadosColetaDaCotacao(cotacao,resposta.tipo_frete);
+  const modelo=coletaModelos.find(m=>String(m.id)===String(transportadora.modelo_coleta_id))
+    ||coletaModelos[0];
+  const mensagem=renderizarModeloColeta(modelo?.texto||"",dados);
+
+  const payload={
+    cotacao_id:cotacao.id,
+    resposta_cotacao_id:resposta.id||null,
+    cliente_id:cotacao.cliente_id||null,
+    cliente_nome:cotacao.cliente_nome,
+    transportadora_id:transportadora.id,
+    modelo_id:String(modelo?.id||"").startsWith("padrao-")?null:modelo?.id||null,
+    tipo_frete:resposta.tipo_frete||"CIF",
+    dados,
+    mensagem,
+    volumes:Number(cotacao.volumes)||null,
+    peso:Number(cotacao.peso_total)||null,
+    numero_nf:cotacao.numero_nf||null,
+    status:"rascunho",
+    origem:"autorizacao_cotacao",
+    criado_por:usuarioLogado?.login||null,
+    atualizado_em:new Date().toISOString()
+  };
+
+  const salvo=await banco.from("coleta_agendamentos").insert([payload]).select().single();
+  if(salvo.error)throw salvo.error;
+  await carregarAgendamentosColeta();
+  return salvo.data.id;
+}
+
+async function tratarColetaAposAutorizacao(cotacao,resposta,transportadora){
+  await inicializarModuloColetas();
+
+  if(transportadora?.criar_coleta_ao_autorizar){
+    try{
+      const id=await criarColetaAutomaticaDaCotacao(cotacao,resposta,transportadora);
+      mostrarBalaoSistema("Coleta criada","O agendamento foi criado automaticamente no histórico.");
+      if(confirm("O agendamento de coleta foi criado automaticamente. Deseja abrir agora para conferir e enviar pelo WhatsApp?")){
+        await abrirColetaComDadosCotacao(cotacao,resposta,transportadora,id);
+      }
+    }catch(erro){
+      console.error("Erro ao criar coleta automática:",erro);
+      if(confirm("Não foi possível criar automaticamente. Deseja abrir o agendamento preenchido manualmente?")){
+        await abrirColetaComDadosCotacao(cotacao,resposta,transportadora);
+      }
+    }
+    return;
+  }
+
+  if(confirm(`Transportadora autorizada: ${transportadora?.nome||resposta.transportadora_nome}.\n\nDeseja agendar a coleta agora?`)){
+    await abrirColetaComDadosCotacao(cotacao,resposta,transportadora);
+  }
+}
+
