@@ -2240,7 +2240,10 @@ function estilosImpressaoCorreios(tipo){
   if(tipo==="etiqueta"){
     return base+`
       @page{size:150mm 100mm;margin:0}
+      body{width:150mm!important;height:100mm!important;min-height:100mm!important;}
       .correios-etiqueta{
+        page-break-inside:avoid!important;
+        break-inside:avoid!important;
         position:relative!important;
         display:block!important;
         width:150mm!important;
@@ -2313,6 +2316,7 @@ function estilosImpressaoCorreios(tipo){
         object-fit:contain!important;
       }
       .cor-destino{
+        font-size:5mm!important;
         position:absolute!important;
         left:7mm!important;
         top:37mm!important;
@@ -2409,6 +2413,7 @@ function estilosImpressaoCorreios(tipo){
         overflow:visible!important;
       }
       .cor-cep{
+        font-size:3.8mm!important;
         position:static!important;
         width:54mm!important;
         margin-top:1mm!important;
@@ -2418,6 +2423,7 @@ function estilosImpressaoCorreios(tipo){
         white-space:nowrap!important;
       }
       .cor-servico{
+        font-size:14mm!important;
         position:absolute!important;
         right:3mm!important;
         left:auto!important;
@@ -2438,7 +2444,10 @@ function estilosImpressaoCorreios(tipo){
 
   return base+`
     @page{size:A4 portrait;margin:8mm}
+    body{width:210mm!important;min-height:297mm!important;}
     .correios-declaracao{
+      page-break-inside:avoid!important;
+      break-inside:avoid!important;
       display:block!important;
       width:194mm!important;
       max-width:194mm!important;
@@ -2554,7 +2563,9 @@ async function abrirJanelaImpressaoCorreios(elemento,tipo,titulo){
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${titulo}</title>
+  <style>${css}</style>
 </head>
 <body></body>
 </html>`);
