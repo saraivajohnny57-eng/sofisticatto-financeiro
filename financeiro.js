@@ -2270,39 +2270,46 @@ function estilosImpressaoCorreios(tipo){
         height:28mm!important;
         object-fit:contain!important;
       }
+      /* Instagram em formato de L: INSTA na vertical e GRAM completando na base. */
       .etiqueta-qr-texto{
         position:absolute!important;
-        right:14mm!important;
-        top:7mm!important;
-        width:31mm!important;
-        height:27mm!important;
+        right:8mm!important;
+        top:5mm!important;
+        width:34mm!important;
+        height:30mm!important;
         font-weight:900!important;
         color:#000!important;
         line-height:1!important;
         z-index:7!important;
+        pointer-events:none!important;
       }
       .insta-vertical{
         position:absolute!important;
         left:0!important;
         top:0!important;
-        width:6mm!important;
-        font-size:4mm!important;
-        line-height:1.08!important;
+        width:5.5mm!important;
+        height:24mm!important;
+        font-size:3.7mm!important;
+        line-height:1.18!important;
         text-align:center!important;
+        letter-spacing:0!important;
       }
       .gram-horizontal{
         position:absolute!important;
-        left:0!important;
-        bottom:0!important;
-        width:31mm!important;
-        font-size:4mm!important;
-        letter-spacing:1.05mm!important;
+        left:6.3mm!important;
+        top:24.1mm!important;
+        width:25mm!important;
+        height:5mm!important;
+        font-size:3.7mm!important;
+        line-height:1!important;
+        letter-spacing:.95mm!important;
+        text-align:left!important;
         white-space:nowrap!important;
       }
       .etiqueta-qr{
         position:absolute!important;
-        right:16mm!important;
-        top:8mm!important;
+        right:9.8mm!important;
+        top:5mm!important;
         width:22mm!important;
         height:22mm!important;
         overflow:hidden!important;
@@ -2316,13 +2323,13 @@ function estilosImpressaoCorreios(tipo){
         object-fit:contain!important;
       }
       .cor-destino{
-        font-size:5mm!important;
+        font-size:4.7mm!important;
         position:absolute!important;
         left:7mm!important;
-        top:37mm!important;
-        width:116mm!important;
-        min-height:8mm!important;
-        max-height:12mm!important;
+        top:34mm!important;
+        width:133mm!important;
+        min-height:7mm!important;
+        max-height:10mm!important;
         overflow:hidden!important;
         font-weight:900!important;
         line-height:1.08!important;
@@ -2339,24 +2346,24 @@ function estilosImpressaoCorreios(tipo){
       .cor-endereco{
         position:absolute!important;
         left:7mm!important;
-        top:52mm!important;
-        width:112mm!important;
-        max-height:10mm!important;
+        top:44mm!important;
+        width:133mm!important;
+        max-height:9mm!important;
         overflow:hidden!important;
-        font-size:4.6mm!important;
+        font-size:4.2mm!important;
         font-weight:700!important;
-        line-height:1.12!important;
+        line-height:1.04!important;
         white-space:normal!important;
         word-break:break-word!important;
       }
       .cor-bairro{
         position:absolute!important;
         left:7mm!important;
-        top:63mm!important;
-        width:112mm!important;
-        max-height:7mm!important;
+        top:54mm!important;
+        width:133mm!important;
+        max-height:6mm!important;
         overflow:hidden!important;
-        font-size:4.6mm!important;
+        font-size:4.2mm!important;
         font-weight:700!important;
         line-height:1.08!important;
         white-space:nowrap!important;
@@ -2365,11 +2372,11 @@ function estilosImpressaoCorreios(tipo){
       .cor-cidade{
         position:absolute!important;
         left:7mm!important;
-        top:68mm!important;
-        width:112mm!important;
+        top:60mm!important;
+        width:133mm!important;
         max-height:6mm!important;
         overflow:hidden!important;
-        font-size:4.6mm!important;
+        font-size:4.2mm!important;
         font-weight:700!important;
         line-height:1.05!important;
         white-space:nowrap!important;
