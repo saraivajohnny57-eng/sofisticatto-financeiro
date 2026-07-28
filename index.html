@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=13.3">
+<link rel="stylesheet" href="styles.css?v=13.4">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -166,6 +166,7 @@
       <button id="emailAbaEtiquetas" onclick="mostrarAbaEmail('etiquetas')">Etiquetas</button>
       <button id="emailAbaCorreios" onclick="mostrarAbaEmail('correios')">Correios</button>
       <button id="emailAbaCotacoes" onclick="mostrarAbaEmail('cotacoes')">Cotação de Fretes</button>
+      <button id="emailAbaColetas" onclick="mostrarAbaEmail('coletas')">Agendamento de Coleta</button>
       <button id="emailAbaIntegracoes" onclick="mostrarAbaEmail('integracoes')">Central de Integrações</button>
       <button id="emailAbaClientes" onclick="mostrarAbaEmail('clientes')">Clientes</button>
       <button id="emailAbaVendedoras" onclick="mostrarAbaEmail('vendedoras')">Vendedoras</button>
@@ -1198,6 +1199,138 @@ SOFISTICATTO COSMÉTICOS</textarea>
     </div>
 
 
+
+    <div id="emailSubColetas" class="email-subsecao">
+      <div class="coleta-subtabs">
+        <button id="coletaTabNova" class="ativo" onclick="mostrarPainelColeta('nova')">Novo agendamento</button>
+        <button id="coletaTabHistorico" onclick="mostrarPainelColeta('historico')">Histórico</button>
+        <button id="coletaTabModelos" onclick="mostrarPainelColeta('modelos')">Modelos</button>
+      </div>
+
+      <div id="coletaPainelNova" class="coleta-painel ativo">
+        <div class="coleta-grid">
+          <div class="card">
+            <div class="top">
+              <div>
+                <h2>Agendamento de coleta</h2>
+                <p>Preencha os dados e gere a mensagem pronta para WhatsApp.</p>
+              </div>
+              <button class="btn azul" onclick="limparFormularioColeta()">Limpar</button>
+            </div>
+
+            <input type="hidden" id="coletaAgendamentoId">
+            <div class="coleta-form-grid">
+              <div class="campo-largo">
+                <label class="relatorio-label">Pesquisar cliente</label>
+                <input id="coletaClienteBusca" list="coletaClientesLista"
+                  placeholder="Digite o nome, CNPJ/CPF ou cidade"
+                  oninput="pesquisarClienteColeta()"
+                  onchange="selecionarClienteColetaPorNome()">
+                <datalist id="coletaClientesLista"></datalist>
+                <input type="hidden" id="coletaClienteId">
+                <div id="coletaClienteResultados" class="coleta-resultados"></div>
+              </div>
+
+              <div><label class="relatorio-label">Transportadora</label><select id="coletaTransportadoraId" onchange="aplicarModeloDaTransportadoraColeta()"></select></div>
+              <div><label class="relatorio-label">Modelo</label><select id="coletaModeloId" onchange="atualizarPreviaColeta()"></select></div>
+              <div><label class="relatorio-label">CIF / FOB</label><select id="coletaTipoFrete" onchange="atualizarPreviaColeta()"><option value="CIF">REMETENTE (CIF)</option><option value="FOB">DESTINO (FOB)</option></select></div>
+              <div><label class="relatorio-label">Nome do solicitante</label><input id="coletaSolicitante" value="Johnny" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">Telefone da coleta</label><input id="coletaTelefoneOrigem" value="(62) 3293-0035" oninput="atualizarPreviaColeta()"></div>
+
+              <div><label class="relatorio-label">CNPJ da origem</label><input id="coletaCnpjOrigem" value="05.451.985/0001-95" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">Razão da origem</label><input id="coletaRazaoOrigem" value="SOFISTICATTO COSMÉTICOS" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">CEP origem</label><input id="coletaCepOrigem" value="74550-470" oninput="atualizarPreviaColeta()"></div>
+              <div class="campo-largo"><label class="relatorio-label">Endereço de coleta</label><input id="coletaEnderecoOrigem" value="Rua 03, Qd.35, Lt.14E, Nº217, Vila Abajá - Goiânia/GO" oninput="atualizarPreviaColeta()"></div>
+
+              <div><label class="relatorio-label">CNPJ/CPF destino</label><input id="coletaCnpjDestino" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">Nome/Razão destino</label><input id="coletaRazaoDestino" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">CEP destino</label><input id="coletaCepDestino" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">Cidade/UF destino</label><input id="coletaCidadeDestino" oninput="atualizarPreviaColeta()"></div>
+
+              <div><label class="relatorio-label">Quantidade de volumes</label><input id="coletaVolumes" type="number" min="1" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">Peso total (kg)</label><input id="coletaPeso" inputmode="decimal" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">Valor da NF</label><input id="coletaValorNf" inputmode="decimal" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">Número da NF</label><input id="coletaNumeroNf" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">Medidas</label><input id="coletaMedidas" value="38 x 29 x 35" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">Natureza da nota</label><input id="coletaNatureza" value="Vendas" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">Mercadoria</label><input id="coletaMercadoria" value="Cosméticos" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">Embalagem</label><input id="coletaEmbalagem" value="Caixas" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">Horário limite</label><input id="coletaHorarioLimite" value="Hoje até as 17:30 h" oninput="atualizarPreviaColeta()"></div>
+              <div><label class="relatorio-label">Pausa</label><input id="coletaPausa" value="Das 13:00 h às 14:00 h" oninput="atualizarPreviaColeta()"></div>
+              <div class="campo-largo"><label class="relatorio-label">Fachada / ponto de referência</label><input id="coletaReferencia" value="Próximo ao Tático de Campinas" oninput="atualizarPreviaColeta()"></div>
+              <div class="campo-largo"><label class="relatorio-label">Link da localização</label><input id="coletaLocalizacao" placeholder="Cole aqui o link do Google Maps" oninput="atualizarPreviaColeta()"></div>
+              <div class="campo-largo"><label class="relatorio-label">Observação interna</label><textarea id="coletaObservacao"></textarea></div>
+            </div>
+
+            <div class="email-acoes">
+              <button class="btn verde" onclick="salvarAgendamentoColeta()">Salvar agendamento</button>
+              <button class="btn azul" onclick="copiarMensagemColeta()">Copiar para WhatsApp</button>
+              <button class="btn verde" onclick="abrirWhatsAppColeta()">Abrir WhatsApp</button>
+            </div>
+          </div>
+
+          <div class="card coleta-previa-card">
+            <h2>Prévia da mensagem</h2>
+            <p>Os dados destacados com asteriscos ficarão em negrito no WhatsApp.</p>
+            <textarea id="coletaPreviaMensagem" readonly></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div id="coletaPainelHistorico" class="coleta-painel">
+        <div class="card">
+          <div class="top">
+            <div><h2>Histórico de agendamentos</h2><p>Consulte, edite, copie ou conclua os agendamentos.</p></div>
+            <div class="email-acoes">
+              <input id="coletaBuscaHistorico" placeholder="Cliente, transportadora ou NF" oninput="montarHistoricoColetas()">
+              <select id="coletaFiltroStatus" onchange="montarHistoricoColetas()"><option value="">Todos</option><option value="rascunho">Rascunho</option><option value="solicitado">Solicitado</option><option value="confirmado">Confirmado</option><option value="coletado">Coletado</option><option value="cancelado">Cancelado</option></select>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Data</th><th>Cliente</th><th>Transportadora</th><th>Volumes</th><th>Peso</th><th>Status</th><th>Ações</th></tr></thead>
+              <tbody id="coletaTabelaHistorico"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="coletaPainelModelos" class="coleta-painel">
+        <div class="coleta-grid">
+          <div class="card">
+            <h2>Cadastrar modelo de coleta</h2>
+            <input type="hidden" id="coletaModeloEditarId">
+            <div class="coleta-form-grid">
+              <div><label class="relatorio-label">Nome do modelo</label><input id="coletaModeloNome"></div>
+              <div><label class="relatorio-label">Transportadora (opcional)</label><select id="coletaModeloTransportadoraId"></select></div>
+              <div class="campo-largo"><label class="relatorio-label">Texto do modelo</label><textarea id="coletaModeloTexto" class="coleta-modelo-texto"></textarea></div>
+              <div class="campo-largo">
+                <div class="coleta-variaveis">
+                  <strong>Variáveis disponíveis:</strong>
+                  <span>{{solicitante}}</span><span>{{telefone_origem}}</span><span>{{tipo_frete}}</span>
+                  <span>{{cnpj_origem}}</span><span>{{razao_origem}}</span><span>{{cep_origem}}</span>
+                  <span>{{endereco_origem}}</span><span>{{cnpj_destino}}</span><span>{{razao_destino}}</span>
+                  <span>{{cep_destino}}</span><span>{{cidade_destino}}</span><span>{{volumes}}</span>
+                  <span>{{peso}}</span><span>{{valor_nf}}</span><span>{{numero_nf}}</span>
+                  <span>{{medidas}}</span><span>{{natureza}}</span><span>{{mercadoria}}</span>
+                  <span>{{embalagem}}</span><span>{{horario_limite}}</span><span>{{pausa}}</span>
+                  <span>{{referencia}}</span><span>{{localizacao}}</span>
+                </div>
+              </div>
+            </div>
+            <div class="email-acoes">
+              <button class="btn verde" onclick="salvarModeloColeta()">Salvar modelo</button>
+              <button class="btn azul" onclick="limparModeloColeta()">Novo</button>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Modelos cadastrados</h2>
+            <div id="coletaListaModelos" class="coleta-lista-modelos"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="emailSubIntegracoes" class="email-subsecao">
       <div class="integracoes-cabecalho">
         <div>
@@ -1561,7 +1694,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=13.3"></script>
+<script src="financeiro.js?v=13.4"></script>
 <script src="clientes.js?v=13.3"></script>
 <script src="transportadoras.js?v=11"></script>
 <script src="cotacoes.js?v=13.3"></script>
@@ -1570,6 +1703,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="notificacoes.js?v=11"></script>
 <script src="painel-logistico.js?v=11.6"></script>
 <script src="portal-integracoes.js?v=13.2"></script>
+<script src="coletas.js?v=13.4"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">

@@ -1687,11 +1687,11 @@ async function carregarModuloEmail(){
 
 function mostrarAbaEmail(aba){
   if(!garantirFinanceiroEmail()) return;
-  ["Logistica","Preparar","Gerador","Etiquetas","Correios","Cotacoes","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
+  ["Logistica","Preparar","Gerador","Etiquetas","Correios","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
     document.getElementById("emailSub" + nome).classList.remove("ativa");
     document.getElementById("emailAba" + nome).classList.remove("ativo");
   });
-  const mapa = {logistica:"Logistica",preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",correios:"Correios",cotacoes:"Cotacoes",integracoes:"Integracoes",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
+  const mapa = {logistica:"Logistica",preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",correios:"Correios",cotacoes:"Cotacoes",coletas:"Coletas",integracoes:"Integracoes",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
   const nome = mapa[aba];
   document.getElementById("emailSub" + nome).classList.add("ativa");
   document.getElementById("emailAba" + nome).classList.add("ativo");
@@ -1713,6 +1713,9 @@ function mostrarAbaEmail(aba){
   }
   if(aba === "logistica" && typeof carregarPainelLogistico === "function"){
     carregarPainelLogistico();
+  }
+  if(aba === "coletas" && typeof inicializarModuloColetas === "function"){
+    inicializarModuloColetas();
   }
   if(aba === "integracoes" && typeof carregarIntegracoesTransportadoras === "function"){
     carregarIntegracoesTransportadoras();
