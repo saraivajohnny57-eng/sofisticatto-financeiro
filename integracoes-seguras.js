@@ -43,6 +43,43 @@ async function requisicaoIntegracoes(url,opcoes={}){
   return dados;
 }
 
+
+async function verificarServidorIntegracoes(){
+  const box=document.getElementById("integracaoServidorStatus");
+  if(!box)return;
+
+  box.className="integracao-resultado-teste";
+  box.textContent="Verificando funções e variáveis da Vercel...";
+
+  try{
+    const resposta=await requisicaoIntegracoes("/api/integracoes/status-servidor",{
+      method:"POST",
+      body:"{}"
+    });
+
+    const linhas=[
+      "SERVIDOR DE INTEGRAÇÕES",
+      "",
+      `Supabase URL: ${resposta.variaveis.SUPABASE_URL?"OK":"FALTANDO"}`,
+      `Service Role: ${resposta.variaveis.SUPABASE_SERVICE_ROLE_KEY?"OK":"FALTANDO"}`,
+      `Chave administrativa: ${resposta.variaveis.INTEGRATIONS_ADMIN_KEY?"OK":"FALTANDO"}`,
+      `Chave de criptografia: ${resposta.variaveis.INTEGRATIONS_ENCRYPTION_KEY?"OK":"FALTANDO"}`,
+      `Tamanho da chave de criptografia: ${resposta.encryption_key_length} caracteres`,
+      "",
+      resposta.pronto
+        ?"Tudo pronto para salvar credenciais e testar homologação."
+        :"Ainda existem configurações pendentes."
+    ];
+
+    box.className=`integracao-resultado-teste ${resposta.pronto?"sucesso":"erro"}`;
+    box.textContent=linhas.join("\n");
+  }catch(erro){
+    box.className="integracao-resultado-teste erro";
+    box.textContent="Falha na verificação:\n\n"+erro.message+
+      "\n\nConfira se a pasta api/integracoes foi enviada ao GitHub e faça Redeploy.";
+  }
+}
+
 async function validarChaveIntegracoes(){
   const campo=document.getElementById("integracaoAdminKey");
   const chave=campo?.value?.trim();
