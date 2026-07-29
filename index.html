@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=13.9">
+<link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -1379,6 +1379,181 @@ SOFISTICATTO COSMÉTICOS</textarea>
         </div>
       </div>
 
+
+      <div id="integracaoSeguraCard" class="card integracao-segura-card" style="display:none;">
+        <div class="top">
+          <div>
+            <h2>Credenciais e Homologação</h2>
+            <p id="integracaoSeguraSubtitulo">
+              Configure as credenciais sem colocá-las no código, GitHub ou Supabase público.
+            </p>
+          </div>
+          <button class="btn azul" onclick="fecharIntegracaoSegura()">Fechar</button>
+        </div>
+
+        <input type="hidden" id="integracaoSeguraConviteId">
+
+        <div class="integracao-seguranca-aviso">
+          <strong>🔐 Área protegida</strong>
+          <span>
+            As credenciais são enviadas para uma função segura da Vercel, criptografadas e
+            armazenadas sem ficarem visíveis no navegador ou nas tabelas públicas.
+          </span>
+        </div>
+
+        <div class="integracao-segura-grid">
+          <div class="integracao-segura-bloco">
+            <h3>1. Chave administrativa</h3>
+            <p>Informe a chave definida na Vercel para liberar esta sessão.</p>
+            <label>
+              <span>Chave administrativa</span>
+              <div class="integracao-campo-senha">
+                <input id="integracaoAdminKey" type="password"
+                  placeholder="INTEGRATIONS_ADMIN_KEY">
+                <button type="button" onclick="alternarSenhaIntegracao('integracaoAdminKey')">👁</button>
+              </div>
+            </label>
+            <div class="email-acoes">
+              <button class="btn azul" onclick="validarChaveIntegracoes()">Validar chave</button>
+              <span id="integracaoAdminKeyStatus" class="integracao-chave-status">Não validada</span>
+            </div>
+          </div>
+
+          <div class="integracao-segura-bloco">
+            <h3>2. Ambiente</h3>
+            <div class="integracao-segura-form">
+              <label><span>Ambiente atual</span>
+                <select id="integracaoAmbiente">
+                  <option value="homologacao">Homologação</option>
+                  <option value="producao">Produção</option>
+                </select>
+              </label>
+              <label><span>Status</span>
+                <select id="integracaoStatusTecnico">
+                  <option value="aguardando_credenciais">Aguardando credenciais</option>
+                  <option value="configurando">Em configuração</option>
+                  <option value="homologacao">Em homologação</option>
+                  <option value="homologacao_aprovada">Homologação aprovada</option>
+                  <option value="producao">Ativa em produção</option>
+                  <option value="suspensa">Suspensa</option>
+                </select>
+              </label>
+              <label class="integracao-largo"><span>URL de homologação</span>
+                <input id="integracaoUrlHomologacao" placeholder="https://...">
+              </label>
+              <label class="integracao-largo"><span>URL de produção</span>
+                <input id="integracaoUrlProducao" placeholder="https://...">
+              </label>
+              <label><span>Método</span>
+                <select id="integracaoMetodo">
+                  <option value="POST">POST</option>
+                  <option value="GET">GET</option>
+                  <option value="PUT">PUT</option>
+                </select>
+              </label>
+              <label><span>Formato</span>
+                <select id="integracaoFormato">
+                  <option value="json">JSON</option>
+                  <option value="xml">XML</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="integracao-segura-bloco">
+            <h3>3. Autenticação</h3>
+            <div class="integracao-segura-form">
+              <label><span>Tipo de autenticação</span>
+                <select id="integracaoAuthTipo" onchange="atualizarCamposAuthIntegracao()">
+                  <option value="none">Sem autenticação</option>
+                  <option value="bearer">Bearer Token</option>
+                  <option value="api_key">API Key</option>
+                  <option value="basic">Basic Auth</option>
+                  <option value="login_token">Login para gerar token</option>
+                </select>
+              </label>
+              <label><span>Cabeçalho da API Key</span>
+                <input id="integracaoApiKeyHeader" value="x-api-key">
+              </label>
+              <label class="integracao-largo"><span>URL para gerar token</span>
+                <input id="integracaoTokenUrl" placeholder="https://.../token">
+              </label>
+              <label><span>Campo do usuário</span>
+                <input id="integracaoUsuarioCampo" value="username">
+              </label>
+              <label><span>Campo da senha</span>
+                <input id="integracaoSenhaCampo" value="password">
+              </label>
+              <label><span>Campo do token na resposta</span>
+                <input id="integracaoTokenRespostaCampo" value="access_token">
+              </label>
+            </div>
+          </div>
+
+          <div class="integracao-segura-bloco">
+            <h3>4. Credenciais protegidas</h3>
+            <div class="integracao-segura-form">
+              <label><span>Usuário</span><input id="integracaoCredUsuario" autocomplete="off"></label>
+              <label><span>Senha</span>
+                <div class="integracao-campo-senha">
+                  <input id="integracaoCredSenha" type="password" autocomplete="new-password">
+                  <button type="button" onclick="alternarSenhaIntegracao('integracaoCredSenha')">👁</button>
+                </div>
+              </label>
+              <label><span>Bearer Token</span>
+                <div class="integracao-campo-senha">
+                  <input id="integracaoCredToken" type="password" autocomplete="off">
+                  <button type="button" onclick="alternarSenhaIntegracao('integracaoCredToken')">👁</button>
+                </div>
+              </label>
+              <label><span>API Key</span>
+                <div class="integracao-campo-senha">
+                  <input id="integracaoCredApiKey" type="password" autocomplete="off">
+                  <button type="button" onclick="alternarSenhaIntegracao('integracaoCredApiKey')">👁</button>
+                </div>
+              </label>
+              <label><span>Client ID</span><input id="integracaoCredClientId" autocomplete="off"></label>
+              <label><span>Client Secret</span>
+                <div class="integracao-campo-senha">
+                  <input id="integracaoCredClientSecret" type="password" autocomplete="off">
+                  <button type="button" onclick="alternarSenhaIntegracao('integracaoCredClientSecret')">👁</button>
+                </div>
+              </label>
+            </div>
+            <div class="email-acoes">
+              <button class="btn verde" onclick="salvarCredenciaisIntegracao()">Salvar criptografado</button>
+              <span id="integracaoCredenciaisStatus" class="integracao-chave-status">Ainda não salvas</span>
+            </div>
+          </div>
+
+          <div class="integracao-segura-bloco integracao-bloco-teste">
+            <h3>5. Teste em homologação</h3>
+            <p>
+              Use dados fictícios ou previamente autorizados. O sistema não exibirá as credenciais
+              na requisição nem no histórico.
+            </p>
+            <label><span>Corpo da requisição de teste (JSON)</span>
+              <textarea id="integracaoTesteJson" class="integracao-json-editor">{
+  "cepOrigem": "74550470",
+  "cepDestino": "14407022",
+  "peso": 28,
+  "volumes": 2,
+  "valorNota": 402.48,
+  "tipoFrete": "CIF"
+}</textarea>
+            </label>
+            <div class="email-acoes">
+              <button class="btn azul" onclick="salvarConfiguracaoIntegracao()">Salvar configuração</button>
+              <button class="btn verde" onclick="testarHomologacaoIntegracao()">Testar homologação</button>
+              <button class="btn roxo" onclick="aprovarHomologacaoIntegracao()">Aprovar homologação</button>
+            </div>
+            <div id="integracaoResultadoTeste" class="integracao-resultado-teste">
+              Nenhum teste realizado.
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="integracaoDetalhesCard" class="card" style="display:none;">
         <div class="top">
           <div>
@@ -1706,7 +1881,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="dashboard.js?v=11"></script>
 <script src="notificacoes.js?v=11"></script>
 <script src="painel-logistico.js?v=11.6"></script>
-<script src="portal-integracoes.js?v=13.9"></script>
+<script src="portal-integracoes.js?v=14"></script>
+<script src="integracoes-seguras.js?v=14"></script>
 <script src="coletas.js?v=13.5"></script>
 
 

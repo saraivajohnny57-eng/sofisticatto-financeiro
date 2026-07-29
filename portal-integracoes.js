@@ -126,6 +126,7 @@ function montarTabelaIntegracoes(){
       <td>
         <button class="btn azul" onclick="copiarLinkIntegracao('${i.token}')">Copiar link</button>
         <button class="btn roxo" onclick="verDetalhesIntegracao('${i.id}')">Ver</button>
+        <button class="btn verde" onclick="abrirIntegracaoSegura('${i.id}')">Credenciais/Teste</button>
         ${i.status==="enviado"?`<button class="btn verde" onclick="alterarStatusIntegracao('${i.id}','aprovado')">Aprovar</button>`:""}
       </td>
     </tr>`).join(""):'<tr><td colspan="6">Nenhum convite cadastrado.</td></tr>';

@@ -1,6 +1,6 @@
 {
   "name": "sofisticatto-financeiro",
-  "version": "13.8.1",
+  "version": "14.0.0",
   "private": true,
   "dependencies": {
     "nodemailer": "^6.9.16",

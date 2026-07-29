@@ -1731,3 +1731,63 @@ html.modo-portal-publico .portal-conteudo{
     grid-template-columns:1fr;
   }
 }
+
+
+/* V14 — CREDENCIAIS SEGURAS E HOMOLOGAÇÃO */
+.integracao-segura-card{border-top:6px solid #5a4fa3}
+.integracao-seguranca-aviso{
+  display:grid;
+  gap:5px;
+  margin:12px 0 17px;
+  padding:13px 15px;
+  border-radius:14px;
+  background:#edf8f2;
+  border-left:6px solid #2ba66a;
+  color:#285b43;
+}
+.integracao-segura-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.integracao-segura-bloco{
+  border:1px solid #dfd8f1;
+  border-radius:16px;
+  padding:15px;
+  background:#fbfaff;
+}
+.integracao-segura-bloco h3{margin:0 0 7px;color:#493f86}
+.integracao-segura-bloco>p{margin:0 0 12px;color:#746c8f;font-size:12px;line-height:1.5}
+.integracao-segura-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.integracao-segura-form label,.integracao-segura-bloco>label{display:grid;gap:6px}
+.integracao-segura-form label>span,.integracao-segura-bloco>label>span{
+  color:#514976;font-weight:800;font-size:12px
+}
+.integracao-segura-form input,.integracao-segura-form select,
+.integracao-segura-bloco input,.integracao-segura-bloco textarea{
+  width:100%;box-sizing:border-box;border:1px solid #dcd5ec;border-radius:11px;
+  padding:11px;background:#fff;color:#343047;font:inherit
+}
+.integracao-largo{grid-column:1/-1}
+.integracao-campo-senha{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
+.integracao-campo-senha button{
+  border:0;border-radius:10px;padding:0 12px;background:#ece8f7;cursor:pointer
+}
+.integracao-chave-status{
+  display:inline-flex;align-items:center;padding:6px 10px;border-radius:99px;
+  background:#eee9f7;color:#625a7e;font-size:11px;font-weight:900
+}
+.integracao-chave-status.ok{background:#dcf5e6;color:#17683d}
+.integracao-chave-status.erro{background:#fde4e4;color:#992e2e}
+.integracao-bloco-teste{grid-column:1/-1}
+.integracao-json-editor{min-height:230px;font:12px/1.5 Consolas,monospace!important}
+.integracao-resultado-teste{
+  margin-top:12px;padding:13px;border-radius:13px;background:#f1eef8;
+  color:#5f5878;white-space:pre-wrap;word-break:break-word;font:12px/1.5 Consolas,monospace
+}
+.integracao-resultado-teste.sucesso{background:#e2f7e9;color:#17683d}
+.integracao-resultado-teste.erro{background:#fde8e8;color:#9b3030}
+@media(max-width:900px){
+  .integracao-segura-grid{grid-template-columns:1fr}
+  .integracao-bloco-teste{grid-column:auto}
+}
+@media(max-width:600px){
+  .integracao-segura-form{grid-template-columns:1fr}
+  .integracao-largo{grid-column:auto}
+}
