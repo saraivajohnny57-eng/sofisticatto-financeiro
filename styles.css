@@ -1657,3 +1657,77 @@ html.modo-portal-publico .portal-conteudo{
 .coleta-modelo-texto{min-height:430px;font-family:Consolas,monospace}.coleta-variaveis{display:flex;flex-wrap:wrap;gap:6px;padding:12px;background:#f6f2ff;border-radius:13px}.coleta-variaveis strong{width:100%;color:#4c4385}.coleta-variaveis span{padding:5px 8px;background:#fff;border:1px solid #ddd5f2;border-radius:8px;font:11px Consolas,monospace;color:#554a91}
 .coleta-lista-modelos{display:grid;gap:10px}.coleta-modelo-card{border:1px solid #e1daf1;border-left:5px solid #5a4fa3;border-radius:14px;padding:12px;background:#fff}.coleta-modelo-card h3{margin:0;color:#493f86}.coleta-modelo-card p{white-space:pre-wrap;max-height:140px;overflow:auto;color:#71698a;font-size:12px}.coleta-status{padding:5px 9px;border-radius:99px;font-size:11px;font-weight:900}.coleta-status.rascunho{background:#eee9fb;color:#54498d}.coleta-status.solicitado{background:#dcecff;color:#235d93}.coleta-status.confirmado{background:#dcf5e6;color:#17683d}.coleta-status.coletado{background:#d9f4ef;color:#0d6759}.coleta-status.cancelado{background:#fde4e4;color:#922d2d}
 @media(max-width:1000px){.coleta-grid{grid-template-columns:1fr}.coleta-previa-card{position:static}}@media(max-width:650px){.coleta-form-grid{grid-template-columns:1fr}.coleta-form-grid .campo-largo{grid-column:auto}}
+
+
+/* V13.9 — DOCUMENTAÇÃO DO PORTAL */
+.portal-informacoes-confianca{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:9px;
+  margin:14px 0 4px;
+}
+.portal-informacoes-confianca span{
+  background:#fff;
+  border:1px solid #ded7f3;
+  border-radius:999px;
+  padding:8px 12px;
+  color:#5d5581;
+  font-size:12px;
+  box-shadow:0 3px 12px rgba(77,65,139,.06);
+}
+.portal-documentos-checklist{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  margin:12px 0 18px;
+}
+.portal-documentos-checklist label{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  min-height:44px;
+  padding:10px 12px;
+  border:1px solid #e0daef;
+  border-radius:12px;
+  background:#fbfaff;
+  color:#504875;
+  font-size:12px;
+  font-weight:700;
+}
+.portal-documentos-checklist input{
+  width:18px;
+  height:18px;
+  accent-color:#5a4fa3;
+}
+.portal-arquivo-item>div{
+  display:grid;
+  gap:3px;
+}
+.portal-arquivo-item small{
+  color:#807997;
+  font-size:10px;
+}
+.portal-arquivo-item button{
+  border:0;
+  background:#fbe6e6;
+  color:#982f2f;
+  border-radius:8px;
+  padding:7px 10px;
+  cursor:pointer;
+}
+.portal-aviso-lgpd{
+  margin-top:16px;
+  background:#edf8f2;
+  border-left-color:#2da96c;
+  color:#225c40;
+}
+.portal-aviso-lgpd p{
+  margin:5px 0 0;
+  line-height:1.5;
+}
+@media(max-width:650px){
+  .portal-documentos-checklist{
+    grid-template-columns:1fr;
+  }
+}

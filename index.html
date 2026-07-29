@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=13.5">
+<link rel="stylesheet" href="styles.css?v=13.9">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -1706,7 +1706,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="dashboard.js?v=11"></script>
 <script src="notificacoes.js?v=11"></script>
 <script src="painel-logistico.js?v=11.6"></script>
-<script src="portal-integracoes.js?v=13.2"></script>
+<script src="portal-integracoes.js?v=13.9"></script>
 <script src="coletas.js?v=13.5"></script>
 
 
@@ -1827,6 +1827,10 @@ SOFISTICATTO COSMÉTICOS</textarea>
         Este portal foi criado para organizar as informações necessárias para cotação,
         coleta, rastreamento, etiquetas e integração entre os sistemas.
       </p>
+      <div class="portal-informacoes-confianca">
+        <span>⏱ Tempo estimado: 10 a 20 minutos</span>
+        <span>🔒 Informações tratadas de forma confidencial e conforme a LGPD</span>
+      </div>
       <div class="portal-empresa-convidada">
         <span>Transportadora convidada</span>
         <strong id="portalNomeTransportadora">Carregando...</strong>
@@ -1960,17 +1964,62 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
         <section class="portal-etapa" data-etapa="6">
           <h3>Documentação e arquivos</h3>
-          <p class="portal-texto-apoio">Anexe manuais, Swagger/OpenAPI, Postman, exemplos JSON/XML, planilhas e outros documentos técnicos.</p>
+          <p class="portal-texto-apoio">
+            Anexe os documentos disponíveis. Todos os arquivos são opcionais, mas quanto mais completa
+            for a documentação, mais rápida será a análise da integração.
+          </p>
+
+          <div class="portal-documentos-checklist">
+            <label><input type="checkbox" id="piDocApi"> Manual da API / Webservice</label>
+            <label><input type="checkbox" id="piDocEdi"> Documentação EDI</label>
+            <label><input type="checkbox" id="piDocCotacao"> Manual de cotação</label>
+            <label><input type="checkbox" id="piDocColeta"> Manual de coleta</label>
+            <label><input type="checkbox" id="piDocRastreio"> Manual de rastreamento</label>
+            <label><input type="checkbox" id="piDocEtiquetas"> Manual de etiquetas/documentos</label>
+            <label><input type="checkbox" id="piDocTabelaComercial"> Tabela comercial</label>
+            <label><input type="checkbox" id="piDocPracas"> Tabela de praças/cidades atendidas</label>
+            <label><input type="checkbox" id="piDocContrato"> Contrato comercial</label>
+            <label><input type="checkbox" id="piDocSwagger"> Swagger / OpenAPI / Postman</label>
+          </div>
+
           <label class="portal-upload">
-            <input id="piArquivos" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.json,.xml,.yaml,.yml,.txt,.csv,.zip">
+            <input id="piArquivos" type="file" multiple
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.json,.xml,.yaml,.yml,.txt,.csv,.zip,.png,.jpg,.jpeg">
             <span>📎 Selecionar documentos</span>
-            <small>Não envie credenciais ou chaves privadas.</small>
+            <small>PDF, Word, Excel, JSON, XML, Swagger/OpenAPI, Postman, ZIP e imagens.</small>
+            <small>Não envie senhas, tokens, certificados ou chaves privadas.</small>
           </label>
+
           <div id="piArquivosLista" class="portal-arquivos-lista"></div>
+
           <div class="portal-grid">
-            <label class="portal-largo"><span>Link da documentação</span><input id="piLinkDocumentacao" placeholder="https://"></label>
-            <label class="portal-largo"><span>Limites, custos e regras técnicas</span><textarea id="piLimitesRegras" placeholder="Limite de requisições, bloqueios, cobrança, tempo médio de resposta..."></textarea></label>
-            <label class="portal-largo"><span>Canal de suporte técnico</span><textarea id="piSuporteTecnico" placeholder="E-mail, telefone, horário e prazo médio de atendimento."></textarea></label>
+            <label class="portal-largo">
+              <span>Link da documentação técnica</span>
+              <input id="piLinkDocumentacao" placeholder="https://">
+            </label>
+            <label class="portal-largo">
+              <span>Observações sobre os documentos enviados</span>
+              <textarea id="piObservacoesDocumentos"
+                placeholder="Ex.: documentação de homologação, versão da API, arquivos que ainda serão enviados..."></textarea>
+            </label>
+            <label class="portal-largo">
+              <span>Limites, custos e regras técnicas</span>
+              <textarea id="piLimitesRegras"
+                placeholder="Limite de requisições, bloqueios, cobrança, tempo médio de resposta..."></textarea>
+            </label>
+            <label class="portal-largo">
+              <span>Canal de suporte técnico</span>
+              <textarea id="piSuporteTecnico"
+                placeholder="E-mail, telefone, horário e prazo médio de atendimento."></textarea>
+            </label>
+          </div>
+
+          <div class="portal-aviso portal-aviso-lgpd">
+            <strong>Confidencialidade e LGPD</strong>
+            <p>
+              As informações fornecidas serão utilizadas exclusivamente para análise e implantação
+              da integração técnica com a Sofisticatto Cosméticos.
+            </p>
           </div>
         </section>
 

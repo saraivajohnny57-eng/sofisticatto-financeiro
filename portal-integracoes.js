@@ -200,14 +200,62 @@ function camposPortal(){
     rastreio_disponivel:"piRastreioDisponivel",endpoint_rastreio:"piEndpointRastreio",
     webhook_disponivel:"piWebhookDisponivel",eventos_webhook:"piEventosWebhook",
     etiqueta_disponivel:"piEtiquetaDisponivel",formato_etiqueta:"piFormatoEtiqueta",chaves_rastreio:"piChavesRastreio",
-    link_documentacao:"piLinkDocumentacao",limites_regras:"piLimitesRegras",suporte_tecnico:"piSuporteTecnico"
+    link_documentacao:"piLinkDocumentacao",observacoes_documentos:"piObservacoesDocumentos",
+    limites_regras:"piLimitesRegras",suporte_tecnico:"piSuporteTecnico"
   };
 }
+
+function documentosChecklistPortal(){
+  return {
+    manual_api:!!document.getElementById("piDocApi")?.checked,
+    documentacao_edi:!!document.getElementById("piDocEdi")?.checked,
+    manual_cotacao:!!document.getElementById("piDocCotacao")?.checked,
+    manual_coleta:!!document.getElementById("piDocColeta")?.checked,
+    manual_rastreamento:!!document.getElementById("piDocRastreio")?.checked,
+    manual_etiquetas:!!document.getElementById("piDocEtiquetas")?.checked,
+    tabela_comercial:!!document.getElementById("piDocTabelaComercial")?.checked,
+    tabela_pracas:!!document.getElementById("piDocPracas")?.checked,
+    contrato_comercial:!!document.getElementById("piDocContrato")?.checked,
+    swagger_postman:!!document.getElementById("piDocSwagger")?.checked
+  };
+}
+
+function preencherChecklistDocumentosPortal(docs){
+  const mapa={
+    manual_api:"piDocApi",
+    documentacao_edi:"piDocEdi",
+    manual_cotacao:"piDocCotacao",
+    manual_coleta:"piDocColeta",
+    manual_rastreamento:"piDocRastreio",
+    manual_etiquetas:"piDocEtiquetas",
+    tabela_comercial:"piDocTabelaComercial",
+    tabela_pracas:"piDocPracas",
+    contrato_comercial:"piDocContrato",
+    swagger_postman:"piDocSwagger"
+  };
+  Object.entries(mapa).forEach(([chave,id])=>{
+    const el=document.getElementById(id);
+    if(el)el.checked=!!docs?.[chave];
+  });
+}
+
 function lerDadosPortal(){
-  return Object.fromEntries(Object.entries(camposPortal()).map(([chave,id])=>[chave,document.getElementById(id)?.value?.trim()||""]));
+  return {
+    ...Object.fromEntries(
+      Object.entries(camposPortal()).map(([chave,id])=>[
+        chave,
+        document.getElementById(id)?.value?.trim()||""
+      ])
+    ),
+    documentos_disponiveis:documentosChecklistPortal()
+  };
 }
 function preencherDadosPortal(dados){
-  Object.entries(camposPortal()).forEach(([chave,id])=>{const el=document.getElementById(id);if(el)el.value=dados?.[chave]||""});
+  Object.entries(camposPortal()).forEach(([chave,id])=>{
+    const el=document.getElementById(id);
+    if(el)el.value=dados?.[chave]||"";
+  });
+  preencherChecklistDocumentosPortal(dados?.documentos_disponiveis||{});
 }
 function progressoPortal(dados=lerDadosPortal()){
   const importantes=["razao_social","cnpj","contato_tecnico","email_tecnico","tipo_integracao","cotacao_disponivel","coleta_disponivel","rastreio_disponivel"];
@@ -311,8 +359,17 @@ async function carregarPortalIntegracao(){
 
 function montarArquivosPortal(){
   const box=document.getElementById("piArquivosLista");
-  box.innerHTML=portalArquivosSelecionados.map((f,i)=>`
-    <div class="portal-arquivo-item"><span>📄 ${escaparIntegracao(f.name)}</span><button type="button" onclick="removerArquivoPortal(${i})">Remover</button></div>`).join("");
+  if(!box)return;
+  box.innerHTML=portalArquivosSelecionados.map((f,i)=>{
+    const kb=Math.max(1,Math.round(f.size/1024));
+    return `<div class="portal-arquivo-item">
+      <div>
+        <strong>📄 ${escaparIntegracao(f.name)}</strong>
+        <small>${kb.toLocaleString("pt-BR")} KB</small>
+      </div>
+      <button type="button" onclick="removerArquivoPortal(${i})">Remover</button>
+    </div>`;
+  }).join("");
 }
 function removerArquivoPortal(i){portalArquivosSelecionados.splice(i,1);montarArquivosPortal()}
 
