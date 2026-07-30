@@ -277,6 +277,109 @@ function calcularGnreFrete(){
     `FCP ${(Number(aliquota.fcp)*100).toFixed(2)}%`;
 }
 
+
+async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
+  const dados=dadosFormularioFrete();
+  const chave=chaveRespostaFrete(transportadoraId,tipoFrete);
+  const botao=document.getElementById(`btnRodonaves_${chave}`);
+
+  if(tipoFrete==="FOB"){
+    alert(
+      "A cotação automática FOB ainda depende da confirmação da Rodonaves sobre o valor do campo PayerSelected. "+
+      "Por segurança, nesta versão a cotação automática está liberada somente para CIF."
+    );
+    return;
+  }
+
+  const documento=String(dados.cpf_cnpj_destino||"").replace(/\D/g,"");
+  const cep=String(dados.cep_destino||"").replace(/\D/g,"");
+
+  if(!dados.cliente_nome||documento.length<11||cep.length!==8){
+    alert("Para cotar automaticamente, informe cliente, CNPJ/CPF válido e CEP de destino.");
+    return;
+  }
+
+  if(!dados.peso_total||!dados.valor_nf||!dados.volumes){
+    alert("Informe peso, valor da NF e quantidade de volumes.");
+    return;
+  }
+
+  botao.disabled=true;
+  const textoOriginal=botao.textContent;
+  botao.textContent="Consultando Rodonaves...";
+
+  try{
+    // Salva a cotação primeiro para manter o histórico.
+    const salva=await salvarCotacaoFrete("rascunho");
+    if(!salva)throw new Error("Não foi possível salvar a cotação antes da consulta.");
+
+    const resposta=await fetch("/api/integracoes/cotar-rodonaves",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "x-integrations-admin-key":sessionStorage.getItem("integrations_admin_key")||""
+      },
+      body:JSON.stringify({
+        cotacao_id:salva.id,
+        cliente_nome:dados.cliente_nome,
+        cpf_cnpj_destino:documento,
+        cep_destino:cep,
+        peso_total:dados.peso_total,
+        valor_nf:dados.valor_nf,
+        volumes:dados.volumes,
+        solicitante:dados.solicitante||"Johnny",
+        tipo_frete:tipoFrete
+      })
+    });
+
+    const corpo=await resposta.json().catch(()=>({}));
+
+    if(!resposta.ok){
+      throw new Error(corpo.erro||`Falha HTTP ${resposta.status}`);
+    }
+
+    const numero=corpo.numero_cotacao||"";
+    const valor=Number(corpo.valor_frete||0);
+    const prazo=corpo.prazo_dias
+      ? `${corpo.prazo_dias} ${Number(corpo.prazo_dias)===1?"dia útil":"dias úteis"}`
+      : "";
+
+    freteCampo(`freteRespNumero_${chave}`).value=numero;
+    freteCampo(`freteRespValor_${chave}`).value=valor
+      ? valor.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})
+      : "";
+    freteCampo(`freteRespPrazo_${chave}`).value=prazo;
+
+    await registrarRespostaFrete(transportadoraId,tipoFrete);
+
+    mostrarBalaoSistema(
+      "Cotação Rodonaves recebida",
+      `${moedaFrete(valor)}${prazo?` • ${prazo}`:""}`
+    );
+
+    if(corpo.aviso){
+      alert(
+        "Cotação concluída.\n\n"+
+        corpo.aviso
+      );
+    }
+  }catch(erro){
+    console.error("Cotação automática Rodonaves:",erro);
+    let mensagem=erro.message||String(erro);
+
+    if(/destinatário não encontrado/i.test(mensagem)){
+      mensagem+=
+        "\n\nO destinatário ainda não está cadastrado na base da Rodonaves. "+
+        "A próxima etapa será ativar o cadastro automático do cliente pela API Customer.";
+    }
+
+    alert("Não foi possível gerar a cotação automática:\n\n"+mensagem);
+  }finally{
+    botao.disabled=false;
+    botao.textContent=textoOriginal;
+  }
+}
+
 function gerarCotacoesFrete(){
   const dados = dadosFormularioFrete();
 
@@ -320,6 +423,12 @@ function gerarCotacoesFrete(){
         <h3>
           <span>${escaparHtmlEmail(transportadora?.nome || "")} — ${tipoResposta}</span>
           <span style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;">
+            ${/rodonaves/i.test(transportadora?.nome||"")
+              ? `<button class="btn roxo" id="btnRodonaves_${chave}"
+                   onclick="cotarAutomaticamenteRodonaves('${id}','${tipoResposta}')">
+                   ⚡ Cotar automaticamente
+                 </button>`
+              : ""}
             <button class="btn azul" onclick="copiarTextoFrete('${chave}')">Copiar solicitação</button>
             <button class="btn verde" onclick="abrirWhatsAppTransportadoraFrete('${id}','${tipoResposta}')">📱 Enviar WhatsApp</button>
           </span>
