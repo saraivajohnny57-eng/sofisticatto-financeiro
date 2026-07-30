@@ -31,6 +31,9 @@ async function carregarMotorIntegracoes(){
   montarKpisMotor();
   montarEndpointsMotor();
   montarLogsMotor();
+  carregarChecklistHomologacaoRodonaves();
+  carregarHistoricoRodonavesMotor();
+  cubagemRodonavesTela();
 }
 
 function montarKpisMotor(){
@@ -194,35 +197,193 @@ async function testarCotacaoRodonavesMotor(){
   if(!/rodonaves/i.test(convite?.transportadora_nome||""))return alert("Teste exclusivo da Rodonaves.");
   const adminKey=sessionStorage.getItem("integrations_admin_key")||"";
   if(!adminKey)return alert("Valide a chave administrativa em Credenciais/Teste.");
-  const numero=v=>Number(String(v||"").replace(/\./g,"").replace(",","."));
+
   const documento=miv("testeRodoDocumento"),cep=miv("testeRodoCep");
-  const peso=numero(miv("testeRodoPeso")),volumes=Number(miv("testeRodoVolumes")),valor=numero(miv("testeRodoValor"));
+  const peso=numeroMotorBR(miv("testeRodoPeso"));
+  const volumes=Number(miv("testeRodoVolumes"));
+  const valor=numeroMotorBR(miv("testeRodoValor"));
+  const altura=numeroMotorBR(miv("testeRodoAltura"));
+  const largura=numeroMotorBR(miv("testeRodoLargura"));
+  const comprimento=numeroMotorBR(miv("testeRodoComprimento"));
+  const pesoUnitario=numeroMotorBR(miv("testeRodoPesoUnitario"))||(peso/volumes);
+  const cubagem=cubagemRodonavesTela();
+
   if(documento.replace(/\D/g,"").length<11)return alert("Informe CNPJ/CPF válido.");
   if(cep.replace(/\D/g,"").length!==8)return alert("Informe CEP válido.");
   if(!peso||!volumes||!valor)return alert("Informe peso, volumes e valor.");
-  resultado.className="integracao-resultado-teste";resultado.textContent="Executando teste...";
+
+  resultado.className="integracao-resultado-teste";
+  resultado.textContent="Executando homologação completa...";
+
   try{
-    const r=await fetch("/api/integracoes/cotar-rodonaves",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":adminKey},body:JSON.stringify({
-      cotacao_id:null,cliente_nome:miv("testeRodoCliente")||"Cliente de teste",cpf_cnpj_destino:documento,cep_destino:cep,peso_total:peso,valor_nf:valor,volumes,solicitante:"Johnny",tipo_frete:"CIF"
-    })});
+    const r=await fetch("/api/integracoes/cotar-rodonaves",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-integrations-admin-key":adminKey},
+      body:JSON.stringify({
+        cotacao_id:null,
+        cliente_nome:miv("testeRodoCliente")||"Cliente de teste",
+        cpf_cnpj_destino:documento,
+        cep_destino:cep,
+        peso_total:peso,
+        valor_nf:valor,
+        volumes,
+        solicitante:"Johnny",
+        tipo_frete:"CIF",
+        servico:miv("testeRodoServico"),
+        embalagem:miv("testeRodoEmbalagem"),
+        altura_cm:altura,
+        largura_cm:largura,
+        comprimento_cm:comprimento,
+        peso_unitario:pesoUnitario,
+        cubagem_total:cubagem
+      })
+    });
     const d=await r.json().catch(()=>({}));
     if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);
+    window.__ultimaCotacaoRodonaves=d;
+
+    mi("checkRodoAuth").checked=true;
+    mi("checkRodoCidades").checked=true;
+    mi("checkRodoCotacao").checked=true;
+    mi("checkRodoPrazo").checked=!!d.prazo_dias;
+    mi("checkRodoProtocolo").checked=!!d.numero_cotacao;
+    atualizarProgressoRodonaves();
+
     resultado.className="integracao-resultado-teste sucesso";
     resultado.textContent=[
-      "TESTE DE COTAÇÃO RODONAVES: OK","",
-      "Autenticação: OK",
-      `Cidade origem: ${d.cidade_origem||"OK"}`,
-      `Cidade destino: ${d.cidade_destino||"OK"}`,
+      "HOMOLOGAÇÃO RODONAVES: OK","",
+      "AUTENTICAÇÃO: OK",
+      `ORIGEM: ${d.cidade_origem||"OK"}`,
+      `DESTINO: ${d.cidade_destino||"OK"}`,"",
+      `PESO: ${peso.toLocaleString("pt-BR")} kg`,
+      `VOLUMES: ${volumes}`,
+      `DIMENSÕES: ${altura} x ${largura} x ${comprimento} cm`,
+      `CUBAGEM REGISTRADA: ${cubagem.toLocaleString("pt-BR",{minimumFractionDigits:3})} m³`,
+      `EMBALAGEM: ${miv("testeRodoEmbalagem")}`,"",
       `HTTP: ${r.status}`,
-      `Valor: ${Number(d.valor_frete||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
-      `Prazo: ${d.prazo_dias?d.prazo_dias+" dias úteis":"não informado"}`,
-      `Protocolo: ${d.numero_cotacao||"não informado"}`,
-      `Tempo: ${d.tempo_ms||0} ms`,
-      "",d.aviso||""
+      `VALOR: ${Number(d.valor_frete||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
+      `PRAZO: ${d.prazo_dias?d.prazo_dias+" dias úteis":"não informado"}`,
+      `PROTOCOLO: ${d.numero_cotacao||"não informado"}`,
+      `TEMPO: ${d.tempo_ms||0} ms`,"",
+      d.aviso||""
     ].join("\n");
+
     await carregarLogsMotor();
+    await carregarHistoricoRodonavesMotor();
   }catch(e){
     resultado.className="integracao-resultado-teste erro";
-    resultado.textContent="FALHA NO TESTE\n\n"+e.message;
+    resultado.textContent="FALHA NA HOMOLOGAÇÃO\n\n"+e.message;
   }
+}
+
+function numeroMotorBR(valor){
+  return Number(String(valor||"").replace(/\./g,"").replace(",","."));
+}
+function cubagemRodonavesTela(){
+  const a=numeroMotorBR(miv("testeRodoAltura"));
+  const l=numeroMotorBR(miv("testeRodoLargura"));
+  const c=numeroMotorBR(miv("testeRodoComprimento"));
+  const v=Number(miv("testeRodoVolumes"))||0;
+  const cubagem=(a*l*c*v)/1000000;
+  const el=mi("testeRodoCubagem");
+  if(el)el.textContent=`${cubagem.toLocaleString("pt-BR",{minimumFractionDigits:3,maximumFractionDigits:3})} m³`;
+  return cubagem;
+}
+["testeRodoAltura","testeRodoLargura","testeRodoComprimento","testeRodoVolumes"].forEach(id=>{
+  document.addEventListener("input",e=>{if(e.target?.id===id)cubagemRodonavesTela()});
+});
+
+async function carregarHistoricoRodonavesMotor(){
+  const tb=mi("historicoRodoTabela");
+  if(!tb)return;
+  const r=await banco.from("rodonaves_cotacoes_api")
+    .select("created_at,cliente_nome,cep_destino,peso_total,volumes,cubagem_total,valor_frete,prazo_dias,numero_cotacao")
+    .order("created_at",{ascending:false}).limit(50);
+  if(r.error){
+    tb.innerHTML=`<tr><td colspan="9">${escaparMotor(r.error.message)}</td></tr>`;
+    return;
+  }
+  const lista=r.data||[];
+  tb.innerHTML=lista.length?lista.map(x=>`<tr>
+    <td>${new Date(x.created_at).toLocaleString("pt-BR")}</td>
+    <td>${escaparMotor(x.cliente_nome||"—")}</td>
+    <td>${escaparMotor(x.cep_destino||"—")}</td>
+    <td>${x.peso_total??"—"} kg</td>
+    <td>${x.volumes??"—"}</td>
+    <td>${x.cubagem_total!=null?Number(x.cubagem_total).toLocaleString("pt-BR",{minimumFractionDigits:3})+" m³":"—"}</td>
+    <td>${x.valor_frete!=null?Number(x.valor_frete).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}):"—"}</td>
+    <td>${x.prazo_dias??"—"}</td>
+    <td>${escaparMotor(x.numero_cotacao||"—")}</td>
+  </tr>`).join(""):'<tr><td colspan="9">Nenhum teste registrado.</td></tr>';
+}
+
+function atualizarProgressoRodonaves(){
+  const ids=["checkRodoAuth","checkRodoCidades","checkRodoCotacao","checkRodoPrazo","checkRodoProtocolo","checkRodoComparado","checkRodoCubagem"];
+  const feitos=ids.filter(id=>mi(id)?.checked).length;
+  const pct=Math.round((feitos/ids.length)*100);
+  if(mi("progressoRodoBarra"))mi("progressoRodoBarra").style.width=`${pct}%`;
+  if(mi("progressoRodoTexto"))mi("progressoRodoTexto").textContent=`${pct}% concluído`;
+  return {pct,ids};
+}
+document.addEventListener("change",e=>{
+  if(/^checkRodo/.test(e.target?.id||""))atualizarProgressoRodonaves();
+});
+
+async function salvarChecklistHomologacaoRodonaves(){
+  const conviteId=miv("motorConviteId");
+  if(!conviteId)return alert("Selecione a Rodonaves.");
+  const {pct,ids}=atualizarProgressoRodonaves();
+  const payload={
+    convite_id:conviteId,
+    autenticacao:mi("checkRodoAuth").checked,
+    cidades:mi("checkRodoCidades").checked,
+    cotacao:mi("checkRodoCotacao").checked,
+    prazo:mi("checkRodoPrazo").checked,
+    protocolo:mi("checkRodoProtocolo").checked,
+    comparado_portal:mi("checkRodoComparado").checked,
+    cubagem_validada:mi("checkRodoCubagem").checked,
+    percentual:pct,
+    atualizado_em:new Date().toISOString()
+  };
+  const r=await banco.from("integracao_homologacao_checklist").upsert(payload,{onConflict:"convite_id"});
+  if(r.error)alert(r.error.message);else alert("Checklist salvo.");
+}
+
+async function carregarChecklistHomologacaoRodonaves(){
+  const conviteId=miv("motorConviteId");
+  if(!conviteId)return;
+  const r=await banco.from("integracao_homologacao_checklist").select("*").eq("convite_id",conviteId).maybeSingle();
+  const x=r.data||{};
+  const mapa={
+    checkRodoAuth:x.autenticacao,checkRodoCidades:x.cidades,checkRodoCotacao:x.cotacao,
+    checkRodoPrazo:x.prazo,checkRodoProtocolo:x.protocolo,checkRodoComparado:x.comparado_portal,
+    checkRodoCubagem:x.cubagem_validada
+  };
+  Object.entries(mapa).forEach(([id,v])=>{if(mi(id))mi(id).checked=!!v});
+  atualizarProgressoRodonaves();
+}
+
+function compararCotacaoRodonaves(){
+  const portal=numeroMotorBR(miv("testeRodoValorPortal"));
+  const prazoPortal=Number(miv("testeRodoPrazoPortal"))||0;
+  const apiValor=Number(window.__ultimaCotacaoRodonaves?.valor_frete||0);
+  const apiPrazo=Number(window.__ultimaCotacaoRodonaves?.prazo_dias||0);
+  const box=mi("comparacaoRodoResultado");
+  if(!portal||!apiValor){
+    box.className="integracao-resultado-teste erro";
+    box.textContent="Execute uma cotação e informe o valor do portal.";
+    return;
+  }
+  const dif=apiValor-portal;
+  const pct=(dif/portal)*100;
+  const prazoDif=apiPrazo-prazoPortal;
+  box.className=`integracao-resultado-teste ${Math.abs(pct)<=2?"sucesso":"erro"}`;
+  box.textContent=[
+    `API: ${apiValor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
+    `Portal: ${portal.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
+    `Diferença: ${dif.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})} (${pct.toFixed(2)}%)`,
+    `Prazo API: ${apiPrazo||"—"} | Portal: ${prazoPortal||"—"} | Diferença: ${prazoDif}`
+  ].join("\n");
+  if(Math.abs(pct)<=2)mi("checkRodoComparado").checked=true;
+  atualizarProgressoRodonaves();
 }

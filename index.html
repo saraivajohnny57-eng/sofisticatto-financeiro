@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=15.2">
+<link rel="stylesheet" href="styles.css?v=16">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -1480,18 +1480,85 @@ SOFISTICATTO COSMÉTICOS</textarea>
         </div>
 
         <div class="integracao-segura-bloco motor-teste-rodonaves" style="margin-top:14px;">
-          <div class="top"><div><h3>🧪 Teste de cotação Rodonaves — CIF</h3>
-          <p>Verifica autenticação, cidades, envio e retorno. FOB permanece manual.</p></div></div>
+          <div class="top">
+            <div>
+              <h3>🧪 Homologação da cotação Rodonaves — CIF</h3>
+              <p>Valida autenticação, cidades, carga, retorno, histórico e tempo de resposta. FOB permanece manual.</p>
+            </div>
+            <button class="btn azul" onclick="carregarHistoricoRodonavesMotor()">Atualizar histórico</button>
+          </div>
+
           <div class="integracao-segura-form">
             <label><span>CNPJ/CPF destinatário</span><input id="testeRodoDocumento"></label>
             <label><span>CEP destino</span><input id="testeRodoCep"></label>
+            <label><span>Cliente</span><input id="testeRodoCliente"></label>
+            <label><span>Serviço</span>
+              <select id="testeRodoServico">
+                <option value="convencional">Convencional</option>
+                <option value="expresso">Expresso (quando liberado)</option>
+                <option value="fracionado">Fracionado</option>
+              </select>
+            </label>
             <label><span>Peso total (kg)</span><input id="testeRodoPeso" value="28"></label>
             <label><span>Volumes</span><input id="testeRodoVolumes" value="2" type="number" min="1"></label>
             <label><span>Valor da NF</span><input id="testeRodoValor" value="402,48"></label>
-            <label><span>Cliente</span><input id="testeRodoCliente"></label>
+            <label><span>Embalagem</span>
+              <select id="testeRodoEmbalagem">
+                <option value="caixa">Caixa</option>
+                <option value="pallet">Pallet</option>
+                <option value="envelope">Envelope</option>
+                <option value="tambor">Tambor</option>
+                <option value="outro">Outro</option>
+              </select>
+            </label>
+            <label><span>Altura por volume (cm)</span><input id="testeRodoAltura" value="38"></label>
+            <label><span>Largura por volume (cm)</span><input id="testeRodoLargura" value="29"></label>
+            <label><span>Comprimento por volume (cm)</span><input id="testeRodoComprimento" value="35"></label>
+            <label><span>Peso unitário estimado (kg)</span><input id="testeRodoPesoUnitario"></label>
           </div>
-          <div class="email-acoes"><button class="btn verde" onclick="testarCotacaoRodonavesMotor()">Executar teste CIF</button></div>
+
+          <div class="motor-cubagem-box">
+            <span>Cubagem total calculada</span>
+            <strong id="testeRodoCubagem">0,000 m³</strong>
+            <small>As dimensões ficam registradas. O envio em <code>Packs</code> permanece bloqueado até confirmarmos o schema oficial.</small>
+          </div>
+
+          <div class="email-acoes">
+            <button class="btn verde" onclick="testarCotacaoRodonavesMotor()">Executar teste CIF</button>
+            <button class="btn roxo" onclick="salvarChecklistHomologacaoRodonaves()">Salvar checklist</button>
+          </div>
+
           <div id="testeRodoResultado" class="integracao-resultado-teste">Nenhum teste realizado.</div>
+
+          <div class="motor-homologacao-grid">
+            <div>
+              <h4>Checklist de homologação</h4>
+              <label><input type="checkbox" id="checkRodoAuth"> Autenticação</label>
+              <label><input type="checkbox" id="checkRodoCidades"> Cidades/CEP</label>
+              <label><input type="checkbox" id="checkRodoCotacao"> Cotação</label>
+              <label><input type="checkbox" id="checkRodoPrazo"> Prazo</label>
+              <label><input type="checkbox" id="checkRodoProtocolo"> Protocolo</label>
+              <label><input type="checkbox" id="checkRodoComparado"> Comparado com portal</label>
+              <label><input type="checkbox" id="checkRodoCubagem"> Cubagem validada</label>
+              <div class="motor-progresso"><div id="progressoRodoBarra"></div></div>
+              <strong id="progressoRodoTexto">0% concluído</strong>
+            </div>
+
+            <div>
+              <h4>Comparação com o portal</h4>
+              <label><span>Valor no portal Rodonaves</span><input id="testeRodoValorPortal" placeholder="0,00"></label>
+              <label><span>Prazo no portal (dias)</span><input id="testeRodoPrazoPortal" type="number" min="0"></label>
+              <button class="btn azul" onclick="compararCotacaoRodonaves()">Comparar</button>
+              <div id="comparacaoRodoResultado" class="integracao-resultado-teste">Ainda não comparado.</div>
+            </div>
+          </div>
+
+          <div class="table-wrap" style="margin-top:14px;">
+            <table>
+              <thead><tr><th>Data/hora</th><th>Cliente</th><th>Destino</th><th>Peso</th><th>Volumes</th><th>Cubagem</th><th>Valor</th><th>Prazo</th><th>Protocolo</th></tr></thead>
+              <tbody id="historicoRodoTabela"><tr><td colspan="9">Nenhum teste carregado.</td></tr></tbody>
+            </table>
+          </div>
         </div>
 
         <div class="integracao-segura-bloco" style="margin-top:14px;">
@@ -2016,7 +2083,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="painel-logistico.js?v=11.6"></script>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=15"></script>
-<script src="motor-integracoes.js?v=15.2"></script>
+<script src="motor-integracoes.js?v=16"></script>
 <script src="coletas.js?v=13.5"></script>
 
 
