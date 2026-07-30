@@ -186,3 +186,43 @@ function montarLogsMotor(){
     <td>${l.sucesso?"✅ Sucesso":"❌ "+escaparMotor(l.mensagem||"Falha")}</td>
   </tr>`).join(""):'<tr><td colspan="7">Nenhum teste registrado.</td></tr>';
 }
+
+async function testarCotacaoRodonavesMotor(){
+  const conviteId=miv("motorConviteId"),resultado=mi("testeRodoResultado");
+  if(!conviteId)return alert("Selecione a Rodonaves.");
+  const convite=(integracoesTransportadoras||[]).find(x=>String(x.id)===String(conviteId));
+  if(!/rodonaves/i.test(convite?.transportadora_nome||""))return alert("Teste exclusivo da Rodonaves.");
+  const adminKey=sessionStorage.getItem("integrations_admin_key")||"";
+  if(!adminKey)return alert("Valide a chave administrativa em Credenciais/Teste.");
+  const numero=v=>Number(String(v||"").replace(/\./g,"").replace(",","."));
+  const documento=miv("testeRodoDocumento"),cep=miv("testeRodoCep");
+  const peso=numero(miv("testeRodoPeso")),volumes=Number(miv("testeRodoVolumes")),valor=numero(miv("testeRodoValor"));
+  if(documento.replace(/\D/g,"").length<11)return alert("Informe CNPJ/CPF válido.");
+  if(cep.replace(/\D/g,"").length!==8)return alert("Informe CEP válido.");
+  if(!peso||!volumes||!valor)return alert("Informe peso, volumes e valor.");
+  resultado.className="integracao-resultado-teste";resultado.textContent="Executando teste...";
+  try{
+    const r=await fetch("/api/integracoes/cotar-rodonaves",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":adminKey},body:JSON.stringify({
+      cotacao_id:null,cliente_nome:miv("testeRodoCliente")||"Cliente de teste",cpf_cnpj_destino:documento,cep_destino:cep,peso_total:peso,valor_nf:valor,volumes,solicitante:"Johnny",tipo_frete:"CIF"
+    })});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);
+    resultado.className="integracao-resultado-teste sucesso";
+    resultado.textContent=[
+      "TESTE DE COTAÇÃO RODONAVES: OK","",
+      "Autenticação: OK",
+      `Cidade origem: ${d.cidade_origem||"OK"}`,
+      `Cidade destino: ${d.cidade_destino||"OK"}`,
+      `HTTP: ${r.status}`,
+      `Valor: ${Number(d.valor_frete||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
+      `Prazo: ${d.prazo_dias?d.prazo_dias+" dias úteis":"não informado"}`,
+      `Protocolo: ${d.numero_cotacao||"não informado"}`,
+      `Tempo: ${d.tempo_ms||0} ms`,
+      "",d.aviso||""
+    ].join("\n");
+    await carregarLogsMotor();
+  }catch(e){
+    resultado.className="integracao-resultado-teste erro";
+    resultado.textContent="FALHA NO TESTE\n\n"+e.message;
+  }
+}

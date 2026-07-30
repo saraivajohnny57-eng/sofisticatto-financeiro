@@ -1802,3 +1802,6 @@ html.modo-portal-publico .portal-conteudo{
 .motor-endpoint-badge{display:inline-flex;padding:4px 8px;border-radius:99px;background:#ece8fa;color:#51468d;font-size:10px;font-weight:900}
 .motor-endpoint-acoes{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 @media(max-width:900px){.motor-grid{grid-template-columns:1fr}}
+
+.motor-teste-rodonaves{border-left:6px solid #24a86a}
+.frete-aviso-fob{display:inline-flex;align-items:center;padding:8px 10px;border-radius:10px;background:#fff2d8;color:#805a13;font-size:11px;font-weight:800}

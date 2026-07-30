@@ -423,12 +423,13 @@ function gerarCotacoesFrete(){
         <h3>
           <span>${escaparHtmlEmail(transportadora?.nome || "")} — ${tipoResposta}</span>
           <span style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;">
-            ${/rodonaves/i.test(transportadora?.nome||"")
+            ${/rodonaves/i.test(transportadora?.nome||"") && tipoResposta==="CIF"
               ? `<button class="btn roxo" id="btnRodonaves_${chave}"
                    onclick="cotarAutomaticamenteRodonaves('${id}','${tipoResposta}')">
-                   ⚡ Cotar automaticamente
-                 </button>`
-              : ""}
+                   ⚡ Cotar automaticamente CIF
+                 </button>` : ""}
+            ${/rodonaves/i.test(transportadora?.nome||"") && tipoResposta==="FOB"
+              ? `<span class="frete-aviso-fob">FOB Rodonaves: manual por WhatsApp ou telefone</span>` : ""}
             <button class="btn azul" onclick="copiarTextoFrete('${chave}')">Copiar solicitação</button>
             <button class="btn verde" onclick="abrirWhatsAppTransportadoraFrete('${id}','${tipoResposta}')">📱 Enviar WhatsApp</button>
           </span>
