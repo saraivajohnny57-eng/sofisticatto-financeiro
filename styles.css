@@ -1791,3 +1791,14 @@ html.modo-portal-publico .portal-conteudo{
   .integracao-segura-form{grid-template-columns:1fr}
   .integracao-largo{grid-column:auto}
 }
+
+/* V15 — MOTOR DE INTEGRAÇÕES */
+.motor-integracoes-card{border-top:6px solid #3e8e73}
+.motor-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.motor-endpoints-lista{display:grid;gap:8px;margin:10px 0}
+.motor-endpoint-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:11px;border:1px solid #ddd7ee;border-radius:13px;background:#fff}
+.motor-endpoint-item strong{display:block;color:#453c82}
+.motor-endpoint-item small{display:block;margin-top:4px;color:#756d8e;word-break:break-all}
+.motor-endpoint-badge{display:inline-flex;padding:4px 8px;border-radius:99px;background:#ece8fa;color:#51468d;font-size:10px;font-weight:900}
+.motor-endpoint-acoes{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+@media(max-width:900px){.motor-grid{grid-template-columns:1fr}}

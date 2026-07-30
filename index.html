@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=14">
+<link rel="stylesheet" href="styles.css?v=15">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -1343,6 +1343,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
         </div>
         <div class="email-acoes">
           <button class="btn verde" onclick="abrirNovaIntegracaoTransportadora()">+ Novo convite</button>
+          <button class="btn roxo" onclick="abrirMotorIntegracoes()">Motor de Integrações V1</button>
           <button class="btn azul" onclick="carregarIntegracoesTransportadoras()">Atualizar</button>
         </div>
       </div>
@@ -1379,6 +1380,118 @@ SOFISTICATTO COSMÉTICOS</textarea>
         </div>
       </div>
 
+
+
+      <div id="motorIntegracoesCard" class="card motor-integracoes-card" style="display:none;">
+        <div class="top">
+          <div>
+            <h2>Motor de Integrações V1</h2>
+            <p>Cadastre endpoints, acompanhe homologações e teste a autenticação das transportadoras.</p>
+          </div>
+          <div class="email-acoes">
+            <button class="btn verde" onclick="criarPresetRodonaves()">Configurar Rodonaves</button>
+            <button class="btn azul" onclick="carregarMotorIntegracoes()">Atualizar</button>
+            <button class="btn roxo" onclick="fecharMotorIntegracoes()">Fechar</button>
+          </div>
+        </div>
+
+        <div id="motorIntegracoesKpis" class="integracoes-kpis">
+          <div><span>Transportadoras</span><b>0</b></div>
+          <div><span>Em homologação</span><b>0</b></div>
+          <div><span>Ativas</span><b>0</b></div>
+          <div><span>Testes com sucesso</span><b>0</b></div>
+        </div>
+
+        <div class="motor-grid">
+          <div class="integracao-segura-bloco">
+            <h3>Transportadora e serviços</h3>
+            <div class="integracao-segura-form">
+              <label class="integracao-largo"><span>Transportadora</span>
+                <select id="motorConviteId" onchange="selecionarIntegracaoMotor()">
+                  <option value="">Selecione</option>
+                </select>
+              </label>
+              <label><span>Versão da API</span><input id="motorApiVersao" value="v1"></label>
+              <label><span>Status</span>
+                <select id="motorStatus">
+                  <option value="configurando">Configurando</option>
+                  <option value="homologacao">Em homologação</option>
+                  <option value="homologacao_aprovada">Homologação aprovada</option>
+                  <option value="producao">Ativa em produção</option>
+                  <option value="suspensa">Suspensa</option>
+                </select>
+              </label>
+              <label><span><input type="checkbox" id="motorCotacaoAtiva"> Cotação</span></label>
+              <label><span><input type="checkbox" id="motorPrazoAtivo"> Prazo</span></label>
+              <label><span><input type="checkbox" id="motorColetaAtiva"> Coleta</span></label>
+              <label><span><input type="checkbox" id="motorRastreioAtivo"> Rastreamento</span></label>
+            </div>
+            <div class="email-acoes">
+              <button class="btn verde" onclick="salvarIntegracaoMotor()">Salvar ficha técnica</button>
+              <button class="btn azul" onclick="abrirCredenciaisMotor()">Credenciais/Teste</button>
+            </div>
+          </div>
+
+          <div class="integracao-segura-bloco">
+            <h3>Endpoints cadastrados</h3>
+            <div id="motorEndpointsLista" class="motor-endpoints-lista">
+              Selecione uma transportadora.
+            </div>
+            <button class="btn azul" onclick="novoEndpointMotor()">+ Adicionar endpoint</button>
+          </div>
+        </div>
+
+        <div id="motorEndpointEditor" class="integracao-segura-bloco" style="display:none;margin-top:14px;">
+          <h3>Cadastro de endpoint</h3>
+          <input type="hidden" id="motorEndpointId">
+          <div class="integracao-segura-form">
+            <label><span>Operação</span>
+              <select id="motorEndpointOperacao">
+                <option value="token">Autenticação / token</option>
+                <option value="cotacao">Cotação</option>
+                <option value="cidade">Consulta de cidade</option>
+                <option value="prazo">Prazo</option>
+                <option value="coleta">Coleta</option>
+                <option value="rastreamento">Rastreamento</option>
+                <option value="comprovante">Comprovante de entrega</option>
+              </select>
+            </label>
+            <label><span>Ambiente</span>
+              <select id="motorEndpointAmbiente">
+                <option value="homologacao">Homologação</option>
+                <option value="producao">Produção</option>
+              </select>
+            </label>
+            <label><span>Método</span>
+              <select id="motorEndpointMetodo">
+                <option>POST</option><option>GET</option><option>PUT</option>
+              </select>
+            </label>
+            <label><span>Formato</span>
+              <select id="motorEndpointFormato"><option value="json">JSON</option><option value="form">Form Data</option><option value="xml">XML</option></select>
+            </label>
+            <label class="integracao-largo"><span>URL</span><input id="motorEndpointUrl" placeholder="https://..."></label>
+            <label class="integracao-largo"><span>Observações</span><textarea id="motorEndpointObservacao"></textarea></label>
+          </div>
+          <div class="email-acoes">
+            <button class="btn verde" onclick="salvarEndpointMotor()">Salvar endpoint</button>
+            <button class="btn azul" onclick="fecharEndpointMotor()">Cancelar</button>
+          </div>
+        </div>
+
+        <div class="integracao-segura-bloco" style="margin-top:14px;">
+          <div class="top">
+            <div><h3>Últimos testes técnicos</h3><p>As credenciais nunca são exibidas nos logs.</p></div>
+            <button class="btn azul" onclick="carregarLogsMotor()">Atualizar logs</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Data/hora</th><th>Transportadora</th><th>Operação</th><th>Ambiente</th><th>HTTP</th><th>Tempo</th><th>Resultado</th></tr></thead>
+              <tbody id="motorLogsTabela"><tr><td colspan="7">Nenhum teste.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
 
       <div id="integracaoSeguraCard" class="card integracao-segura-card" style="display:none;">
         <div class="top">
@@ -1548,7 +1661,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
             </label>
             <div class="email-acoes">
               <button class="btn azul" onclick="salvarConfiguracaoIntegracao()">Salvar configuração</button>
-              <button class="btn verde" onclick="testarHomologacaoIntegracao()">Testar homologação</button>
+              <button class="btn verde" onclick="testarHomologacaoIntegracao()">Testar endpoint genérico</button>
+              <button class="btn verde" onclick="testarAutenticacaoRodonaves()">Testar login Rodonaves</button>
               <button class="btn roxo" onclick="aprovarHomologacaoIntegracao()">Aprovar homologação</button>
             </div>
             <div id="integracaoResultadoTeste" class="integracao-resultado-teste">
@@ -1885,8 +1999,9 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="dashboard.js?v=11"></script>
 <script src="notificacoes.js?v=11"></script>
 <script src="painel-logistico.js?v=11.6"></script>
-<script src="portal-integracoes.js?v=14"></script>
-<script src="integracoes-seguras.js?v=14.1"></script>
+<script src="portal-integracoes.js?v=15"></script>
+<script src="integracoes-seguras.js?v=15"></script>
+<script src="motor-integracoes.js?v=15"></script>
 <script src="coletas.js?v=13.5"></script>
 
 

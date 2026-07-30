@@ -361,3 +361,31 @@ document.addEventListener("change",evento=>{
     carregarStatusCredenciaisIntegracao();
   }
 });
+
+async function testarAutenticacaoRodonaves(){
+  if(!chaveAdminIntegracoes())return alert("Valide a chave administrativa primeiro.");
+  const conviteId=document.getElementById("integracaoSeguraConviteId").value;
+  const resultado=document.getElementById("integracaoResultadoTeste");
+  resultado.className="integracao-resultado-teste";
+  resultado.textContent="Gerando token de homologação da Rodonaves...";
+  try{
+    const r=await requisicaoIntegracoes("/api/integracoes/testar-rodonaves-auth",{
+      method:"POST",body:JSON.stringify({convite_id:conviteId})
+    });
+    resultado.className="integracao-resultado-teste sucesso";
+    resultado.textContent=[
+      "AUTENTICAÇÃO RODONAVES: OK",
+      `HTTP: ${r.http_status}`,
+      `Tempo: ${r.tempo_ms} ms`,
+      `Tipo: ${r.token_type||"bearer"}`,
+      `Validade: ${r.expires_in||"não informada"} segundos`,
+      "",
+      "O token foi validado sem ser exibido ou salvo no navegador."
+    ].join("\n");
+    document.getElementById("integracaoStatusTecnico").value="homologacao";
+    await salvarConfiguracaoIntegracao();
+  }catch(erro){
+    resultado.className="integracao-resultado-teste erro";
+    resultado.textContent="FALHA NA AUTENTICAÇÃO RODONAVES\n\n"+erro.message;
+  }
+}
