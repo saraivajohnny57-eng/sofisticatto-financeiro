@@ -237,6 +237,15 @@ module.exports=async function handler(req,res){
       cidade_origem_id:origem.cidade_id,
       cep_destino:cepDestino,
       cidade_destino_id:destino.cidade_id,
+      peso_total:Number(entrada.peso_total)||null,
+      volumes:Number(entrada.volumes)||null,
+      altura_cm:Number(entrada.altura_cm)||null,
+      largura_cm:Number(entrada.largura_cm)||null,
+      comprimento_cm:Number(entrada.comprimento_cm)||null,
+      peso_unitario:Number(entrada.peso_unitario)||null,
+      cubagem_total:Number(entrada.cubagem_total)||null,
+      embalagem:entrada.embalagem||null,
+      servico:entrada.servico||null,
       valor_frete:valor||null,
       prazo_dias:prazo||null,
       numero_cotacao:protocolo||null,
@@ -281,8 +290,9 @@ module.exports=async function handler(req,res){
       tempo_ms:tempo,
       resposta:dados,
       aviso:
-        "Nesta primeira versão, as dimensões não foram enviadas (Packs vazio), conforme opção aceita pela documentação. "+
-        "Compare o valor com o portal da Rodonaves antes de aprovar a homologação."
+        "As dimensões e a cubagem foram registradas no histórico, mas o campo Packs continua vazio. "+
+        "Não ativei o envio das dimensões porque a estrutura oficial de Packs ainda não foi confirmada na documentação fornecida. "+
+        "Compare o valor com o portal antes de aprovar a homologação."
     });
   }catch(erro){
     const tempo=Date.now()-inicio;
