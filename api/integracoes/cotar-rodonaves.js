@@ -162,13 +162,17 @@ module.exports=async function handler(req,res){
         throw new Error("Para enviar Packs, informe volumes, peso e todas as dimensões.");
       }
 
-      packs=Array.from({length:volumes},()=>({
-        AmountPackages:1,
+      const modoPacks=entrada.modo_packs==="individual"?"individual":"agrupado";
+      const pacote={
+        AmountPackages:modoPacks==="agrupado"?volumes:1,
         Weight:Number(pesoUnitario.toFixed(3)),
         Length:Number(comprimento.toFixed(3)),
         Height:Number(altura.toFixed(3)),
         Width:Number(largura.toFixed(3))
-      }));
+      };
+      packs=modoPacks==="agrupado"
+        ? [pacote]
+        : Array.from({length:volumes},()=>({...pacote}));
     }
 
     const payload={
@@ -269,6 +273,7 @@ module.exports=async function handler(req,res){
       peso_unitario:Number(entrada.peso_unitario)||null,
       cubagem_total:Number(entrada.cubagem_total)||null,
       packs_enviados:enviarPacks,
+      packs_modo:enviarPacks?(entrada.modo_packs==="individual"?"individual":"agrupado"):null,
       packs_quantidade:packs.length,
       packs_payload:packs,
       embalagem:entrada.embalagem||null,
@@ -316,6 +321,7 @@ module.exports=async function handler(req,res){
       cidade_destino:destino.cidade,
       tempo_ms:tempo,
       packs_enviados:enviarPacks,
+      modo_packs:enviarPacks?(entrada.modo_packs==="individual"?"individual":"agrupado"):null,
       quantidade_packs:packs.length,
       resposta:dados,
       aviso:enviarPacks
