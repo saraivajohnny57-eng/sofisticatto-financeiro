@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=16.2">
+<link rel="stylesheet" href="styles.css?v=16.3">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -1529,6 +1529,13 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <span>Enviar dimensões no campo <code>Packs</code></span>
             </label>
             <p>Desativado por padrão. Ative somente para o teste de cubagem e compare com o Portal Rodonaves.</p>
+            <label class="motor-packs-modo">
+              <span>Formato dos volumes</span>
+              <select id="testeRodoModoPacks" onchange="atualizarPreviewPacksRodonaves()">
+                <option value="agrupado">Agrupar volumes iguais — AmountPackages = quantidade</option>
+                <option value="individual">Um objeto para cada volume — AmountPackages = 1</option>
+              </select>
+            </label>
             <pre id="testeRodoPacksPreview">"Packs": []</pre>
           </div>
 
@@ -1555,9 +1562,21 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
             <div>
               <h4>Comparação com o portal</h4>
-              <label><span>Valor no portal Rodonaves</span><input id="testeRodoValorPortal" placeholder="0,00"></label>
+              <p class="comparacao-aviso">Informe os mesmos dados usados no Portal. O sistema bloqueará a comparação se CEP, peso, volumes, valor da NF ou dimensões forem diferentes.</p>
+              <label><span>CEP destino no portal</span><input id="testeRodoCepPortal" placeholder="00000-000"></label>
+              <label><span>Peso total no portal (kg)</span><input id="testeRodoPesoPortal" placeholder="0,000"></label>
+              <label><span>Volumes no portal</span><input id="testeRodoVolumesPortal" type="number" min="1"></label>
+              <label><span>Valor da NF no portal</span><input id="testeRodoNfPortal" placeholder="0,00"></label>
+              <label><span>Altura no portal (cm)</span><input id="testeRodoAlturaPortal"></label>
+              <label><span>Largura no portal (cm)</span><input id="testeRodoLarguraPortal"></label>
+              <label><span>Comprimento no portal (cm)</span><input id="testeRodoComprimentoPortal"></label>
+              <label><span>Peso por volume no portal (kg)</span><input id="testeRodoPesoUnitarioPortal"></label>
+              <label><span>Valor do frete no portal</span><input id="testeRodoValorPortal" placeholder="0,00"></label>
               <label><span>Prazo no portal (dias)</span><input id="testeRodoPrazoPortal" type="number" min="0"></label>
-              <button class="btn azul" onclick="compararCotacaoRodonaves()">Comparar</button>
+              <div class="email-acoes">
+                <button class="btn azul" onclick="preencherComparacaoComDadosTeste()">Copiar dados do teste</button>
+                <button class="btn verde" onclick="compararCotacaoRodonaves()">Comparar</button>
+              </div>
               <div id="comparacaoRodoResultado" class="integracao-resultado-teste">Ainda não comparado.</div>
               <div id="seloHomologacaoRodo" class="selo-homologacao-rodo pendente">
                 ⏳ CIF básico aguardando comparação
@@ -2095,7 +2114,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="painel-logistico.js?v=11.6"></script>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=15"></script>
-<script src="motor-integracoes.js?v=16.2"></script>
+<script src="motor-integracoes.js?v=16.3"></script>
 <script src="coletas.js?v=13.5"></script>
 
 

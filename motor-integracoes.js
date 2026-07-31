@@ -238,6 +238,7 @@ async function testarCotacaoRodonavesMotor(){
         peso_unitario:pesoUnitario,
         cubagem_total:cubagem,
         enviar_packs:!!mi("testeRodoEnviarPacks")?.checked,
+        modo_packs:miv("testeRodoModoPacks")||"agrupado",
         packs:atualizarPreviewPacksRodonaves()
       })
     });
@@ -264,7 +265,8 @@ async function testarCotacaoRodonavesMotor(){
       `CUBAGEM REGISTRADA: ${cubagem.toLocaleString("pt-BR",{minimumFractionDigits:3})} m³`,
       `EMBALAGEM: ${miv("testeRodoEmbalagem")}`,
       `PACKS ENVIADO: ${d.packs_enviados?"SIM":"NÃO"}`,
-      `ITENS EM PACKS: ${d.quantidade_packs||0}`,"",
+      `FORMATO PACKS: ${d.modo_packs||"—"}`,
+      `OBJETOS EM PACKS: ${d.quantidade_packs||0}`,"",
       `HTTP: ${r.status}`,
       `VALOR: ${Number(d.valor_frete||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
       `PRAZO: ${d.prazo_dias?d.prazo_dias+" dias úteis":"não informado"}`,
@@ -380,12 +382,60 @@ async function carregarChecklistHomologacaoRodonaves(){
   atualizarProgressoRodonaves();
 }
 
+
+function normalizarCepRodo(v){return String(v||"").replace(/\D/g,"")}
+function quaseIgualRodo(a,b,tolerancia=0.01){return Math.abs(Number(a||0)-Number(b||0))<=tolerancia}
+
+function preencherComparacaoComDadosTeste(){
+  mi("testeRodoCepPortal").value=miv("testeRodoCep");
+  mi("testeRodoPesoPortal").value=miv("testeRodoPeso");
+  mi("testeRodoVolumesPortal").value=miv("testeRodoVolumes");
+  mi("testeRodoNfPortal").value=miv("testeRodoValor");
+  mi("testeRodoAlturaPortal").value=miv("testeRodoAltura");
+  mi("testeRodoLarguraPortal").value=miv("testeRodoLargura");
+  mi("testeRodoComprimentoPortal").value=miv("testeRodoComprimento");
+  mi("testeRodoPesoUnitarioPortal").value=miv("testeRodoPesoUnitario");
+}
+
+function validarDadosComparacaoRodonaves(){
+  const campos=[
+    ["CEP destino",normalizarCepRodo(miv("testeRodoCep")),normalizarCepRodo(miv("testeRodoCepPortal")),"texto"],
+    ["Peso total",numeroMotorBR(miv("testeRodoPeso")),numeroMotorBR(miv("testeRodoPesoPortal")),"numero"],
+    ["Volumes",Number(miv("testeRodoVolumes")),Number(miv("testeRodoVolumesPortal")),"numero"],
+    ["Valor da NF",numeroMotorBR(miv("testeRodoValor")),numeroMotorBR(miv("testeRodoNfPortal")),"numero"],
+    ["Altura",numeroMotorBR(miv("testeRodoAltura")),numeroMotorBR(miv("testeRodoAlturaPortal")),"numero"],
+    ["Largura",numeroMotorBR(miv("testeRodoLargura")),numeroMotorBR(miv("testeRodoLarguraPortal")),"numero"],
+    ["Comprimento",numeroMotorBR(miv("testeRodoComprimento")),numeroMotorBR(miv("testeRodoComprimentoPortal")),"numero"],
+    ["Peso por volume",numeroMotorBR(miv("testeRodoPesoUnitario")),numeroMotorBR(miv("testeRodoPesoUnitarioPortal")),"numero"]
+  ];
+  return campos.filter(([nome,a,b,tipo])=>{
+    if(tipo==="texto")return !a||!b||a!==b;
+    return !a||!b||!quaseIgualRodo(a,b,0.02);
+  }).map(([nome,a,b])=>`${nome}: teste "${a||"vazio"}" × portal "${b||"vazio"}"`);
+}
+
 async function compararCotacaoRodonaves(){
+  const divergencias=validarDadosComparacaoRodonaves();
+  const box=mi("comparacaoRodoResultado");
+  if(divergencias.length){
+    box.className="integracao-resultado-teste erro";
+    box.textContent=[
+      "COMPARAÇÃO BLOQUEADA",
+      "",
+      "Os dados do teste e do Portal Rodonaves não são iguais:",
+      ...divergencias.map(x=>"• "+x),
+      "",
+      "Corrija os campos e gere novamente a cotação no portal."
+    ].join("\n");
+    mi("checkRodoComparado").checked=false;
+    mi("checkRodoCubagem").checked=false;
+    atualizarProgressoRodonaves();
+    return;
+  }
   const portal=numeroMotorBR(miv("testeRodoValorPortal"));
   const prazoPortal=Number(miv("testeRodoPrazoPortal"))||0;
   const apiValor=Number(window.__ultimaCotacaoRodonaves?.valor_frete||0);
   const apiPrazo=Number(window.__ultimaCotacaoRodonaves?.prazo_dias||0);
-  const box=mi("comparacaoRodoResultado");
   if(!portal||!apiValor){
     box.className="integracao-resultado-teste erro";
     box.textContent="Execute uma cotação e informe o valor do portal.";
@@ -434,6 +484,14 @@ async function compararCotacaoRodonaves(){
       diferenca_percentual:pctDif,
       prazo_api:apiPrazo||null,
       prazo_portal:prazoPortal||null,
+      cep_portal:normalizarCepRodo(miv("testeRodoCepPortal"))||null,
+      peso_portal:numeroMotorBR(miv("testeRodoPesoPortal"))||null,
+      volumes_portal:Number(miv("testeRodoVolumesPortal"))||null,
+      nf_portal:numeroMotorBR(miv("testeRodoNfPortal"))||null,
+      altura_portal:numeroMotorBR(miv("testeRodoAlturaPortal"))||null,
+      largura_portal:numeroMotorBR(miv("testeRodoLarguraPortal"))||null,
+      comprimento_portal:numeroMotorBR(miv("testeRodoComprimentoPortal"))||null,
+      peso_unitario_portal:numeroMotorBR(miv("testeRodoPesoUnitarioPortal"))||null,
       homologacao_cif_basica:basico,
       comparado_em:new Date().toISOString(),
       atualizado_em:new Date().toISOString()
@@ -450,16 +508,21 @@ function montarPacksRodonavesTela(){
   const altura=numeroMotorBR(miv("testeRodoAltura"));
   const largura=numeroMotorBR(miv("testeRodoLargura"));
   const comprimento=numeroMotorBR(miv("testeRodoComprimento"));
+  const modo=miv("testeRodoModoPacks")||"agrupado";
 
   if(!volumes||!pesoUnitario||!altura||!largura||!comprimento)return [];
 
-  return Array.from({length:volumes},()=>({
-    AmountPackages:1,
+  const pacote={
+    AmountPackages:modo==="agrupado"?volumes:1,
     Weight:Number(pesoUnitario.toFixed(3)),
     Length:Number(comprimento.toFixed(3)),
     Height:Number(altura.toFixed(3)),
     Width:Number(largura.toFixed(3))
-  }));
+  };
+
+  return modo==="agrupado"
+    ? [pacote]
+    : Array.from({length:volumes},()=>({...pacote}));
 }
 
 function atualizarPreviewPacksRodonaves(){
