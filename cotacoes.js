@@ -341,7 +341,12 @@ async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
         tipo_frete:tipoFrete,
         embalagem:dados.embalagem||"Caixas",
         ...extrairMedidasRodonaves(dados.medidas),
-        peso_unitario:dados.volumes?Number(dados.peso_total)/Number(dados.volumes):null
+        peso_unitario:dados.volumes?Number(dados.peso_total)/Number(dados.volumes):null,
+        enviar_packs:(()=>{
+          const m=extrairMedidasRodonaves(dados.medidas);
+          return !!(m.altura_cm&&m.largura_cm&&m.comprimento_cm&&Number(dados.volumes)>0);
+        })(),
+        modo_packs:"agrupado"
       })
     });
 
@@ -371,10 +376,10 @@ async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
     );
 
     if(corpo.aviso){
-      alert(
-        "Cotação concluída.\n\n"+
-        corpo.aviso
-      );
+      const statusPacks=corpo.packs_enviados
+        ? `\n\nCubagem enviada em Packs (${corpo.modo_packs||"agrupado"}).`
+        : "\n\nPacks não enviado porque as dimensões não estavam completas.";
+      alert("Cotação concluída.\n\n"+corpo.aviso+statusPacks);
     }
   }catch(erro){
     console.error("Cotação automática Rodonaves:",erro);

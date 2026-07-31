@@ -337,12 +337,15 @@ function atualizarProgressoRodonaves(){
     mi("checkRodoProtocolo")?.checked &&
     mi("checkRodoComparado")?.checked;
   if(selo){
-    selo.className=`selo-homologacao-rodo ${basico?"ok":"pendente"}`;
-    selo.textContent=basico
-      ?"✅ CIF básico homologado — cubagem ainda pendente"
-      :"⏳ CIF básico aguardando comparação";
+    const completa=basico&&mi("checkRodoCubagem")?.checked;
+    selo.className=`selo-homologacao-rodo ${completa?"completo":basico?"ok":"pendente"}`;
+    selo.textContent=completa
+      ?"✅ Cotação CIF Rodonaves homologada — 100%"
+      :basico
+        ?"✅ CIF básico homologado — cubagem ainda pendente"
+        :"⏳ Cotação CIF aguardando homologação";
   }
-  return {pct,ids,basico};
+  return {pct,ids,basico,completa:basico&&mi("checkRodoCubagem")?.checked};
 }
 document.addEventListener("change",e=>{
   if(/^checkRodo/.test(e.target?.id||""))atualizarProgressoRodonaves();
@@ -456,7 +459,7 @@ async function compararCotacaoRodonaves(){
     `Prazo API: ${apiPrazo||"—"} | Portal: ${prazoPortal||"—"} | Diferença: ${prazoDif}`,
     "",
     comparacaoOk
-      ?"CIF básico validado e registrado automaticamente."
+      ?packsUsados?"Cotação CIF, cubagem e Packs validados. Homologação concluída em 100%.":"CIF básico validado e registrado automaticamente."
       :"A comparação não foi aprovada automaticamente."
   ].join("\n");
 
@@ -493,6 +496,9 @@ async function compararCotacaoRodonaves(){
       comprimento_portal:numeroMotorBR(miv("testeRodoComprimentoPortal"))||null,
       peso_unitario_portal:numeroMotorBR(miv("testeRodoPesoUnitarioPortal"))||null,
       homologacao_cif_basica:basico,
+      homologacao_completa:basico&&mi("checkRodoCubagem").checked,
+      packs_modo_validado:mi("checkRodoCubagem").checked?(miv("testeRodoModoPacks")||"agrupado"):null,
+      homologado_em:basico&&mi("checkRodoCubagem").checked?new Date().toISOString():null,
       comparado_em:new Date().toISOString(),
       atualizado_em:new Date().toISOString()
     },{onConflict:"convite_id"});

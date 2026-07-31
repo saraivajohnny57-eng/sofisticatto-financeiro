@@ -1837,3 +1837,9 @@ html.modo-portal-publico .portal-conteudo{
 .motor-packs-modo{display:grid;gap:5px;margin:10px 0;color:#4b427c;font-size:11px;font-weight:800}
 .motor-packs-modo select{width:100%;padding:9px;border:1px solid #d8d1eb;border-radius:10px;background:#fff}
 .comparacao-aviso{padding:9px 10px;border-radius:10px;background:#fff3d8;color:#7a5717;font-size:11px;line-height:1.4}
+
+/* V16.4 — HOMOLOGAÇÃO COMPLETA */
+.selo-homologacao-rodo.completo{
+  background:#c9f3d8;color:#0c6335;border:2px solid #4bb879;
+  box-shadow:0 6px 16px rgba(26,145,82,.12);
+}
