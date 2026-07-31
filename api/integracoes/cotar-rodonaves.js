@@ -147,6 +147,30 @@ module.exports=async function handler(req,res){
       consultarCidadePorCep(cepDestino,tokenDne)
     ]);
 
+    const enviarPacks=entrada.enviar_packs===true;
+    let packs=[];
+
+    if(enviarPacks){
+      const volumes=Number(entrada.volumes);
+      const pesoTotal=Number(entrada.peso_total);
+      const altura=Number(entrada.altura_cm);
+      const largura=Number(entrada.largura_cm);
+      const comprimento=Number(entrada.comprimento_cm);
+      const pesoUnitario=Number(entrada.peso_unitario)||(pesoTotal/volumes);
+
+      if(!volumes||!pesoUnitario||!altura||!largura||!comprimento){
+        throw new Error("Para enviar Packs, informe volumes, peso e todas as dimensões.");
+      }
+
+      packs=Array.from({length:volumes},()=>({
+        AmountPackages:1,
+        Weight:Number(pesoUnitario.toFixed(3)),
+        Length:Number(comprimento.toFixed(3)),
+        Height:Number(altura.toFixed(3)),
+        Width:Number(largura.toFixed(3))
+      }));
+    }
+
     const payload={
       OriginZipCode:cepOrigem,
       OriginCityId:Number(origem.cidade_id),
@@ -156,7 +180,7 @@ module.exports=async function handler(req,res){
       EletronicInvoiceValue:Number(entrada.valor_nf),
       CustomerTaxIdRegistration:cnpjOrigem,
       ReceiverCpfcnp:documento,
-      Packs:[],
+      Packs:packs,
       ContactName:String(entrada.solicitante||"Johnny").slice(0,100),
       ContactPhoneNumber:"6232930035",
       TotalPackages:Number(entrada.volumes)
@@ -244,6 +268,9 @@ module.exports=async function handler(req,res){
       comprimento_cm:Number(entrada.comprimento_cm)||null,
       peso_unitario:Number(entrada.peso_unitario)||null,
       cubagem_total:Number(entrada.cubagem_total)||null,
+      packs_enviados:enviarPacks,
+      packs_quantidade:packs.length,
+      packs_payload:packs,
       embalagem:entrada.embalagem||null,
       servico:entrada.servico||null,
       valor_frete:valor||null,
@@ -288,11 +315,12 @@ module.exports=async function handler(req,res){
       cidade_origem:origem.cidade,
       cidade_destino:destino.cidade,
       tempo_ms:tempo,
+      packs_enviados:enviarPacks,
+      quantidade_packs:packs.length,
       resposta:dados,
-      aviso:
-        "As dimensões e a cubagem foram registradas no histórico, mas o campo Packs continua vazio. "+
-        "Não ativei o envio das dimensões porque a estrutura oficial de Packs ainda não foi confirmada na documentação fornecida. "+
-        "Compare o valor com o portal antes de aprovar a homologação."
+      aviso:enviarPacks
+        ? "As dimensões foram enviadas em Packs. Compare esta cotação com o Portal Rodonaves antes de validar a cubagem."
+        : "A cotação foi enviada com Packs vazio. Ative o envio somente para o teste controlado de cubagem."
     });
   }catch(erro){
     const tempo=Date.now()-inicio;
