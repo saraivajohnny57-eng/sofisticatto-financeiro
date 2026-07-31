@@ -1818,3 +1818,10 @@ html.modo-portal-publico .portal-conteudo{
 .motor-progresso{height:12px;background:#ebe7f4;border-radius:99px;overflow:hidden;margin:12px 0 6px}
 .motor-progresso>div{height:100%;width:0;background:#28a96c;transition:width .25s}
 @media(max-width:800px){.motor-homologacao-grid{grid-template-columns:1fr}}
+
+/* V16.1 — SELO DE HOMOLOGAÇÃO */
+.selo-homologacao-rodo{
+  margin-top:10px;padding:10px 12px;border-radius:12px;font-size:12px;font-weight:900;
+}
+.selo-homologacao-rodo.ok{background:#dcf6e6;color:#17683d;border:1px solid #9fd8b5}
+.selo-homologacao-rodo.pendente{background:#fff3d8;color:#805a13;border:1px solid #ead19b}

@@ -296,9 +296,7 @@ function cubagemRodonavesTela(){
 async function carregarHistoricoRodonavesMotor(){
   const tb=mi("historicoRodoTabela");
   if(!tb)return;
-  const r=await banco.from("rodonaves_cotacoes_api")
-    .select("created_at,cliente_nome,cep_destino,peso_total,volumes,cubagem_total,valor_frete,prazo_dias,numero_cotacao")
-    .order("created_at",{ascending:false}).limit(50);
+  const r=await banco.rpc("listar_rodonaves_cotacoes_seguras",{p_limite:50});
   if(r.error){
     tb.innerHTML=`<tr><td colspan="9">${escaparMotor(r.error.message)}</td></tr>`;
     return;
@@ -323,7 +321,21 @@ function atualizarProgressoRodonaves(){
   const pct=Math.round((feitos/ids.length)*100);
   if(mi("progressoRodoBarra"))mi("progressoRodoBarra").style.width=`${pct}%`;
   if(mi("progressoRodoTexto"))mi("progressoRodoTexto").textContent=`${pct}% concluído`;
-  return {pct,ids};
+  const selo=mi("seloHomologacaoRodo");
+  const basico=
+    mi("checkRodoAuth")?.checked &&
+    mi("checkRodoCidades")?.checked &&
+    mi("checkRodoCotacao")?.checked &&
+    mi("checkRodoPrazo")?.checked &&
+    mi("checkRodoProtocolo")?.checked &&
+    mi("checkRodoComparado")?.checked;
+  if(selo){
+    selo.className=`selo-homologacao-rodo ${basico?"ok":"pendente"}`;
+    selo.textContent=basico
+      ?"✅ CIF básico homologado — cubagem ainda pendente"
+      :"⏳ CIF básico aguardando comparação";
+  }
+  return {pct,ids,basico};
 }
 document.addEventListener("change",e=>{
   if(/^checkRodo/.test(e.target?.id||""))atualizarProgressoRodonaves();
@@ -363,7 +375,7 @@ async function carregarChecklistHomologacaoRodonaves(){
   atualizarProgressoRodonaves();
 }
 
-function compararCotacaoRodonaves(){
+async function compararCotacaoRodonaves(){
   const portal=numeroMotorBR(miv("testeRodoValorPortal"));
   const prazoPortal=Number(miv("testeRodoPrazoPortal"))||0;
   const apiValor=Number(window.__ultimaCotacaoRodonaves?.valor_frete||0);
@@ -375,15 +387,50 @@ function compararCotacaoRodonaves(){
     return;
   }
   const dif=apiValor-portal;
-  const pct=(dif/portal)*100;
+  const pctDif=(dif/portal)*100;
   const prazoDif=apiPrazo-prazoPortal;
-  box.className=`integracao-resultado-teste ${Math.abs(pct)<=2?"sucesso":"erro"}`;
+  const valorOk=Math.abs(pctDif)<=2;
+  const prazoOk=!prazoPortal||prazoDif===0;
+  const comparacaoOk=valorOk&&prazoOk;
+
+  box.className=`integracao-resultado-teste ${comparacaoOk?"sucesso":"erro"}`;
   box.textContent=[
     `API: ${apiValor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
     `Portal: ${portal.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
-    `Diferença: ${dif.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})} (${pct.toFixed(2)}%)`,
-    `Prazo API: ${apiPrazo||"—"} | Portal: ${prazoPortal||"—"} | Diferença: ${prazoDif}`
+    `Diferença: ${dif.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})} (${pctDif.toFixed(2)}%)`,
+    `Prazo API: ${apiPrazo||"—"} | Portal: ${prazoPortal||"—"} | Diferença: ${prazoDif}`,
+    "",
+    comparacaoOk
+      ?"CIF básico validado e registrado automaticamente."
+      :"A comparação não foi aprovada automaticamente."
   ].join("\n");
-  if(Math.abs(pct)<=2)mi("checkRodoComparado").checked=true;
+
+  mi("checkRodoComparado").checked=comparacaoOk;
   atualizarProgressoRodonaves();
+
+  const conviteId=miv("motorConviteId");
+  if(conviteId){
+    const {pct,basico}=atualizarProgressoRodonaves();
+    const r=await banco.from("integracao_homologacao_checklist").upsert({
+      convite_id:conviteId,
+      autenticacao:mi("checkRodoAuth").checked,
+      cidades:mi("checkRodoCidades").checked,
+      cotacao:mi("checkRodoCotacao").checked,
+      prazo:mi("checkRodoPrazo").checked,
+      protocolo:mi("checkRodoProtocolo").checked,
+      comparado_portal:comparacaoOk,
+      cubagem_validada:mi("checkRodoCubagem").checked,
+      percentual:pct,
+      valor_api:apiValor,
+      valor_portal:portal,
+      diferenca_valor:dif,
+      diferenca_percentual:pctDif,
+      prazo_api:apiPrazo||null,
+      prazo_portal:prazoPortal||null,
+      homologacao_cif_basica:basico,
+      comparado_em:new Date().toISOString(),
+      atualizado_em:new Date().toISOString()
+    },{onConflict:"convite_id"});
+    if(r.error)console.warn("Salvar comparação:",r.error.message);
+  }
 }

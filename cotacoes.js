@@ -278,6 +278,16 @@ function calcularGnreFrete(){
 }
 
 
+
+function extrairMedidasRodonaves(texto){
+  const nums=String(texto||"").replace(/,/g,".").match(/\d+(?:\.\d+)?/g)||[];
+  return {
+    altura_cm:Number(nums[0]||0),
+    largura_cm:Number(nums[1]||0),
+    comprimento_cm:Number(nums[2]||0)
+  };
+}
+
 async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
   const dados=dadosFormularioFrete();
   const chave=chaveRespostaFrete(transportadoraId,tipoFrete);
@@ -328,7 +338,10 @@ async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
         valor_nf:dados.valor_nf,
         volumes:dados.volumes,
         solicitante:dados.solicitante||"Johnny",
-        tipo_frete:tipoFrete
+        tipo_frete:tipoFrete,
+        embalagem:dados.embalagem||"Caixas",
+        ...extrairMedidasRodonaves(dados.medidas),
+        peso_unitario:dados.volumes?Number(dados.peso_total)/Number(dados.volumes):null
       })
     });
 
