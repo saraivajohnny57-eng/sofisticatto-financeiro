@@ -34,6 +34,7 @@ async function carregarMotorIntegracoes(){
   carregarChecklistHomologacaoRodonaves();
   carregarHistoricoRodonavesMotor();
   cubagemRodonavesTela();
+  atualizarPreviewPacksRodonaves();
 }
 
 function montarKpisMotor(){
@@ -235,7 +236,9 @@ async function testarCotacaoRodonavesMotor(){
         largura_cm:largura,
         comprimento_cm:comprimento,
         peso_unitario:pesoUnitario,
-        cubagem_total:cubagem
+        cubagem_total:cubagem,
+        enviar_packs:!!mi("testeRodoEnviarPacks")?.checked,
+        packs:atualizarPreviewPacksRodonaves()
       })
     });
     const d=await r.json().catch(()=>({}));
@@ -259,7 +262,9 @@ async function testarCotacaoRodonavesMotor(){
       `VOLUMES: ${volumes}`,
       `DIMENSÕES: ${altura} x ${largura} x ${comprimento} cm`,
       `CUBAGEM REGISTRADA: ${cubagem.toLocaleString("pt-BR",{minimumFractionDigits:3})} m³`,
-      `EMBALAGEM: ${miv("testeRodoEmbalagem")}`,"",
+      `EMBALAGEM: ${miv("testeRodoEmbalagem")}`,
+      `PACKS ENVIADO: ${d.packs_enviados?"SIM":"NÃO"}`,
+      `ITENS EM PACKS: ${d.quantidade_packs||0}`,"",
       `HTTP: ${r.status}`,
       `VALOR: ${Number(d.valor_frete||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
       `PRAZO: ${d.prazo_dias?d.prazo_dias+" dias úteis":"não informado"}`,
@@ -406,6 +411,8 @@ async function compararCotacaoRodonaves(){
   ].join("\n");
 
   mi("checkRodoComparado").checked=comparacaoOk;
+  const packsUsados=!!window.__ultimaCotacaoRodonaves?.packs_enviados;
+  if(comparacaoOk&&packsUsados)mi("checkRodoCubagem").checked=true;
   atualizarProgressoRodonaves();
 
   const conviteId=miv("motorConviteId");
@@ -434,3 +441,38 @@ async function compararCotacaoRodonaves(){
     if(r.error)console.warn("Salvar comparação:",r.error.message);
   }
 }
+
+function montarPacksRodonavesTela(){
+  const volumes=Math.max(0,Number(miv("testeRodoVolumes"))||0);
+  const pesoTotal=numeroMotorBR(miv("testeRodoPeso"));
+  const pesoInformado=numeroMotorBR(miv("testeRodoPesoUnitario"));
+  const pesoUnitario=pesoInformado||(volumes?pesoTotal/volumes:0);
+  const altura=numeroMotorBR(miv("testeRodoAltura"));
+  const largura=numeroMotorBR(miv("testeRodoLargura"));
+  const comprimento=numeroMotorBR(miv("testeRodoComprimento"));
+
+  if(!volumes||!pesoUnitario||!altura||!largura||!comprimento)return [];
+
+  return Array.from({length:volumes},()=>({
+    AmountPackages:1,
+    Weight:Number(pesoUnitario.toFixed(3)),
+    Length:Number(comprimento.toFixed(3)),
+    Height:Number(altura.toFixed(3)),
+    Width:Number(largura.toFixed(3))
+  }));
+}
+
+function atualizarPreviewPacksRodonaves(){
+  const ativo=!!mi("testeRodoEnviarPacks")?.checked;
+  const packs=ativo?montarPacksRodonavesTela():[];
+  const preview=mi("testeRodoPacksPreview");
+  if(preview)preview.textContent=JSON.stringify({Packs:packs},null,2);
+  return packs;
+}
+
+["testeRodoPeso","testeRodoPesoUnitario","testeRodoAltura","testeRodoLargura","testeRodoComprimento","testeRodoVolumes"]
+.forEach(id=>{
+  document.addEventListener("input",e=>{
+    if(e.target?.id===id)atualizarPreviewPacksRodonaves();
+  });
+});

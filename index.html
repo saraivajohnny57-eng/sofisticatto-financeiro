@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=16.1">
+<link rel="stylesheet" href="styles.css?v=16.2">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -1520,7 +1520,16 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <div class="motor-cubagem-box">
             <span>Cubagem total calculada</span>
             <strong id="testeRodoCubagem">0,000 m³</strong>
-            <small>As dimensões ficam registradas. O envio em <code>Packs</code> permanece bloqueado até confirmarmos o schema oficial.</small>
+            <small>Estrutura utilizada: AmountPackages, Weight, Length, Height e Width.</small>
+          </div>
+
+          <div class="motor-packs-controle">
+            <label class="motor-switch">
+              <input type="checkbox" id="testeRodoEnviarPacks" onchange="atualizarPreviewPacksRodonaves()">
+              <span>Enviar dimensões no campo <code>Packs</code></span>
+            </label>
+            <p>Desativado por padrão. Ative somente para o teste de cubagem e compare com o Portal Rodonaves.</p>
+            <pre id="testeRodoPacksPreview">"Packs": []</pre>
           </div>
 
           <div class="email-acoes">
@@ -1539,7 +1548,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <label><input type="checkbox" id="checkRodoPrazo"> Prazo</label>
               <label><input type="checkbox" id="checkRodoProtocolo"> Protocolo</label>
               <label><input type="checkbox" id="checkRodoComparado"> Comparado com portal</label>
-              <label><input type="checkbox" id="checkRodoCubagem"> Cubagem validada</label>
+              <label><input type="checkbox" id="checkRodoCubagem"> Cubagem/Packs validada</label>
               <div class="motor-progresso"><div id="progressoRodoBarra"></div></div>
               <strong id="progressoRodoTexto">0% concluído</strong>
             </div>
@@ -2086,7 +2095,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="painel-logistico.js?v=11.6"></script>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=15"></script>
-<script src="motor-integracoes.js?v=16.1"></script>
+<script src="motor-integracoes.js?v=16.2"></script>
 <script src="coletas.js?v=13.5"></script>
 
 

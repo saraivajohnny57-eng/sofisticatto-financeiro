@@ -1825,3 +1825,10 @@ html.modo-portal-publico .portal-conteudo{
 }
 .selo-homologacao-rodo.ok{background:#dcf6e6;color:#17683d;border:1px solid #9fd8b5}
 .selo-homologacao-rodo.pendente{background:#fff3d8;color:#805a13;border:1px solid #ead19b}
+
+/* V16.2 — CONTROLE DE PACKS */
+.motor-packs-controle{margin:12px 0;padding:13px 14px;border:1px solid #d8d1eb;border-radius:14px;background:#fff}
+.motor-switch{display:flex;align-items:center;gap:9px;font-weight:900;color:#493f82}
+.motor-switch input{width:18px;height:18px}
+.motor-packs-controle p{margin:7px 0;color:#6c6582;font-size:11px;line-height:1.4}
+.motor-packs-controle pre{max-height:230px;overflow:auto;margin:10px 0 0;padding:11px;border-radius:11px;background:#f4f1fa;color:#3c3569;font-size:11px;white-space:pre-wrap}
