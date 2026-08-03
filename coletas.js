@@ -133,7 +133,45 @@ function aplicarModeloDaTransportadoraColeta(){const tid=cv("coletaTransportador
 async function copiarMensagemColeta(){atualizarPreviaColeta();const t=cv("coletaPreviaMensagem");if(!t)return alert("Preencha os dados da coleta.");try{await navigator.clipboard.writeText(t);alert("Mensagem copiada para o WhatsApp.")}catch{ce("coletaPreviaMensagem").select();document.execCommand("copy")}}
 function whatsappTransportadoraColeta(){const t=coletaTransportadoras.find(x=>String(x.id)===cv("coletaTransportadoraId"));return String(t?.whatsapp||t?.telefone||"").replace(/\D/g,"")}
 function abrirWhatsAppColeta(){atualizarPreviaColeta();const tel=whatsappTransportadoraColeta();const url=tel?`https://wa.me/55${tel.replace(/^55/,"")}?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`:`https://wa.me/?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`;window.open(url,"_blank")}
-async function salvarAgendamentoColeta(){const d=dadosColeta();if(!d.razao_destino)return alert("Informe o cliente/destino.");if(!cv("coletaModeloId"))return alert("Selecione um modelo.");atualizarPreviaColeta();const payload={cotacao_id:cv("coletaCotacaoId")||null,resposta_cotacao_id:cv("coletaRespostaId")||null,cliente_id:cv("coletaClienteId")||null,cliente_nome:d.razao_destino,transportadora_id:cv("coletaTransportadoraId")||null,modelo_id:String(cv("coletaModeloId")).startsWith("padrao-")?null:cv("coletaModeloId"),tipo_frete:cv("coletaTipoFrete"),dados:d,mensagem:cv("coletaPreviaMensagem"),volumes:Number(d.volumes)||null,peso:Number(String(d.peso).replace(",","."))||null,numero_nf:d.numero_nf||null,status:"solicitado",protocolo_cotacao:protocoloAtualParaColeta()||null,data_programada:formatarDataHoraApiColeta()||null,origem:cv("coletaCotacaoId")?"autorizacao_cotacao":"manual",observacao:cv("coletaObservacao")||null,criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};const id=cv("coletaAgendamentoId");const r=id?await banco.from("coleta_agendamentos").update(payload).eq("id",id):await banco.from("coleta_agendamentos").insert([payload]);if(r.error)return alert(r.error.message);alert("Agendamento salvo.");await carregarAgendamentosColeta();mostrarPainelColeta("historico")}
+async function salvarAgendamentoColeta(){
+  const d=dadosColeta();
+  if(!d.razao_destino)return alert("Informe o cliente/destino.");
+  if(!cv("coletaModeloId"))return alert("Selecione um modelo.");
+  if(!(await verificarColetaDuplicadaAntesDeSalvar()))return;
+
+  atualizarPreviaColeta();
+  const id=cv("coletaAgendamentoId");
+  const payload={
+    cotacao_id:cv("coletaCotacaoId")||null,
+    resposta_cotacao_id:cv("coletaRespostaId")||null,
+    cliente_id:cv("coletaClienteId")||null,
+    cliente_nome:d.razao_destino,
+    transportadora_id:cv("coletaTransportadoraId")||null,
+    modelo_id:String(cv("coletaModeloId")).startsWith("padrao-")?null:cv("coletaModeloId"),
+    tipo_frete:cv("coletaTipoFrete"),
+    dados:d,
+    mensagem:cv("coletaPreviaMensagem"),
+    volumes:Number(d.volumes)||null,
+    peso:Number(String(d.peso).replace(",","."))||null,
+    numero_nf:d.numero_nf||null,
+    protocolo_cotacao:protocoloAtualParaColeta()||null,
+    data_programada:formatarDataHoraApiColeta()||null,
+    origem:cv("coletaCotacaoId")?"autorizacao_cotacao":"manual",
+    observacao:cv("coletaObservacao")||null,
+    criado_por:usuarioLogado?.login||null,
+    atualizado_em:new Date().toISOString()
+  };
+  if(!id)payload.status="rascunho";
+
+  const r=id
+    ?await banco.from("coleta_agendamentos").update(payload).eq("id",id)
+    :await banco.from("coleta_agendamentos").insert([payload]);
+
+  if(r.error)return alert(r.error.message);
+  alert(id?"Agendamento atualizado.":"Rascunho salvo.");
+  await carregarAgendamentosColeta();
+  mostrarPainelColeta("historico");
+}
 function limparFormularioColeta(){["coletaAgendamentoId","coletaCotacaoId","coletaRespostaId","coletaClienteId","coletaClienteBusca","coletaCnpjDestino","coletaRazaoDestino","coletaCepDestino","coletaCidadeDestino","coletaVolumes","coletaPeso","coletaValorNf","coletaNumeroNf","coletaLocalizacao","coletaObservacao","coletaProtocoloCotacao","coletaComentarioApi","coletaEnderecoDestino","coletaNumeroDestino","coletaComplementoDestino","coletaBairroDestino"].forEach(id=>{if(ce(id))ce(id).value=""});atualizarPreviaColeta()}
 function montarHistoricoColetas(){
   const tb=ce("coletaTabelaHistorico");if(!tb)return;
@@ -860,15 +898,43 @@ async function carregarPainelRodonaves(){
   await carregarAgendamentosColeta();
   const lista=(coletaAgendamentos||[]).filter(a=>/rodonaves/i.test(a.frete_transportadoras?.nome||""));
   const hoje=new Date().toISOString().slice(0,10);
+
   ce("coletaKpiHoje").textContent=lista.filter(a=>String(dataColetaPainel(a)||"").slice(0,10)===hoje).length;
   ce("coletaKpiAbertas").textContent=lista.filter(a=>!["coletado","cancelado"].includes(statusColetaPainel(a))).length;
   ce("coletaKpiConfirmadas").textContent=lista.filter(a=>/confirmado|confirmada/.test(statusColetaPainel(a))).length;
   ce("coletaKpiColetadas").textContent=lista.filter(a=>/coletado|coletada/.test(statusColetaPainel(a))).length;
   ce("coletaKpiErros").textContent=lista.filter(a=>/erro/.test(statusColetaPainel(a))).length;
-  const dup=detectarDuplicidadesRodonaves(lista),alerta=ce("coletaAlertaDuplicidade");
-  alerta.style.display=dup.length?"block":"none";alerta.textContent=dup.length?`⚠ Protocolos com mais de uma coleta aberta: ${dup.map(([p])=>p).join(", ")}`:"";
-  const tb=ce("coletaPainelRodonavesTabela"),ord=[...lista].sort((a,b)=>new Date(dataColetaPainel(b)||0)-new Date(dataColetaPainel(a)||0));
-  tb.innerHTML=ord.length?ord.map(a=>{const s=statusColetaPainel(a);return`<tr><td>${dataColetaPainel(a)?new Date(dataColetaPainel(a)).toLocaleString("pt-BR"):"—"}</td><td>${escaparHtmlEmail(a.cliente_nome||"—")}</td><td>${escaparHtmlEmail(a.protocolo_cotacao||"—")}</td><td>${escaparHtmlEmail(a.codigo_coleta||"—")}</td><td>${escaparHtmlEmail(enderecoColetaPainel(a))}</td><td><span class="coleta-status-painel ${classeStatusColeta(s)}">${escaparHtmlEmail(statusLabelColeta(s))}</span></td><td>${a.consultado_api_em?new Date(a.consultado_api_em).toLocaleString("pt-BR"):"—"}</td><td><button class="btn azul" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar</button><button class="btn verde" onclick="editarAgendamentoColeta('${a.id}');mostrarPainelColeta('nova')">Abrir</button>${!["coletado","cancelado"].includes(s)?`<button class="btn roxo" onclick="solicitarCancelamentoColetaRodonaves('${a.id}')">Solicitar cancelamento</button>`:""}</td></tr>`}).join(""):'<tr><td colspan="8">Nenhuma coleta Rodonaves registrada.</td></tr>';
+
+  const dup=detectarDuplicidadesRodonaves(lista);
+  const alerta=ce("coletaAlertaDuplicidade");
+  alerta.style.display=dup.length?"block":"none";
+  alerta.textContent=dup.length?`⚠ Protocolos com mais de uma coleta aberta: ${dup.map(([p])=>p).join(", ")}`:"";
+
+  const tb=ce("coletaPainelRodonavesTabela");
+  const ord=[...lista].sort((a,b)=>new Date(dataColetaPainel(b)||0)-new Date(dataColetaPainel(a)||0));
+
+  tb.innerHTML=ord.length?ord.map(a=>{
+    const s=statusColetaPainel(a);
+    const rascunho=s==="rascunho"&&!a.codigo_coleta;
+    return `<tr>
+      <td>${rascunho?`<input type="checkbox" class="coleta-check-rascunho" value="${a.id}" aria-label="Selecionar rascunho">`:""}</td>
+      <td>${dataColetaPainel(a)?new Date(dataColetaPainel(a)).toLocaleString("pt-BR"):"—"}</td>
+      <td>${escaparHtmlEmail(a.cliente_nome||"—")}</td>
+      <td>${escaparHtmlEmail(a.protocolo_cotacao||"—")}</td>
+      <td>${escaparHtmlEmail(a.codigo_coleta||"—")}</td>
+      <td>${escaparHtmlEmail(enderecoColetaPainel(a))}</td>
+      <td><span class="coleta-status-painel ${classeStatusColeta(s)}">${escaparHtmlEmail(statusLabelColeta(s))}</span></td>
+      <td>${a.consultado_api_em?new Date(a.consultado_api_em).toLocaleString("pt-BR"):"—"}</td>
+      <td>
+        ${a.codigo_coleta?`<button class="btn azul" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar</button>`:""}
+        <button class="btn verde" onclick="editarAgendamentoColeta('${a.id}');mostrarPainelColeta('nova')">Abrir</button>
+        ${rascunho?`<button class="btn vermelho" onclick="excluirRascunhoColetaRodonaves('${a.id}')">Excluir</button>`:""}
+        ${!rascunho&&!["coletado","cancelado"].includes(s)?`<button class="btn roxo" onclick="solicitarCancelamentoColetaRodonaves('${a.id}')">Solicitar cancelamento</button>`:""}
+      </td>
+    </tr>`;
+  }).join(""):'<tr><td colspan="9">Nenhuma coleta Rodonaves registrada.</td></tr>';
+
+  if(ce("coletaSelecionarTodosRascunhos"))ce("coletaSelecionarTodosRascunhos").checked=false;
   await carregarEventosRodonaves();
 }
 async function registrarEventoColeta(id,ant,novo,origem,detalhes){const r=await banco.from("coleta_status_eventos").insert([{agendamento_id:id,status_anterior:ant||null,status_novo:novo||null,origem:origem||"sistema",detalhes:detalhes||null,usuario:usuarioLogado?.login||"sistema"}]);if(r.error)console.warn(r.error.message)}
@@ -891,4 +957,75 @@ async function solicitarCancelamentoColetaRodonaves(id){
   const r=await banco.from("coleta_agendamentos").update({status:"cancelamento_solicitado",status_api:"cancelamento_solicitado",cancelamento_motivo:String(motivo||"").trim()||null,cancelamento_solicitado_em:agora,cancelamento_solicitado_por:usuarioLogado?.login||"sistema",atualizado_em:agora}).eq("id",id);
   if(r.error)return alert(r.error.message);
   await registrarEventoColeta(id,ant,"cancelamento_solicitado","usuario",{motivo});await carregarPainelRodonaves();alert("Solicitação registrada. Confirme o cancelamento com a Rodonaves.");
+}
+
+function idsRascunhosSelecionadosRodonaves(){
+  return [...document.querySelectorAll(".coleta-check-rascunho:checked")].map(el=>el.value);
+}
+function selecionarTodosRascunhosRodonaves(marcar){
+  document.querySelectorAll(".coleta-check-rascunho").forEach(el=>el.checked=!!marcar);
+}
+async function excluirRascunhoColetaRodonaves(id){
+  const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
+  if(!a)return;
+  if(statusColetaPainel(a)!=="rascunho"||a.codigo_coleta){
+    return alert("Somente rascunhos que nunca foram enviados podem ser excluídos.");
+  }
+  if(!confirm(`Excluir este rascunho?\n\nCliente: ${a.cliente_nome||"—"}\nProtocolo: ${a.protocolo_cotacao||"—"}\n\nEsta operação não pode ser desfeita.`))return;
+  const r=await banco.from("coleta_agendamentos").delete().eq("id",id).eq("status","rascunho").is("codigo_coleta",null);
+  if(r.error)return alert("Não foi possível excluir: "+r.error.message);
+  await carregarPainelRodonaves();
+}
+async function excluirRascunhosSelecionadosRodonaves(){
+  const ids=idsRascunhosSelecionadosRodonaves();
+  if(!ids.length)return alert("Selecione pelo menos um rascunho.");
+  if(!confirm(`Excluir ${ids.length} rascunho(s) selecionado(s)?\n\nSomente registros ainda não enviados serão removidos.`))return;
+  const r=await banco.from("coleta_agendamentos").delete().in("id",ids).eq("status","rascunho").is("codigo_coleta",null);
+  if(r.error)return alert("Não foi possível excluir os rascunhos: "+r.error.message);
+  await carregarPainelRodonaves();
+  alert("Rascunhos excluídos com sucesso.");
+}
+async function limparRascunhosAntigosRodonaves(){
+  const diasTexto=prompt("Excluir rascunhos sem código criados há quantos dias ou mais?","1");
+  if(diasTexto===null)return;
+  const dias=Math.max(1,Math.trunc(Number(diasTexto)||1));
+  const limite=new Date(Date.now()-dias*86400000);
+  const candidatos=(coletaAgendamentos||[]).filter(a=>
+    /rodonaves/i.test(a.frete_transportadoras?.nome||"")&&
+    statusColetaPainel(a)==="rascunho"&&!a.codigo_coleta&&
+    new Date(a.created_at)<limite
+  );
+  if(!candidatos.length)return alert(`Não há rascunhos com ${dias} dia(s) ou mais.`);
+  if(!confirm(`Excluir ${candidatos.length} rascunho(s) antigo(s)?\n\nCritério: sem código da coleta e criados há ${dias} dia(s) ou mais.`))return;
+  const r=await banco.from("coleta_agendamentos").delete()
+    .in("id",candidatos.map(a=>a.id))
+    .eq("status","rascunho")
+    .is("codigo_coleta",null);
+  if(r.error)return alert("Não foi possível limpar: "+r.error.message);
+  await carregarPainelRodonaves();
+  alert("Limpeza concluída.");
+}
+async function verificarColetaDuplicadaAntesDeSalvar(){
+  const protocolo=String(protocoloAtualParaColeta()||"").trim();
+  if(!protocolo)return true;
+
+  const atualId=String(cv("coletaAgendamentoId")||"");
+  const existente=(coletaAgendamentos||[]).find(a=>
+    String(a.id)!==atualId&&
+    String(a.protocolo_cotacao||"").trim()===protocolo&&
+    !["cancelado","coletado"].includes(statusColetaPainel(a))
+  );
+  if(!existente)return true;
+
+  const abrir=confirm(
+    `Já existe uma coleta ou rascunho aberto para o protocolo ${protocolo}.\n\n`+
+    `Cliente: ${existente.cliente_nome||"—"}\nStatus: ${statusLabelColeta(statusColetaPainel(existente))}\n\n`+
+    `Clique em OK para abrir o registro existente.\nClique em Cancelar para avaliar a criação de outro.`
+  );
+  if(abrir){
+    editarAgendamentoColeta(existente.id);
+    mostrarPainelColeta("nova");
+    return false;
+  }
+  return confirm("Confirma a criação de outro registro para o mesmo protocolo?");
 }
