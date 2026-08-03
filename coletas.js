@@ -59,7 +59,7 @@ Endereço de coleta: *{{endereco_origem}}*
 function ce(id){return document.getElementById(id)}
 function cv(id){return ce(id)?.value?.trim()||""}
 function coletaMoeda(v){let n=Number(String(v||"").replace(/\./g,"").replace(",","."));return Number.isFinite(n)&&n? n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}):""}
-function mostrarPainelColeta(p){["nova","historico","rodonaves","modelos"].forEach(x=>{ce("coletaPainel"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p);ce("coletaTab"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p)});if(p==="historico")montarHistoricoColetas();if(p==="rodonaves")carregarPainelRodonaves();if(p==="modelos")montarModelosColeta()}
+function mostrarPainelColeta(p){["nova","historico","rodonaves","saidas","entradas","transportadoras","modelos"].forEach(x=>{ce("coletaPainel"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p);ce("coletaTab"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p)});if(p==="historico")montarHistoricoColetas();if(p==="rodonaves")carregarPainelRodonaves();if(p==="saidas")carregarRastreamentosLogistica("saida");if(p==="entradas")carregarRastreamentosLogistica("entrada");if(p==="transportadoras")carregarTransportadorasLogistica();if(p==="modelos")montarModelosColeta()}
 async function inicializarModuloColetas(){if(coletaInicializado){atualizarPreviaColeta();return}coletaInicializado=true;await Promise.all([carregarTransportadorasColeta(),carregarModelosColeta(),carregarAgendamentosColeta()]);montarClientesColeta();atualizarPreviaColeta()}
 async function carregarTransportadorasColeta(){const r=await banco.from("frete_transportadoras").select("*").order("nome");coletaTransportadoras=r.error?[]:r.data||[];const opts='<option value="">Selecione</option>'+coletaTransportadoras.map(t=>`<option value="${t.id}">${escaparHtmlEmail(t.nome||"")}</option>`).join("");ce("coletaTransportadoraId").innerHTML=opts;ce("coletaModeloTransportadoraId").innerHTML='<option value="">Modelo geral</option>'+opts.replace('<option value="">Selecione</option>','')}
 async function carregarModelosColeta(){const r=await banco.from("coleta_modelos").select("*").eq("ativo",true).order("nome");coletaModelos=r.error?[]:r.data||[];if(!coletaModelos.length)coletaModelos=COLETA_MODELOS_PADRAO.map((m,i)=>({id:`padrao-${i+1}`,...m,ativo:true}));ce("coletaModeloId").innerHTML=coletaModelos.map(m=>`<option value="${m.id}">${escaparHtmlEmail(m.nome)}</option>`).join("");montarModelosColeta()}
@@ -926,10 +926,13 @@ async function carregarPainelRodonaves(){
       <td><span class="coleta-status-painel ${classeStatusColeta(s)}">${escaparHtmlEmail(statusLabelColeta(s))}</span></td>
       <td>${a.consultado_api_em?new Date(a.consultado_api_em).toLocaleString("pt-BR"):"—"}</td>
       <td>
-        ${a.codigo_coleta?`<button class="btn azul" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar</button>`:""}
+        ${a.codigo_coleta&&/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<button class="btn azul" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar API</button>`:""}
         <button class="btn verde" onclick="editarAgendamentoColeta('${a.id}');mostrarPainelColeta('nova')">Abrir</button>
         ${rascunho?`<button class="btn vermelho" onclick="excluirRascunhoColetaRodonaves('${a.id}')">Excluir</button>`:""}
-        ${!rascunho&&!["coletado","cancelado"].includes(s)?`<button class="btn roxo" onclick="solicitarCancelamentoColetaRodonaves('${a.id}')">Solicitar cancelamento</button>`:""}
+        ${!rascunho&&!["coletado","cancelado"].includes(s)?`<button class="btn coleta-manual" onclick="alterarStatusManualColeta('${a.id}','coletado')">Marcar coletada</button>`:""}
+        ${!rascunho&&!["coletado","cancelado"].includes(s)?`<button class="btn coleta-alerta" onclick="alterarStatusManualColeta('${a.id}','nao_coletada')">Não coletada</button>`:""}
+        ${!rascunho&&!["coletado","cancelado"].includes(s)?`<button class="btn roxo" onclick="reagendarColetaManual('${a.id}')">Reagendar</button>`:""}
+        ${!rascunho&&!["coletado","cancelado"].includes(s)?`<button class="btn vermelho" onclick="solicitarCancelamentoColetaRodonaves('${a.id}')">Cancelar</button>`:""}
       </td>
     </tr>`;
   }).join(""):'<tr><td colspan="9">Nenhuma coleta Rodonaves registrada.</td></tr>';
@@ -1028,4 +1031,228 @@ async function verificarColetaDuplicadaAntesDeSalvar(){
     return false;
   }
   return confirm("Confirma a criação de outro registro para o mesmo protocolo?");
+}
+
+/* =========================================================
+   V19 — FLUXO LOGÍSTICO COMPLETO
+   ========================================================= */
+let rastreamentosLogistica=[];
+
+async function alterarStatusManualColeta(id,novoStatus){
+  const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
+  if(!a)return;
+  const rotulo=novoStatus==="coletado"?"coletada":"não coletada";
+  const obs=prompt(`Observação para marcar como ${rotulo}:`,"");
+  if(obs===null)return;
+  if(!confirm(`Confirmar alteração para "${rotulo}"?\n\nCliente: ${a.cliente_nome||"—"}\nTransportadora: ${a.frete_transportadoras?.nome||"—"}`))return;
+  const anterior=statusColetaPainel(a);
+  const agora=new Date().toISOString();
+  const payload={
+    status:novoStatus,
+    status_api:novoStatus,
+    atualizado_em:agora,
+    consultado_api_em:agora
+  };
+  if(novoStatus==="coletado")payload.coletado_em=agora;
+  const r=await banco.from("coleta_agendamentos").update(payload).eq("id",id);
+  if(r.error)return alert(r.error.message);
+  await registrarEventoColeta(id,anterior,novoStatus,"atualizacao_manual",{observacao:obs||null});
+  await carregarPainelRodonaves();
+}
+
+async function reagendarColetaManual(id){
+  const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
+  if(!a)return;
+  const dataAtual=String(a.data_programada||"").slice(0,16);
+  const nova=prompt("Informe a nova data e hora no formato AAAA-MM-DD HH:MM:",dataAtual.replace("T"," "));
+  if(nova===null)return;
+  const normalizada=nova.trim().replace(" ","T");
+  const dt=new Date(normalizada);
+  if(Number.isNaN(dt.getTime()))return alert("Data e hora inválidas.");
+  const anterior=statusColetaPainel(a);
+  const r=await banco.from("coleta_agendamentos").update({
+    status:"reagendada",
+    status_api:"reagendada",
+    data_programada:dt.toISOString(),
+    atualizado_em:new Date().toISOString()
+  }).eq("id",id);
+  if(r.error)return alert(r.error.message);
+  await registrarEventoColeta(id,anterior,"reagendada","atualizacao_manual",{nova_data:dt.toISOString()});
+  await carregarPainelRodonaves();
+}
+
+function formularioRastreamentoHtml(sentido){
+  const titulo=sentido==="entrada"?"Fornecedor/remetente":"Cliente/destinatário";
+  const transportadoras='<option value="">Selecione</option>'+coletaTransportadoras.map(t=>`<option value="${t.id}">${escaparHtmlEmail(t.nome||"")}</option>`).join("");
+  return `<div class="rastreamento-grid">
+    <input type="hidden" id="rastId_${sentido}">
+    <div><label>${titulo}</label><input id="rastParceiro_${sentido}" placeholder="${titulo}"></div>
+    <div><label>Transportadora</label><select id="rastTransportadora_${sentido}">${transportadoras}</select></div>
+    <div><label>Número da NF-e</label><input id="rastNfe_${sentido}"></div>
+    <div><label>Chave da NF-e</label><input id="rastChave_${sentido}" maxlength="44"></div>
+    <div><label>Número do CT-e</label><input id="rastCte_${sentido}"></div>
+    <div><label>Protocolo de rastreio</label><input id="rastProtocolo_${sentido}"></div>
+    <div><label>Data de postagem/coleta</label><input id="rastData_${sentido}" type="date"></div>
+    <div><label>Previsão de entrega</label><input id="rastPrevisao_${sentido}" type="date"></div>
+    <div><label>Volumes</label><input id="rastVolumes_${sentido}" type="number" min="1"></div>
+    <div><label>Status</label><select id="rastStatus_${sentido}">
+      <option value="aguardando_coleta">Aguardando coleta</option>
+      <option value="em_transito">Em trânsito</option>
+      <option value="na_filial">Na filial</option>
+      <option value="saiu_entrega">Saiu para entrega</option>
+      <option value="${sentido==="entrada"?"recebido":"entregue"}">${sentido==="entrada"?"Recebido":"Entregue"}</option>
+      <option value="atrasado">Atrasado</option>
+      <option value="ocorrencia">Com ocorrência</option>
+    </select></div>
+    <div class="campo-largo"><label>Observação</label><textarea id="rastObs_${sentido}" rows="2"></textarea></div>
+    <div class="campo-largo email-acoes">
+      <button class="btn verde" onclick="salvarRastreamentoLogistica('${sentido}')">Salvar</button>
+      <button class="btn azul" onclick="fecharFormularioRastreamento('${sentido}')">Fechar</button>
+    </div>
+  </div>`;
+}
+function abrirFormularioRastreamento(sentido,id=null){
+  const box=ce(sentido==="entrada"?"rastreamentoFormEntrada":"rastreamentoFormSaida");
+  box.innerHTML=formularioRastreamentoHtml(sentido);
+  box.style.display="block";
+  if(id){
+    const r=rastreamentosLogistica.find(x=>String(x.id)===String(id));
+    if(r){
+      ce(`rastId_${sentido}`).value=r.id;
+      ce(`rastParceiro_${sentido}`).value=r.parceiro_nome||"";
+      ce(`rastTransportadora_${sentido}`).value=r.transportadora_id||"";
+      ce(`rastNfe_${sentido}`).value=r.numero_nfe||"";
+      ce(`rastChave_${sentido}`).value=r.chave_nfe||"";
+      ce(`rastCte_${sentido}`).value=r.numero_cte||"";
+      ce(`rastProtocolo_${sentido}`).value=r.protocolo_rastreio||"";
+      ce(`rastData_${sentido}`).value=String(r.data_postagem||"").slice(0,10);
+      ce(`rastPrevisao_${sentido}`).value=String(r.previsao_entrega||"").slice(0,10);
+      ce(`rastVolumes_${sentido}`).value=r.volumes||"";
+      ce(`rastStatus_${sentido}`).value=r.status||"em_transito";
+      ce(`rastObs_${sentido}`).value=r.observacao||"";
+    }
+  }
+}
+function fecharFormularioRastreamento(sentido){
+  const box=ce(sentido==="entrada"?"rastreamentoFormEntrada":"rastreamentoFormSaida");
+  box.style.display="none";box.innerHTML="";
+}
+async function salvarRastreamentoLogistica(sentido){
+  const id=cv(`rastId_${sentido}`);
+  const parceiro=cv(`rastParceiro_${sentido}`).trim();
+  if(!parceiro)return alert(sentido==="entrada"?"Informe o fornecedor/remetente.":"Informe o cliente/destinatário.");
+  const payload={
+    sentido,
+    parceiro_nome:parceiro,
+    transportadora_id:cv(`rastTransportadora_${sentido}`)||null,
+    numero_nfe:cv(`rastNfe_${sentido}`)||null,
+    chave_nfe:cv(`rastChave_${sentido}`).replace(/\D/g,"")||null,
+    numero_cte:cv(`rastCte_${sentido}`)||null,
+    protocolo_rastreio:cv(`rastProtocolo_${sentido}`)||null,
+    data_postagem:cv(`rastData_${sentido}`)||null,
+    previsao_entrega:cv(`rastPrevisao_${sentido}`)||null,
+    volumes:Number(cv(`rastVolumes_${sentido}`))||null,
+    status:cv(`rastStatus_${sentido}`)||"em_transito",
+    observacao:cv(`rastObs_${sentido}`)||null,
+    atualizado_em:new Date().toISOString(),
+    atualizado_por:usuarioLogado?.login||null
+  };
+  const r=id
+    ?await banco.from("logistica_rastreamentos").update(payload).eq("id",id)
+    :await banco.from("logistica_rastreamentos").insert([payload]);
+  if(r.error)return alert(r.error.message);
+  fecharFormularioRastreamento(sentido);
+  await carregarRastreamentosLogistica(sentido);
+}
+async function carregarRastreamentosLogistica(sentido){
+  const r=await banco.from("logistica_rastreamentos")
+    .select("*,frete_transportadoras(nome)")
+    .eq("sentido",sentido)
+    .order("created_at",{ascending:false});
+  rastreamentosLogistica=r.error?[]:(r.data||[]);
+  const entreguesStatus=sentido==="entrada"?"recebido":"entregue";
+  const emTransito=rastreamentosLogistica.filter(x=>!["entregue","recebido","cancelado"].includes(x.status)).length;
+  const entregues=rastreamentosLogistica.filter(x=>x.status===entreguesStatus).length;
+  const atrasadas=rastreamentosLogistica.filter(x=>x.status==="atrasado"||(
+    x.previsao_entrega&&new Date(x.previsao_entrega)<new Date()&&!["entregue","recebido"].includes(x.status)
+  )).length;
+  if(sentido==="saida"){
+    ce("rastSaidaTransito").textContent=emTransito;ce("rastSaidaEntregues").textContent=entregues;ce("rastSaidaAtrasadas").textContent=atrasadas;
+  }else{
+    ce("rastEntradaTransito").textContent=emTransito;ce("rastEntradaRecebidas").textContent=entregues;ce("rastEntradaAtrasadas").textContent=atrasadas;
+  }
+  const tb=ce(sentido==="entrada"?"rastreamentoTabelaEntradas":"rastreamentoTabelaSaidas");
+  tb.innerHTML=rastreamentosLogistica.length?rastreamentosLogistica.map(x=>`<tr>
+    <td>${x.created_at?new Date(x.created_at).toLocaleDateString("pt-BR"):"—"}</td>
+    <td>${escaparHtmlEmail(x.parceiro_nome||"—")}</td>
+    <td>${escaparHtmlEmail(x.frete_transportadoras?.nome||"Não informada")}</td>
+    <td>${escaparHtmlEmail(x.numero_nfe||"—")}</td>
+    <td>${escaparHtmlEmail(x.numero_cte||x.protocolo_rastreio||"—")}</td>
+    <td>${x.previsao_entrega?new Date(x.previsao_entrega+"T12:00:00").toLocaleDateString("pt-BR"):"—"}</td>
+    <td><span class="coleta-status-painel ${classeStatusRastreamento(x.status)}">${statusLabelRastreamento(x.status)}</span></td>
+    <td>
+      <button class="btn azul" onclick="abrirFormularioRastreamento('${sentido}','${x.id}')">Editar</button>
+      ${!["entregue","recebido"].includes(x.status)?`<button class="btn verde" onclick="finalizarRastreamentoLogistica('${x.id}','${sentido}')">${sentido==="entrada"?"Marcar recebido":"Marcar entregue"}</button>`:""}
+      <button class="btn vermelho" onclick="excluirRastreamentoLogistica('${x.id}','${sentido}')">Excluir</button>
+    </td>
+  </tr>`).join(""):'<tr><td colspan="8">Nenhum registro encontrado.</td></tr>';
+}
+function statusLabelRastreamento(s){
+  const m={aguardando_coleta:"Aguardando coleta",em_transito:"Em trânsito",na_filial:"Na filial",saiu_entrega:"Saiu para entrega",entregue:"Entregue",recebido:"Recebido",atrasado:"Atrasado",ocorrencia:"Com ocorrência",cancelado:"Cancelado"};
+  return m[s]||String(s||"—").replace(/_/g," ");
+}
+function classeStatusRastreamento(s){
+  if(["entregue","recebido"].includes(s))return"sucesso";
+  if(["atrasado","ocorrencia","cancelado"].includes(s))return"erro";
+  return"aguardando";
+}
+async function finalizarRastreamentoLogistica(id,sentido){
+  const status=sentido==="entrada"?"recebido":"entregue";
+  if(!confirm(`Confirmar como ${statusLabelRastreamento(status)}?`))return;
+  const r=await banco.from("logistica_rastreamentos").update({
+    status,finalizado_em:new Date().toISOString(),atualizado_em:new Date().toISOString(),atualizado_por:usuarioLogado?.login||null
+  }).eq("id",id);
+  if(r.error)return alert(r.error.message);
+  await carregarRastreamentosLogistica(sentido);
+}
+async function excluirRastreamentoLogistica(id,sentido){
+  if(!confirm("Excluir este registro de rastreamento?"))return;
+  const r=await banco.from("logistica_rastreamentos").delete().eq("id",id);
+  if(r.error)return alert(r.error.message);
+  await carregarRastreamentosLogistica(sentido);
+}
+
+async function carregarTransportadorasLogistica(){
+  await carregarTransportadorasColeta();
+  const tb=ce("logTransportadorasTabela");if(!tb)return;
+  tb.innerHTML=coletaTransportadoras.length?coletaTransportadoras.map(t=>`<tr>
+    <td>${escaparHtmlEmail(t.nome||"")}</td>
+    <td>${escaparHtmlEmail(t.contato||"—")}</td>
+    <td>${escaparHtmlEmail(t.whatsapp||"—")}</td>
+    <td>${escaparHtmlEmail(t.tipo_acompanhamento||"manual")}</td>
+    <td>${t.ativa!==false?"Ativa":"Inativa"}</td>
+    <td><button class="btn azul" onclick="editarTransportadoraLogistica('${t.id}')">Editar</button></td>
+  </tr>`).join(""):'<tr><td colspan="6">Nenhuma transportadora cadastrada.</td></tr>';
+}
+function novaTransportadoraLogistica(){limparTransportadoraLogistica();ce("logTransportadoraNome")?.focus()}
+function limparTransportadoraLogistica(){
+  ["logTransportadoraId","logTransportadoraNome","logTransportadoraContato","logTransportadoraTelefone","logTransportadoraWhatsapp","logTransportadoraEmail","logTransportadoraObservacao"].forEach(id=>{if(ce(id))ce(id).value=""});
+  if(ce("logTransportadoraTipo"))ce("logTransportadoraTipo").value="manual";
+  if(ce("logTransportadoraAtiva"))ce("logTransportadoraAtiva").checked=true;
+}
+function editarTransportadoraLogistica(id){
+  const t=coletaTransportadoras.find(x=>String(x.id)===String(id));if(!t)return;
+  ce("logTransportadoraId").value=t.id;ce("logTransportadoraNome").value=t.nome||"";
+  ce("logTransportadoraContato").value=t.contato||"";ce("logTransportadoraTelefone").value=t.telefone||"";
+  ce("logTransportadoraWhatsapp").value=t.whatsapp||"";ce("logTransportadoraEmail").value=t.email||"";
+  ce("logTransportadoraTipo").value=t.tipo_acompanhamento||"manual";ce("logTransportadoraObservacao").value=t.observacao||"";
+  ce("logTransportadoraAtiva").checked=t.ativa!==false;
+}
+async function salvarTransportadoraLogistica(){
+  const nome=cv("logTransportadoraNome").trim();if(!nome)return alert("Informe o nome da transportadora.");
+  const id=cv("logTransportadoraId");
+  const payload={nome,contato:cv("logTransportadoraContato")||null,telefone:cv("logTransportadoraTelefone")||null,whatsapp:cv("logTransportadoraWhatsapp")||null,email:cv("logTransportadoraEmail")||null,tipo_acompanhamento:cv("logTransportadoraTipo")||"manual",observacao:cv("logTransportadoraObservacao")||null,ativa:!!ce("logTransportadoraAtiva")?.checked};
+  const r=id?await banco.from("frete_transportadoras").update(payload).eq("id",id):await banco.from("frete_transportadoras").insert([payload]);
+  if(r.error)return alert(r.error.message);
+  limparTransportadoraLogistica();await carregarTransportadorasLogistica();
 }

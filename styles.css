@@ -1898,3 +1898,14 @@ html.modo-portal-publico .portal-conteudo{
 .btn.vermelho{background:#c9362b;color:#fff;border:none}
 .btn.vermelho:hover{filter:brightness(.92)}
 .coleta-check-rascunho{width:18px;height:18px;cursor:pointer}
+
+/* V19 — FLUXO LOGÍSTICO COMPLETO */
+.btn.coleta-manual{background:#158a59;color:#fff}
+.btn.coleta-alerta{background:#d68a11;color:#fff}
+.rastreamento-form{margin:14px 0;padding:14px;border:1px solid #ddd6ef;border-radius:14px;background:#faf8ff}
+.rastreamento-grid,.transportadora-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}
+.rastreamento-grid label,.transportadora-form-grid label{display:block;margin-bottom:5px;font-weight:800;color:#514487}
+.rastreamento-grid input,.rastreamento-grid select,.rastreamento-grid textarea,
+.transportadora-form-grid input,.transportadora-form-grid select,.transportadora-form-grid textarea{width:100%}
+.campo-largo{grid-column:1/-1}
+@media(max-width:800px){.rastreamento-grid,.transportadora-form-grid{grid-template-columns:1fr}}
