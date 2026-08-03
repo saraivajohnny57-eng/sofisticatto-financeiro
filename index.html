@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=16.8">
+<link rel="stylesheet" href="styles.css?v=16.9">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -1254,6 +1254,19 @@ SOFISTICATTO COSMÉTICOS</textarea>
                     <input id="coletaProtocoloCotacao" placeholder="Ex.: 219839047">
                   </div>
                   <div>
+                    <label class="relatorio-label">Endereço usado na coleta</label>
+                    <select id="coletaModoEnderecoApi" onchange="atualizarModoEnderecoColeta()">
+                      <option value="protocolo">Usar endereço vinculado ao protocolo</option>
+                      <option value="alternativo">Usar outro endereço de coleta</option>
+                    </select>
+                  </div>
+                  <div id="coletaLocalSalvoContainer" style="display:none;">
+                    <label class="relatorio-label">Local de coleta salvo</label>
+                    <select id="coletaLocalSalvoId" onchange="aplicarLocalColetaSelecionado()">
+                      <option value="">Selecione ou preencha manualmente</option>
+                    </select>
+                  </div>
+                  <div>
                     <label class="relatorio-label">Tipo de serviço</label>
                     <select id="coletaServicoApi">
                       <option value="1">Convencional</option>
@@ -1269,13 +1282,33 @@ SOFISTICATTO COSMÉTICOS</textarea>
                     <label class="relatorio-label">Horário previsto</label>
                     <input id="coletaHoraApi" type="time" value="09:00">
                   </div>
+                  <div id="coletaEnderecoAlternativoApi" class="campo-largo coleta-endereco-alternativo" style="display:none;">
+                    <div class="coleta-endereco-cabecalho">
+                      <div>
+                        <strong>📍 Endereço alternativo de coleta</strong>
+                        <small>O protocolo permanece vinculado ao histórico. A solicitação completa usa o endereço abaixo.</small>
+                      </div>
+                      <button type="button" class="btn azul" onclick="salvarLocalColetaAtual()">Salvar este local</button>
+                    </div>
+                    <div class="coleta-api-grid">
+                      <div><label class="relatorio-label">Nome do local</label><input id="coletaLocalNome" placeholder="Ex.: Produção — Rua 3"></div>
+                      <div><label class="relatorio-label">CEP</label><input id="coletaAltCep" value="74550-470"></div>
+                      <div class="campo-largo"><label class="relatorio-label">Logradouro</label><input id="coletaAltLogradouro" value="Rua 03"></div>
+                      <div><label class="relatorio-label">Número</label><input id="coletaAltNumero" value="217"></div>
+                      <div><label class="relatorio-label">Complemento</label><input id="coletaAltComplemento" value="Qd.35, Lt.14E"></div>
+                      <div><label class="relatorio-label">Bairro</label><input id="coletaAltBairro" value="Vila Abajá"></div>
+                      <div><label class="relatorio-label">Cidade</label><input id="coletaAltCidade" value="Goiânia"></div>
+                      <div><label class="relatorio-label">UF</label><input id="coletaAltUf" value="GO" maxlength="2"></div>
+                      <div class="campo-largo"><label class="relatorio-label">Ponto de referência</label><input id="coletaAltReferencia" value="Próximo ao Tático de Campinas"></div>
+                    </div>
+                  </div>
                   <div class="campo-largo">
                     <label class="relatorio-label">Comentário para a Rodonaves</label>
                     <input id="coletaComentarioApi" placeholder="Ex.: Coletar até 17:30 h. Próximo ao Tático de Campinas.">
                   </div>
                 </div>
                 <div class="email-acoes">
-                  <button type="button" class="btn verde" id="btnAgendarRodonavesApi" onclick="agendarColetaRodonavesPorProtocolo()">
+                  <button type="button" class="btn verde" id="btnAgendarRodonavesApi" onclick="agendarColetaRodonaves()">
                     Agendar no Portal Rodonaves
                   </button>
                   <button type="button" class="btn azul" id="btnConsultarRodonavesApi" onclick="consultarColetaRodonavesApi()" style="display:none;">
@@ -2160,7 +2193,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=15"></script>
 <script src="motor-integracoes.js?v=16.4"></script>
-<script src="coletas.js?v=16.8"></script>
+<script src="coletas.js?v=16.9"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">

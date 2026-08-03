@@ -1880,3 +1880,14 @@ html.modo-portal-publico .portal-conteudo{
 .coleta-api-resultado.sucesso{display:block;background:#dcf6e6;color:#17683d}
 .coleta-api-resultado.erro{display:block;background:#fde2e2;color:#9c2727}
 @media(max-width:760px){.coleta-api-grid{grid-template-columns:1fr}.coleta-api-topo{flex-direction:column}}
+
+/* V16.9 — ENDEREÇO ALTERNATIVO DE COLETA */
+.coleta-endereco-alternativo{
+  padding:13px;border:1px dashed #9f94c9;border-radius:13px;background:#f7f4fd;
+}
+.coleta-endereco-cabecalho{
+  display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;
+}
+.coleta-endereco-cabecalho strong{display:block;color:#493f82}
+.coleta-endereco-cabecalho small{display:block;margin-top:4px;color:#71698a}
+@media(max-width:650px){.coleta-endereco-cabecalho{flex-direction:column}}

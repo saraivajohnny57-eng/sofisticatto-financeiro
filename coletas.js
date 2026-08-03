@@ -248,6 +248,10 @@ function atualizarAreaApiColeta(){
   const mostrar=coletaEhRodonaves()&&cv("coletaTipoFrete")==="CIF";
   bloco.style.display=mostrar?"block":"none";
   if(mostrar&&!cv("coletaDataApi"))ce("coletaDataApi").value=dataAmanhaColeta();
+  if(mostrar){
+    atualizarModoEnderecoColeta();
+    carregarLocaisColeta();
+  }
 }
 function respostaAtualDaColeta(){
   const respostaId=cv("coletaRespostaId");
@@ -381,6 +385,9 @@ async function salvarAgendamentoColetaSemAviso(){
     origem:cv("coletaCotacaoId")?"autorizacao_cotacao":"manual",
     observacao:cv("coletaObservacao")||null,
     protocolo_cotacao:protocoloAtualParaColeta()||null,
+    modo_endereco:cv("coletaModoEnderecoApi")||"protocolo",
+    local_coleta_id:cv("coletaLocalSalvoId")||null,
+    endereco_coleta_alternativo:cv("coletaModoEnderecoApi")==="alternativo"?localColetaTela():null,
     data_programada:formatarDataHoraApiColeta()||null,
     criado_por:usuarioLogado?.login||null,
     atualizado_em:new Date().toISOString()
@@ -418,5 +425,190 @@ async function consultarColetaRodonavesApi(){
     await carregarAgendamentosColeta();
   }catch(erro){
     resultadoApiColeta("erro","Falha na consulta:\n"+erro.message);
+  }
+}
+
+/* =========================================================
+   V16.9 — LOCAIS DE COLETA E ENDEREÇO ALTERNATIVO
+   ========================================================= */
+let coletaLocaisSalvos=[];
+
+async function carregarLocaisColeta(){
+  const r=await banco.from("coleta_locais").select("*").order("nome");
+  coletaLocaisSalvos=r.error?[]:(r.data||[]);
+  const sel=ce("coletaLocalSalvoId");
+  if(!sel)return;
+  sel.innerHTML='<option value="">Selecione ou preencha manualmente</option>'+
+    coletaLocaisSalvos.map(l=>`<option value="${l.id}">${escaparHtmlEmail(l.nome)} — ${escaparHtmlEmail(l.logradouro)}, ${escaparHtmlEmail(l.numero||"s/n")}</option>`).join("");
+}
+
+function atualizarModoEnderecoColeta(){
+  const alternativo=cv("coletaModoEnderecoApi")==="alternativo";
+  if(ce("coletaEnderecoAlternativoApi"))ce("coletaEnderecoAlternativoApi").style.display=alternativo?"block":"none";
+  if(ce("coletaLocalSalvoContainer"))ce("coletaLocalSalvoContainer").style.display=alternativo?"block":"none";
+  if(ce("btnAgendarRodonavesApi")){
+    ce("btnAgendarRodonavesApi").textContent=alternativo
+      ?"Agendar com endereço alternativo"
+      :"Agendar no Portal Rodonaves";
+  }
+  if(alternativo)carregarLocaisColeta();
+}
+
+function localColetaTela(){
+  return {
+    nome:cv("coletaLocalNome")||"Local de coleta",
+    cnpj:String(cv("coletaCnpjOrigem")||"").replace(/\D/g,""),
+    razao_social:cv("coletaRazaoOrigem"),
+    telefone:cv("coletaTelefoneOrigem"),
+    cep:String(cv("coletaAltCep")||"").replace(/\D/g,""),
+    logradouro:cv("coletaAltLogradouro"),
+    numero:cv("coletaAltNumero"),
+    complemento:cv("coletaAltComplemento"),
+    bairro:cv("coletaAltBairro"),
+    cidade:cv("coletaAltCidade"),
+    uf:cv("coletaAltUf").toUpperCase(),
+    referencia:cv("coletaAltReferencia"),
+    ativo:true,
+    atualizado_em:new Date().toISOString()
+  };
+}
+
+function validarLocalColeta(local){
+  const faltando=[];
+  if(local.cnpj.length!==14)faltando.push("CNPJ da origem");
+  if(local.cep.length!==8)faltando.push("CEP");
+  if(!local.logradouro)faltando.push("logradouro");
+  if(!local.numero)faltando.push("número");
+  if(!local.bairro)faltando.push("bairro");
+  if(!local.cidade)faltando.push("cidade");
+  if(local.uf.length!==2)faltando.push("UF");
+  return faltando;
+}
+
+async function salvarLocalColetaAtual(){
+  const local=localColetaTela();
+  const faltando=validarLocalColeta(local);
+  if(faltando.length)return alert("Preencha: "+faltando.join(", "));
+  const atual=cv("coletaLocalSalvoId");
+  const r=atual
+    ?await banco.from("coleta_locais").update(local).eq("id",atual).select().single()
+    :await banco.from("coleta_locais").insert([local]).select().single();
+  if(r.error)return alert(r.error.message);
+  await carregarLocaisColeta();
+  ce("coletaLocalSalvoId").value=r.data.id;
+  mostrarBalaoSistema("Local de coleta salvo",r.data.nome);
+}
+
+function aplicarLocalColetaSelecionado(){
+  const local=coletaLocaisSalvos.find(l=>String(l.id)===String(cv("coletaLocalSalvoId")));
+  if(!local)return;
+  const mapa={
+    coletaLocalNome:local.nome,
+    coletaAltCep:local.cep,
+    coletaAltLogradouro:local.logradouro,
+    coletaAltNumero:local.numero,
+    coletaAltComplemento:local.complemento,
+    coletaAltBairro:local.bairro,
+    coletaAltCidade:local.cidade,
+    coletaAltUf:local.uf,
+    coletaAltReferencia:local.referencia
+  };
+  Object.entries(mapa).forEach(([id,v])=>{if(ce(id))ce(id).value=v||""});
+}
+
+async function agendarColetaRodonaves(){
+  if(cv("coletaModoEnderecoApi")==="alternativo"){
+    return agendarColetaRodonavesComEndereco();
+  }
+  return agendarColetaRodonavesPorProtocolo();
+}
+
+async function agendarColetaRodonavesComEndereco(){
+  const protocolo=protocoloAtualParaColeta().replace(/\D/g,"");
+  const dataHora=formatarDataHoraApiColeta();
+  const local=localColetaTela();
+  const faltando=validarLocalColeta(local);
+
+  if(!protocolo)return alert("Informe o protocolo atual da cotação Rodonaves.");
+  if(!dataHora)return alert("Informe a data e o horário da coleta.");
+  if(faltando.length)return alert("Preencha o endereço alternativo: "+faltando.join(", "));
+  if(cv("coletaTipoFrete")!=="CIF")return alert("O agendamento automático está liberado somente para CIF.");
+
+  const confirmar=confirm(
+    `CONFIRMAR COLETA REAL COM ENDEREÇO ALTERNATIVO?\n\n`+
+    `Protocolo de referência: ${protocolo}\n`+
+    `Local: ${local.nome}\n`+
+    `${local.logradouro}, ${local.numero} — ${local.bairro}\n`+
+    `${local.cidade}/${local.uf} — CEP ${local.cep}\n`+
+    `Data/hora: ${new Date(dataHora).toLocaleString("pt-BR")}\n\n`+
+    `A Rodonaves receberá uma solicitação completa com este endereço.`
+  );
+  if(!confirmar)return;
+
+  const chave=await chaveAdminColeta();
+  if(!chave)return;
+  const btn=ce("btnAgendarRodonavesApi");
+  btn.disabled=true;
+  btn.textContent="Agendando com endereço...";
+  resultadoApiColeta("processando","Enviando solicitação completa para a Rodonaves...");
+
+  try{
+    let id=cv("coletaAgendamentoId");
+    if(!id){
+      await salvarAgendamentoColetaSemAviso();
+      id=cv("coletaAgendamentoId");
+    }
+    const resposta=await fetch("/api/integracoes/agendar-coleta-rodonaves-endereco",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "x-integrations-admin-key":chave
+      },
+      body:JSON.stringify({
+        agendamento_id:id||null,
+        cotacao_id:cv("coletaCotacaoId")||null,
+        resposta_cotacao_id:cv("coletaRespostaId")||null,
+        protocolo_referencia:protocolo,
+        pickup_service_type:Number(cv("coletaServicoApi")||1),
+        schedule_date:dataHora,
+        comment:cv("coletaComentarioApi")||cv("coletaObservacao")||"",
+        origem:local,
+        destino:{
+          cnpj:String(cv("coletaCnpjDestino")||"").replace(/\D/g,""),
+          razao_social:cv("coletaRazaoDestino"),
+          cep:String(cv("coletaCepDestino")||"").replace(/\D/g,""),
+          cidade_uf:cv("coletaCidadeDestino")
+        },
+        carga:{
+          volumes:Number(cv("coletaVolumes"))||1,
+          peso:Number(String(cv("coletaPeso")||"").replace(",", "."))||0,
+          valor_nf:coletaMoeda(cv("coletaValorNf")),
+          numero_nf:cv("coletaNumeroNf"),
+          medidas:cv("coletaMedidas"),
+          mercadoria:cv("coletaMercadoria"),
+          embalagem:cv("coletaEmbalagem")
+        }
+      })
+    });
+    const dados=await resposta.json().catch(()=>({}));
+    if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
+
+    ce("coletaAgendamentoId").value=dados.agendamento_id||id||"";
+    ce("coletaApiStatus").textContent=dados.status||"Solicitada";
+    ce("btnConsultarRodonavesApi").style.display=dados.pickup_id?"inline-flex":"none";
+    ce("btnConsultarRodonavesApi").dataset.pickupId=dados.pickup_id||"";
+    resultadoApiColeta("sucesso",[
+      "COLETA SOLICITADA COM ENDEREÇO ALTERNATIVO",
+      `Protocolo de referência: ${protocolo}`,
+      `Código da coleta: ${dados.pickup_id||"não informado"}`,
+      `Local: ${local.logradouro}, ${local.numero} — ${local.bairro}`,
+      `Status: ${dados.status||"solicitada"}`
+    ].join("\n"));
+    await carregarAgendamentosColeta();
+  }catch(erro){
+    resultadoApiColeta("erro","Não foi possível agendar com o endereço alternativo:\n"+erro.message);
+  }finally{
+    btn.disabled=false;
+    atualizarModoEnderecoColeta();
   }
 }
