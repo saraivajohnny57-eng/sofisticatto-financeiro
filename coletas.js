@@ -59,7 +59,7 @@ Endereço de coleta: *{{endereco_origem}}*
 function ce(id){return document.getElementById(id)}
 function cv(id){return ce(id)?.value?.trim()||""}
 function coletaMoeda(v){let n=Number(String(v||"").replace(/\./g,"").replace(",","."));return Number.isFinite(n)&&n? n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}):""}
-function mostrarPainelColeta(p){["nova","historico","modelos"].forEach(x=>{ce("coletaPainel"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p);ce("coletaTab"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p)});if(p==="historico")montarHistoricoColetas();if(p==="modelos")montarModelosColeta()}
+function mostrarPainelColeta(p){["nova","historico","rodonaves","modelos"].forEach(x=>{ce("coletaPainel"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p);ce("coletaTab"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p)});if(p==="historico")montarHistoricoColetas();if(p==="rodonaves")carregarPainelRodonaves();if(p==="modelos")montarModelosColeta()}
 async function inicializarModuloColetas(){if(coletaInicializado){atualizarPreviaColeta();return}coletaInicializado=true;await Promise.all([carregarTransportadorasColeta(),carregarModelosColeta(),carregarAgendamentosColeta()]);montarClientesColeta();atualizarPreviaColeta()}
 async function carregarTransportadorasColeta(){const r=await banco.from("frete_transportadoras").select("*").order("nome");coletaTransportadoras=r.error?[]:r.data||[];const opts='<option value="">Selecione</option>'+coletaTransportadoras.map(t=>`<option value="${t.id}">${escaparHtmlEmail(t.nome||"")}</option>`).join("");ce("coletaTransportadoraId").innerHTML=opts;ce("coletaModeloTransportadoraId").innerHTML='<option value="">Modelo geral</option>'+opts.replace('<option value="">Selecione</option>','')}
 async function carregarModelosColeta(){const r=await banco.from("coleta_modelos").select("*").eq("ativo",true).order("nome");coletaModelos=r.error?[]:r.data||[];if(!coletaModelos.length)coletaModelos=COLETA_MODELOS_PADRAO.map((m,i)=>({id:`padrao-${i+1}`,...m,ativo:true}));ce("coletaModeloId").innerHTML=coletaModelos.map(m=>`<option value="${m.id}">${escaparHtmlEmail(m.nome)}</option>`).join("");montarModelosColeta()}
@@ -135,7 +135,23 @@ function whatsappTransportadoraColeta(){const t=coletaTransportadoras.find(x=>St
 function abrirWhatsAppColeta(){atualizarPreviaColeta();const tel=whatsappTransportadoraColeta();const url=tel?`https://wa.me/55${tel.replace(/^55/,"")}?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`:`https://wa.me/?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`;window.open(url,"_blank")}
 async function salvarAgendamentoColeta(){const d=dadosColeta();if(!d.razao_destino)return alert("Informe o cliente/destino.");if(!cv("coletaModeloId"))return alert("Selecione um modelo.");atualizarPreviaColeta();const payload={cotacao_id:cv("coletaCotacaoId")||null,resposta_cotacao_id:cv("coletaRespostaId")||null,cliente_id:cv("coletaClienteId")||null,cliente_nome:d.razao_destino,transportadora_id:cv("coletaTransportadoraId")||null,modelo_id:String(cv("coletaModeloId")).startsWith("padrao-")?null:cv("coletaModeloId"),tipo_frete:cv("coletaTipoFrete"),dados:d,mensagem:cv("coletaPreviaMensagem"),volumes:Number(d.volumes)||null,peso:Number(String(d.peso).replace(",","."))||null,numero_nf:d.numero_nf||null,status:"solicitado",protocolo_cotacao:protocoloAtualParaColeta()||null,data_programada:formatarDataHoraApiColeta()||null,origem:cv("coletaCotacaoId")?"autorizacao_cotacao":"manual",observacao:cv("coletaObservacao")||null,criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};const id=cv("coletaAgendamentoId");const r=id?await banco.from("coleta_agendamentos").update(payload).eq("id",id):await banco.from("coleta_agendamentos").insert([payload]);if(r.error)return alert(r.error.message);alert("Agendamento salvo.");await carregarAgendamentosColeta();mostrarPainelColeta("historico")}
 function limparFormularioColeta(){["coletaAgendamentoId","coletaCotacaoId","coletaRespostaId","coletaClienteId","coletaClienteBusca","coletaCnpjDestino","coletaRazaoDestino","coletaCepDestino","coletaCidadeDestino","coletaVolumes","coletaPeso","coletaValorNf","coletaNumeroNf","coletaLocalizacao","coletaObservacao","coletaProtocoloCotacao","coletaComentarioApi","coletaEnderecoDestino","coletaNumeroDestino","coletaComplementoDestino","coletaBairroDestino"].forEach(id=>{if(ce(id))ce(id).value=""});atualizarPreviaColeta()}
-function montarHistoricoColetas(){const tb=ce("coletaTabelaHistorico");if(!tb)return;const q=normalizarNomeEmail(cv("coletaBuscaHistorico"));const s=cv("coletaFiltroStatus");const lista=coletaAgendamentos.filter(a=>(!s||a.status===s)&&(!q||normalizarNomeEmail([a.cliente_nome,a.numero_nf,a.frete_transportadoras?.nome].filter(Boolean).join(" ")).includes(q)));tb.innerHTML=lista.length?lista.map(a=>`<tr><td>${new Date(a.created_at).toLocaleDateString("pt-BR")}</td><td>${new Date(a.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</td><td>${escaparHtmlEmail(a.cliente_nome||"")}</td><td>${escaparHtmlEmail(a.frete_transportadoras?.nome||"—")}</td><td>${a.volumes||"—"}</td><td>${a.peso?`${Number(a.peso).toLocaleString("pt-BR",{maximumFractionDigits:3})} Kg`:"—"}</td><td><span class="coleta-status ${a.status}">${a.status}</span></td><td><button class="btn azul" onclick="editarAgendamentoColeta('${a.id}')">Editar</button><button class="btn verde" onclick="copiarAgendamentoColeta('${a.id}')">Copiar</button><button class="btn roxo" onclick="alterarStatusColeta('${a.id}','confirmado')">Confirmar</button><button class="btn verde" onclick="alterarStatusColeta('${a.id}','coletado')">Coletado</button></td></tr>`).join(""):'<tr><td colspan="8">Nenhum agendamento encontrado.</td></tr>'}
+function montarHistoricoColetas(){
+  const tb=ce("coletaTabelaHistorico");if(!tb)return;
+  const q=normalizarNomeEmail(cv("coletaBuscaHistorico")),s=cv("coletaFiltroStatus");
+  const lista=coletaAgendamentos.filter(a=>(!s||a.status===s)&&(!q||normalizarNomeEmail([a.cliente_nome,a.numero_nf,a.protocolo_cotacao,a.codigo_coleta,a.frete_transportadoras?.nome].filter(Boolean).join(" ")).includes(q)));
+  tb.innerHTML=lista.length?lista.map(a=>`<tr>
+    <td>${new Date(a.created_at).toLocaleDateString("pt-BR")}</td>
+    <td>${new Date(a.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</td>
+    <td>${escaparHtmlEmail(a.cliente_nome||"")}</td>
+    <td>${escaparHtmlEmail(a.frete_transportadoras?.nome||"—")}</td>
+    <td>${escaparHtmlEmail(a.protocolo_cotacao||"—")}</td>
+    <td>${escaparHtmlEmail(a.codigo_coleta||"—")}</td>
+    <td>${a.volumes||"—"}</td>
+    <td>${a.peso?`${Number(a.peso).toLocaleString("pt-BR",{maximumFractionDigits:3})} Kg`:"—"}</td>
+    <td><span class="coleta-status ${a.status}">${statusLabelColeta(a.status)}</span></td>
+    <td><button class="btn azul" onclick="editarAgendamentoColeta('${a.id}')">Editar</button><button class="btn verde" onclick="copiarAgendamentoColeta('${a.id}')">Copiar</button>${a.codigo_coleta?`<button class="btn roxo" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar API</button>`:""}</td>
+  </tr>`).join(""):'<tr><td colspan="10">Nenhum agendamento encontrado.</td></tr>';
+}
 function editarAgendamentoColeta(id){const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(!a)return;const d=a.dados||{};ce("coletaAgendamentoId").value=a.id;ce("coletaCotacaoId").value=a.cotacao_id||"";ce("coletaRespostaId").value=a.resposta_cotacao_id||"";ce("coletaClienteId").value=a.cliente_id||"";ce("coletaClienteBusca").value=a.cliente_nome||"";ce("coletaTransportadoraId").value=a.transportadora_id||"";if(a.modelo_id)ce("coletaModeloId").value=a.modelo_id;ce("coletaTipoFrete").value=a.tipo_frete||"CIF";const map={solicitante:"coletaSolicitante",telefone_origem:"coletaTelefoneOrigem",cnpj_origem:"coletaCnpjOrigem",razao_origem:"coletaRazaoOrigem",cep_origem:"coletaCepOrigem",endereco_origem:"coletaEnderecoOrigem",cnpj_destino:"coletaCnpjDestino",razao_destino:"coletaRazaoDestino",cep_destino:"coletaCepDestino",cidade_destino:"coletaCidadeDestino",volumes:"coletaVolumes",peso:"coletaPeso",numero_nf:"coletaNumeroNf",medidas:"coletaMedidas",natureza:"coletaNatureza",mercadoria:"coletaMercadoria",embalagem:"coletaEmbalagem",horario_limite:"coletaHorarioLimite",pausa:"coletaPausa",referencia:"coletaReferencia",localizacao:"coletaLocalizacao"};Object.entries(map).forEach(([k,id])=>{if(ce(id))ce(id).value=d[k]||""});ce("coletaObservacao").value=a.observacao||"";atualizarPreviaColeta();mostrarPainelColeta("nova")}
 async function copiarAgendamentoColeta(id){const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(a){await navigator.clipboard.writeText(a.mensagem||"");alert("Mensagem copiada.")}}
 async function alterarStatusColeta(id,status){const r=await banco.from("coleta_agendamentos").update({status,atualizado_em:new Date().toISOString()}).eq("id",id);if(r.error)alert(r.error.message);else carregarAgendamentosColeta()}
@@ -825,4 +841,54 @@ function mostrarResumoSeguroColetaRodonaves(){
   box.style.display="block";
   box.className="coleta-api-resultado sucesso";
   box.textContent=linhas.join("\n");
+}
+
+let coletaEventosRodonaves=[];
+function dataColetaPainel(a){return a.data_programada||a.solicitado_api_em||a.created_at}
+function statusColetaPainel(a){return String(a.status_api||a.status||"rascunho").toLowerCase().replace(/\s+/g,"_")}
+function enderecoColetaPainel(a){if(a.modo_endereco==="alternativo"){const e=a.endereco_coleta_alternativo||{};return [e.logradouro,e.numero,e.bairro,e.cidade,e.uf].filter(Boolean).join(", ")}return "Endereço vinculado ao protocolo"}
+function statusLabelColeta(s){const m={rascunho:"Rascunho",solicitado:"Solicitada",em_aberto:"Em aberto",confirmado:"Confirmada",em_coleta:"Em coleta",coletado:"Coletada",cancelamento_solicitado:"Cancelamento solicitado",cancelado:"Cancelada",erro:"Erro"};return m[s]||String(s||"—").replace(/_/g," ")}
+function classeStatusColeta(s){if(/coletado|confirmado/.test(s))return"sucesso";if(/erro|cancelado/.test(s))return"erro";if(/cancelamento/.test(s))return"alerta";return"aguardando"}
+async function carregarEventosRodonaves(){
+  const r=await banco.from("coleta_status_eventos").select("*,coleta_agendamentos(cliente_nome,codigo_coleta)").order("created_at",{ascending:false}).limit(100);
+  coletaEventosRodonaves=r.error?[]:(r.data||[]);
+  const tb=ce("coletaEventosRodonavesTabela");if(!tb)return;
+  tb.innerHTML=coletaEventosRodonaves.length?coletaEventosRodonaves.map(e=>`<tr><td>${new Date(e.created_at).toLocaleString("pt-BR")}</td><td>${escaparHtmlEmail(e.coleta_agendamentos?.cliente_nome||"—")}</td><td>${escaparHtmlEmail(e.coleta_agendamentos?.codigo_coleta||"—")}</td><td>${escaparHtmlEmail(statusLabelColeta(e.status_anterior))}</td><td>${escaparHtmlEmail(statusLabelColeta(e.status_novo))}</td><td>${escaparHtmlEmail(e.origem||"sistema")}</td><td>${escaparHtmlEmail(e.usuario||"—")}</td></tr>`).join(""):'<tr><td colspan="7">Nenhum evento registrado.</td></tr>';
+}
+function detectarDuplicidadesRodonaves(lista){const g={};lista.filter(a=>a.protocolo_cotacao&&!["cancelado","coletado"].includes(statusColetaPainel(a))).forEach(a=>{const k=String(a.protocolo_cotacao);(g[k]??=[]).push(a)});return Object.entries(g).filter(([,v])=>v.length>1)}
+async function carregarPainelRodonaves(){
+  await carregarAgendamentosColeta();
+  const lista=(coletaAgendamentos||[]).filter(a=>/rodonaves/i.test(a.frete_transportadoras?.nome||""));
+  const hoje=new Date().toISOString().slice(0,10);
+  ce("coletaKpiHoje").textContent=lista.filter(a=>String(dataColetaPainel(a)||"").slice(0,10)===hoje).length;
+  ce("coletaKpiAbertas").textContent=lista.filter(a=>!["coletado","cancelado"].includes(statusColetaPainel(a))).length;
+  ce("coletaKpiConfirmadas").textContent=lista.filter(a=>/confirmado|confirmada/.test(statusColetaPainel(a))).length;
+  ce("coletaKpiColetadas").textContent=lista.filter(a=>/coletado|coletada/.test(statusColetaPainel(a))).length;
+  ce("coletaKpiErros").textContent=lista.filter(a=>/erro/.test(statusColetaPainel(a))).length;
+  const dup=detectarDuplicidadesRodonaves(lista),alerta=ce("coletaAlertaDuplicidade");
+  alerta.style.display=dup.length?"block":"none";alerta.textContent=dup.length?`⚠ Protocolos com mais de uma coleta aberta: ${dup.map(([p])=>p).join(", ")}`:"";
+  const tb=ce("coletaPainelRodonavesTabela"),ord=[...lista].sort((a,b)=>new Date(dataColetaPainel(b)||0)-new Date(dataColetaPainel(a)||0));
+  tb.innerHTML=ord.length?ord.map(a=>{const s=statusColetaPainel(a);return`<tr><td>${dataColetaPainel(a)?new Date(dataColetaPainel(a)).toLocaleString("pt-BR"):"—"}</td><td>${escaparHtmlEmail(a.cliente_nome||"—")}</td><td>${escaparHtmlEmail(a.protocolo_cotacao||"—")}</td><td>${escaparHtmlEmail(a.codigo_coleta||"—")}</td><td>${escaparHtmlEmail(enderecoColetaPainel(a))}</td><td><span class="coleta-status-painel ${classeStatusColeta(s)}">${escaparHtmlEmail(statusLabelColeta(s))}</span></td><td>${a.consultado_api_em?new Date(a.consultado_api_em).toLocaleString("pt-BR"):"—"}</td><td><button class="btn azul" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar</button><button class="btn verde" onclick="editarAgendamentoColeta('${a.id}');mostrarPainelColeta('nova')">Abrir</button>${!["coletado","cancelado"].includes(s)?`<button class="btn roxo" onclick="solicitarCancelamentoColetaRodonaves('${a.id}')">Solicitar cancelamento</button>`:""}</td></tr>`}).join(""):'<tr><td colspan="8">Nenhuma coleta Rodonaves registrada.</td></tr>';
+  await carregarEventosRodonaves();
+}
+async function registrarEventoColeta(id,ant,novo,origem,detalhes){const r=await banco.from("coleta_status_eventos").insert([{agendamento_id:id,status_anterior:ant||null,status_novo:novo||null,origem:origem||"sistema",detalhes:detalhes||null,usuario:usuarioLogado?.login||"sistema"}]);if(r.error)console.warn(r.error.message)}
+async function consultarColetaPainelRodonaves(id){
+  const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(!a?.codigo_coleta)return alert("Esta coleta não possui código retornado pela API.");
+  const chave=await chaveAdminColeta();if(!chave)return;
+  try{const r=await fetch(`/api/integracoes/consultar-coleta-rodonaves?id=${encodeURIComponent(a.codigo_coleta)}&agendamento_id=${encodeURIComponent(a.id)}`,{headers:{"x-integrations-admin-key":chave}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);await registrarEventoColeta(a.id,statusColetaPainel(a),String(d.status||"consultado").toLowerCase(),"api_consulta",d.resposta||null);await carregarPainelRodonaves()}catch(e){alert("Não foi possível consultar a coleta: "+e.message)}
+}
+async function atualizarTodasColetasRodonaves(){
+  const abertas=(coletaAgendamentos||[]).filter(a=>/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&a.codigo_coleta&&!["coletado","cancelado"].includes(statusColetaPainel(a)));
+  if(!abertas.length)return alert("Não há coletas abertas com código para consultar.");
+  if(!confirm(`Consultar ${abertas.length} coleta(s) aberta(s)?`))return;
+  for(const a of abertas){try{await consultarColetaPainelRodonaves(a.id)}catch{}}
+}
+async function solicitarCancelamentoColetaRodonaves(id){
+  const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(!a)return;
+  const motivo=prompt("Informe o motivo do cancelamento:","Coleta não será mais necessária");if(motivo===null)return;
+  if(!confirm(`Registrar solicitação de cancelamento?\n\nCliente: ${a.cliente_nome}\nColeta: ${a.codigo_coleta||"sem código"}\n\nO cancelamento deverá ser concluído no portal, telefone ou WhatsApp.`))return;
+  const ant=statusColetaPainel(a),agora=new Date().toISOString();
+  const r=await banco.from("coleta_agendamentos").update({status:"cancelamento_solicitado",status_api:"cancelamento_solicitado",cancelamento_motivo:String(motivo||"").trim()||null,cancelamento_solicitado_em:agora,cancelamento_solicitado_por:usuarioLogado?.login||"sistema",atualizado_em:agora}).eq("id",id);
+  if(r.error)return alert(r.error.message);
+  await registrarEventoColeta(id,ant,"cancelamento_solicitado","usuario",{motivo});await carregarPainelRodonaves();alert("Solicitação registrada. Confirme o cancelamento com a Rodonaves.");
 }

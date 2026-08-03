@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=16.9">
+<link rel="stylesheet" href="styles.css?v=17">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -1206,6 +1206,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
       <div class="coleta-subtabs">
         <button id="coletaTabNova" class="ativo" onclick="mostrarPainelColeta('nova')">Novo agendamento</button>
         <button id="coletaTabHistorico" onclick="mostrarPainelColeta('historico')">Histórico</button>
+        <button id="coletaTabRodonaves" onclick="mostrarPainelColeta('rodonaves')">Painel Rodonaves</button>
         <button id="coletaTabModelos" onclick="mostrarPainelColeta('modelos')">Modelos</button>
       </div>
 
@@ -1389,6 +1390,37 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <tbody id="coletaTabelaHistorico"></tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <div id="coletaPainelRodonaves" class="coleta-painel">
+        <div class="card coleta-dashboard-card">
+          <div class="topo-relatorio">
+            <div><h2>🚚 Painel de Coletas Rodonaves</h2><p>Acompanhe coletas, atualize status e identifique duplicidades.</p></div>
+            <div class="email-acoes">
+              <button class="btn azul" onclick="carregarPainelRodonaves()">Atualizar painel</button>
+              <button class="btn verde" onclick="atualizarTodasColetasRodonaves()">Consultar abertas</button>
+            </div>
+          </div>
+          <div class="coleta-indicadores">
+            <div><span>Hoje</span><strong id="coletaKpiHoje">0</strong></div>
+            <div><span>Em aberto</span><strong id="coletaKpiAbertas">0</strong></div>
+            <div><span>Confirmadas</span><strong id="coletaKpiConfirmadas">0</strong></div>
+            <div><span>Coletadas</span><strong id="coletaKpiColetadas">0</strong></div>
+            <div><span>Com erro</span><strong id="coletaKpiErros">0</strong></div>
+          </div>
+          <div id="coletaAlertaDuplicidade" class="coleta-alerta-duplicidade" style="display:none;"></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Programada</th><th>Cliente</th><th>Protocolo</th><th>Nº coleta</th><th>Endereço</th><th>Status</th><th>Última consulta</th><th>Ações</th></tr></thead>
+            <tbody id="coletaPainelRodonavesTabela"><tr><td colspan="8">Carregando...</td></tr></tbody>
+          </table></div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h2>Histórico de alterações</h2>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Data/hora</th><th>Cliente</th><th>Nº coleta</th><th>Status anterior</th><th>Novo status</th><th>Origem</th><th>Usuário</th></tr></thead>
+            <tbody id="coletaEventosRodonavesTabela"><tr><td colspan="7">Nenhum evento carregado.</td></tr></tbody>
+          </table></div>
         </div>
       </div>
 
@@ -2208,7 +2240,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=15"></script>
 <script src="motor-integracoes.js?v=16.4"></script>
-<script src="coletas.js?v=16.9.9"></script>
+<script src="coletas.js?v=17"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">
