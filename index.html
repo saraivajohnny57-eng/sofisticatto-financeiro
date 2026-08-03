@@ -1314,9 +1314,13 @@ SOFISTICATTO COSMÉTICOS</textarea>
                   <button type="button" class="btn azul" id="btnConsultarRodonavesApi" onclick="consultarColetaRodonavesApi()" style="display:none;">
                     Atualizar status
                   </button>
+                  <button type="button" class="btn roxo" onclick="validarOuTrocarChaveColeta()">
+                    Validar/Trocar chave
+                  </button>
                   <button type="button" class="btn roxo" onclick="esquecerChaveIntegracoesNesteComputador()">
                     Esquecer chave salva
                   </button>
+                  <span id="coletaChaveStatus" class="coleta-api-status">Chave não verificada</span>
                 </div>
                 <div id="coletaApiResultado" class="coleta-api-resultado"></div>
               </div>
@@ -2200,7 +2204,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=15"></script>
 <script src="motor-integracoes.js?v=16.4"></script>
-<script src="coletas.js?v=16.9.4"></script>
+<script src="coletas.js?v=16.9.5"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">

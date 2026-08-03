@@ -67,19 +67,64 @@ async function carregarAgendamentosColeta(){const r=await banco.from("coleta_age
 function montarClientesColeta(){const dl=ce("coletaClientesLista");if(!dl)return;dl.innerHTML=(emailClientes||[]).map(c=>`<option value="${escaparHtmlEmail(c.nome||"")}"></option>`).join("")}
 function pesquisarClienteColeta(){ce("coletaClienteId").value="";const q=normalizarNomeEmail(cv("coletaClienteBusca"));const box=ce("coletaClienteResultados");if(q.length<2){box.style.display="none";return}const lista=(emailClientes||[]).filter(c=>normalizarNomeEmail([c.nome,c.cpf_cnpj,c.cidade,c.uf].filter(Boolean).join(" ")).includes(q)).slice(0,12);box.innerHTML=lista.map(c=>`<button type="button" class="coleta-resultado" onclick="selecionarClienteColeta('${c.id}')"><strong>${escaparHtmlEmail(c.nome||"")}</strong><span>${escaparHtmlEmail([c.cpf_cnpj,c.cidade,c.uf].filter(Boolean).join(" • "))}</span></button>`).join("")||'<div class="frete-cliente-sem-resultado">Nenhum cliente encontrado.</div>';box.style.display="block"}
 function selecionarClienteColetaPorNome(){const c=(emailClientes||[]).find(x=>normalizarNomeEmail(x.nome)===normalizarNomeEmail(cv("coletaClienteBusca")));if(c)selecionarClienteColeta(c.id)}
-function selecionarClienteColeta(id){const c=(emailClientes||[]).find(x=>String(x.id)===String(id));if(!c)return;ce("coletaClienteId").value=c.id;ce("coletaClienteBusca").value=c.nome||"";ce("coletaCnpjDestino").value=c.cpf_cnpj||"";ce("coletaRazaoDestino").value=c.nome||"";ce("coletaCepDestino").value=c.cep||"";ce("coletaCidadeDestino").value=[c.cidade,c.uf].filter(Boolean).join("/");
-  const enderecoDestinoDados=cotacao?.dados||{};
-  const clienteDestino=coletaClientes.find(c=>String(c.id)===String(cotacao?.cliente_id))||{};
-  if(ce("coletaEnderecoDestino"))ce("coletaEnderecoDestino").value=
-    enderecoDestinoDados.endereco_destino||enderecoDestinoDados.logradouro_destino||
-    clienteDestino.logradouro||clienteDestino.endereco||"";
-  if(ce("coletaNumeroDestino"))ce("coletaNumeroDestino").value=
-    enderecoDestinoDados.numero_destino||clienteDestino.numero||"";
-  if(ce("coletaComplementoDestino"))ce("coletaComplementoDestino").value=
-    enderecoDestinoDados.complemento_destino||clienteDestino.complemento||"";
-  if(ce("coletaBairroDestino"))ce("coletaBairroDestino").value=
-    enderecoDestinoDados.bairro_destino||clienteDestino.bairro||"";
-ce("coletaClienteResultados").style.display="none";atualizarPreviaColeta()}
+function selecionarClienteColeta(id){
+  const c=(emailClientes||[]).find(x=>String(x.id)===String(id));
+  if(!c)return;
+
+  const valor=(...campos)=>{
+    for(const campo of campos){
+      if(c?.[campo]!==undefined&&c?.[campo]!==null&&String(c[campo]).trim()!==""){
+        return String(c[campo]).trim();
+      }
+    }
+    return "";
+  };
+
+  ce("coletaClienteId").value=c.id||"";
+  ce("coletaClienteBusca").value=valor("nome","razao_social");
+  ce("coletaCnpjDestino").value=valor("cpf_cnpj","cnpj","documento");
+  ce("coletaRazaoDestino").value=valor("nome","razao_social");
+  ce("coletaCepDestino").value=valor("cep");
+  ce("coletaCidadeDestino").value=[
+    valor("cidade"),
+    valor("uf","estado")
+  ].filter(Boolean).join("/");
+
+  if(ce("coletaEnderecoDestino")){
+    ce("coletaEnderecoDestino").value=valor(
+      "logradouro","endereco","rua","endereco_logradouro"
+    );
+  }
+  if(ce("coletaNumeroDestino")){
+    ce("coletaNumeroDestino").value=valor(
+      "numero","numero_endereco","endereco_numero"
+    );
+  }
+  if(ce("coletaComplementoDestino")){
+    ce("coletaComplementoDestino").value=valor(
+      "complemento","endereco_complemento"
+    );
+  }
+  if(ce("coletaBairroDestino")){
+    ce("coletaBairroDestino").value=valor(
+      "bairro","endereco_bairro"
+    );
+  }
+
+  ce("coletaClienteResultados").style.display="none";
+  atualizarPreviaColeta();
+
+  const faltando=[];
+  if(!cv("coletaEnderecoDestino"))faltando.push("logradouro");
+  if(!cv("coletaNumeroDestino"))faltando.push("número");
+  if(!cv("coletaBairroDestino"))faltando.push("bairro");
+  if(faltando.length){
+    mostrarBalaoSistema(
+      "Cliente selecionado",
+      "Confira o endereço do destino. Faltando: "+faltando.join(", ")
+    );
+  }
+}
 function dadosColeta(){return{solicitante:cv("coletaSolicitante"),telefone_origem:cv("coletaTelefoneOrigem"),tipo_frete:cv("coletaTipoFrete")==="FOB"?"DESTINO (FOB)":"REMETENTE (CIF)",cnpj_origem:cv("coletaCnpjOrigem"),razao_origem:cv("coletaRazaoOrigem"),cep_origem:cv("coletaCepOrigem"),endereco_origem:cv("coletaEnderecoOrigem"),cnpj_destino:cv("coletaCnpjDestino"),razao_destino:cv("coletaRazaoDestino"),cep_destino:cv("coletaCepDestino"),cidade_destino:cv("coletaCidadeDestino"),volumes:cv("coletaVolumes"),peso:cv("coletaPeso"),valor_nf:coletaMoeda(cv("coletaValorNf")),numero_nf:cv("coletaNumeroNf"),medidas:cv("coletaMedidas"),natureza:cv("coletaNatureza"),mercadoria:cv("coletaMercadoria"),embalagem:cv("coletaEmbalagem"),horario_limite:cv("coletaHorarioLimite"),pausa:cv("coletaPausa"),referencia:cv("coletaReferencia"),localizacao:cv("coletaLocalizacao")}}
 function modeloAtualColeta(){return coletaModelos.find(m=>String(m.id)===cv("coletaModeloId"))||coletaModelos[0]}
 function renderizarModeloColeta(texto,d){return String(texto||"").replace(/\{\{([a-z0-9_]+)\}\}/gi,(_,k)=>d[k]||"-").replace(/\n{3,}/g,"\n\n").trim()}
@@ -263,6 +308,8 @@ function atualizarAreaApiColeta(){
   if(mostrar){
     atualizarModoEnderecoColeta();
     carregarLocaisColeta();
+    const salva=localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key");
+    atualizarStatusChaveColeta(salva?"Chave salva — será validada ao enviar":"Chave não informada",!!salva);
   }
 }
 function respostaAtualDaColeta(){
@@ -293,11 +340,71 @@ function resultadoApiColeta(classe,texto){
   box.className=`coleta-api-resultado ${classe||""}`;
   box.textContent=texto||"";
 }
-async function chaveAdminColeta(){
-  if(typeof obterChaveIntegracoesCotacao==="function"){
-    return obterChaveIntegracoesCotacao();
+async function validarChaveColetaNoServidor(chave){
+  const r=await fetch("/api/integracoes/validar-chave",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({chave})
+  });
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok||!d.ok)throw new Error(d.erro||"Chave administrativa inválida.");
+  return true;
+}
+
+function atualizarStatusChaveColeta(texto,ok=false){
+  const el=ce("coletaChaveStatus");
+  if(!el)return;
+  el.textContent=texto;
+  el.style.background=ok?"#d8f4e2":"#fff0cf";
+  el.style.color=ok?"#17683d":"#7b5919";
+}
+
+async function solicitarChaveColeta(){
+  const digitada=prompt(
+    "Informe o valor secreto da variável INTEGRATIONS_ADMIN_KEY cadastrada na Vercel:",
+    ""
+  );
+  if(!digitada)return "";
+  await validarChaveColetaNoServidor(digitada);
+  sessionStorage.setItem("integrations_admin_key",digitada);
+  if(confirm("Deseja manter esta chave salva neste computador? Use somente em computador confiável.")){
+    localStorage.setItem("integrations_admin_key",digitada);
   }
-  return localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key")||"";
+  atualizarStatusChaveColeta("Chave validada",true);
+  return digitada;
+}
+
+async function chaveAdminColeta(forcarTroca=false){
+  if(forcarTroca){
+    localStorage.removeItem("integrations_admin_key");
+    sessionStorage.removeItem("integrations_admin_key");
+  }
+
+  let chave=localStorage.getItem("integrations_admin_key")||
+            sessionStorage.getItem("integrations_admin_key")||"";
+
+  if(!chave)return solicitarChaveColeta();
+
+  try{
+    atualizarStatusChaveColeta("Validando chave...");
+    await validarChaveColetaNoServidor(chave);
+    atualizarStatusChaveColeta("Chave salva e validada",true);
+    return chave;
+  }catch{
+    localStorage.removeItem("integrations_admin_key");
+    sessionStorage.removeItem("integrations_admin_key");
+    atualizarStatusChaveColeta("Chave inválida");
+    return solicitarChaveColeta();
+  }
+}
+
+async function validarOuTrocarChaveColeta(){
+  try{
+    const chave=await chaveAdminColeta(true);
+    if(chave)alert("Chave administrativa validada e pronta para uso.");
+  }catch(erro){
+    alert("Não foi possível validar a chave: "+erro.message);
+  }
 }
 async function agendarColetaRodonavesPorProtocolo(){
   const protocolo=protocoloAtualParaColeta().replace(/\D/g,"");
@@ -642,5 +749,21 @@ async function agendarColetaRodonavesComEndereco(){
 function esquecerChaveIntegracoesNesteComputador(){
   localStorage.removeItem("integrations_admin_key");
   sessionStorage.removeItem("integrations_admin_key");
+  atualizarStatusChaveColeta("Chave removida");
   alert("A chave administrativa salva neste computador foi removida.");
+}
+
+async function preencherDestinoClienteAutomaticamente(){
+  const clienteId=cv("coletaClienteId");
+  let cliente=(emailClientes||[]).find(c=>String(c.id)===String(clienteId));
+
+  if(!cliente&&cv("coletaClienteBusca")){
+    cliente=(emailClientes||[]).find(c=>
+      normalizarNomeEmail(c.nome)===normalizarNomeEmail(cv("coletaClienteBusca"))
+    );
+  }
+  if(!cliente)return false;
+
+  selecionarClienteColeta(cliente.id);
+  return true;
 }
