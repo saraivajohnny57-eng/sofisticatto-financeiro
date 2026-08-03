@@ -800,3 +800,29 @@ async function preencherDestinoClienteAutomaticamente(){
   selecionarClienteColeta(cliente.id);
   return true;
 }
+
+function mascararDocumentoColeta(v){
+  const n=String(v||"").replace(/\D/g,"");
+  if(n.length<=4)return "****";
+  return n.slice(0,2)+"***"+n.slice(-4);
+}
+function mostrarResumoSeguroColetaRodonaves(){
+  const alternativo=cv("coletaModoEnderecoApi")==="alternativo";
+  const box=ce("coletaPayloadResumo");
+  if(!box)return;
+
+  const linhas=[
+    "RESUMO SEGURO DO ENVIO",
+    `Modo: ${alternativo?"endereço alternativo":"endereço do protocolo"}`,
+    `Protocolo interno: ${protocoloAtualParaColeta()||"não informado"}`,
+    `Origem: ${cv("coletaAltLogradouro")||cv("coletaEnderecoColeta")||""}, ${cv("coletaAltNumero")||""}`,
+    `Destino: ${cv("coletaEnderecoDestino")||""}, ${cv("coletaNumeroDestino")||""}`,
+    `Documento destino: ${mascararDocumentoColeta(cv("coletaCnpjDestino"))}`,
+    `Volumes: ${cv("coletaVolumes")||"0"}`,
+    `Peso total: ${cv("coletaPeso")||"0"} kg`,
+    `Data: ${cv("coletaDataApi")||""} ${cv("coletaHoraApi")||""}`
+  ];
+  box.style.display="block";
+  box.className="coleta-api-resultado sucesso";
+  box.textContent=linhas.join("\n");
+}
