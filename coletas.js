@@ -341,13 +341,21 @@ function resultadoApiColeta(classe,texto){
   box.textContent=texto||"";
 }
 async function validarChaveColetaNoServidor(chave){
+  const valor=String(chave||"").trim();
+  if(!valor)throw new Error("Informe a chave administrativa.");
+
   const r=await fetch("/api/integracoes/validar-chave",{
     method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({chave})
+    headers:{
+      "Content-Type":"application/json",
+      "x-integrations-admin-key":valor
+    }
   });
+
   const d=await r.json().catch(()=>({}));
-  if(!r.ok||!d.ok)throw new Error(d.erro||"Chave administrativa inválida.");
+  if(!r.ok||!d.ok){
+    throw new Error(d.erro||"Chave administrativa inválida ou não configurada.");
+  }
   return true;
 }
 
@@ -364,14 +372,15 @@ async function solicitarChaveColeta(){
     "Informe o valor secreto da variável INTEGRATIONS_ADMIN_KEY cadastrada na Vercel:",
     ""
   );
-  if(!digitada)return "";
-  await validarChaveColetaNoServidor(digitada);
-  sessionStorage.setItem("integrations_admin_key",digitada);
+  const valor=String(digitada||"").trim();
+  if(!valor)return "";
+  await validarChaveColetaNoServidor(valor);
+  sessionStorage.setItem("integrations_admin_key",valor);
   if(confirm("Deseja manter esta chave salva neste computador? Use somente em computador confiável.")){
-    localStorage.setItem("integrations_admin_key",digitada);
+    localStorage.setItem("integrations_admin_key",valor);
   }
   atualizarStatusChaveColeta("Chave validada",true);
-  return digitada;
+  return valor;
 }
 
 async function chaveAdminColeta(forcarTroca=false){
