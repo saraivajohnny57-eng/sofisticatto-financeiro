@@ -285,7 +285,7 @@ async function chaveAdminColeta(){
   if(typeof obterChaveIntegracoesCotacao==="function"){
     return obterChaveIntegracoesCotacao();
   }
-  return sessionStorage.getItem("integrations_admin_key")||"";
+  return localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key")||"";
 }
 async function agendarColetaRodonavesPorProtocolo(){
   const protocolo=protocoloAtualParaColeta().replace(/\D/g,"");
@@ -577,7 +577,11 @@ async function agendarColetaRodonavesComEndereco(){
           cnpj:String(cv("coletaCnpjDestino")||"").replace(/\D/g,""),
           razao_social:cv("coletaRazaoDestino"),
           cep:String(cv("coletaCepDestino")||"").replace(/\D/g,""),
-          cidade_uf:cv("coletaCidadeDestino")
+          cidade_uf:cv("coletaCidadeDestino"),
+          logradouro:cv("coletaEnderecoDestino")||"",
+          numero:cv("coletaNumeroDestino")||"",
+          complemento:cv("coletaComplementoDestino")||"",
+          bairro:cv("coletaBairroDestino")||""
         },
         carga:{
           volumes:Number(cv("coletaVolumes"))||1,
@@ -611,4 +615,10 @@ async function agendarColetaRodonavesComEndereco(){
     btn.disabled=false;
     atualizarModoEnderecoColeta();
   }
+}
+
+function esquecerChaveIntegracoesNesteComputador(){
+  localStorage.removeItem("integrations_admin_key");
+  sessionStorage.removeItem("integrations_admin_key");
+  alert("A chave administrativa salva neste computador foi removida.");
 }

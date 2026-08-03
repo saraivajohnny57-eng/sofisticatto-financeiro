@@ -350,7 +350,10 @@ function abrirModalChaveIntegracoesCotacao(){
       try{
         const ok=await validarChaveIntegracoesCotacao(chave);
         if(!ok){erro.textContent="Chave inválida. Confira o valor cadastrado na Vercel.";return;}
-        sessionStorage.setItem("integrations_admin_key",chave);
+        sessionStorage.setItem("integrations_admin_key", chave);
+      if(confirm("Deseja manter esta chave salva neste computador para não precisar digitá-la novamente?\n\nUse somente em um computador confiável.")){
+        localStorage.setItem("integrations_admin_key", chave);
+      }
         fundo.remove();resolve(chave);
       }catch(e){
         erro.textContent="Não foi possível validar a chave. Tente novamente.";
@@ -363,7 +366,7 @@ function abrirModalChaveIntegracoesCotacao(){
 }
 
 async function obterChaveIntegracoesCotacao(){
-  let chave=sessionStorage.getItem("integrations_admin_key")||"";
+  let chave=(localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key"))||"";
   if(chave){
     try{
       if(await validarChaveIntegracoesCotacao(chave))return chave;
