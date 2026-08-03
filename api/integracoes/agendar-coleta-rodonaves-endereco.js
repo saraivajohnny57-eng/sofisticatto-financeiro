@@ -96,13 +96,13 @@ module.exports=async function handler(req,res){
         State:String(origem.uf).toUpperCase(),
         Reference:origem.referencia||""
       },
-      PackInformation:[{
+      PackInformation:{
         AmountPackages:Number(carga.volumes),
         Weight:Number(pesoUnitario.toFixed(3)),
         Length:med.Length,
         Height:med.Height,
         Width:med.Width
-      }],
+      },
       TotalWeight:Number(carga.peso),
       TotalPackages:Number(carga.volumes),
       InvoiceValue:Number(carga.valor_nf||0),
