@@ -568,12 +568,15 @@ function gerarCotacoesFrete(){
               value="${gnrePadrao ? gnrePadrao.toLocaleString("pt-BR",{minimumFractionDigits:2}) : ""}">
           </div>
           <button class="btn verde" onclick="registrarRespostaFrete('${id}','${tipoResposta}')">Registrar</button>
+          ${/rodonaves/i.test(transportadora?.nome||"") && tipoResposta==="CIF"
+            ? `<button class="btn azul" onclick="registrarNegociacaoFrete('${id}','${tipoResposta}')">💬 Registrar negociação</button>`
+            : ""}
         </div>
 
         <div class="email-acoes">
           <button class="btn roxo" onclick="autorizarRespostaFrete('${id}','${tipoResposta}')">✅ Marcar autorizada</button>
           <span class="frete-status ${existente.status || "aguardando"}">
-            ${existente.status === "autorizada" ? "AUTORIZADA" : "AGUARDANDO"}
+            ${existente.status === "autorizada" ? "AUTORIZADA" : existente.status === "negociada" ? "NEGOCIADA" : "AGUARDANDO"}
           </span>
         </div>
       </div>`;
@@ -601,6 +604,112 @@ function coletarRespostaTela(id, tipoFrete){
     gnre_valor: numeroFrete(freteValor("freteRespGnre_" + chave)) || gnreGeral,
     status: respostaAtualFrete(id, tipoFrete)?.status || "aguardando"
   };
+}
+
+
+function respostaBancoFrete(id,tipoFrete){
+  const cotacaoId=freteValor("freteCotacaoId");
+  if(!cotacaoId)return null;
+  const cotacao=freteAndamento.find(c=>String(c.id)===String(cotacaoId)) ||
+                freteHistorico.find(c=>String(c.id)===String(cotacaoId));
+  return (cotacao?.frete_cotacao_respostas||[]).find(r=>
+    String(r.transportadora_id)===String(id) &&
+    String(r.tipo_frete||"CIF")===String(tipoFrete)
+  )||null;
+}
+
+async function registrarNegociacaoFrete(id,tipoFrete){
+  const cotacaoId=freteValor("freteCotacaoId");
+  if(!cotacaoId){
+    const salva=await salvarCotacaoFrete("rascunho");
+    if(!salva)return;
+  }
+
+  const respostaAtual=coletarRespostaTela(id,tipoFrete);
+  const anterior=respostaBancoFrete(id,tipoFrete);
+  const transportadora=freteTransportadoras.find(t=>String(t.id)===String(id));
+
+  if(!respostaAtual.numero_cotacao){
+    alert("Informe o novo número/protocolo da cotação negociada.");
+    return;
+  }
+  if(!respostaAtual.valor_frete){
+    alert("Informe o valor negociado.");
+    return;
+  }
+
+  const motivo=prompt(
+    "Informe o motivo ou observação da negociação:",
+    "Valor/protocolo negociado diretamente com a transportadora"
+  );
+  if(motivo===null)return;
+
+  const confirmar=confirm(
+    `Confirmar negociação com ${transportadora?.nome||"transportadora"}?\n\n`+
+    `Protocolo anterior: ${anterior?.numero_cotacao||"—"}\n`+
+    `Novo protocolo: ${respostaAtual.numero_cotacao||"—"}\n\n`+
+    `Valor anterior: ${moedaFrete(anterior?.valor_frete||0)}\n`+
+    `Novo valor: ${moedaFrete(respostaAtual.valor_frete||0)}\n\n`+
+    `A coleta utilizará o novo protocolo salvo.`
+  );
+  if(!confirmar)return;
+
+  const idCotacao=freteValor("freteCotacaoId");
+  const agora=new Date().toISOString();
+
+  const historico=await banco.from("frete_cotacao_negociacoes").insert([{
+    cotacao_id:idCotacao,
+    transportadora_id:id,
+    tipo_frete:tipoFrete,
+    resposta_id:anterior?.id||null,
+    protocolo_anterior:anterior?.numero_cotacao||null,
+    protocolo_novo:respostaAtual.numero_cotacao||null,
+    valor_anterior:Number(anterior?.valor_frete||0),
+    valor_novo:Number(respostaAtual.valor_frete||0),
+    prazo_anterior:anterior?.prazo||null,
+    prazo_novo:respostaAtual.prazo||null,
+    motivo:String(motivo||"").trim()||null,
+    alterado_por:usuarioLogado?.login||"sistema",
+    created_at:agora
+  }]);
+
+  if(historico.error){
+    alert("Não foi possível registrar o histórico da negociação:\n"+historico.error.message);
+    return;
+  }
+
+  const upsert=await banco.from("frete_cotacao_respostas").upsert({
+    cotacao_id:idCotacao,
+    transportadora_id:id,
+    tipo_frete:tipoFrete,
+    numero_cotacao:respostaAtual.numero_cotacao,
+    valor_frete:respostaAtual.valor_frete,
+    prazo:respostaAtual.prazo,
+    gnre_valor:respostaAtual.gnre_valor,
+    status:"negociada",
+    negociada:true,
+    negociado_em:agora,
+    negociado_por:usuarioLogado?.login||"sistema",
+    atualizado_em:agora
+  },{onConflict:"cotacao_id,transportadora_id,tipo_frete"});
+
+  if(upsert.error){
+    alert("A negociação foi registrada, mas não foi possível atualizar a resposta:\n"+upsert.error.message);
+    return;
+  }
+
+  const idx=freteRespostasAtuais.findIndex(r=>
+    String(r.transportadora_id)===String(id) &&
+    String(r.tipo_frete||"CIF")===String(tipoFrete)
+  );
+  const atualizada={...respostaAtual,status:"negociada",negociada:true};
+  if(idx>=0)freteRespostasAtuais[idx]={...freteRespostasAtuais[idx],...atualizada};
+  else freteRespostasAtuais.push(atualizada);
+
+  atualizarMensagemVendedoraFrete();
+  gerarCotacoesFrete();
+  mostrarBalaoSistema("Negociação registrada",`${respostaAtual.numero_cotacao} • ${moedaFrete(respostaAtual.valor_frete)}`);
+  await carregarCotacoesAndamento();
 }
 
 async function registrarRespostaFrete(id, tipoFrete){
@@ -886,6 +995,8 @@ async function autorizarRespostaFrete(id, tipoFrete){
       valor_frete: respostaTela.valor_frete,
       prazo: respostaTela.prazo,
       gnre_valor: respostaTela.gnre_valor,
+      protocolo_usado_coleta: respostaTela.numero_cotacao,
+      valor_usado_coleta: respostaTela.valor_frete,
       status: "autorizada",
       autorizada: true,
       autorizado_em: new Date().toISOString(),
@@ -921,6 +1032,8 @@ async function autorizarRespostaFrete(id, tipoFrete){
   atualizarDashboardFretes();
   mostrarBalaoSistema("Transportadora autorizada", respostaTela.transportadora_nome);
 
+  // A coleta sempre utiliza o protocolo e o valor atualmente salvos na resposta.
+  // Se houve negociação, são os dados negociados que seguem para o módulo de coleta.
   if(typeof tratarColetaAposAutorizacao==="function"){
     const [cotacaoDb,respostaDb]=await Promise.all([
       banco.from("frete_cotacoes").select("*").eq("id",cotacaoId).single(),

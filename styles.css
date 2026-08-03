@@ -1855,3 +1855,6 @@ html.modo-portal-publico .portal-conteudo{
 .modal-chave-integracoes-campo button{border:0;border-radius:11px;background:#eee9f8;cursor:pointer}
 .modal-chave-integracoes-erro{min-height:20px;margin-top:7px;color:#b42318;font-size:12px;font-weight:700}
 .modal-chave-integracoes-acoes{display:flex;justify-content:flex-end;gap:9px;margin-top:12px}
+
+/* V16.6 — NEGOCIAÇÃO DE FRETE */
+.frete-status.negociada{background:#e8f0ff;color:#2452a4;border-color:#9db8eb}
