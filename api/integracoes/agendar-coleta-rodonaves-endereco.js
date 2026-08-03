@@ -98,36 +98,30 @@ module.exports=async function handler(req,res){
 
     const payload={
       CustomerTaxIdRegistration:String(origemCnpj),
-      ContactName:String(origem.nome||"Johnny"),
-      ContactPhoneNumber:String(telefoneContato),
-
       Sender:{
-        UnitFederation:String(origem.uf).toUpperCase(),
+        UnitFederation:String(origem.uf||"").toUpperCase(),
         Person:{
-          TaxIdRegistration:origemCnpj,
+          TaxIdRegistration:String(origemCnpj),
           StadualIdRegistration:"",
           Description:String(origem.razao_social||origem.nome||"Remetente")
         }
       },
-
       Recipient:{
-        UnitFederation:destinoCidade.uf,
+        UnitFederation:String(destinoCidade.uf||"").toUpperCase(),
         Person:{
-          TaxIdRegistration:destinoDoc,
+          TaxIdRegistration:String(destinoDoc),
           StadualIdRegistration:"",
           Description:String(destino.razao_social||"Destinatário")
         }
       },
-
       Payer:{
-        UnitFederation:String(origem.uf).toUpperCase(),
+        UnitFederation:String(origem.uf||"").toUpperCase(),
         Person:{
-          TaxIdRegistration:origemCnpj,
+          TaxIdRegistration:String(origemCnpj),
           StadualIdRegistration:"",
           Description:String(origem.razao_social||origem.nome||"Pagador")
         }
       },
-
       PickupAddress:{
         Cep:String(somenteNumeros(origem.cep)),
         Address:String(origem.logradouro||""),
@@ -135,10 +129,8 @@ module.exports=async function handler(req,res){
         Supplement:String(origem.complemento||""),
         District:String(origem.bairro||""),
         City:String(origem.cidade||""),
-        UnitFederation:String(origem.uf||"").toUpperCase(),
-        Reference:String(origem.referencia||"")
+        UnitFederation:String(origem.uf||"").toUpperCase()
       },
-
       DestinationAddress:{
         Cep:String(somenteNumeros(destino.cep)),
         Address:String(destino.logradouro||""),
@@ -148,7 +140,11 @@ module.exports=async function handler(req,res){
         City:String(destinoCidade.cidade||""),
         UnitFederation:String(destinoCidade.uf||"").toUpperCase()
       },
-
+      ContactName:String(origem.nome||"Johnny"),
+      ContactPhoneNumber:String(telefoneContato),
+      RegisterSource:2,
+      PickupServiceType:Number(e.pickup_service_type||1),
+      ScheduleDate:String(e.schedule_date),
       PackInformation:{
         TotalWeight:Number(pesoTotal.toFixed(3)),
         EletronicInvoiceValue:Number(valorNota.toFixed(2)),
@@ -156,19 +152,11 @@ module.exports=async function handler(req,res){
         Packs:[{
           AmountPackages:totalVolumes,
           Weight:Number(pesoUnitario.toFixed(3)),
-          Length:med.Length,
-          Height:med.Height,
-          Width:med.Width
+          Length:Number(med.Length||0),
+          Height:Number(med.Height||0),
+          Width:Number(med.Width||0)
         }]
-      },
-      InvoiceNumber:String(carga.numero_nf||""),
-      ProductDescription:String(carga.mercadoria||"Cosméticos"),
-      PackageType:String(carga.embalagem||"Caixas"),
-      PickupServiceType:Number(e.pickup_service_type||1),
-      ScheduleDate:String(e.schedule_date),
-      Comment:String(e.comment||"").slice(0,500),
-      RegisterSource:2,
-      ExternalQuotationId:protocolo
+      }
     };
 
     console.log("Pickup Rodonaves payload validado:", JSON.stringify({
@@ -231,7 +219,7 @@ module.exports=async function handler(req,res){
         http_status:r.status,
         tempo_ms:Date.now()-inicio,
         sucesso:true,
-        mensagem:`Coleta criada com endereço alternativo. Protocolo ref. ${protocolo}`,
+        mensagem:`Coleta criada com endereço alternativo. Protocolo interno ${protocolo}`,
         resposta_resumida:{pickup_id:pickupId,status,cep_origem:somenteNumeros(origem.cep)}
       }
     });
