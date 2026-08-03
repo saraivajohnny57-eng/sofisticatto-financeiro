@@ -151,8 +151,9 @@ module.exports=async function handler(req,res){
     const texto=await r.text();
     let dados={};try{dados=texto?JSON.parse(texto):{}}catch{dados={raw:texto}}
     if(!r.ok){
-      const erro=pick(dados,"Message","message","error_description","error")||texto||`HTTP ${r.status}`;
-      throw new Error(String(erro));
+      const bruto=pick(dados,"Message","message","error_description","error")||dados||texto||`HTTP ${r.status}`;
+      const erro=typeof bruto==="string"?bruto:JSON.stringify(bruto);
+      throw new Error(erro);
     }
 
     const pickupId=pick(dados,"Id","id","PickupId","pickupId","Code","code");
