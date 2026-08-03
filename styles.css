@@ -1858,3 +1858,8 @@ html.modo-portal-publico .portal-conteudo{
 
 /* V16.6 — NEGOCIAÇÃO DE FRETE */
 .frete-status.negociada{background:#e8f0ff;color:#2452a4;border-color:#9db8eb}
+
+/* V16.7 — NEGOCIAÇÃO DISPONÍVEL PARA TODAS AS TRANSPORTADORAS */
+.frete-preview-card .btn.azul[onclick^="registrarNegociacaoFrete"]{
+  white-space:nowrap;
+}

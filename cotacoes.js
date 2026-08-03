@@ -568,9 +568,9 @@ function gerarCotacoesFrete(){
               value="${gnrePadrao ? gnrePadrao.toLocaleString("pt-BR",{minimumFractionDigits:2}) : ""}">
           </div>
           <button class="btn verde" onclick="registrarRespostaFrete('${id}','${tipoResposta}')">Registrar</button>
-          ${/rodonaves/i.test(transportadora?.nome||"") && tipoResposta==="CIF"
-            ? `<button class="btn azul" onclick="registrarNegociacaoFrete('${id}','${tipoResposta}')">💬 Registrar negociação</button>`
-            : ""}
+          <button class="btn azul" onclick="registrarNegociacaoFrete('${id}','${tipoResposta}')">
+            💬 Registrar negociação
+          </button>
         </div>
 
         <div class="email-acoes">
@@ -640,7 +640,7 @@ async function registrarNegociacaoFrete(id,tipoFrete){
 
   const motivo=prompt(
     "Informe o motivo ou observação da negociação:",
-    "Valor/protocolo negociado diretamente com a transportadora"
+    "Valor, protocolo ou prazo negociado diretamente com a transportadora"
   );
   if(motivo===null)return;
 
@@ -650,7 +650,7 @@ async function registrarNegociacaoFrete(id,tipoFrete){
     `Novo protocolo: ${respostaAtual.numero_cotacao||"—"}\n\n`+
     `Valor anterior: ${moedaFrete(anterior?.valor_frete||0)}\n`+
     `Novo valor: ${moedaFrete(respostaAtual.valor_frete||0)}\n\n`+
-    `A coleta utilizará o novo protocolo salvo.`
+    `Quando houver coleta vinculada, será utilizado o novo protocolo salvo.`
   );
   if(!confirmar)return;
 
@@ -1032,8 +1032,9 @@ async function autorizarRespostaFrete(id, tipoFrete){
   atualizarDashboardFretes();
   mostrarBalaoSistema("Transportadora autorizada", respostaTela.transportadora_nome);
 
-  // A coleta sempre utiliza o protocolo e o valor atualmente salvos na resposta.
-  // Se houve negociação, são os dados negociados que seguem para o módulo de coleta.
+  // A autorização sempre utiliza o protocolo, valor e prazo atualmente salvos.
+  // Quando a transportadora possuir integração de coleta, os dados negociados
+  // seguem para o módulo de coleta. Para fluxos manuais, ficam registrados no histórico.
   if(typeof tratarColetaAposAutorizacao==="function"){
     const [cotacaoDb,respostaDb]=await Promise.all([
       banco.from("frete_cotacoes").select("*").eq("id",cotacaoId).single(),
