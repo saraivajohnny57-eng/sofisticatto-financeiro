@@ -69,33 +69,33 @@ module.exports=async function handler(req,res){
 
     // Estrutura da solicitação completa. O protocolo é mantido como referência externa.
     const telefoneContato=somenteNumeros(origem.telefone);
-    const pessoaOrigem=origemCnpj.length===14?2:1;
-    const pessoaDestino=destinoDoc.length===14?2:1;
-
     const payload={
       CustomerTaxIdRegistration:origemCnpj,
       ContactName:origem.nome||"Johnny",
       ContactPhoneNumber:telefoneContato,
 
       Sender:{
-        TaxIdRegistration:origemCnpj,
-        Name:origem.razao_social||origem.nome,
-        Person:pessoaOrigem,
-        UnitFederation:String(origem.uf).toUpperCase()
+        UnitFederation:String(origem.uf).toUpperCase(),
+        Person:{
+          TaxIdRegistration:origemCnpj,
+          Description:origem.razao_social||origem.nome||"Remetente"
+        }
       },
 
       Recipient:{
-        TaxIdRegistration:destinoDoc,
-        Name:destino.razao_social||"Destinatário",
-        Person:pessoaDestino,
-        UnitFederation:destinoCidade.uf
+        UnitFederation:destinoCidade.uf,
+        Person:{
+          TaxIdRegistration:destinoDoc,
+          Description:destino.razao_social||"Destinatário"
+        }
       },
 
       Payer:{
-        TaxIdRegistration:origemCnpj,
-        Name:origem.razao_social||origem.nome,
-        Person:pessoaOrigem,
-        UnitFederation:String(origem.uf).toUpperCase()
+        UnitFederation:String(origem.uf).toUpperCase(),
+        Person:{
+          TaxIdRegistration:origemCnpj,
+          Description:origem.razao_social||origem.nome||"Pagador"
+        }
       },
 
       PickupAddress:{
