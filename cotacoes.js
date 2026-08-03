@@ -281,11 +281,96 @@ function calcularGnreFrete(){
 
 function extrairMedidasRodonaves(texto){
   const nums=String(texto||"").replace(/,/g,".").match(/\d+(?:\.\d+)?/g)||[];
-  return {
-    altura_cm:Number(nums[0]||0),
-    largura_cm:Number(nums[1]||0),
-    comprimento_cm:Number(nums[2]||0)
+  const paraCm=valor=>{
+    const n=Number(valor||0);
+    // Na tela operacional as medidas podem ser digitadas em metros: 0,38 x 0,29 x 0,35.
+    // Valores até 3 são convertidos para centímetros; valores maiores já são tratados como cm.
+    return n>0&&n<=3?Number((n*100).toFixed(3)):n;
   };
+  return {
+    altura_cm:paraCm(nums[0]),
+    largura_cm:paraCm(nums[1]),
+    comprimento_cm:paraCm(nums[2])
+  };
+}
+
+async function validarChaveIntegracoesCotacao(chave){
+  const resposta=await fetch("/api/integracoes/validar-chave",{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "x-integrations-admin-key":chave
+    },
+    body:"{}"
+  });
+  return resposta.ok;
+}
+
+function abrirModalChaveIntegracoesCotacao(){
+  return new Promise(resolve=>{
+    const anterior=document.getElementById("modalChaveIntegracoesCotacao");
+    if(anterior)anterior.remove();
+
+    const fundo=document.createElement("div");
+    fundo.id="modalChaveIntegracoesCotacao";
+    fundo.className="modal-chave-integracoes-fundo";
+    fundo.innerHTML=`
+      <div class="modal-chave-integracoes-card">
+        <h3>🔐 Liberar cotação automática</h3>
+        <p>Informe a mesma chave administrativa cadastrada na Vercel. Ela ficará guardada somente nesta sessão do navegador.</p>
+        <label>Chave administrativa
+          <div class="modal-chave-integracoes-campo">
+            <input id="campoChaveIntegracoesCotacao" type="password" autocomplete="off" placeholder="Digite a chave administrativa">
+            <button type="button" id="verChaveIntegracoesCotacao">👁</button>
+          </div>
+        </label>
+        <div id="erroChaveIntegracoesCotacao" class="modal-chave-integracoes-erro"></div>
+        <div class="modal-chave-integracoes-acoes">
+          <button type="button" class="btn roxo" id="cancelarChaveIntegracoesCotacao">Cancelar</button>
+          <button type="button" class="btn verde" id="validarChaveIntegracoesCotacao">Validar e continuar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(fundo);
+
+    const input=fundo.querySelector("#campoChaveIntegracoesCotacao");
+    const erro=fundo.querySelector("#erroChaveIntegracoesCotacao");
+    const btn=fundo.querySelector("#validarChaveIntegracoesCotacao");
+    input.focus();
+
+    fundo.querySelector("#verChaveIntegracoesCotacao").onclick=()=>{
+      input.type=input.type==="password"?"text":"password";
+    };
+    fundo.querySelector("#cancelarChaveIntegracoesCotacao").onclick=()=>{
+      fundo.remove();resolve("");
+    };
+    btn.onclick=async()=>{
+      const chave=input.value.trim();
+      if(!chave){erro.textContent="Informe a chave administrativa.";return;}
+      btn.disabled=true;btn.textContent="Validando...";erro.textContent="";
+      try{
+        const ok=await validarChaveIntegracoesCotacao(chave);
+        if(!ok){erro.textContent="Chave inválida. Confira o valor cadastrado na Vercel.";return;}
+        sessionStorage.setItem("integrations_admin_key",chave);
+        fundo.remove();resolve(chave);
+      }catch(e){
+        erro.textContent="Não foi possível validar a chave. Tente novamente.";
+      }finally{
+        btn.disabled=false;btn.textContent="Validar e continuar";
+      }
+    };
+    input.addEventListener("keydown",e=>{if(e.key==="Enter")btn.click()});
+  });
+}
+
+async function obterChaveIntegracoesCotacao(){
+  let chave=sessionStorage.getItem("integrations_admin_key")||"";
+  if(chave){
+    try{
+      if(await validarChaveIntegracoesCotacao(chave))return chave;
+    }catch{}
+    sessionStorage.removeItem("integrations_admin_key");
+  }
+  return abrirModalChaveIntegracoesCotacao();
 }
 
 async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
@@ -319,6 +404,9 @@ async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
   botao.textContent="Consultando Rodonaves...";
 
   try{
+    const chaveAdministrativa=await obterChaveIntegracoesCotacao();
+    if(!chaveAdministrativa)throw new Error("Cotação automática cancelada: chave administrativa não informada.");
+
     // Salva a cotação primeiro para manter o histórico.
     const salva=await salvarCotacaoFrete("rascunho");
     if(!salva)throw new Error("Não foi possível salvar a cotação antes da consulta.");
@@ -327,7 +415,7 @@ async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
       method:"POST",
       headers:{
         "Content-Type":"application/json",
-        "x-integrations-admin-key":sessionStorage.getItem("integrations_admin_key")||""
+        "x-integrations-admin-key":chaveAdministrativa
       },
       body:JSON.stringify({
         cotacao_id:salva.id,
@@ -353,6 +441,10 @@ async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
     const corpo=await resposta.json().catch(()=>({}));
 
     if(!resposta.ok){
+      if(resposta.status===401){
+        sessionStorage.removeItem("integrations_admin_key");
+        throw new Error("A chave administrativa expirou ou está incorreta. Clique novamente em cotar e informe a chave cadastrada na Vercel.");
+      }
       throw new Error(corpo.erro||`Falha HTTP ${resposta.status}`);
     }
 

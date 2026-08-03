@@ -1843,3 +1843,15 @@ html.modo-portal-publico .portal-conteudo{
   background:#c9f3d8;color:#0c6335;border:2px solid #4bb879;
   box-shadow:0 6px 16px rgba(26,145,82,.12);
 }
+
+/* V16.5 — LIBERAÇÃO SEGURA DA COTAÇÃO OPERACIONAL */
+.modal-chave-integracoes-fundo{position:fixed;inset:0;z-index:99999;background:rgba(25,20,48,.58);display:flex;align-items:center;justify-content:center;padding:18px}
+.modal-chave-integracoes-card{width:min(480px,100%);background:#fff;border-radius:18px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.28)}
+.modal-chave-integracoes-card h3{margin:0 0 8px;color:#493c8f;font-size:21px}
+.modal-chave-integracoes-card p{margin:0 0 16px;color:#665f79;line-height:1.45;font-size:13px}
+.modal-chave-integracoes-card label{display:grid;gap:7px;color:#40376f;font-weight:800;font-size:12px}
+.modal-chave-integracoes-campo{display:grid;grid-template-columns:1fr 44px;gap:7px}
+.modal-chave-integracoes-campo input{min-width:0;padding:12px;border:1px solid #d8d1eb;border-radius:11px;font-size:14px}
+.modal-chave-integracoes-campo button{border:0;border-radius:11px;background:#eee9f8;cursor:pointer}
+.modal-chave-integracoes-erro{min-height:20px;margin-top:7px;color:#b42318;font-size:12px;font-weight:700}
+.modal-chave-integracoes-acoes{display:flex;justify-content:flex-end;gap:9px;margin-top:12px}
