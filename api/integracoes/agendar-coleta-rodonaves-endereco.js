@@ -89,16 +89,24 @@ module.exports=async function handler(req,res){
 
     // Estrutura da solicitação completa. O protocolo é mantido como referência externa.
     const telefoneContato=somenteNumeros(origem.telefone);
+    if(telefoneContato.length<10){
+      throw new Error("O telefone da coleta deve ter DDD e pelo menos 10 dígitos.");
+    }
+    if(destinoDoc.length!==11 && destinoDoc.length!==14){
+      throw new Error("CPF/CNPJ do destino inválido.");
+    }
+
     const payload={
-      CustomerTaxIdRegistration:origemCnpj,
-      ContactName:origem.nome||"Johnny",
-      ContactPhoneNumber:telefoneContato,
+      CustomerTaxIdRegistration:String(origemCnpj),
+      ContactName:String(origem.nome||"Johnny"),
+      ContactPhoneNumber:String(telefoneContato),
 
       Sender:{
         UnitFederation:String(origem.uf).toUpperCase(),
         Person:{
           TaxIdRegistration:origemCnpj,
-          Description:origem.razao_social||origem.nome||"Remetente"
+          StadualIdRegistration:"",
+          Description:String(origem.razao_social||origem.nome||"Remetente")
         }
       },
 
@@ -106,7 +114,8 @@ module.exports=async function handler(req,res){
         UnitFederation:destinoCidade.uf,
         Person:{
           TaxIdRegistration:destinoDoc,
-          Description:destino.razao_social||"Destinatário"
+          StadualIdRegistration:"",
+          Description:String(destino.razao_social||"Destinatário")
         }
       },
 
@@ -114,29 +123,30 @@ module.exports=async function handler(req,res){
         UnitFederation:String(origem.uf).toUpperCase(),
         Person:{
           TaxIdRegistration:origemCnpj,
-          Description:origem.razao_social||origem.nome||"Pagador"
+          StadualIdRegistration:"",
+          Description:String(origem.razao_social||origem.nome||"Pagador")
         }
       },
 
       PickupAddress:{
-        Cep:somenteNumeros(origem.cep),
-        Address:origem.logradouro,
-        Number:String(origem.numero),
-        Complement:origem.complemento||"",
-        District:origem.bairro,
-        City:origem.cidade,
-        UnitFederation:String(origem.uf).toUpperCase(),
-        Reference:origem.referencia||""
+        Cep:String(somenteNumeros(origem.cep)),
+        Address:String(origem.logradouro||""),
+        Number:String(origem.numero||""),
+        Supplement:String(origem.complemento||""),
+        District:String(origem.bairro||""),
+        City:String(origem.cidade||""),
+        UnitFederation:String(origem.uf||"").toUpperCase(),
+        Reference:String(origem.referencia||"")
       },
 
       DestinationAddress:{
-        Cep:somenteNumeros(destino.cep),
-        Address:destino.logradouro||"",
+        Cep:String(somenteNumeros(destino.cep)),
+        Address:String(destino.logradouro||""),
         Number:String(destino.numero||""),
-        Complement:destino.complemento||"",
-        District:destino.bairro||"",
-        City:destinoCidade.cidade,
-        UnitFederation:destinoCidade.uf
+        Supplement:String(destino.complemento||""),
+        District:String(destino.bairro||""),
+        City:String(destinoCidade.cidade||""),
+        UnitFederation:String(destinoCidade.uf||"").toUpperCase()
       },
 
       PackInformation:{
@@ -160,6 +170,15 @@ module.exports=async function handler(req,res){
       RegisterSource:2,
       ExternalQuotationId:protocolo
     };
+
+    console.log("Pickup Rodonaves payload validado:", JSON.stringify({
+      ...payload,
+      ContactPhoneNumber:payload.ContactPhoneNumber ? "***" : "",
+      CustomerTaxIdRegistration:"***",
+      Sender:{...payload.Sender,Person:{...payload.Sender.Person,TaxIdRegistration:"***"}},
+      Recipient:{...payload.Recipient,Person:{...payload.Recipient.Person,TaxIdRegistration:"***"}},
+      Payer:{...payload.Payer,Person:{...payload.Payer.Person,TaxIdRegistration:"***"}}
+    }));
 
     const r=await fetch("https://pickup-apigateway.rte.com.br/api/v1/pickup",{
       method:"POST",
