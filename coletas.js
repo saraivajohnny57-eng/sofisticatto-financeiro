@@ -424,6 +424,15 @@ async function agendarColetaRodonavesPorProtocolo(){
 
   if(!protocolo)return alert("Informe o protocolo atual da cotação Rodonaves.");
   if(!dataHora)return alert("Informe a data e o horário da coleta.");
+
+  const pesoInterpretado=numeroColetaApi(cv("coletaPeso"));
+  const volumesInterpretados=numeroColetaApi(cv("coletaVolumes"));
+  if(!(pesoInterpretado>0)){
+    return alert("Informe um peso total maior que zero. Valor atual: "+cv("coletaPeso"));
+  }
+  if(!(volumesInterpretados>0)){
+    return alert("Informe uma quantidade de volumes maior que zero.");
+  }
   if(!cotacaoId)return alert("Abra o agendamento a partir de uma cotação autorizada.");
   if(cv("coletaTipoFrete")!=="CIF")return alert("O agendamento automático está liberado somente para CIF.");
 
@@ -651,6 +660,21 @@ async function agendarColetaRodonaves(){
   return agendarColetaRodonavesPorProtocolo();
 }
 
+function numeroColetaApi(valor){
+  if(typeof valor==="number")return Number.isFinite(valor)?valor:0;
+  let s=String(valor??"").trim().replace(/\s/g,"");
+  if(!s)return 0;
+  if(s.includes(",")&&s.includes(".")){
+    s=s.lastIndexOf(",")>s.lastIndexOf(".")
+      ?s.replace(/\./g,"").replace(",",".")
+      :s.replace(/,/g,"");
+  }else if(s.includes(",")){
+    s=s.replace(",",".");
+  }
+  const n=Number(s.replace(/[^0-9.-]/g,""));
+  return Number.isFinite(n)?n:0;
+}
+
 async function agendarColetaRodonavesComEndereco(){
   const protocolo=protocoloAtualParaColeta().replace(/\D/g,"");
   const dataHora=formatarDataHoraApiColeta();
@@ -722,9 +746,9 @@ async function agendarColetaRodonavesComEndereco(){
           bairro:cv("coletaBairroDestino")||""
         },
         carga:{
-          volumes:Number(cv("coletaVolumes"))||1,
-          peso:Number(String(cv("coletaPeso")||"").replace(",", "."))||0,
-          valor_nf:coletaMoeda(cv("coletaValorNf")),
+          volumes:numeroColetaApi(cv("coletaVolumes"))||1,
+          peso:numeroColetaApi(cv("coletaPeso")),
+          valor_nf:numeroColetaApi(cv("coletaValorNf")),
           numero_nf:cv("coletaNumeroNf"),
           medidas:cv("coletaMedidas"),
           mercadoria:cv("coletaMercadoria"),
