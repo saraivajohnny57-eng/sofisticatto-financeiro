@@ -31,6 +31,20 @@ async function tokenPickup(cred){
   return d.access_token;
 }
 function somenteNumeros(v){return String(v||"").replace(/\D/g,"")}
+function numeroDecimal(v){
+  if(typeof v==="number")return Number.isFinite(v)?v:0;
+  let s=String(v??"").trim().replace(/\s/g,"");
+  if(!s)return 0;
+  if(s.includes(",")&&s.includes(".")){
+    s=s.lastIndexOf(",")>s.lastIndexOf(".")
+      ?s.replace(/\./g,"").replace(",",".")
+      :s.replace(/,/g,"");
+  }else if(s.includes(",")){
+    s=s.replace(",",".");
+  }
+  const n=Number(s.replace(/[^0-9.-]/g,""));
+  return Number.isFinite(n)?n:0;
+}
 function parseCidadeUf(v){
   const texto=String(v||"");
   const partes=texto.split(/[\/-]/).map(x=>x.trim()).filter(Boolean);
@@ -65,7 +79,13 @@ module.exports=async function handler(req,res){
     const token=await tokenPickup(cred);
     const destinoCidade=parseCidadeUf(destino.cidade_uf);
     const med=medidas(carga.medidas);
-    const pesoUnitario=Number(carga.peso)/Number(carga.volumes);
+    const totalVolumes=Math.max(1,Math.trunc(numeroDecimal(carga.volumes)));
+    const pesoTotal=numeroDecimal(carga.peso);
+    const valorNota=numeroDecimal(carga.valor_nf);
+    const pesoUnitario=pesoTotal/totalVolumes;
+
+    if(!(pesoTotal>0))throw new Error("O peso total precisa ser maior que zero.");
+    if(!(pesoUnitario>0))throw new Error("O peso por volume precisa ser maior que zero.");
 
     // Estrutura da solicitação completa. O protocolo é mantido como referência externa.
     const telefoneContato=somenteNumeros(origem.telefone);
@@ -120,15 +140,17 @@ module.exports=async function handler(req,res){
       },
 
       PackInformation:{
-        AmountPackages:Number(carga.volumes),
-        Weight:Number(pesoUnitario.toFixed(3)),
-        Length:med.Length,
-        Height:med.Height,
-        Width:med.Width
+        TotalWeight:Number(pesoTotal.toFixed(3)),
+        EletronicInvoiceValue:Number(valorNota.toFixed(2)),
+        TotalPacks:totalVolumes,
+        Packs:[{
+          AmountPackages:totalVolumes,
+          Weight:Number(pesoUnitario.toFixed(3)),
+          Length:med.Length,
+          Height:med.Height,
+          Width:med.Width
+        }]
       },
-      TotalWeight:Number(carga.peso),
-      TotalPackages:Number(carga.volumes),
-      InvoiceValue:Number(carga.valor_nf||0),
       InvoiceNumber:String(carga.numero_nf||""),
       ProductDescription:String(carga.mercadoria||"Cosméticos"),
       PackageType:String(carga.embalagem||"Caixas"),
