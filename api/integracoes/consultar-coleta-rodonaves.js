@@ -45,7 +45,8 @@ module.exports=async function handler(req,res){
     let dados={};try{dados=texto?JSON.parse(texto):{}}catch{dados={raw:texto}}
     if(!r.ok)throw new Error(pick(dados,"Message","message","error")||texto||`HTTP ${r.status}`);
 
-    const status=String(pick(dados,"Status","status","StatusDescription","statusDescription","Description","description")||"consultado");
+    const statusBruto=String(pick(dados,"Status","status","StatusDescription","statusDescription","Description","description")||"consultado");
+    const status=statusBruto.trim().toLowerCase().replace(/\s+/g,"_");
     const unidade=pick(dados,"EmissionUnit.Description","Unit.Description","unit","EmissionUnit");
     const observacao=pick(dados,"Comment","comment","Observation","observation");
 
