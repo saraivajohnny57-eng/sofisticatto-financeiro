@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=16.7">
+<link rel="stylesheet" href="styles.css?v=16.8">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -1235,10 +1235,55 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <div id="coletaClienteResultados" class="coleta-resultados"></div>
               </div>
 
-              <div><label class="relatorio-label">Transportadora</label><select id="coletaTransportadoraId" onchange="aplicarModeloDaTransportadoraColeta()"></select></div>
+              <div><label class="relatorio-label">Transportadora</label><select id="coletaTransportadoraId" onchange="aplicarModeloDaTransportadoraColeta();atualizarAreaApiColeta()"></select></div>
               <div><label class="relatorio-label">Modelo</label><select id="coletaModeloId" onchange="atualizarPreviaColeta()"></select></div>
-              <div><label class="relatorio-label">CIF / FOB</label><select id="coletaTipoFrete" onchange="atualizarPreviaColeta()"><option value="CIF">REMETENTE (CIF)</option><option value="FOB">DESTINO (FOB)</option></select></div>
+              <div><label class="relatorio-label">CIF / FOB</label><select id="coletaTipoFrete" onchange="atualizarPreviaColeta();atualizarAreaApiColeta()"><option value="CIF">REMETENTE (CIF)</option><option value="FOB">DESTINO (FOB)</option></select></div>
               <div><label class="relatorio-label">Nome do solicitante</label><input id="coletaSolicitante" value="Johnny" oninput="atualizarPreviaColeta()"></div>
+
+              <div id="coletaApiRodonavesBloco" class="campo-largo coleta-api-rodonaves" style="display:none;">
+                <div class="coleta-api-topo">
+                  <div>
+                    <strong>🚚 Agendamento automático Rodonaves</strong>
+                    <small>Usa o protocolo atual da cotação, inclusive quando ele foi renegociado.</small>
+                  </div>
+                  <span id="coletaApiStatus" class="coleta-api-status">Aguardando</span>
+                </div>
+                <div class="coleta-api-grid">
+                  <div>
+                    <label class="relatorio-label">Protocolo da cotação</label>
+                    <input id="coletaProtocoloCotacao" placeholder="Ex.: 219839047">
+                  </div>
+                  <div>
+                    <label class="relatorio-label">Tipo de serviço</label>
+                    <select id="coletaServicoApi">
+                      <option value="1">Convencional</option>
+                      <option value="2">Expresso</option>
+                      <option value="3">Super Expresso</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="relatorio-label">Data da coleta</label>
+                    <input id="coletaDataApi" type="date">
+                  </div>
+                  <div>
+                    <label class="relatorio-label">Horário previsto</label>
+                    <input id="coletaHoraApi" type="time" value="09:00">
+                  </div>
+                  <div class="campo-largo">
+                    <label class="relatorio-label">Comentário para a Rodonaves</label>
+                    <input id="coletaComentarioApi" placeholder="Ex.: Coletar até 17:30 h. Próximo ao Tático de Campinas.">
+                  </div>
+                </div>
+                <div class="email-acoes">
+                  <button type="button" class="btn verde" id="btnAgendarRodonavesApi" onclick="agendarColetaRodonavesPorProtocolo()">
+                    Agendar no Portal Rodonaves
+                  </button>
+                  <button type="button" class="btn azul" id="btnConsultarRodonavesApi" onclick="consultarColetaRodonavesApi()" style="display:none;">
+                    Atualizar status
+                  </button>
+                </div>
+                <div id="coletaApiResultado" class="coleta-api-resultado"></div>
+              </div>
               <div><label class="relatorio-label">Telefone da coleta</label><input id="coletaTelefoneOrigem" value="(62) 3293-0035" oninput="atualizarPreviaColeta()"></div>
 
               <div><label class="relatorio-label">CNPJ da origem</label><input id="coletaCnpjOrigem" value="05.451.985/0001-95" oninput="atualizarPreviaColeta()"></div>
@@ -1292,7 +1337,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Data</th><th>Hora</th><th>Cliente</th><th>Transportadora</th><th>Volumes</th><th>Peso</th><th>Status</th><th>Ações</th></tr></thead>
+              <thead><tr><th>Data</th><th>Hora</th><th>Cliente</th><th>Transportadora</th><th>Protocolo</th><th>Nº coleta</th><th>Volumes</th><th>Peso</th><th>Status</th><th>Ações</th></tr></thead>
               <tbody id="coletaTabelaHistorico"></tbody>
             </table>
           </div>
@@ -2115,7 +2160,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=15"></script>
 <script src="motor-integracoes.js?v=16.4"></script>
-<script src="coletas.js?v=13.5"></script>
+<script src="coletas.js?v=16.8"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">

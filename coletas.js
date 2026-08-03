@@ -76,8 +76,8 @@ function aplicarModeloDaTransportadoraColeta(){const tid=cv("coletaTransportador
 async function copiarMensagemColeta(){atualizarPreviaColeta();const t=cv("coletaPreviaMensagem");if(!t)return alert("Preencha os dados da coleta.");try{await navigator.clipboard.writeText(t);alert("Mensagem copiada para o WhatsApp.")}catch{ce("coletaPreviaMensagem").select();document.execCommand("copy")}}
 function whatsappTransportadoraColeta(){const t=coletaTransportadoras.find(x=>String(x.id)===cv("coletaTransportadoraId"));return String(t?.whatsapp||t?.telefone||"").replace(/\D/g,"")}
 function abrirWhatsAppColeta(){atualizarPreviaColeta();const tel=whatsappTransportadoraColeta();const url=tel?`https://wa.me/55${tel.replace(/^55/,"")}?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`:`https://wa.me/?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`;window.open(url,"_blank")}
-async function salvarAgendamentoColeta(){const d=dadosColeta();if(!d.razao_destino)return alert("Informe o cliente/destino.");if(!cv("coletaModeloId"))return alert("Selecione um modelo.");atualizarPreviaColeta();const payload={cotacao_id:cv("coletaCotacaoId")||null,resposta_cotacao_id:cv("coletaRespostaId")||null,cliente_id:cv("coletaClienteId")||null,cliente_nome:d.razao_destino,transportadora_id:cv("coletaTransportadoraId")||null,modelo_id:String(cv("coletaModeloId")).startsWith("padrao-")?null:cv("coletaModeloId"),tipo_frete:cv("coletaTipoFrete"),dados:d,mensagem:cv("coletaPreviaMensagem"),volumes:Number(d.volumes)||null,peso:Number(String(d.peso).replace(",","."))||null,numero_nf:d.numero_nf||null,status:"solicitado",origem:cv("coletaCotacaoId")?"autorizacao_cotacao":"manual",observacao:cv("coletaObservacao")||null,criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};const id=cv("coletaAgendamentoId");const r=id?await banco.from("coleta_agendamentos").update(payload).eq("id",id):await banco.from("coleta_agendamentos").insert([payload]);if(r.error)return alert(r.error.message);alert("Agendamento salvo.");await carregarAgendamentosColeta();mostrarPainelColeta("historico")}
-function limparFormularioColeta(){["coletaAgendamentoId","coletaCotacaoId","coletaRespostaId","coletaClienteId","coletaClienteBusca","coletaCnpjDestino","coletaRazaoDestino","coletaCepDestino","coletaCidadeDestino","coletaVolumes","coletaPeso","coletaValorNf","coletaNumeroNf","coletaLocalizacao","coletaObservacao"].forEach(id=>{if(ce(id))ce(id).value=""});atualizarPreviaColeta()}
+async function salvarAgendamentoColeta(){const d=dadosColeta();if(!d.razao_destino)return alert("Informe o cliente/destino.");if(!cv("coletaModeloId"))return alert("Selecione um modelo.");atualizarPreviaColeta();const payload={cotacao_id:cv("coletaCotacaoId")||null,resposta_cotacao_id:cv("coletaRespostaId")||null,cliente_id:cv("coletaClienteId")||null,cliente_nome:d.razao_destino,transportadora_id:cv("coletaTransportadoraId")||null,modelo_id:String(cv("coletaModeloId")).startsWith("padrao-")?null:cv("coletaModeloId"),tipo_frete:cv("coletaTipoFrete"),dados:d,mensagem:cv("coletaPreviaMensagem"),volumes:Number(d.volumes)||null,peso:Number(String(d.peso).replace(",","."))||null,numero_nf:d.numero_nf||null,status:"solicitado",protocolo_cotacao:protocoloAtualParaColeta()||null,data_programada:formatarDataHoraApiColeta()||null,origem:cv("coletaCotacaoId")?"autorizacao_cotacao":"manual",observacao:cv("coletaObservacao")||null,criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};const id=cv("coletaAgendamentoId");const r=id?await banco.from("coleta_agendamentos").update(payload).eq("id",id):await banco.from("coleta_agendamentos").insert([payload]);if(r.error)return alert(r.error.message);alert("Agendamento salvo.");await carregarAgendamentosColeta();mostrarPainelColeta("historico")}
+function limparFormularioColeta(){["coletaAgendamentoId","coletaCotacaoId","coletaRespostaId","coletaClienteId","coletaClienteBusca","coletaCnpjDestino","coletaRazaoDestino","coletaCepDestino","coletaCidadeDestino","coletaVolumes","coletaPeso","coletaValorNf","coletaNumeroNf","coletaLocalizacao","coletaObservacao","coletaProtocoloCotacao","coletaComentarioApi"].forEach(id=>{if(ce(id))ce(id).value=""});atualizarPreviaColeta()}
 function montarHistoricoColetas(){const tb=ce("coletaTabelaHistorico");if(!tb)return;const q=normalizarNomeEmail(cv("coletaBuscaHistorico"));const s=cv("coletaFiltroStatus");const lista=coletaAgendamentos.filter(a=>(!s||a.status===s)&&(!q||normalizarNomeEmail([a.cliente_nome,a.numero_nf,a.frete_transportadoras?.nome].filter(Boolean).join(" ")).includes(q)));tb.innerHTML=lista.length?lista.map(a=>`<tr><td>${new Date(a.created_at).toLocaleDateString("pt-BR")}</td><td>${new Date(a.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</td><td>${escaparHtmlEmail(a.cliente_nome||"")}</td><td>${escaparHtmlEmail(a.frete_transportadoras?.nome||"—")}</td><td>${a.volumes||"—"}</td><td>${a.peso?`${Number(a.peso).toLocaleString("pt-BR",{maximumFractionDigits:3})} Kg`:"—"}</td><td><span class="coleta-status ${a.status}">${a.status}</span></td><td><button class="btn azul" onclick="editarAgendamentoColeta('${a.id}')">Editar</button><button class="btn verde" onclick="copiarAgendamentoColeta('${a.id}')">Copiar</button><button class="btn roxo" onclick="alterarStatusColeta('${a.id}','confirmado')">Confirmar</button><button class="btn verde" onclick="alterarStatusColeta('${a.id}','coletado')">Coletado</button></td></tr>`).join(""):'<tr><td colspan="8">Nenhum agendamento encontrado.</td></tr>'}
 function editarAgendamentoColeta(id){const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(!a)return;const d=a.dados||{};ce("coletaAgendamentoId").value=a.id;ce("coletaCotacaoId").value=a.cotacao_id||"";ce("coletaRespostaId").value=a.resposta_cotacao_id||"";ce("coletaClienteId").value=a.cliente_id||"";ce("coletaClienteBusca").value=a.cliente_nome||"";ce("coletaTransportadoraId").value=a.transportadora_id||"";if(a.modelo_id)ce("coletaModeloId").value=a.modelo_id;ce("coletaTipoFrete").value=a.tipo_frete||"CIF";const map={solicitante:"coletaSolicitante",telefone_origem:"coletaTelefoneOrigem",cnpj_origem:"coletaCnpjOrigem",razao_origem:"coletaRazaoOrigem",cep_origem:"coletaCepOrigem",endereco_origem:"coletaEnderecoOrigem",cnpj_destino:"coletaCnpjDestino",razao_destino:"coletaRazaoDestino",cep_destino:"coletaCepDestino",cidade_destino:"coletaCidadeDestino",volumes:"coletaVolumes",peso:"coletaPeso",numero_nf:"coletaNumeroNf",medidas:"coletaMedidas",natureza:"coletaNatureza",mercadoria:"coletaMercadoria",embalagem:"coletaEmbalagem",horario_limite:"coletaHorarioLimite",pausa:"coletaPausa",referencia:"coletaReferencia",localizacao:"coletaLocalizacao"};Object.entries(map).forEach(([k,id])=>{if(ce(id))ce(id).value=d[k]||""});ce("coletaObservacao").value=a.observacao||"";atualizarPreviaColeta();mostrarPainelColeta("nova")}
 async function copiarAgendamentoColeta(id){const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(a){await navigator.clipboard.writeText(a.mensagem||"");alert("Mensagem copiada.")}}
@@ -130,6 +130,14 @@ async function abrirColetaComDadosCotacao(cotacao,resposta,transportadora,agenda
   ce("coletaClienteBusca").value=cotacao.cliente_nome||"";
   ce("coletaTransportadoraId").value=transportadora?.id||resposta.transportadora_id||"";
   ce("coletaTipoFrete").value=resposta.tipo_frete||cotacao.tipo_frete||"CIF";
+  if(ce("coletaProtocoloCotacao")){
+    ce("coletaProtocoloCotacao").value=
+      resposta.protocolo_usado_coleta||
+      resposta.numero_cotacao||
+      "";
+  }
+  if(ce("coletaDataApi")&&!ce("coletaDataApi").value)ce("coletaDataApi").value=dataAmanhaColeta();
+  atualizarAreaApiColeta();
 
   if(transportadora?.modelo_coleta_id){
     ce("coletaModeloId").value=transportadora.modelo_coleta_id;
@@ -182,6 +190,8 @@ async function criarColetaAutomaticaDaCotacao(cotacao,resposta,transportadora){
     peso:Number(cotacao.peso_total)||null,
     numero_nf:cotacao.numero_nf||null,
     status:"rascunho",
+    protocolo_cotacao:resposta.protocolo_usado_coleta||resposta.numero_cotacao||null,
+    valor_frete_negociado:resposta.valor_usado_coleta||resposta.valor_frete||null,
     origem:"autorizacao_cotacao",
     criado_por:usuarioLogado?.login||null,
     atualizado_em:new Date().toISOString()
@@ -217,3 +227,196 @@ async function tratarColetaAposAutorizacao(cotacao,resposta,transportadora){
   }
 }
 
+
+/* =========================================================
+   V16.8 — AGENDAMENTO AUTOMÁTICO RODONAVES
+   ========================================================= */
+function coletaTransportadoraAtual(){
+  return coletaTransportadoras.find(t=>String(t.id)===String(cv("coletaTransportadoraId")));
+}
+function coletaEhRodonaves(){
+  return /rodonaves/i.test(coletaTransportadoraAtual()?.nome||"");
+}
+function dataAmanhaColeta(){
+  const d=new Date();
+  d.setDate(d.getDate()+1);
+  return d.toISOString().slice(0,10);
+}
+function atualizarAreaApiColeta(){
+  const bloco=ce("coletaApiRodonavesBloco");
+  if(!bloco)return;
+  const mostrar=coletaEhRodonaves()&&cv("coletaTipoFrete")==="CIF";
+  bloco.style.display=mostrar?"block":"none";
+  if(mostrar&&!cv("coletaDataApi"))ce("coletaDataApi").value=dataAmanhaColeta();
+}
+function respostaAtualDaColeta(){
+  const respostaId=cv("coletaRespostaId");
+  const cotacaoId=cv("coletaCotacaoId");
+  for(const lista of [freteAndamento||[],freteHistorico||[]]){
+    const cotacao=lista.find(c=>String(c.id)===String(cotacaoId));
+    const resposta=(cotacao?.frete_cotacao_respostas||[]).find(r=>String(r.id)===String(respostaId));
+    if(resposta)return resposta;
+  }
+  return null;
+}
+function protocoloAtualParaColeta(){
+  return cv("coletaProtocoloCotacao") ||
+    respostaAtualDaColeta()?.protocolo_usado_coleta ||
+    respostaAtualDaColeta()?.numero_cotacao ||
+    "";
+}
+function formatarDataHoraApiColeta(){
+  const data=cv("coletaDataApi");
+  const hora=cv("coletaHoraApi")||"09:00";
+  if(!data)return "";
+  return `${data}T${hora}:00`;
+}
+function resultadoApiColeta(classe,texto){
+  const box=ce("coletaApiResultado");
+  if(!box)return;
+  box.className=`coleta-api-resultado ${classe||""}`;
+  box.textContent=texto||"";
+}
+async function chaveAdminColeta(){
+  if(typeof obterChaveIntegracoesCotacao==="function"){
+    return obterChaveIntegracoesCotacao();
+  }
+  return sessionStorage.getItem("integrations_admin_key")||"";
+}
+async function agendarColetaRodonavesPorProtocolo(){
+  const protocolo=protocoloAtualParaColeta().replace(/\D/g,"");
+  const dataHora=formatarDataHoraApiColeta();
+  const agendamentoId=cv("coletaAgendamentoId");
+  const respostaId=cv("coletaRespostaId");
+  const cotacaoId=cv("coletaCotacaoId");
+
+  if(!protocolo)return alert("Informe o protocolo atual da cotação Rodonaves.");
+  if(!dataHora)return alert("Informe a data e o horário da coleta.");
+  if(!cotacaoId)return alert("Abra o agendamento a partir de uma cotação autorizada.");
+  if(cv("coletaTipoFrete")!=="CIF")return alert("O agendamento automático está liberado somente para CIF.");
+
+  const confirmar=confirm(
+    `CONFIRMAR COLETA REAL NA RODONAVES?\n\n`+
+    `Protocolo: ${protocolo}\n`+
+    `Data/hora: ${new Date(dataHora).toLocaleString("pt-BR")}\n`+
+    `Cliente: ${cv("coletaRazaoDestino")}\n\n`+
+    `Depois de confirmar, uma solicitação real poderá ser criada no Portal Rodonaves.`
+  );
+  if(!confirmar)return;
+
+  const chave=await chaveAdminColeta();
+  if(!chave)return;
+
+  const btn=ce("btnAgendarRodonavesApi");
+  btn.disabled=true;
+  btn.textContent="Agendando...";
+  resultadoApiColeta("processando","Enviando solicitação para a Rodonaves...");
+
+  try{
+    let id=agendamentoId;
+    if(!id){
+      await salvarAgendamentoColetaSemAviso();
+      id=cv("coletaAgendamentoId");
+    }
+
+    const resposta=await fetch("/api/integracoes/agendar-coleta-rodonaves",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "x-integrations-admin-key":chave
+      },
+      body:JSON.stringify({
+        agendamento_id:id||null,
+        cotacao_id:cotacaoId,
+        resposta_cotacao_id:respostaId||null,
+        protocol_id:Number(protocolo),
+        pickup_service_type:Number(cv("coletaServicoApi")||1),
+        schedule_date:dataHora,
+        comment:cv("coletaComentarioApi")||cv("coletaObservacao")||"",
+        register_source:2
+      })
+    });
+    const dados=await resposta.json().catch(()=>({}));
+    if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
+
+    ce("coletaAgendamentoId").value=dados.agendamento_id||id||"";
+    ce("coletaApiStatus").textContent=dados.status||"Solicitada";
+    ce("btnConsultarRodonavesApi").style.display=dados.pickup_id?"inline-flex":"none";
+    ce("btnConsultarRodonavesApi").dataset.pickupId=dados.pickup_id||"";
+    resultadoApiColeta("sucesso",[
+      "COLETA SOLICITADA COM SUCESSO",
+      `Protocolo da cotação: ${protocolo}`,
+      `Código da coleta: ${dados.pickup_id||"não informado"}`,
+      `Status: ${dados.status||"solicitada"}`,
+      `Data programada: ${new Date(dataHora).toLocaleString("pt-BR")}`
+    ].join("\n"));
+
+    await carregarAgendamentosColeta();
+    mostrarBalaoSistema("Coleta Rodonaves solicitada",dados.pickup_id?`Código ${dados.pickup_id}`:"Solicitação registrada");
+  }catch(erro){
+    console.error("Agendamento Rodonaves:",erro);
+    resultadoApiColeta("erro","Não foi possível agendar:\n"+erro.message);
+  }finally{
+    btn.disabled=false;
+    btn.textContent="Agendar no Portal Rodonaves";
+  }
+}
+async function salvarAgendamentoColetaSemAviso(){
+  const d=dadosColeta();
+  atualizarPreviaColeta();
+  const payload={
+    cotacao_id:cv("coletaCotacaoId")||null,
+    resposta_cotacao_id:cv("coletaRespostaId")||null,
+    cliente_id:cv("coletaClienteId")||null,
+    cliente_nome:d.razao_destino||"Cliente",
+    transportadora_id:cv("coletaTransportadoraId")||null,
+    modelo_id:String(cv("coletaModeloId")).startsWith("padrao-")?null:cv("coletaModeloId")||null,
+    tipo_frete:cv("coletaTipoFrete"),
+    dados:d,
+    mensagem:cv("coletaPreviaMensagem"),
+    volumes:Number(d.volumes)||null,
+    peso:Number(String(d.peso).replace(",","."))||null,
+    numero_nf:d.numero_nf||null,
+    status:"rascunho",
+    origem:cv("coletaCotacaoId")?"autorizacao_cotacao":"manual",
+    observacao:cv("coletaObservacao")||null,
+    protocolo_cotacao:protocoloAtualParaColeta()||null,
+    data_programada:formatarDataHoraApiColeta()||null,
+    criado_por:usuarioLogado?.login||null,
+    atualizado_em:new Date().toISOString()
+  };
+  const atual=cv("coletaAgendamentoId");
+  const r=atual
+    ?await banco.from("coleta_agendamentos").update(payload).eq("id",atual).select().single()
+    :await banco.from("coleta_agendamentos").insert([payload]).select().single();
+  if(r.error)throw r.error;
+  ce("coletaAgendamentoId").value=r.data.id;
+  return r.data.id;
+}
+async function consultarColetaRodonavesApi(){
+  const pickupId=ce("btnConsultarRodonavesApi")?.dataset.pickupId ||
+    coletaAgendamentos.find(a=>String(a.id)===String(cv("coletaAgendamentoId")))?.codigo_coleta;
+  if(!pickupId)return alert("Código da coleta não encontrado.");
+
+  const chave=await chaveAdminColeta();
+  if(!chave)return;
+  resultadoApiColeta("processando","Consultando a coleta na Rodonaves...");
+
+  try{
+    const resposta=await fetch(`/api/integracoes/consultar-coleta-rodonaves?id=${encodeURIComponent(pickupId)}&agendamento_id=${encodeURIComponent(cv("coletaAgendamentoId"))}`,{
+      headers:{"x-integrations-admin-key":chave}
+    });
+    const dados=await resposta.json().catch(()=>({}));
+    if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
+    ce("coletaApiStatus").textContent=dados.status||"Atualizada";
+    resultadoApiColeta("sucesso",[
+      `COLETA ${pickupId}`,
+      `Status: ${dados.status||"não informado"}`,
+      dados.unidade?`Unidade: ${dados.unidade}`:"",
+      dados.observacao?`Observação: ${dados.observacao}`:""
+    ].filter(Boolean).join("\n"));
+    await carregarAgendamentosColeta();
+  }catch(erro){
+    resultadoApiColeta("erro","Falha na consulta:\n"+erro.message);
+  }
+}

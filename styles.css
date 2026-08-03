@@ -1863,3 +1863,20 @@ html.modo-portal-publico .portal-conteudo{
 .frete-preview-card .btn.azul[onclick^="registrarNegociacaoFrete"]{
   white-space:nowrap;
 }
+
+/* V16.8 — AGENDAMENTO AUTOMÁTICO RODONAVES */
+.coleta-api-rodonaves{
+  margin:8px 0;padding:14px;border:1px solid #cfc7e8;border-left:5px solid #2cac68;
+  border-radius:14px;background:#fbfaff;
+}
+.coleta-api-topo{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+.coleta-api-topo strong{display:block;color:#403477;font-size:15px}
+.coleta-api-topo small{display:block;margin-top:4px;color:#71698a}
+.coleta-api-status{padding:6px 10px;border-radius:999px;background:#eee9f7;color:#514686;font-size:11px;font-weight:900}
+.coleta-api-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.coleta-api-resultado{white-space:pre-wrap;margin-top:10px;padding:10px;border-radius:10px;font-family:monospace;font-size:11px}
+.coleta-api-resultado:empty{display:none}
+.coleta-api-resultado.processando{display:block;background:#fff3d8;color:#745416}
+.coleta-api-resultado.sucesso{display:block;background:#dcf6e6;color:#17683d}
+.coleta-api-resultado.erro{display:block;background:#fde2e2;color:#9c2727}
+@media(max-width:760px){.coleta-api-grid{grid-template-columns:1fr}.coleta-api-topo{flex-direction:column}}
