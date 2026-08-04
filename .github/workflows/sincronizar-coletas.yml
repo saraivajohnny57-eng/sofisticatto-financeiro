@@ -1,4 +1,4 @@
-name: Sincronizar coletas
+name: Sincronizar coletas V24
 
 on:
   schedule:
