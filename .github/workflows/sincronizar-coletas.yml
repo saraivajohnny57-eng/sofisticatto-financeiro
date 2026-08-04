@@ -1,0 +1,50 @@
+name: Sincronizar coletas
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Consultar endpoint de sincronização
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${APP_URL:-}" ]; then
+            echo "O secret APP_URL não foi configurado."
+            exit 1
+          fi
+
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "O secret CRON_SECRET não foi configurado."
+            exit 1
+          fi
+
+          URL="${APP_URL%/}/api/atualizar-status"
+          echo "Chamando: $URL"
+
+          HTTP_CODE=$(curl --silent --show-error \
+            --output resposta.json \
+            --write-out "%{http_code}" \
+            --request POST \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --header "Content-Type: application/json" \
+            "$URL")
+
+          cat resposta.json
+          echo
+          echo "HTTP: ${HTTP_CODE}"
+
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            exit 1
+          fi
