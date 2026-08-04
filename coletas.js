@@ -896,7 +896,7 @@ async function carregarEventosRodonaves(){
 function detectarDuplicidadesRodonaves(lista){const g={};lista.filter(a=>a.protocolo_cotacao&&!["cancelado","coletado"].includes(statusColetaPainel(a))).forEach(a=>{const k=String(a.protocolo_cotacao);(g[k]??=[]).push(a)});return Object.entries(g).filter(([,v])=>v.length>1)}
 async function carregarPainelRodonaves(){
   await carregarAgendamentosColeta();
-  const lista=(coletaAgendamentos||[]).filter(a=>/rodonaves/i.test(a.frete_transportadoras?.nome||""));
+  const lista=(coletaAgendamentos||[]);
   const hoje=new Date().toISOString().slice(0,10);
 
   ce("coletaKpiHoje").textContent=lista.filter(a=>String(dataColetaPainel(a)||"").slice(0,10)===hoje).length;
@@ -916,7 +916,8 @@ async function carregarPainelRodonaves(){
   tb.innerHTML=ord.length?ord.map(a=>{
     const s=statusColetaPainel(a);
     const rascunho=s==="rascunho"&&!a.codigo_coleta;
-    return `<tr>
+    const textoBusca=[a.cliente_nome,a.frete_transportadoras?.nome,a.protocolo_cotacao,a.codigo_coleta,enderecoColetaPainel(a),statusLabelColeta(s),s].filter(Boolean).join(" ").toLowerCase();
+    return `<tr class="linha-painel-coleta" data-status="${escaparHtmlEmail(s)}" data-busca="${escaparHtmlEmail(textoBusca)}">
       <td>${rascunho?`<input type="checkbox" class="coleta-check-rascunho" value="${a.id}" aria-label="Selecionar rascunho">`:""}</td>
       <td>${dataColetaPainel(a)?new Date(dataColetaPainel(a)).toLocaleString("pt-BR"):"—"}</td>
       <td>${escaparHtmlEmail(a.cliente_nome||"—")}</td>
@@ -938,6 +939,7 @@ async function carregarPainelRodonaves(){
   }).join(""):'<tr><td colspan="9">Nenhuma coleta Rodonaves registrada.</td></tr>';
 
   if(ce("coletaSelecionarTodosRascunhos"))ce("coletaSelecionarTodosRascunhos").checked=false;
+  filtrarPainelColetas();
   await carregarEventosRodonaves();
 }
 async function registrarEventoColeta(id,ant,novo,origem,detalhes){const r=await banco.from("coleta_status_eventos").insert([{agendamento_id:id,status_anterior:ant||null,status_novo:novo||null,origem:origem||"sistema",detalhes:detalhes||null,usuario:usuarioLogado?.login||"sistema"}]);if(r.error)console.warn(r.error.message)}
@@ -1165,24 +1167,18 @@ async function salvarRastreamentoLogistica(sentido){
   await carregarRastreamentosLogistica(sentido);
 }
 async function carregarRastreamentosLogistica(sentido){
-  const r=await banco.from("logistica_rastreamentos")
-    .select("*,frete_transportadoras(nome)")
-    .eq("sentido",sentido)
-    .order("created_at",{ascending:false});
+  const r=await banco.from("logistica_rastreamentos").select("*,frete_transportadoras(nome)").eq("sentido",sentido).order("created_at",{ascending:false});
   rastreamentosLogistica=r.error?[]:(r.data||[]);
   const entreguesStatus=sentido==="entrada"?"recebido":"entregue";
   const emTransito=rastreamentosLogistica.filter(x=>!["entregue","recebido","cancelado"].includes(x.status)).length;
   const entregues=rastreamentosLogistica.filter(x=>x.status===entreguesStatus).length;
-  const atrasadas=rastreamentosLogistica.filter(x=>x.status==="atrasado"||(
-    x.previsao_entrega&&new Date(x.previsao_entrega)<new Date()&&!["entregue","recebido"].includes(x.status)
-  )).length;
-  if(sentido==="saida"){
-    ce("rastSaidaTransito").textContent=emTransito;ce("rastSaidaEntregues").textContent=entregues;ce("rastSaidaAtrasadas").textContent=atrasadas;
-  }else{
-    ce("rastEntradaTransito").textContent=emTransito;ce("rastEntradaRecebidas").textContent=entregues;ce("rastEntradaAtrasadas").textContent=atrasadas;
-  }
+  const atrasadas=rastreamentosLogistica.filter(x=>x.status==="atrasado"||(x.previsao_entrega&&new Date(x.previsao_entrega)<new Date()&&!["entregue","recebido"].includes(x.status))).length;
+  if(sentido==="saida"){ce("rastSaidaTransito").textContent=emTransito;ce("rastSaidaEntregues").textContent=entregues;ce("rastSaidaAtrasadas").textContent=atrasadas}
+  else{ce("rastEntradaTransito").textContent=emTransito;ce("rastEntradaRecebidas").textContent=entregues;ce("rastEntradaAtrasadas").textContent=atrasadas}
   const tb=ce(sentido==="entrada"?"rastreamentoTabelaEntradas":"rastreamentoTabelaSaidas");
-  tb.innerHTML=rastreamentosLogistica.length?rastreamentosLogistica.map(x=>`<tr>
+  tb.innerHTML=rastreamentosLogistica.length?rastreamentosLogistica.map(x=>{
+    const textoBusca=[x.parceiro_nome,x.frete_transportadoras?.nome,x.numero_nfe,x.chave_nfe,x.numero_cte,x.protocolo_rastreio,statusLabelRastreamento(x.status),x.status,x.observacao].filter(Boolean).join(" ").toLowerCase();
+    return `<tr class="linha-rastreamento-logistica" data-status="${escaparHtmlEmail(x.status||"")}" data-busca="${escaparHtmlEmail(textoBusca)}">
     <td>${x.created_at?new Date(x.created_at).toLocaleDateString("pt-BR"):"—"}</td>
     <td>${escaparHtmlEmail(x.parceiro_nome||"—")}</td>
     <td>${escaparHtmlEmail(x.frete_transportadoras?.nome||"Não informada")}</td>
@@ -1190,12 +1186,11 @@ async function carregarRastreamentosLogistica(sentido){
     <td>${escaparHtmlEmail(x.numero_cte||x.protocolo_rastreio||"—")}</td>
     <td>${x.previsao_entrega?new Date(x.previsao_entrega+"T12:00:00").toLocaleDateString("pt-BR"):"—"}</td>
     <td><span class="coleta-status-painel ${classeStatusRastreamento(x.status)}">${statusLabelRastreamento(x.status)}</span></td>
-    <td>
-      <button class="btn azul" onclick="abrirFormularioRastreamento('${sentido}','${x.id}')">Editar</button>
-      ${!["entregue","recebido"].includes(x.status)?`<button class="btn verde" onclick="finalizarRastreamentoLogistica('${x.id}','${sentido}')">${sentido==="entrada"?"Marcar recebido":"Marcar entregue"}</button>`:""}
-      <button class="btn vermelho" onclick="excluirRastreamentoLogistica('${x.id}','${sentido}')">Excluir</button>
-    </td>
-  </tr>`).join(""):'<tr><td colspan="8">Nenhum registro encontrado.</td></tr>';
+    <td><button class="btn azul" onclick="abrirFormularioRastreamento('${sentido}','${x.id}')">Editar</button>
+    ${!["entregue","recebido"].includes(x.status)?`<button class="btn verde" onclick="finalizarRastreamentoLogistica('${x.id}','${sentido}')">${sentido==="entrada"?"Marcar recebido":"Marcar entregue"}</button>`:""}
+    <button class="btn vermelho" onclick="excluirRastreamentoLogistica('${x.id}','${sentido}')">Excluir</button></td></tr>`;
+  }).join(""):'<tr><td colspan="8">Nenhum registro encontrado.</td></tr>';
+  filtrarRastreamentosLogistica(sentido);
 }
 function statusLabelRastreamento(s){
   const m={aguardando_coleta:"Aguardando coleta",em_transito:"Em trânsito",na_filial:"Na filial",saiu_entrega:"Saiu para entrega",entregue:"Entregue",recebido:"Recebido",atrasado:"Atrasado",ocorrencia:"Com ocorrência",cancelado:"Cancelado"};
@@ -1256,3 +1251,20 @@ async function salvarTransportadoraLogistica(){
   if(r.error)return alert(r.error.message);
   limparTransportadoraLogistica();await carregarTransportadorasLogistica();
 }
+
+function normalizarBuscaLogistica(v){return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim()}
+function filtrarPainelColetas(){
+  const termo=normalizarBuscaLogistica(cv("buscaPainelColetas")),status=cv("filtroStatusPainelColetas");
+  const linhas=[...document.querySelectorAll("#coletaPainelRodonavesTabela .linha-painel-coleta")];let n=0;
+  linhas.forEach(l=>{const ok=(!termo||normalizarBuscaLogistica(l.dataset.busca).includes(termo))&&(!status||l.dataset.status===status);l.style.display=ok?"":"none";if(ok)n++});
+  if(ce("resultadoBuscaPainelColetas"))ce("resultadoBuscaPainelColetas").textContent=linhas.length?`${n} de ${linhas.length} registro(s)`:"";
+}
+function limparBuscaPainelColetas(){if(ce("buscaPainelColetas"))ce("buscaPainelColetas").value="";if(ce("filtroStatusPainelColetas"))ce("filtroStatusPainelColetas").value="";filtrarPainelColetas()}
+function filtrarRastreamentosLogistica(sentido){
+  const suf=sentido==="entrada"?"Entradas":"Saidas",termo=normalizarBuscaLogistica(cv(`buscaRastreamento${suf}`)),status=cv(`filtroStatusRastreamento${suf}`);
+  const tb=ce(sentido==="entrada"?"rastreamentoTabelaEntradas":"rastreamentoTabelaSaidas");if(!tb)return;
+  const linhas=[...tb.querySelectorAll(".linha-rastreamento-logistica")];let n=0;
+  linhas.forEach(l=>{const ok=(!termo||normalizarBuscaLogistica(l.dataset.busca).includes(termo))&&(!status||l.dataset.status===status);l.style.display=ok?"":"none";if(ok)n++});
+  if(ce(`resultadoBuscaRastreamento${suf}`))ce(`resultadoBuscaRastreamento${suf}`).textContent=linhas.length?`${n} de ${linhas.length} rastreio(s)`:"";
+}
+function limparBuscaRastreamento(sentido){const suf=sentido==="entrada"?"Entradas":"Saidas";if(ce(`buscaRastreamento${suf}`))ce(`buscaRastreamento${suf}`).value="";if(ce(`filtroStatusRastreamento${suf}`))ce(`filtroStatusRastreamento${suf}`).value="";filtrarRastreamentosLogistica(sentido)}

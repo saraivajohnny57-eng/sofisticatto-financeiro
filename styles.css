@@ -1909,3 +1909,11 @@ html.modo-portal-publico .portal-conteudo{
 .transportadora-form-grid input,.transportadora-form-grid select,.transportadora-form-grid textarea{width:100%}
 .campo-largo{grid-column:1/-1}
 @media(max-width:800px){.rastreamento-grid,.transportadora-form-grid{grid-template-columns:1fr}}
+
+.busca-logistica{display:flex;align-items:center;gap:10px;margin:14px 0;flex-wrap:wrap}
+.busca-logistica-campo{flex:1 1 480px;display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid #dcd5ef;background:#f8f6ff;border-radius:13px}
+.busca-logistica-campo input{flex:1;min-width:0;border:0!important;background:transparent!important;padding:13px 2px!important;outline:none}
+.busca-limpar{border:0;background:transparent;font-size:24px;cursor:pointer;color:#6754ae}
+.busca-logistica select{min-width:190px;border:1px solid #dcd5ef;background:#f8f6ff;border-radius:13px;padding:12px}
+.busca-contador{color:#6754ae;font-weight:800;white-space:nowrap}
+@media(max-width:700px){.busca-logistica-campo{flex-basis:100%}.busca-logistica select{width:100%}}

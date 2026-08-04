@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=19">
+<link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -1415,6 +1415,17 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <div><span>Com erro</span><strong id="coletaKpiErros">0</strong></div>
           </div>
           <div id="coletaAlertaDuplicidade" class="coleta-alerta-duplicidade" style="display:none;"></div>
+          <div class="busca-logistica">
+            <div class="busca-logistica-campo">
+              <span>🔎</span>
+              <input id="buscaPainelColetas" type="search" placeholder="Pesquisar cliente, transportadora, protocolo, nº da coleta, endereço ou status..." oninput="filtrarPainelColetas()">
+              <button type="button" class="busca-limpar" onclick="limparBuscaPainelColetas()">×</button>
+            </div>
+            <select id="filtroStatusPainelColetas" onchange="filtrarPainelColetas()">
+              <option value="">Todos os status</option><option value="rascunho">Rascunho</option><option value="solicitado">Solicitada</option><option value="confirmado">Confirmada</option><option value="coletado">Coletada</option><option value="nao_coletada">Não coletada</option><option value="reagendada">Reagendada</option><option value="cancelado">Cancelada</option><option value="erro">Com erro</option>
+            </select>
+            <span id="resultadoBuscaPainelColetas" class="busca-contador"></span>
+          </div>
           <div class="table-wrap"><table>
             <thead><tr><th><input type="checkbox" id="coletaSelecionarTodosRascunhos" onchange="selecionarTodosRascunhosRodonaves(this.checked)" title="Selecionar todos os rascunhos"></th><th>Programada</th><th>Cliente</th><th>Protocolo</th><th>Nº coleta</th><th>Endereço</th><th>Status</th><th>Última consulta</th><th>Ações</th></tr></thead>
             <tbody id="coletaPainelRodonavesTabela"><tr><td colspan="9">Carregando...</td></tr></tbody>
@@ -1440,6 +1451,11 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <button class="btn verde" onclick="abrirFormularioRastreamento('saida')">+ Nova saída</button>
           </div>
           <div id="rastreamentoFormSaida" class="rastreamento-form" style="display:none;"></div>
+          <div class="busca-logistica">
+            <div class="busca-logistica-campo"><span>🔎</span><input id="buscaRastreamentoSaidas" type="search" placeholder="Pesquisar cliente, transportadora, NF-e, chave, CT-e, protocolo ou status..." oninput="filtrarRastreamentosLogistica('saida')"><button type="button" class="busca-limpar" onclick="limparBuscaRastreamento('saida')">×</button></div>
+            <select id="filtroStatusRastreamentoSaidas" onchange="filtrarRastreamentosLogistica('saida')"><option value="">Todos os status</option><option value="aguardando_coleta">Aguardando coleta</option><option value="em_transito">Em trânsito</option><option value="na_filial">Na filial</option><option value="saiu_entrega">Saiu para entrega</option><option value="entregue">Entregue</option><option value="atrasado">Atrasado</option><option value="ocorrencia">Com ocorrência</option><option value="cancelado">Cancelado</option></select>
+            <span id="resultadoBuscaRastreamentoSaidas" class="busca-contador"></span>
+          </div>
           <div class="coleta-indicadores">
             <div><span>Em trânsito</span><strong id="rastSaidaTransito">0</strong></div>
             <div><span>Entregues</span><strong id="rastSaidaEntregues">0</strong></div>
@@ -1462,6 +1478,11 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <button class="btn verde" onclick="abrirFormularioRastreamento('entrada')">+ Nova entrada</button>
           </div>
           <div id="rastreamentoFormEntrada" class="rastreamento-form" style="display:none;"></div>
+          <div class="busca-logistica">
+            <div class="busca-logistica-campo"><span>🔎</span><input id="buscaRastreamentoEntradas" type="search" placeholder="Pesquisar fornecedor, transportadora, NF-e, chave, CT-e, protocolo ou status..." oninput="filtrarRastreamentosLogistica('entrada')"><button type="button" class="busca-limpar" onclick="limparBuscaRastreamento('entrada')">×</button></div>
+            <select id="filtroStatusRastreamentoEntradas" onchange="filtrarRastreamentosLogistica('entrada')"><option value="">Todos os status</option><option value="aguardando_coleta">Aguardando coleta</option><option value="em_transito">Em trânsito</option><option value="na_filial">Na filial</option><option value="saiu_entrega">Saiu para entrega</option><option value="recebido">Recebido</option><option value="atrasado">Atrasado</option><option value="ocorrencia">Com ocorrência</option><option value="cancelado">Cancelado</option></select>
+            <span id="resultadoBuscaRastreamentoEntradas" class="busca-contador"></span>
+          </div>
           <div class="coleta-indicadores">
             <div><span>A caminho</span><strong id="rastEntradaTransito">0</strong></div>
             <div><span>Recebidas</span><strong id="rastEntradaRecebidas">0</strong></div>
@@ -2327,7 +2348,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=15"></script>
 <script src="motor-integracoes.js?v=16.4"></script>
-<script src="coletas.js?v=19"></script>
+<script src="coletas.js?v=20"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">
