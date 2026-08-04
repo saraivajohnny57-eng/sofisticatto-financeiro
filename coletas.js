@@ -914,6 +914,17 @@ function coletaTemDadosReais(a){
 function coletaEhRascunhoVazio(a){
   return statusColetaPainel(a)==="rascunho" && !a?.codigo_coleta && !coletaTemDadosReais(a);
 }
+function codigoColetaPodeConsultar(a){
+  if(!a?.codigo_coleta)return false;
+  const origemExterna=Boolean(a?.dados?.origem_externa||a?.origem==="importacao_externa");
+  if(!origemExterna)return true;
+  return a?.dados?.codigo_coleta_validado===true;
+}
+function codigoColetaAparentaSerProtocolo(a){
+  const c=String(a?.codigo_coleta||"").replace(/\D/g,"");
+  const p=String(a?.protocolo_cotacao||"").replace(/\D/g,"");
+  return Boolean(c&&p&&c===p);
+}
 function enderecoColetaPainel(a){
   if(a.modo_endereco==="alternativo"){
     const e=a.endereco_coleta_alternativo||{};
@@ -968,10 +979,11 @@ async function carregarPainelRodonaves(){
       <td><span class="coleta-status-painel ${classeStatusColeta(s)}">${escaparHtmlEmail(statusLabelColeta(s))}</span></td>
       <td>${a.consultado_api_em?new Date(a.consultado_api_em).toLocaleString("pt-BR"):"—"}</td>
       <td>
-        ${a.codigo_coleta&&/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<button class="btn azul" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar API</button>`:""}
+        ${codigoColetaPodeConsultar(a)&&/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<button class="btn azul" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar API</button>`:""}
         ${a?.dados?.origem_externa?`<span class="coleta-manual-tag">Origem: ${escaparHtmlEmail(String(a.dados.origem_externa).replace(/_/g," "))}</span>`:""}
         ${!/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<span class="coleta-manual-tag">Atualização manual</span>`:""}
-        ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&!a.codigo_coleta?`<span class="coleta-manual-tag">Aguardando código da API</span>`:""}
+        ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&!codigoColetaPodeConsultar(a)?`<span class="coleta-manual-tag">${a.codigo_coleta?"Código ainda não validado":"Aguardando código da coleta"}</span>`:""}
+        ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&!codigoColetaPodeConsultar(a)?`<button class="btn roxo" onclick="abrirVinculoCodigoColeta('${a.id}')">Informar/vincular código</button>`:""}
         <button class="btn verde" onclick="editarAgendamentoColeta('${a.id}');mostrarPainelColeta('nova')">Abrir</button>
         ${rascunho?`<button class="btn vermelho" onclick="excluirRascunhoColetaRodonaves('${a.id}')">Excluir</button>`:""}
         ${podeAtualizarManual?`<button class="btn coleta-manual" onclick="alterarStatusManualColeta('${a.id}','coletado')">Marcar coletada</button>`:""}
@@ -988,12 +1000,21 @@ async function carregarPainelRodonaves(){
 }
 async function registrarEventoColeta(id,ant,novo,origem,detalhes){const r=await banco.from("coleta_status_eventos").insert([{agendamento_id:id,status_anterior:ant||null,status_novo:novo||null,origem:origem||"sistema",detalhes:detalhes||null,usuario:usuarioLogado?.login||"sistema"}]);if(r.error)console.warn(r.error.message)}
 async function consultarColetaPainelRodonaves(id){
-  const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(!a?.codigo_coleta)return alert("Esta coleta não possui código retornado pela API.");
+  const a=coletaAgendamentos.find(x=>String(x.id)===String(id));
+  if(!a?.codigo_coleta)return alert("Esta coleta ainda não possui código/ID da coleta.");
+  if(!codigoColetaPodeConsultar(a))return alert("O número informado ainda não foi confirmado como código da coleta da Rodonaves. Clique em Informar/vincular código.");
   const chave=await chaveAdminColeta();if(!chave)return;
-  try{const identificador=a.codigo_coleta||a.protocolo_cotacao;if(!identificador)throw new Error("Esta coleta não possui código nem protocolo para consulta.");const r=await fetch(`/api/integracoes?action=consultar-coleta-rodonaves&id=${encodeURIComponent(identificador)}&agendamento_id=${encodeURIComponent(a.id)}`,{headers:{"x-integrations-admin-key":chave}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);await carregarPainelRodonaves()}catch(e){alert("Não foi possível consultar a coleta: "+e.message)}
+  try{const identificador=a.codigo_coleta||a.protocolo_cotacao;if(!identificador)throw new Error("Esta coleta não possui código nem protocolo para consulta.");const r=await fetch(`/api/integracoes?action=consultar-coleta-rodonaves&id=${encodeURIComponent(identificador)}&agendamento_id=${encodeURIComponent(a.id)}`,{headers:{"x-integrations-admin-key":chave}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);await carregarPainelRodonaves()}catch(e){
+    const msg=String(e.message||e);
+    if(/não encontrado|not found|404/i.test(msg)){
+      alert("A Rodonaves não encontrou esse código de coleta. Verifique se foi informado o código da coleta, e não o protocolo da cotação.");
+    }else{
+      alert("Não foi possível consultar a coleta: "+msg);
+    }
+  }
 }
 async function atualizarTodasColetasRodonaves(){
-  const abertas=(coletaAgendamentos||[]).filter(a=>/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&a.codigo_coleta&&!["coletado","cancelado"].includes(statusColetaPainel(a)));
+  const abertas=(coletaAgendamentos||[]).filter(a=>/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&codigoColetaPodeConsultar(a)&&!["coletado","cancelado"].includes(statusColetaPainel(a)));
   if(!abertas.length)return alert("Não há coletas abertas com código para consultar.");
   if(!confirm(`Consultar ${abertas.length} coleta(s) aberta(s)?`))return;
   for(const a of abertas){try{await consultarColetaPainelRodonaves(a.id)}catch{}}
@@ -1421,6 +1442,7 @@ function limparImportacaoColetaExterna(){
   ["importColetaExistente","importColetaTransportadora","importColetaCliente","importColetaProtocolo","importColetaCodigo","importColetaData","importColetaVolumes","importColetaPeso","importColetaEndereco","importColetaObservacao"].forEach(id=>{if(ce(id))ce(id).value=""});
   if(ce("importColetaStatus"))ce("importColetaStatus").value="solicitado";
   if(ce("importColetaOrigem"))ce("importColetaOrigem").value="whatsapp";
+  if(ce("importColetaCodigoConfirmado"))ce("importColetaCodigoConfirmado").checked=false;
 }
 function preencherImportacaoComRegistro(){
   const a=(coletaAgendamentos||[]).find(x=>String(x.id)===cv("importColetaExistente"));
@@ -1428,7 +1450,8 @@ function preencherImportacaoComRegistro(){
   ce("importColetaTransportadora").value=a.transportadora_id||"";
   ce("importColetaCliente").value=a.cliente_nome||"";
   ce("importColetaProtocolo").value=a.protocolo_cotacao||"";
-  ce("importColetaCodigo").value=a.codigo_coleta||"";
+  ce("importColetaCodigo").value=a.codigo_coleta||a?.dados?.numero_referencia_externa||"";
+  if(ce("importColetaCodigoConfirmado"))ce("importColetaCodigoConfirmado").checked=a?.dados?.codigo_coleta_validado===true;
   ce("importColetaStatus").value=statusColetaPainel(a);
   ce("importColetaVolumes").value=a.volumes||"";
   ce("importColetaPeso").value=a.peso||"";
@@ -1447,19 +1470,26 @@ async function salvarImportacaoColetaExterna(){
   const transportadoraId=cv("importColetaTransportadora");
   const cliente=cv("importColetaCliente").trim();
   const protocolo=cv("importColetaProtocolo").trim();
-  const codigo=cv("importColetaCodigo").trim();
+  const codigoInformado=cv("importColetaCodigo").trim();
+  const codigoConfirmado=Boolean(ce("importColetaCodigoConfirmado")?.checked);
   const status=cv("importColetaStatus")||"solicitado";
   const origemExterna=cv("importColetaOrigem")||"manual";
   const endereco=cv("importColetaEndereco").trim();
   if(!transportadoraId)return alert("Selecione a transportadora.");
   if(!cliente)return alert("Informe o cliente.");
-  if(!protocolo&&!codigo)return alert("Informe pelo menos o protocolo ou o número da coleta.");
+  if(!protocolo&&!codigoInformado)return alert("Informe pelo menos o protocolo ou algum número de referência.");
+  if(codigoConfirmado&&codigoInformado&&protocolo&&String(codigoInformado).replace(/\D/g,"")===String(protocolo).replace(/\D/g,"")){
+    const seguir=confirm("O número informado é igual ao protocolo da cotação. Normalmente o código da coleta é diferente. Deseja confirmar mesmo assim que este é o código da coleta?");
+    if(!seguir)return;
+  }
   const existente=id?(coletaAgendamentos||[]).find(x=>String(x.id)===String(id)):null;
   const dados={
     ...(existente?.dados||{}),
     origem_externa:origemExterna,
     importado_externo_em:new Date().toISOString(),
-    endereco_coleta_externo:endereco||existente?.dados?.endereco_coleta_externo||null
+    endereco_coleta_externo:endereco||existente?.dados?.endereco_coleta_externo||null,
+    codigo_coleta_validado:codigoConfirmado,
+    numero_referencia_externa:codigoInformado||null
   };
   const dataValor=cv("importColetaData");
   const dataProgramada=dataValor?new Date(dataValor).toISOString():existente?.data_programada||null;
@@ -1467,7 +1497,7 @@ async function salvarImportacaoColetaExterna(){
     cliente_nome:cliente,
     transportadora_id:transportadoraId,
     protocolo_cotacao:protocolo||null,
-    codigo_coleta:codigo||null,
+    codigo_coleta:codigoConfirmado&&codigoInformado?codigoInformado:null,
     status,
     status_api:status,
     volumes:Number(cv("importColetaVolumes"))||null,
@@ -1488,10 +1518,22 @@ async function salvarImportacaoColetaExterna(){
   }
   if(r.error)return alert("Não foi possível salvar: "+r.error.message);
   const novoId=existente?.id||r.data?.id;
-  if(novoId)await registrarEventoColeta(novoId,existente?statusColetaPainel(existente):null,status,"importacao_externa",{origem:origemExterna,protocolo,codigo});
+  if(novoId)await registrarEventoColeta(novoId,existente?statusColetaPainel(existente):null,status,"importacao_externa",{origem:origemExterna,protocolo,codigo:codigoInformado,codigo_confirmado:codigoConfirmado});
   alert(existente?"Coleta vinculada e atualizada.":"Coleta externa importada.");
   limparImportacaoColetaExterna();
   fecharImportacaoColetaExterna();
   await carregarPainelRodonaves();
 }
 
+
+function abrirVinculoCodigoColeta(id){
+  abrirImportacaoColetaExterna();
+  setTimeout(()=>{
+    const sel=ce("importColetaExistente");
+    if(sel){
+      sel.value=String(id);
+      preencherImportacaoComRegistro();
+      ce("importColetaCodigo")?.focus();
+    }
+  },50);
+}
