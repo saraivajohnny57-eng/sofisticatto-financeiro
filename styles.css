@@ -1917,3 +1917,29 @@ html.modo-portal-publico .portal-conteudo{
 .busca-logistica select{min-width:190px;border:1px solid #dcd5ef;background:#f8f6ff;border-radius:13px;padding:12px}
 .busca-contador{color:#6754ae;font-weight:800;white-space:nowrap}
 @media(max-width:700px){.busca-logistica-campo{flex-basis:100%}.busca-logistica select{width:100%}}
+
+/* V21 — SINCRONIZAÇÃO AUTOMÁTICA */
+.sincronizacao-status{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  margin-top:8px;
+  padding:7px 11px;
+  border-radius:999px;
+  font-size:13px;
+  font-weight:800;
+  background:#f0edf9;
+  color:#5d50a6;
+}
+.sincronizacao-ponto{
+  width:9px;height:9px;border-radius:50%;
+  background:currentColor;
+}
+.sincronizacao-status.processando{background:#fff0cf;color:#8a5a00}
+.sincronizacao-status.sucesso{background:#dff5e8;color:#147043}
+.sincronizacao-status.aviso{background:#fff0cf;color:#8a5a00}
+.sincronizacao-status.erro{background:#ffe1df;color:#a82b24}
+.sincronizacao-status.processando .sincronizacao-ponto{
+  animation:pulso-sync 1s infinite alternate;
+}
+@keyframes pulso-sync{from{opacity:.3;transform:scale(.8)}to{opacity:1;transform:scale(1.25)}}
