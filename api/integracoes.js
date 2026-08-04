@@ -1,28 +1,47 @@
 /**
- * Sofisticatto Financeiro — API unificada de integrações V23.
+ * Sofisticatto Financeiro — API unificada de integrações V24.
  *
- * Exemplos:
- * POST /api/integracoes?action=validar-chave
- * POST /api/integracoes?action=cotar-rodonaves
- * GET  /api/integracoes?action=status-credenciais&convite_id=...
- * POST /api/integracoes?action=atualizar-status
+ * IMPORTANTE:
+ * Todos os módulos são importados estaticamente para que a Vercel
+ * os inclua corretamente no bundle da Serverless Function.
  */
+const validarChave = require("../lib/integracoes/validar-chave");
+const statusServidor = require("../lib/integracoes/status-servidor");
+const salvarCredenciais = require("../lib/integracoes/salvar-credenciais");
+const statusCredenciais = require("../lib/integracoes/status-credenciais");
+const testarHomologacao = require("../lib/integracoes/testar-homologacao");
+const testarRodonavesAuth = require("../lib/integracoes/testar-rodonaves-auth");
+const cotarRodonaves = require("../lib/integracoes/cotar-rodonaves");
+const agendarColetaRodonaves = require("../lib/integracoes/agendar-coleta-rodonaves");
+const agendarColetaRodonavesEndereco = require("../lib/integracoes/agendar-coleta-rodonaves-endereco");
+const consultarColetaRodonaves = require("../lib/integracoes/consultar-coleta-rodonaves");
+const atualizarStatus = require("../lib/integracoes/atualizar-status");
+
 const ROTAS = Object.freeze({
-  "validar-chave": "../lib/integracoes/validar-chave",
-  "status-servidor": "../lib/integracoes/status-servidor",
-  "salvar-credenciais": "../lib/integracoes/salvar-credenciais",
-  "status-credenciais": "../lib/integracoes/status-credenciais",
-  "testar-homologacao": "../lib/integracoes/testar-homologacao",
-  "testar-rodonaves-auth": "../lib/integracoes/testar-rodonaves-auth",
-  "cotar-rodonaves": "../lib/integracoes/cotar-rodonaves",
-  "agendar-coleta-rodonaves": "../lib/integracoes/agendar-coleta-rodonaves",
-  "agendar-coleta-rodonaves-endereco": "../lib/integracoes/agendar-coleta-rodonaves-endereco",
-  "consultar-coleta-rodonaves": "../lib/integracoes/consultar-coleta-rodonaves",
-  "atualizar-status": "../lib/integracoes/atualizar-status"
+  "validar-chave": validarChave,
+  "status-servidor": statusServidor,
+  "salvar-credenciais": salvarCredenciais,
+  "status-credenciais": statusCredenciais,
+  "testar-homologacao": testarHomologacao,
+  "testar-rodonaves-auth": testarRodonavesAuth,
+  "cotar-rodonaves": cotarRodonaves,
+  "agendar-coleta-rodonaves": agendarColetaRodonaves,
+  "agendar-coleta-rodonaves-endereco": agendarColetaRodonavesEndereco,
+  "consultar-coleta-rodonaves": consultarColetaRodonaves,
+  "atualizar-status": atualizarStatus
 });
 
 function responder(res, status, body) {
-  res.status(status).json(body);
+  return res.status(status).json(body);
+}
+
+function detalhesErro(erro) {
+  return {
+    nome: erro?.name || "Error",
+    mensagem: erro?.message || String(erro),
+    codigo: erro?.code || null,
+    arquivo: erro?.requireStack?.[0] || null
+  };
 }
 
 module.exports = async function handler(req, res) {
@@ -33,14 +52,23 @@ module.exports = async function handler(req, res) {
       ok: true,
       servico: "sofisticatto-financeiro",
       modulo: "api-integracoes-unificada",
-      versao: "23",
-      rotas: Object.keys(ROTAS).length,
+      versao: "24",
+      rotas_carregadas: Object.keys(ROTAS).length,
+      node: process.version,
+      ambiente: process.env.VERCEL_ENV || "local",
+      variaveis: {
+        integrations_admin_key: Boolean(process.env.INTEGRATIONS_ADMIN_KEY),
+        integrations_encryption_key: Boolean(process.env.INTEGRATIONS_ENCRYPTION_KEY),
+        supabase_url: Boolean(process.env.SUPABASE_URL),
+        supabase_service_role_key: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+        cron_secret: Boolean(process.env.CRON_SECRET)
+      },
       data: new Date().toISOString()
     });
   }
 
-  const modulo = ROTAS[action];
-  if (!modulo) {
+  const executar = ROTAS[action];
+  if (!executar) {
     return responder(res, 404, {
       ok: false,
       erro: "Ação de integração não encontrada.",
@@ -50,15 +78,23 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const executar = require(modulo);
     return await executar(req, res);
   } catch (erro) {
-    console.error("Falha na API unificada:", action, erro);
+    const diagnostico = detalhesErro(erro);
+    console.error("[API INTEGRACOES V24]", {
+      action,
+      method: req.method,
+      diagnostico,
+      stack: erro?.stack
+    });
+
     if (res.headersSent) return;
+
     return responder(res, 500, {
       ok: false,
       erro: "Falha interna ao executar a integração.",
-      detalhe: erro?.message || String(erro)
+      action,
+      diagnostico
     });
   }
 };
