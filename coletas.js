@@ -536,7 +536,7 @@ async function agendarColetaRodonavesPorProtocolo(){
       if(resposta.status===404){
         throw new Error("Endpoint de sincronização não publicado. Confirme se o deploy atual contém api/integracoes.js.");
       }
-      throw new Error(dados.erro||`HTTP ${resposta.status}`);
+      throw new Error([dados.erro,dados.diagnostico?.mensagem,dados.detalhe].filter(Boolean).join(" — ")||`HTTP ${resposta.status}`);
     }
 
     ce("coletaAgendamentoId").value=dados.agendamento_id||id||"";
@@ -610,7 +610,7 @@ async function consultarColetaRodonavesApi(){
       headers:{"x-integrations-admin-key":chave}
     });
     const dados=await resposta.json().catch(()=>({}));
-    if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
+    if(!resposta.ok)throw new Error([dados.erro,dados.diagnostico?.mensagem,dados.detalhe].filter(Boolean).join(" — ")||`HTTP ${resposta.status}`);
     ce("coletaApiStatus").textContent=dados.status||"Atualizada";
     resultadoApiColeta("sucesso",[
       `COLETA ${pickupId}`,
@@ -816,7 +816,7 @@ async function agendarColetaRodonavesComEndereco(){
       })
     });
     const dados=await resposta.json().catch(()=>({}));
-    if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
+    if(!resposta.ok)throw new Error([dados.erro,dados.diagnostico?.mensagem,dados.detalhe].filter(Boolean).join(" — ")||`HTTP ${resposta.status}`);
 
     ce("coletaAgendamentoId").value=dados.agendamento_id||id||"";
     ce("coletaApiStatus").textContent=dados.status||"Solicitada";
@@ -1311,7 +1311,7 @@ async function sincronizarColetasAutomaticamente(forcar=false){
       }
     });
     const dados=await resposta.json().catch(()=>({}));
-    if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
+    if(!resposta.ok)throw new Error([dados.erro,dados.diagnostico?.mensagem,dados.detalhe].filter(Boolean).join(" — ")||`HTTP ${resposta.status}`);
 
     ultimaSincronizacaoColetas=Date.now();
     const hora=new Date().toLocaleTimeString("pt-BR");
