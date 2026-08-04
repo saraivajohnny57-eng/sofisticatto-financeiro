@@ -52,7 +52,7 @@ async function verificarServidorIntegracoes(){
   box.textContent="Verificando funções e variáveis da Vercel...";
 
   try{
-    const resposta=await requisicaoIntegracoes("/api/integracoes/status-servidor",{
+    const resposta=await requisicaoIntegracoes("/api/integracoes?action=status-servidor",{
       method:"POST",
       body:"{}"
     });
@@ -76,7 +76,7 @@ async function verificarServidorIntegracoes(){
   }catch(erro){
     box.className="integracao-resultado-teste erro";
     box.textContent="Falha na verificação:\n\n"+erro.message+
-      "\n\nConfira se a pasta api/integracoes foi enviada ao GitHub e faça Redeploy.";
+      "\n\nConfira se api/integracoes.js e a pasta lib/integracoes foram enviadas ao GitHub e faça Redeploy.";
   }
 }
 
@@ -92,7 +92,7 @@ async function validarChaveIntegracoes(){
   sessionStorage.setItem("integrations_admin_key",chave);
 
   try{
-    await requisicaoIntegracoes("/api/integracoes/validar-chave",{method:"POST",body:"{}"});
+    await requisicaoIntegracoes("/api/integracoes?action=validar-chave",{method:"POST",body:"{}"});
     statusCampoIntegracao("integracaoAdminKeyStatus","Chave validada","ok");
     await carregarStatusCredenciaisIntegracao();
   }catch(erro){
@@ -242,7 +242,7 @@ async function salvarCredenciaisIntegracao(){
   }
 
   try{
-    const resposta=await requisicaoIntegracoes("/api/integracoes/salvar-credenciais",{
+    const resposta=await requisicaoIntegracoes("/api/integracoes?action=salvar-credenciais",{
       method:"POST",
       body:JSON.stringify({
         convite_id:conviteId,
@@ -271,7 +271,7 @@ async function carregarStatusCredenciaisIntegracao(){
 
   try{
     const resposta=await requisicaoIntegracoes(
-      `/api/integracoes/status-credenciais?convite_id=${encodeURIComponent(conviteId)}&ambiente=${encodeURIComponent(ambiente)}`
+      `/api/integracoes?action=status-credenciais&convite_id=${encodeURIComponent(conviteId)}&ambiente=${encodeURIComponent(ambiente)}`
     );
 
     statusCampoIntegracao(
@@ -308,7 +308,7 @@ async function testarHomologacaoIntegracao(){
   }
 
   try{
-    const resposta=await requisicaoIntegracoes("/api/integracoes/testar-homologacao",{
+    const resposta=await requisicaoIntegracoes("/api/integracoes?action=testar-homologacao",{
       method:"POST",
       body:JSON.stringify({
         convite_id:config.convite_id,
@@ -369,7 +369,7 @@ async function testarAutenticacaoRodonaves(){
   resultado.className="integracao-resultado-teste";
   resultado.textContent="Gerando token de homologação da Rodonaves...";
   try{
-    const r=await requisicaoIntegracoes("/api/integracoes/testar-rodonaves-auth",{
+    const r=await requisicaoIntegracoes("/api/integracoes?action=testar-rodonaves-auth",{
       method:"POST",body:JSON.stringify({convite_id:conviteId})
     });
     resultado.className="integracao-resultado-teste sucesso";

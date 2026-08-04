@@ -217,7 +217,7 @@ async function testarCotacaoRodonavesMotor(){
   resultado.textContent="Executando homologação completa...";
 
   try{
-    const r=await fetch("/api/integracoes/cotar-rodonaves",{
+    const r=await fetch("/api/integracoes?action=cotar-rodonaves",{
       method:"POST",
       headers:{"Content-Type":"application/json","x-integrations-admin-key":adminKey},
       body:JSON.stringify({

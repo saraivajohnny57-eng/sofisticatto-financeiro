@@ -398,7 +398,7 @@ async function validarChaveColetaNoServidor(chave){
   const valor=String(chave||"").trim();
   if(!valor)throw new Error("Informe a chave administrativa.");
 
-  const r=await fetch("/api/integracoes/validar-chave",{
+  const r=await fetch("/api/integracoes?action=validar-chave",{
     method:"POST",
     headers:{
       "Content-Type":"application/json",
@@ -514,7 +514,7 @@ async function agendarColetaRodonavesPorProtocolo(){
       id=cv("coletaAgendamentoId");
     }
 
-    const resposta=await fetch("/api/integracoes/agendar-coleta-rodonaves",{
+    const resposta=await fetch("/api/integracoes?action=agendar-coleta-rodonaves",{
       method:"POST",
       headers:{
         "Content-Type":"application/json",
@@ -534,7 +534,7 @@ async function agendarColetaRodonavesPorProtocolo(){
     const dados=await resposta.json().catch(()=>({}));
     if(!resposta.ok){
       if(resposta.status===404){
-        throw new Error("Endpoint de sincronização não publicado. Confirme se o deploy atual contém api/atualizar-status.js.");
+        throw new Error("Endpoint de sincronização não publicado. Confirme se o deploy atual contém api/integracoes.js.");
       }
       throw new Error(dados.erro||`HTTP ${resposta.status}`);
     }
@@ -606,7 +606,7 @@ async function consultarColetaRodonavesApi(){
   resultadoApiColeta("processando","Consultando a coleta na Rodonaves...");
 
   try{
-    const resposta=await fetch(`/api/consultar-coleta-rodonaves?id=${encodeURIComponent(pickupId)}&agendamento_id=${encodeURIComponent(cv("coletaAgendamentoId"))}`,{
+    const resposta=await fetch(`/api/integracoes?action=consultar-coleta-rodonaves&id=${encodeURIComponent(pickupId)}&agendamento_id=${encodeURIComponent(cv("coletaAgendamentoId"))}`,{
       headers:{"x-integrations-admin-key":chave}
     });
     const dados=await resposta.json().catch(()=>({}));
@@ -779,7 +779,7 @@ async function agendarColetaRodonavesComEndereco(){
       await salvarAgendamentoColetaSemAviso();
       id=cv("coletaAgendamentoId");
     }
-    const resposta=await fetch("/api/integracoes/agendar-coleta-rodonaves-endereco",{
+    const resposta=await fetch("/api/integracoes?action=agendar-coleta-rodonaves-endereco",{
       method:"POST",
       headers:{
         "Content-Type":"application/json",
@@ -951,7 +951,7 @@ async function registrarEventoColeta(id,ant,novo,origem,detalhes){const r=await 
 async function consultarColetaPainelRodonaves(id){
   const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(!a?.codigo_coleta)return alert("Esta coleta não possui código retornado pela API.");
   const chave=await chaveAdminColeta();if(!chave)return;
-  try{const identificador=a.codigo_coleta||a.protocolo_cotacao;if(!identificador)throw new Error("Esta coleta não possui código nem protocolo para consulta.");const r=await fetch(`/api/consultar-coleta-rodonaves?id=${encodeURIComponent(identificador)}&agendamento_id=${encodeURIComponent(a.id)}`,{headers:{"x-integrations-admin-key":chave}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);await carregarPainelRodonaves()}catch(e){alert("Não foi possível consultar a coleta: "+e.message)}
+  try{const identificador=a.codigo_coleta||a.protocolo_cotacao;if(!identificador)throw new Error("Esta coleta não possui código nem protocolo para consulta.");const r=await fetch(`/api/integracoes?action=consultar-coleta-rodonaves&id=${encodeURIComponent(identificador)}&agendamento_id=${encodeURIComponent(a.id)}`,{headers:{"x-integrations-admin-key":chave}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);await carregarPainelRodonaves()}catch(e){alert("Não foi possível consultar a coleta: "+e.message)}
 }
 async function atualizarTodasColetasRodonaves(){
   const abertas=(coletaAgendamentos||[]).filter(a=>/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&a.codigo_coleta&&!["coletado","cancelado"].includes(statusColetaPainel(a)));
@@ -1303,7 +1303,7 @@ async function sincronizarColetasAutomaticamente(forcar=false){
     const chave=await chaveAdminColeta();
     if(!chave)throw new Error("Chave administrativa não informada.");
 
-    const resposta=await fetch("/api/atualizar-status",{
+    const resposta=await fetch("/api/integracoes?action=atualizar-status",{
       method:"POST",
       headers:{
         "Content-Type":"application/json",

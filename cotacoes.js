@@ -295,7 +295,7 @@ function extrairMedidasRodonaves(texto){
 }
 
 async function validarChaveIntegracoesCotacao(chave){
-  const resposta=await fetch("/api/integracoes/validar-chave",{
+  const resposta=await fetch("/api/integracoes?action=validar-chave",{
     method:"POST",
     headers:{
       "Content-Type":"application/json",
@@ -414,7 +414,7 @@ async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
     const salva=await salvarCotacaoFrete("rascunho");
     if(!salva)throw new Error("Não foi possível salvar a cotação antes da consulta.");
 
-    const resposta=await fetch("/api/integracoes/cotar-rodonaves",{
+    const resposta=await fetch("/api/integracoes?action=cotar-rodonaves",{
       method:"POST",
       headers:{
         "Content-Type":"application/json",
