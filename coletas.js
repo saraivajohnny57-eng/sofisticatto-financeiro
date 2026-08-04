@@ -914,7 +914,15 @@ function coletaTemDadosReais(a){
 function coletaEhRascunhoVazio(a){
   return statusColetaPainel(a)==="rascunho" && !a?.codigo_coleta && !coletaTemDadosReais(a);
 }
-function enderecoColetaPainel(a){if(a.modo_endereco==="alternativo"){const e=a.endereco_coleta_alternativo||{};return [e.logradouro,e.numero,e.bairro,e.cidade,e.uf].filter(Boolean).join(", ")}return "Endereço vinculado ao protocolo"}
+function enderecoColetaPainel(a){
+  if(a.modo_endereco==="alternativo"){
+    const e=a.endereco_coleta_alternativo||{};
+    return [e.logradouro,e.numero,e.bairro,e.cidade,e.uf].filter(Boolean).join(", ");
+  }
+  const externo=a?.dados?.endereco_coleta_externo||a?.dados?.endereco_coleta||"";
+  if(externo)return externo;
+  return "Endereço vinculado ao protocolo";
+}
 function statusLabelColeta(s){const m={rascunho:"Rascunho",solicitado:"Solicitada",em_aberto:"Em aberto",confirmado:"Confirmada",em_coleta:"Em coleta",coletado:"Coletada",cancelamento_solicitado:"Cancelamento solicitado",cancelado:"Cancelada",erro:"Erro"};return m[s]||String(s||"—").replace(/_/g," ")}
 function classeStatusColeta(s){if(/coletado|confirmado/.test(s))return"sucesso";if(/erro|cancelado/.test(s))return"erro";if(/cancelamento/.test(s))return"alerta";return"aguardando"}
 async function carregarEventosRodonaves(){
@@ -948,7 +956,8 @@ async function carregarPainelRodonaves(){
     const rascunho=coletaEhRascunhoVazio(a);
     const encerrada=["coletado","cancelado"].includes(s);
     const podeAtualizarManual=!rascunho&&!encerrada;
-    const textoBusca=[a.cliente_nome,a.frete_transportadoras?.nome,a.protocolo_cotacao,a.codigo_coleta,enderecoColetaPainel(a),statusLabelColeta(s),s].filter(Boolean).join(" ").toLowerCase();
+    const origemExterna=a?.dados?.origem_externa||a?.origem||"";
+    const textoBusca=[a.cliente_nome,a.frete_transportadoras?.nome,a.protocolo_cotacao,a.codigo_coleta,enderecoColetaPainel(a),statusLabelColeta(s),s,origemExterna].filter(Boolean).join(" ").toLowerCase();
     return `<tr class="linha-painel-coleta" data-status="${escaparHtmlEmail(s)}" data-busca="${escaparHtmlEmail(textoBusca)}">
       <td>${rascunho?`<input type="checkbox" class="coleta-check-rascunho" value="${a.id}" aria-label="Selecionar rascunho">`:""}</td>
       <td>${dataColetaPainel(a)?new Date(dataColetaPainel(a)).toLocaleString("pt-BR"):"—"}</td>
@@ -960,6 +969,7 @@ async function carregarPainelRodonaves(){
       <td>${a.consultado_api_em?new Date(a.consultado_api_em).toLocaleString("pt-BR"):"—"}</td>
       <td>
         ${a.codigo_coleta&&/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<button class="btn azul" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar API</button>`:""}
+        ${a?.dados?.origem_externa?`<span class="coleta-manual-tag">Origem: ${escaparHtmlEmail(String(a.dados.origem_externa).replace(/_/g," "))}</span>`:""}
         ${!/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<span class="coleta-manual-tag">Atualização manual</span>`:""}
         ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&!a.codigo_coleta?`<span class="coleta-manual-tag">Aguardando código da API</span>`:""}
         <button class="btn verde" onclick="editarAgendamentoColeta('${a.id}');mostrarPainelColeta('nova')">Abrir</button>
@@ -1381,3 +1391,107 @@ window.addEventListener("focus",()=>{
     sincronizarColetasAutomaticamente(false);
   }
 });
+
+
+
+function abrirImportacaoColetaExterna(){
+  const box=ce("coletaImportacaoExterna");
+  if(!box)return;
+  box.style.display="block";
+  montarOpcoesImportacaoColetaExterna();
+  if(!cv("importColetaData")){
+    const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
+    ce("importColetaData").value=d.toISOString().slice(0,16);
+  }
+  box.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function fecharImportacaoColetaExterna(){
+  const box=ce("coletaImportacaoExterna");if(box)box.style.display="none";
+}
+function montarOpcoesImportacaoColetaExterna(){
+  const tr=ce("importColetaTransportadora");
+  if(tr)tr.innerHTML='<option value="">Selecione</option>'+(coletaTransportadoras||[]).map(t=>`<option value="${t.id}">${escaparHtmlEmail(t.nome||"")}</option>`).join("");
+  const ex=ce("importColetaExistente");
+  if(ex){
+    const atuais=(coletaAgendamentos||[]).filter(a=>!["coletado","cancelado"].includes(statusColetaPainel(a)));
+    ex.innerHTML='<option value="">Criar novo registro</option>'+atuais.map(a=>`<option value="${a.id}">${escaparHtmlEmail([a.cliente_nome,a.frete_transportadoras?.nome,a.protocolo_cotacao,a.codigo_coleta].filter(Boolean).join(" • "))}</option>`).join("");
+  }
+}
+function limparImportacaoColetaExterna(){
+  ["importColetaExistente","importColetaTransportadora","importColetaCliente","importColetaProtocolo","importColetaCodigo","importColetaData","importColetaVolumes","importColetaPeso","importColetaEndereco","importColetaObservacao"].forEach(id=>{if(ce(id))ce(id).value=""});
+  if(ce("importColetaStatus"))ce("importColetaStatus").value="solicitado";
+  if(ce("importColetaOrigem"))ce("importColetaOrigem").value="whatsapp";
+}
+function preencherImportacaoComRegistro(){
+  const a=(coletaAgendamentos||[]).find(x=>String(x.id)===cv("importColetaExistente"));
+  if(!a)return;
+  ce("importColetaTransportadora").value=a.transportadora_id||"";
+  ce("importColetaCliente").value=a.cliente_nome||"";
+  ce("importColetaProtocolo").value=a.protocolo_cotacao||"";
+  ce("importColetaCodigo").value=a.codigo_coleta||"";
+  ce("importColetaStatus").value=statusColetaPainel(a);
+  ce("importColetaVolumes").value=a.volumes||"";
+  ce("importColetaPeso").value=a.peso||"";
+  ce("importColetaEndereco").value=enderecoColetaPainel(a)==="Endereço vinculado ao protocolo"?"":enderecoColetaPainel(a);
+  ce("importColetaObservacao").value=a.observacao||"";
+  if(a.data_programada){
+    const d=new Date(a.data_programada);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
+    ce("importColetaData").value=d.toISOString().slice(0,16);
+  }
+}
+function numeroImportacaoColeta(v){
+  return Number(String(v||"").replace(/\./g,"").replace(",",".").replace(/[^\d.-]/g,""))||null;
+}
+async function salvarImportacaoColetaExterna(){
+  const id=cv("importColetaExistente");
+  const transportadoraId=cv("importColetaTransportadora");
+  const cliente=cv("importColetaCliente").trim();
+  const protocolo=cv("importColetaProtocolo").trim();
+  const codigo=cv("importColetaCodigo").trim();
+  const status=cv("importColetaStatus")||"solicitado";
+  const origemExterna=cv("importColetaOrigem")||"manual";
+  const endereco=cv("importColetaEndereco").trim();
+  if(!transportadoraId)return alert("Selecione a transportadora.");
+  if(!cliente)return alert("Informe o cliente.");
+  if(!protocolo&&!codigo)return alert("Informe pelo menos o protocolo ou o número da coleta.");
+  const existente=id?(coletaAgendamentos||[]).find(x=>String(x.id)===String(id)):null;
+  const dados={
+    ...(existente?.dados||{}),
+    origem_externa:origemExterna,
+    importado_externo_em:new Date().toISOString(),
+    endereco_coleta_externo:endereco||existente?.dados?.endereco_coleta_externo||null
+  };
+  const dataValor=cv("importColetaData");
+  const dataProgramada=dataValor?new Date(dataValor).toISOString():existente?.data_programada||null;
+  const payload={
+    cliente_nome:cliente,
+    transportadora_id:transportadoraId,
+    protocolo_cotacao:protocolo||null,
+    codigo_coleta:codigo||null,
+    status,
+    status_api:status,
+    volumes:Number(cv("importColetaVolumes"))||null,
+    peso:numeroImportacaoColeta(cv("importColetaPeso")),
+    data_programada:dataProgramada,
+    origem:"importacao_externa",
+    dados,
+    observacao:cv("importColetaObservacao").trim()||null,
+    atualizado_em:new Date().toISOString()
+  };
+  if(status==="coletado")payload.coletado_em=new Date().toISOString();
+  let r;
+  if(existente){
+    r=await banco.from("coleta_agendamentos").update(payload).eq("id",existente.id);
+  }else{
+    payload.criado_por=usuarioLogado?.login||null;
+    r=await banco.from("coleta_agendamentos").insert([payload]).select("id").single();
+  }
+  if(r.error)return alert("Não foi possível salvar: "+r.error.message);
+  const novoId=existente?.id||r.data?.id;
+  if(novoId)await registrarEventoColeta(novoId,existente?statusColetaPainel(existente):null,status,"importacao_externa",{origem:origemExterna,protocolo,codigo});
+  alert(existente?"Coleta vinculada e atualizada.":"Coleta externa importada.");
+  limparImportacaoColetaExterna();
+  fecharImportacaoColetaExterna();
+  await carregarPainelRodonaves();
+}
+

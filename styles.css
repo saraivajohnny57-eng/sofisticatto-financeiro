@@ -1955,3 +1955,43 @@ html.modo-portal-publico .portal-conteudo{
   font-weight:700;
   white-space:nowrap;
 }
+
+.coleta-importacao-externa{
+  margin:16px 0;
+  padding:18px;
+  border:1px solid #cfc4f3;
+  border-left:6px solid #5b4bb2;
+  border-radius:18px;
+  background:#fbfaff;
+}
+.coleta-importacao-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  margin:14px 0;
+}
+.coleta-importacao-grid .campo-largo{grid-column:1/-1}
+.coleta-importacao-grid label{display:block;font-weight:700;color:#43358b;margin-bottom:6px}
+.coleta-importacao-grid input,
+.coleta-importacao-grid select,
+.coleta-importacao-grid textarea{
+  width:100%;
+  box-sizing:border-box;
+  border:1px solid #ddd5f5;
+  border-radius:12px;
+  padding:11px 12px;
+  background:#fff;
+}
+.coleta-importacao-aviso{
+  margin-top:12px;
+  padding:12px;
+  border-radius:12px;
+  background:#fff4d8;
+  color:#765300;
+  font-size:13px;
+  line-height:1.45;
+}
+@media(max-width:760px){
+  .coleta-importacao-grid{grid-template-columns:1fr}
+  .coleta-importacao-grid .campo-largo{grid-column:auto}
+}
