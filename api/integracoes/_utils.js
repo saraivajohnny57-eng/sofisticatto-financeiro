@@ -22,6 +22,22 @@ function exigirAdmin(req,res){
   return true;
 }
 
+function cronValido(req){
+  const segredo=String(process.env.CRON_SECRET||"");
+  if(!segredo)return false;
+  const recebido=String(req.headers.authorization||"");
+  const esperado=`Bearer ${segredo}`;
+  const a=Buffer.from(esperado);
+  const b=Buffer.from(recebido);
+  return a.length===b.length && crypto.timingSafeEqual(a,b);
+}
+
+function exigirAdminOuCron(req,res){
+  if(adminValido(req)||cronValido(req))return true;
+  json(res,401,{ok:false,erro:"Acesso não autorizado para a sincronização."});
+  return false;
+}
+
 function supabaseConfig(){
   const url=String(process.env.SUPABASE_URL||"").replace(/\/$/,"");
   const key=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
@@ -117,6 +133,7 @@ function obterCampo(objeto,caminho){
 }
 
 module.exports={
-  json,exigirAdmin,supabaseRest,criptografar,descriptografar,
+  json,adminValido,cronValido,exigirAdmin,exigirAdminOuCron,
+  supabaseRest,criptografar,descriptografar,
   validarUrlPublica,obterCampo
 };
