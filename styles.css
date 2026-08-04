@@ -1943,3 +1943,15 @@ html.modo-portal-publico .portal-conteudo{
   animation:pulso-sync 1s infinite alternate;
 }
 @keyframes pulso-sync{from{opacity:.3;transform:scale(.8)}to{opacity:1;transform:scale(1.25)}}
+
+.coleta-manual-tag{
+  display:inline-block;
+  padding:7px 10px;
+  margin:2px 4px 6px 0;
+  border-radius:999px;
+  background:#f1edff;
+  color:#55439b;
+  font-size:12px;
+  font-weight:700;
+  white-space:nowrap;
+}

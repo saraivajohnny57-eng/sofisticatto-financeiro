@@ -888,7 +888,32 @@ function mostrarResumoSeguroColetaRodonaves(){
 
 let coletaEventosRodonaves=[];
 function dataColetaPainel(a){return a.data_programada||a.solicitado_api_em||a.created_at}
-function statusColetaPainel(a){return String(a.status_api||a.status||"rascunho").toLowerCase().replace(/\s+/g,"_")}
+function statusColetaPainel(a){
+  const bruto=String(a.status_api||a.status||"rascunho")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .trim().replace(/[^a-z0-9]+/g,"_");
+  const mapa={
+    confirmada:"confirmado",
+    coletada:"coletado",
+    cancelada:"cancelado",
+    solicitada:"solicitado"
+  };
+  return mapa[bruto]||bruto||"rascunho";
+}
+function coletaTemDadosReais(a){
+  return Boolean(
+    a?.cliente_nome ||
+    a?.transportadora_id ||
+    a?.protocolo_cotacao ||
+    a?.codigo_coleta ||
+    a?.data_programada ||
+    a?.telefone_coleta
+  );
+}
+function coletaEhRascunhoVazio(a){
+  return statusColetaPainel(a)==="rascunho" && !a?.codigo_coleta && !coletaTemDadosReais(a);
+}
 function enderecoColetaPainel(a){if(a.modo_endereco==="alternativo"){const e=a.endereco_coleta_alternativo||{};return [e.logradouro,e.numero,e.bairro,e.cidade,e.uf].filter(Boolean).join(", ")}return "Endereço vinculado ao protocolo"}
 function statusLabelColeta(s){const m={rascunho:"Rascunho",solicitado:"Solicitada",em_aberto:"Em aberto",confirmado:"Confirmada",em_coleta:"Em coleta",coletado:"Coletada",cancelamento_solicitado:"Cancelamento solicitado",cancelado:"Cancelada",erro:"Erro"};return m[s]||String(s||"—").replace(/_/g," ")}
 function classeStatusColeta(s){if(/coletado|confirmado/.test(s))return"sucesso";if(/erro|cancelado/.test(s))return"erro";if(/cancelamento/.test(s))return"alerta";return"aguardando"}
@@ -920,7 +945,9 @@ async function carregarPainelRodonaves(){
 
   tb.innerHTML=ord.length?ord.map(a=>{
     const s=statusColetaPainel(a);
-    const rascunho=s==="rascunho"&&!a.codigo_coleta;
+    const rascunho=coletaEhRascunhoVazio(a);
+    const encerrada=["coletado","cancelado"].includes(s);
+    const podeAtualizarManual=!rascunho&&!encerrada;
     const textoBusca=[a.cliente_nome,a.frete_transportadoras?.nome,a.protocolo_cotacao,a.codigo_coleta,enderecoColetaPainel(a),statusLabelColeta(s),s].filter(Boolean).join(" ").toLowerCase();
     return `<tr class="linha-painel-coleta" data-status="${escaparHtmlEmail(s)}" data-busca="${escaparHtmlEmail(textoBusca)}">
       <td>${rascunho?`<input type="checkbox" class="coleta-check-rascunho" value="${a.id}" aria-label="Selecionar rascunho">`:""}</td>
@@ -932,13 +959,15 @@ async function carregarPainelRodonaves(){
       <td><span class="coleta-status-painel ${classeStatusColeta(s)}">${escaparHtmlEmail(statusLabelColeta(s))}</span></td>
       <td>${a.consultado_api_em?new Date(a.consultado_api_em).toLocaleString("pt-BR"):"—"}</td>
       <td>
-        ${(a.codigo_coleta||a.protocolo_cotacao)&&/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<button class="btn azul" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar API</button>`:""}
+        ${a.codigo_coleta&&/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<button class="btn azul" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar API</button>`:""}
+        ${!/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<span class="coleta-manual-tag">Atualização manual</span>`:""}
+        ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&!a.codigo_coleta?`<span class="coleta-manual-tag">Aguardando código da API</span>`:""}
         <button class="btn verde" onclick="editarAgendamentoColeta('${a.id}');mostrarPainelColeta('nova')">Abrir</button>
         ${rascunho?`<button class="btn vermelho" onclick="excluirRascunhoColetaRodonaves('${a.id}')">Excluir</button>`:""}
-        ${!rascunho&&!["coletado","cancelado"].includes(s)?`<button class="btn coleta-manual" onclick="alterarStatusManualColeta('${a.id}','coletado')">Marcar coletada</button>`:""}
-        ${!rascunho&&!["coletado","cancelado"].includes(s)?`<button class="btn coleta-alerta" onclick="alterarStatusManualColeta('${a.id}','nao_coletada')">Não coletada</button>`:""}
-        ${!rascunho&&!["coletado","cancelado"].includes(s)?`<button class="btn roxo" onclick="reagendarColetaManual('${a.id}')">Reagendar</button>`:""}
-        ${!rascunho&&!["coletado","cancelado"].includes(s)?`<button class="btn vermelho" onclick="solicitarCancelamentoColetaRodonaves('${a.id}')">Cancelar</button>`:""}
+        ${podeAtualizarManual?`<button class="btn coleta-manual" onclick="alterarStatusManualColeta('${a.id}','coletado')">Marcar coletada</button>`:""}
+        ${podeAtualizarManual?`<button class="btn coleta-alerta" onclick="alterarStatusManualColeta('${a.id}','nao_coletada')">Não coletada</button>`:""}
+        ${podeAtualizarManual?`<button class="btn roxo" onclick="reagendarColetaManual('${a.id}')">Reagendar</button>`:""}
+        ${podeAtualizarManual?`<button class="btn vermelho" onclick="solicitarCancelamentoColetaRodonaves('${a.id}')">Cancelar</button>`:""}
       </td>
     </tr>`;
   }).join(""):'<tr><td colspan="9">Nenhuma coleta Rodonaves registrada.</td></tr>';
@@ -1317,7 +1346,7 @@ async function sincronizarColetasAutomaticamente(forcar=false){
     const hora=new Date().toLocaleTimeString("pt-BR");
     atualizarIndicadorSincronizacao(
       dados.erros?"aviso":"sucesso",
-      `Última sincronização: ${hora} — ${dados.consultadas||0} consultada(s), ${dados.alteradas||0} alterada(s)${dados.erros?`, ${dados.erros} erro(s)`:""}`
+      `Última sincronização: ${hora} — ${dados.consultadas||0} consultada(s), ${dados.alteradas||0} alterada(s)${dados.ignoradas?`, ${dados.ignoradas} aguardando código da API`:""}${dados.erros?`, ${dados.erros} erro(s)`:""}`
     );
     await carregarPainelRodonaves();
   }catch(erro){
