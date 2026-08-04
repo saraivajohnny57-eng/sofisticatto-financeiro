@@ -30,7 +30,7 @@ jobs:
             exit 1
           fi
 
-          URL="${APP_URL%/}/api/atualizar-status"
+          URL="${APP_URL%/}/api/integracoes?action=atualizar-status"
           echo "Chamando: $URL"
 
           HTTP_CODE=$(curl --silent --show-error \
