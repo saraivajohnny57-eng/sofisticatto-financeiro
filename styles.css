@@ -2009,3 +2009,12 @@ html.modo-portal-publico .portal-conteudo{
   width:auto !important;
   margin:0;
 }
+
+.rastreio-ultima-ocorrencia{
+  margin-top:6px;
+  max-width:260px;
+  font-size:11px;
+  line-height:1.35;
+  color:#5d547c;
+  white-space:normal;
+}

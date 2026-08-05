@@ -1250,13 +1250,80 @@ async function carregarRastreamentosLogistica(sentido){
     <td>${escaparHtmlEmail(x.numero_nfe||"—")}</td>
     <td>${escaparHtmlEmail(x.numero_cte||x.protocolo_rastreio||"—")}</td>
     <td>${x.previsao_entrega?new Date(x.previsao_entrega+"T12:00:00").toLocaleDateString("pt-BR"):"—"}</td>
-    <td><span class="coleta-status-painel ${classeStatusRastreamento(x.status)}">${statusLabelRastreamento(x.status)}</span></td>
-    <td><button class="btn azul" onclick="abrirFormularioRastreamento('${sentido}','${x.id}')">Editar</button>
+    <td>
+      <span class="coleta-status-painel ${classeStatusRastreamento(x.status)}">${statusLabelRastreamento(x.status)}</span>
+      ${x.ultima_ocorrencia?`<div class="rastreio-ultima-ocorrencia">${escaparHtmlEmail(x.ultima_ocorrencia)}</div>`:""}
+    </td>
+    <td>
+    ${/rodonaves/i.test(x.frete_transportadoras?.nome||"")&&(x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe)?`<button class="btn azul" onclick="atualizarRastreioRodonaves('${x.id}')">Atualizar rastreio</button>`:""}
+    <button class="btn azul" onclick="abrirFormularioRastreamento('${sentido}','${x.id}')">Editar</button>
     ${!["entregue","recebido"].includes(x.status)?`<button class="btn verde" onclick="finalizarRastreamentoLogistica('${x.id}','${sentido}')">${sentido==="entrada"?"Marcar recebido":"Marcar entregue"}</button>`:""}
     <button class="btn vermelho" onclick="excluirRastreamentoLogistica('${x.id}','${sentido}')">Excluir</button></td></tr>`;
   }).join(""):'<tr><td colspan="8">Nenhum registro encontrado.</td></tr>';
   filtrarRastreamentosLogistica(sentido);
 }
+
+async function atualizarRastreioRodonaves(id){
+  const rastro=(rastreamentosLogistica||[]).find(x=>String(x.id)===String(id));
+  if(!rastro)return;
+  const chave=await chaveAdminColeta();
+  if(!chave)return alert("Informe a chave administrativa.");
+
+  const params=new URLSearchParams({action:"consultar-rastreio-rodonaves",registro_id:String(id)});
+  if(rastro.protocolo_rastreio)params.set("protocolo",rastro.protocolo_rastreio);
+  if(rastro.numero_cte)params.set("cte",rastro.numero_cte);
+  if(rastro.numero_nfe)params.set("nfe",rastro.numero_nfe);
+  if(rastro.chave_nfe)params.set("chave_nfe",rastro.chave_nfe);
+
+  try{
+    const resposta=await fetch(`/api/integracoes?${params.toString()}`,{
+      headers:{"x-integrations-admin-key":chave}
+    });
+    const dados=await resposta.json().catch(()=>({}));
+    if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
+    alert(`Rastreio atualizado.\n\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${dados.previsaoEntrega?`\nPrevisão: ${new Date(dados.previsaoEntrega).toLocaleDateString("pt-BR")}`:""}`);
+    await carregarRastreamentosLogistica(rastro.sentido||"saida");
+    await carregarPainelRodonaves();
+    if(ce("rastreamentoTabelaSaidas"))await carregarRastreamentosLogistica("saida");
+    if(ce("rastreamentoTabelaEntradas"))await carregarRastreamentosLogistica("entrada");
+  }catch(erro){
+    alert("Não foi possível atualizar o rastreio: "+erro.message);
+  }
+}
+
+async function criarOuVincularRastreioDaColeta(agendamentoId,payload,origemExterna){
+  if(!payload.transportadora_id||!payload.protocolo_cotacao)return;
+  const transportadora=(coletaTransportadoras||[]).find(t=>String(t.id)===String(payload.transportadora_id));
+  if(!/rodonaves/i.test(transportadora?.nome||""))return;
+
+  const existente=await banco.from("logistica_rastreamentos")
+    .select("id")
+    .eq("protocolo_rastreio",payload.protocolo_cotacao)
+    .limit(1)
+    .maybeSingle();
+
+  const rastreioPayload={
+    sentido:"saida",
+    parceiro_nome:payload.cliente_nome,
+    transportadora_id:payload.transportadora_id,
+    protocolo_rastreio:payload.protocolo_cotacao,
+    data_postagem:payload.data_programada?String(payload.data_programada).slice(0,10):null,
+    volumes:payload.volumes||null,
+    status:["coletado","em_transito"].includes(payload.status)?"em_transito":"aguardando_coleta",
+    observacao:`Origem: ${origemExterna||"importacao_externa"}`,
+    coleta_agendamento_id:agendamentoId||null,
+    origem:"coleta_importada",
+    atualizado_em:new Date().toISOString(),
+    atualizado_por:usuarioLogado?.login||null
+  };
+
+  const resultado=existente.data?.id
+    ?await banco.from("logistica_rastreamentos").update(rastreioPayload).eq("id",existente.data.id)
+    :await banco.from("logistica_rastreamentos").insert([rastreioPayload]);
+
+  if(resultado.error)console.warn("Não foi possível criar/vincular o rastreio:",resultado.error.message);
+}
+
 function statusLabelRastreamento(s){
   const m={aguardando_coleta:"Aguardando coleta",em_transito:"Em trânsito",na_filial:"Na filial",saiu_entrega:"Saiu para entrega",entregue:"Entregue",recebido:"Recebido",atrasado:"Atrasado",ocorrencia:"Com ocorrência",cancelado:"Cancelado"};
   return m[s]||String(s||"—").replace(/_/g," ");
@@ -1377,7 +1444,7 @@ async function sincronizarColetasAutomaticamente(forcar=false){
     const hora=new Date().toLocaleTimeString("pt-BR");
     atualizarIndicadorSincronizacao(
       dados.erros?"aviso":"sucesso",
-      `Última sincronização: ${hora} — ${dados.consultadas||0} consultada(s), ${dados.alteradas||0} alterada(s)${dados.ignoradas?`, ${dados.ignoradas} aguardando código da API`:""}${dados.erros?`, ${dados.erros} erro(s)`:""}`
+      `Última sincronização: ${hora} — coletas: ${dados.consultadas||0} consultada(s), ${dados.alteradas||0} alterada(s); rastreios: ${dados.rastreios?.consultados||0} consultado(s), ${dados.rastreios?.alterados||0} alterado(s)${dados.ignoradas?`; ${dados.ignoradas} coleta(s) aguardando código`:""}${dados.erros?`; ${dados.erros} erro(s)`:""}`
     );
     await carregarPainelRodonaves();
   }catch(erro){
@@ -1518,8 +1585,11 @@ async function salvarImportacaoColetaExterna(){
   }
   if(r.error)return alert("Não foi possível salvar: "+r.error.message);
   const novoId=existente?.id||r.data?.id;
-  if(novoId)await registrarEventoColeta(novoId,existente?statusColetaPainel(existente):null,status,"importacao_externa",{origem:origemExterna,protocolo,codigo:codigoInformado,codigo_confirmado:codigoConfirmado});
-  alert(existente?"Coleta vinculada e atualizada.":"Coleta externa importada.");
+  if(novoId){
+    await registrarEventoColeta(novoId,existente?statusColetaPainel(existente):null,status,"importacao_externa",{origem:origemExterna,protocolo,codigo:codigoInformado,codigo_confirmado:codigoConfirmado});
+    await criarOuVincularRastreioDaColeta(novoId,payload,origemExterna);
+  }
+  alert(existente?"Coleta vinculada, atualizada e preparada para rastreio.":"Coleta externa importada e preparada para rastreio.");
   limparImportacaoColetaExterna();
   fecharImportacaoColetaExterna();
   await carregarPainelRodonaves();
