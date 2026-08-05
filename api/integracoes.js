@@ -16,6 +16,7 @@ const agendarColetaRodonaves = require("../lib/integracoes/agendar-coleta-rodona
 const agendarColetaRodonavesEndereco = require("../lib/integracoes/agendar-coleta-rodonaves-endereco");
 const consultarColetaRodonaves = require("../lib/integracoes/consultar-coleta-rodonaves");
 const atualizarStatus = require("../lib/integracoes/atualizar-status");
+const consultarRastreioRodonaves = require("../lib/integracoes/consultar-rastreio-rodonaves");
 
 const ROTAS = Object.freeze({
   "validar-chave": validarChave,
@@ -28,7 +29,8 @@ const ROTAS = Object.freeze({
   "agendar-coleta-rodonaves": agendarColetaRodonaves,
   "agendar-coleta-rodonaves-endereco": agendarColetaRodonavesEndereco,
   "consultar-coleta-rodonaves": consultarColetaRodonaves,
-  "atualizar-status": atualizarStatus
+  "atualizar-status": atualizarStatus,
+  "consultar-rastreio-rodonaves": consultarRastreioRodonaves
 });
 
 function responder(res, status, body) {
@@ -52,7 +54,7 @@ module.exports = async function handler(req, res) {
       ok: true,
       servico: "sofisticatto-financeiro",
       modulo: "api-integracoes-unificada",
-      versao: "24",
+      versao: "28",
       rotas_carregadas: Object.keys(ROTAS).length,
       node: process.version,
       ambiente: process.env.VERCEL_ENV || "local",
@@ -81,7 +83,7 @@ module.exports = async function handler(req, res) {
     return await executar(req, res);
   } catch (erro) {
     const diagnostico = detalhesErro(erro);
-    console.error("[API INTEGRACOES V24]", {
+    console.error("[API INTEGRACOES V28]", {
       action,
       method: req.method,
       diagnostico,
