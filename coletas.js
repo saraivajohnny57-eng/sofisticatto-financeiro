@@ -1159,6 +1159,9 @@ function formularioRastreamentoHtml(sentido){
     <div><label>Chave da NF-e</label><input id="rastChave_${sentido}" maxlength="44"></div>
     <div><label>Número do CT-e</label><input id="rastCte_${sentido}"></div>
     <div><label>Protocolo de rastreio</label><input id="rastProtocolo_${sentido}"></div>
+    <div class="rastreamento-consulta-inteligente">
+      Consulta inteligente: Protocolo/Minuta → Nota Fiscal → CT-e → Chave da NF-e.
+    </div>
     <div><label>Data de postagem/coleta</label><input id="rastData_${sentido}" type="date"></div>
     <div><label>Previsão de entrega</label><input id="rastPrevisao_${sentido}" type="date"></div>
     <div><label>Volumes</label><input id="rastVolumes_${sentido}" type="number" min="1"></div>
@@ -1253,6 +1256,7 @@ async function carregarRastreamentosLogistica(sentido){
     <td>
       <span class="coleta-status-painel ${classeStatusRastreamento(x.status)}">${statusLabelRastreamento(x.status)}</span>
       ${x.ultima_ocorrencia?`<div class="rastreio-ultima-ocorrencia">${escaparHtmlEmail(x.ultima_ocorrencia)}</div>`:""}
+      ${x.metodo_consulta?`<div class="rastreio-metodo">Localizado por: ${escaparHtmlEmail(x.metodo_consulta)}</div>`:""}
     </td>
     <td>
     ${/rodonaves/i.test(x.frete_transportadoras?.nome||"")&&(x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe)?`<button class="btn azul" onclick="atualizarRastreioRodonaves('${x.id}')">Atualizar rastreio</button>`:""}
@@ -1281,7 +1285,7 @@ async function atualizarRastreioRodonaves(id){
     });
     const dados=await resposta.json().catch(()=>({}));
     if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
-    alert(`Rastreio atualizado.\n\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${dados.previsaoEntrega?`\nPrevisão: ${new Date(dados.previsaoEntrega).toLocaleDateString("pt-BR")}`:""}`);
+    alert(`Rastreio atualizado.\n\nLocalizado por: ${dados.metodoConsulta||"consulta automática"}\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${dados.previsaoEntrega?`\nPrevisão: ${new Date(dados.previsaoEntrega).toLocaleDateString("pt-BR")}`:""}`);
     await carregarRastreamentosLogistica(rastro.sentido||"saida");
     await carregarPainelRodonaves();
     if(ce("rastreamentoTabelaSaidas"))await carregarRastreamentosLogistica("saida");
@@ -1307,6 +1311,8 @@ async function criarOuVincularRastreioDaColeta(agendamentoId,payload,origemExter
     parceiro_nome:payload.cliente_nome,
     transportadora_id:payload.transportadora_id,
     protocolo_rastreio:payload.protocolo_cotacao,
+    numero_nfe:payload.numero_nfe||payload?.dados?.numero_nf||payload?.dados?.numero_nfe||null,
+    chave_nfe:payload.chave_nfe||payload?.dados?.chave_nfe||null,
     data_postagem:payload.data_programada?String(payload.data_programada).slice(0,10):null,
     volumes:payload.volumes||null,
     status:["coletado","em_transito"].includes(payload.status)?"em_transito":"aguardando_coleta",

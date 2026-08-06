@@ -2018,3 +2018,20 @@ html.modo-portal-publico .portal-conteudo{
   color:#5d547c;
   white-space:normal;
 }
+
+.rastreio-metodo{
+  margin-top:4px;
+  font-size:10px;
+  font-weight:700;
+  color:#5b4bb2;
+}
+.rastreamento-consulta-inteligente{
+  grid-column:1/-1;
+  padding:10px 12px;
+  border:1px solid #d9d0f5;
+  border-radius:12px;
+  background:#f5f1ff;
+  color:#55449a;
+  font-size:12px;
+  font-weight:700;
+}
