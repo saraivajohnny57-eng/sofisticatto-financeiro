@@ -54,7 +54,7 @@ module.exports = async function handler(req, res) {
       ok: true,
       servico: "sofisticatto-financeiro",
       modulo: "api-integracoes-unificada",
-      versao: "28",
+      versao: "29",
       rotas_carregadas: Object.keys(ROTAS).length,
       node: process.version,
       ambiente: process.env.VERCEL_ENV || "local",
@@ -83,7 +83,7 @@ module.exports = async function handler(req, res) {
     return await executar(req, res);
   } catch (erro) {
     const diagnostico = detalhesErro(erro);
-    console.error("[API INTEGRACOES V28]", {
+    console.error("[API INTEGRACOES V29]", {
       action,
       method: req.method,
       diagnostico,
