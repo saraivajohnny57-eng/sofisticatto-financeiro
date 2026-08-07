@@ -1032,6 +1032,14 @@ async function carregarEventosRodonaves(){
 function detectarDuplicidadesRodonaves(lista){const g={};lista.filter(a=>a.protocolo_cotacao&&!["cancelado","coletado"].includes(statusColetaPainel(a))).forEach(a=>{const k=String(a.protocolo_cotacao);(g[k]??=[]).push(a)});return Object.entries(g).filter(([,v])=>v.length>1)}
 async function carregarPainelRodonaves(){
   await carregarAgendamentosColeta();
+  const ids=(coletaAgendamentos||[]).map(x=>x.id);
+  let contagemPedidos={};
+  if(ids.length){
+    try{
+      const rp=await banco.from("coleta_pedidos_vinculados").select("agendamento_id").in("agendamento_id",ids);
+      if(!rp.error)(rp.data||[]).forEach(p=>contagemPedidos[p.agendamento_id]=(contagemPedidos[p.agendamento_id]||0)+1);
+    }catch(e){console.warn("Pedidos vinculados:",e)}
+  }
   const lista=(coletaAgendamentos||[]);
   const hoje=new Date().toISOString().slice(0,10);
 
@@ -1072,6 +1080,8 @@ async function carregarPainelRodonaves(){
         ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&!codigoColetaPodeConsultar(a)?`<span class="coleta-manual-tag">${a.numero_nf||a?.dados?.numero_nf||a.protocolo_cotacao?"Monitorando pelo rastreio (protocolo/NF)":"Aguardando identificador"}</span>`:""}
         ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&!codigoColetaPodeConsultar(a)?`<button class="btn roxo" onclick="abrirVinculoCodigoColeta('${a.id}')">Informar/vincular código</button>`:""}
         <button class="btn verde" onclick="editarAgendamentoColeta('${a.id}');mostrarPainelColeta('nova')">Abrir</button>
+        <button class="btn azul" onclick="abrirPedidosDaColeta('${a.id}')">Pedidos (${contagemPedidos[a.id]||1})</button>
+        ${a.ajuste_carga_pendente?`<span class="coleta-ajuste-pendente">⚠ Ajuste de carga pendente</span>`:""}
         ${rascunho?`<button class="btn vermelho" onclick="excluirRascunhoColetaRodonaves('${a.id}')">Excluir</button>`:""}
         ${podeAtualizarManual?`<button class="btn coleta-manual" onclick="alterarStatusManualColeta('${a.id}','coletado')">Marcar coletada</button>`:""}
         ${podeAtualizarManual?`<button class="btn coleta-alerta" onclick="alterarStatusManualColeta('${a.id}','nao_coletada')">Não coletada</button>`:""}
@@ -1191,6 +1201,9 @@ async function verificarColetaDuplicadaAntesDeSalvar(){
    V19 — FLUXO LOGÍSTICO COMPLETO
    ========================================================= */
 let rastreamentosLogistica=[];
+let transportadorasRastreamentoIntegrado=[];
+let pedidosVinculadosColeta=[];
+
 
 async function alterarStatusManualColeta(id,novoStatus){
   const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
@@ -1326,8 +1339,14 @@ async function salvarRastreamentoLogistica(sentido){
   await carregarRastreamentosLogistica(sentido);
 }
 async function carregarRastreamentosLogistica(sentido){
+  if(sentido==="saida")await carregarTransportadorasRastreamentoIntegrado();
   const r=await banco.from("logistica_rastreamentos").select("*,frete_transportadoras(nome)").eq("sentido",sentido).order("created_at",{ascending:false});
   rastreamentosLogistica=r.error?[]:(r.data||[]);
+  if(sentido==="saida"){
+    rastreamentosLogistica=rastreamentosLogistica.filter(x=>
+      transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)
+    );
+  }
   const entreguesStatus=sentido==="entrada"?"recebido":"entregue";
   const emTransito=rastreamentosLogistica.filter(x=>!["entregue","recebido","cancelado"].includes(x.status)).length;
   const entregues=rastreamentosLogistica.filter(x=>x.status===entreguesStatus).length;
@@ -1438,6 +1457,202 @@ async function criarOuVincularRastreioDaColeta(agendamentoId,payload,origemExter
 
   if(resultado.error)console.warn("Não foi possível criar/vincular o rastreio:",resultado.error.message);
 }
+
+function moedaNumeroColeta(v){
+  const s=String(v??"").trim().replace(/\s/g,"");
+  if(!s)return 0;
+  if(s.includes(",")&&s.includes("."))return Number(s.replace(/\./g,"").replace(",", "."))||0;
+  return Number(s.replace(",", "."))||0;
+}
+function formatarPesoColeta(v){
+  return Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:3});
+}
+function formatarMoedaColeta(v){
+  return Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+}
+async function carregarPedidosVinculadosColeta(agendamentoId){
+  const r=await banco.from("coleta_pedidos_vinculados")
+    .select("*")
+    .eq("agendamento_id",agendamentoId)
+    .order("principal",{ascending:false})
+    .order("created_at",{ascending:true});
+  if(r.error)throw r.error;
+  pedidosVinculadosColeta=r.data||[];
+  return pedidosVinculadosColeta;
+}
+function resumoPedidosVinculados(lista){
+  return (lista||[]).reduce((a,p)=>({
+    pedidos:a.pedidos+1,
+    volumes:a.volumes+(Number(p.volumes)||0),
+    peso:a.peso+(Number(p.peso)||0),
+    valor:a.valor+(Number(p.valor_nf)||0)
+  }),{pedidos:0,volumes:0,peso:0,valor:0});
+}
+async function abrirPedidosDaColeta(id){
+  const coleta=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
+  if(!coleta)return;
+  let lista=[];
+  try{lista=await carregarPedidosVinculadosColeta(id)}
+  catch(e){return alert("Não foi possível carregar os pedidos vinculados: "+e.message)}
+
+  const resumo=resumoPedidosVinculados(lista);
+  document.getElementById("modalPedidosColeta")?.remove();
+  const overlay=document.createElement("div");
+  overlay.id="modalPedidosColeta";
+  overlay.className="modal-pedidos-coleta-overlay";
+  overlay.innerHTML=`
+    <div class="modal-pedidos-coleta">
+      <div class="modal-pedidos-coleta-topo">
+        <div>
+          <h2>📦 Pedidos da mesma coleta</h2>
+          <div class="modal-pedidos-subtitulo">
+            ${escaparHtmlEmail(coleta.frete_transportadoras?.nome||"Transportadora")} •
+            ${escaparHtmlEmail(coleta.protocolo_cotacao||coleta.codigo_coleta||"sem protocolo")}
+          </div>
+        </div>
+        <button class="btn roxo" onclick="fecharPedidosDaColeta()">Fechar</button>
+      </div>
+
+      <div class="coleta-grupo-resumo">
+        <div><small>Pedidos</small><b id="pedGrupoQtd">${resumo.pedidos}</b></div>
+        <div><small>Volumes</small><b id="pedGrupoVolumes">${resumo.volumes}</b></div>
+        <div><small>Peso total</small><b id="pedGrupoPeso">${formatarPesoColeta(resumo.peso)} kg</b></div>
+        <div><small>Valor NF</small><b id="pedGrupoValor">${formatarMoedaColeta(resumo.valor)}</b></div>
+      </div>
+
+      ${coleta.ajuste_carga_pendente?`
+        <div class="aviso-ajuste-coleta">
+          ⚠️ A carga foi alterada depois da solicitação da coleta.
+          O sistema atualizou os totais internamente, mas a transportadora ainda precisa confirmar o ajuste.
+          <button class="btn verde" onclick="confirmarAjusteCargaColeta('${id}')">Marcar ajuste confirmado</button>
+        </div>`:""}
+
+      <div class="tabela-pedidos-coleta-wrap">
+        <table class="tabela-pedidos-coleta">
+          <thead><tr>
+            <th>Cliente</th><th>NF</th><th>Volumes</th><th>Peso</th><th>Valor NF</th><th></th>
+          </tr></thead>
+          <tbody id="pedidosColetaLista">
+            ${lista.length?lista.map(p=>`
+              <tr>
+                <td>${p.principal?'<span class="pedido-principal-tag">Principal</span> ':''}${escaparHtmlEmail(p.cliente_nome||"—")}</td>
+                <td>${escaparHtmlEmail(p.numero_nf||"—")}</td>
+                <td>${Number(p.volumes)||0}</td>
+                <td>${formatarPesoColeta(p.peso)} kg</td>
+                <td>${formatarMoedaColeta(p.valor_nf)}</td>
+                <td>${p.principal?"":`<button class="btn vermelho" onclick="excluirPedidoVinculadoColeta('${p.id}','${id}')">Remover</button>`}</td>
+              </tr>`).join(""):'<tr><td colspan="6">Nenhum pedido vinculado.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="novo-pedido-coleta">
+        <h3>+ Vincular outro pedido a esta coleta</h3>
+        <div class="novo-pedido-grid">
+          <div><label>Cliente</label><input id="pedVincCliente" placeholder="Ex.: LITORAL MODA ÍNTIMA"></div>
+          <div><label>Nº da NF</label><input id="pedVincNf" placeholder="Número da nota"></div>
+          <div><label>Volumes</label><input id="pedVincVolumes" type="number" min="1" step="1"></div>
+          <div><label>Peso (kg)</label><input id="pedVincPeso" inputmode="decimal" placeholder="266,00"></div>
+          <div><label>Valor da NF</label><input id="pedVincValor" inputmode="decimal" placeholder="0,00"></div>
+          <div><label>Observação</label><input id="pedVincObs" placeholder="Opcional"></div>
+        </div>
+        <div class="novo-pedido-acoes">
+          <button class="btn verde" onclick="salvarPedidoVinculadoColeta('${id}')">Vincular pedido</button>
+        </div>
+        <div class="nota-integracao-coleta">
+          <b>Importante:</b> o vínculo agrupa os pedidos na mesma coleta física dentro da Sofisticatto.
+          Se a coleta já foi enviada à transportadora, o sistema marca o ajuste como pendente porque
+          a API da transportadora pode não permitir alterar uma solicitação já criada.
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+function fecharPedidosDaColeta(){
+  document.getElementById("modalPedidosColeta")?.remove();
+}
+async function salvarPedidoVinculadoColeta(agendamentoId){
+  const cliente=cv("pedVincCliente");
+  const volumes=Number(cv("pedVincVolumes"))||0;
+  const peso=moedaNumeroColeta(cv("pedVincPeso"));
+  if(!cliente)return alert("Informe o cliente do novo pedido.");
+  if(volumes<=0)return alert("Informe a quantidade de volumes.");
+  if(peso<=0)return alert("Informe o peso do pedido.");
+
+  const payload={
+    agendamento_id:agendamentoId,
+    cliente_nome:cliente,
+    numero_nf:cv("pedVincNf")||null,
+    volumes,
+    peso,
+    valor_nf:moedaNumeroColeta(cv("pedVincValor"))||null,
+    observacao:cv("pedVincObs")||null,
+    principal:false,
+    criado_por:usuarioLogado?.login||null
+  };
+  const r=await banco.from("coleta_pedidos_vinculados").insert([payload]);
+  if(r.error)return alert(r.error.message);
+
+  await carregarAgendamentosColeta();
+  await abrirPedidosDaColeta(agendamentoId);
+  await carregarPainelRodonaves();
+
+  const coleta=(coletaAgendamentos||[]).find(x=>String(x.id)===String(agendamentoId));
+  if(coleta?.ajuste_carga_pendente){
+    alert("Pedido vinculado com sucesso.\n\nOs totais da coleta foram atualizados no sistema. Como a coleta já havia sido solicitada, ficou marcado: AJUSTE PENDENTE NA TRANSPORTADORA.");
+  }else{
+    alert("Pedido vinculado. Os volumes e o peso total da coleta foram atualizados automaticamente.");
+  }
+}
+async function excluirPedidoVinculadoColeta(pedidoId,agendamentoId){
+  if(!confirm("Remover este pedido da coleta?"))return;
+  const r=await banco.from("coleta_pedidos_vinculados").delete().eq("id",pedidoId).eq("principal",false);
+  if(r.error)return alert(r.error.message);
+  await carregarAgendamentosColeta();
+  await abrirPedidosDaColeta(agendamentoId);
+  await carregarPainelRodonaves();
+}
+async function confirmarAjusteCargaColeta(agendamentoId){
+  if(!confirm("Confirmar que a transportadora foi avisada e aceitou os novos volumes/peso desta coleta?"))return;
+  const r=await banco.from("coleta_agendamentos").update({
+    ajuste_carga_pendente:false,
+    ajuste_carga_confirmado_em:new Date().toISOString(),
+    atualizado_em:new Date().toISOString()
+  }).eq("id",agendamentoId);
+  if(r.error)return alert(r.error.message);
+  await carregarAgendamentosColeta();
+  await abrirPedidosDaColeta(agendamentoId);
+  await carregarPainelRodonaves();
+}
+
+async function carregarTransportadorasRastreamentoIntegrado(){
+  try{
+    const r=await banco.from("transportadora_integracoes")
+      .select("transportadora_nome,status_tecnico,rastreamento_ativo")
+      .eq("rastreamento_ativo",true);
+    if(r.error)throw r.error;
+    transportadorasRastreamentoIntegrado=(r.data||[]).filter(
+      x=>String(x.status_tecnico||"").toLowerCase()!=="suspensa"
+    );
+  }catch(e){
+    console.warn("Não foi possível carregar transportadoras integradas:",e.message);
+    transportadorasRastreamentoIntegrado=[];
+  }
+}
+function nomeNormalizadoTransportadora(v){
+  return String(v||"")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+}
+function transportadoraTemRastreamentoIntegrado(nome){
+  const n=nomeNormalizadoTransportadora(nome);
+  if(!n)return false;
+  return transportadorasRastreamentoIntegrado.some(i=>{
+    const x=nomeNormalizadoTransportadora(i.transportadora_nome);
+    return x&&(n.includes(x)||x.includes(n));
+  });
+}
+
 function statusLabelRastreamento(s){
   const m={aguardando_coleta:"Aguardando coleta",em_transito:"Em trânsito",na_filial:"Na filial",saiu_entrega:"Saiu para entrega",entregue:"Entregue",recebido:"Recebido",atrasado:"Atrasado",ocorrencia:"Com ocorrência",cancelado:"Cancelado"};
   return m[s]||String(s||"—").replace(/_/g," ");

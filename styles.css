@@ -2037,3 +2037,65 @@ html.modo-portal-publico .portal-conteudo{
 }
 
 .coleta-manual-tag{white-space:normal}
+
+.rastreamento-integrado-aviso{
+  display:inline-flex;align-items:center;gap:6px;
+  margin:4px 0 12px;padding:8px 12px;border-radius:999px;
+  background:#eee9ff;color:#55449a;font-size:12px;font-weight:700;
+}
+.coleta-ajuste-pendente{
+  display:block;margin:6px 0;padding:6px 9px;border-radius:10px;
+  background:#fff1cf;color:#8a5c00;font-size:11px;font-weight:800;
+}
+.modal-pedidos-coleta-overlay{
+  position:fixed;inset:0;z-index:99999;background:rgba(30,24,55,.5);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.modal-pedidos-coleta{
+  width:min(1050px,96vw);max-height:92vh;overflow:auto;background:#fff;
+  border-radius:22px;padding:24px;box-shadow:0 24px 70px rgba(20,15,45,.28);
+}
+.modal-pedidos-coleta-topo{
+  display:flex;justify-content:space-between;gap:20px;align-items:flex-start;
+}
+.modal-pedidos-coleta-topo h2{margin:0;color:#3e327d}
+.modal-pedidos-subtitulo{margin-top:4px;color:#6e6493}
+.coleta-grupo-resumo{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0;
+}
+.coleta-grupo-resumo>div{
+  background:#f5f1ff;border:1px solid #ddd4fb;border-radius:14px;padding:12px;
+}
+.coleta-grupo-resumo small{display:block;color:#6e6493}
+.coleta-grupo-resumo b{display:block;margin-top:4px;font-size:20px;color:#44368d}
+.aviso-ajuste-coleta{
+  background:#fff4d8;border:1px solid #efd28b;border-radius:14px;padding:12px;
+  color:#775000;margin-bottom:16px;
+}
+.aviso-ajuste-coleta .btn{margin-left:10px}
+.tabela-pedidos-coleta-wrap{overflow:auto}
+.tabela-pedidos-coleta{width:100%;border-collapse:collapse}
+.tabela-pedidos-coleta th,.tabela-pedidos-coleta td{
+  padding:10px;border-bottom:1px solid #eee;text-align:left;
+}
+.pedido-principal-tag{
+  background:#e4dcff;color:#4d3c9a;padding:3px 6px;border-radius:8px;font-size:10px;font-weight:800;
+}
+.novo-pedido-coleta{
+  margin-top:20px;padding:18px;border-radius:16px;background:#faf8ff;border:1px solid #e4def8;
+}
+.novo-pedido-grid{
+  display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 2fr;gap:10px;
+}
+.novo-pedido-grid label{display:block;font-size:11px;font-weight:700;color:#55449a;margin-bottom:4px}
+.novo-pedido-grid input{
+  width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid #d8d0ef;
+}
+.novo-pedido-acoes{margin-top:12px}
+.nota-integracao-coleta{
+  margin-top:12px;color:#655d7f;font-size:12px;line-height:1.45;
+}
+@media(max-width:850px){
+  .coleta-grupo-resumo{grid-template-columns:repeat(2,1fr)}
+  .novo-pedido-grid{grid-template-columns:1fr 1fr}
+}
