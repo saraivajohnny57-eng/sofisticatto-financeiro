@@ -132,7 +132,94 @@ function atualizarPreviaColeta(){const m=modeloAtualColeta();ce("coletaPreviaMen
 function aplicarModeloDaTransportadoraColeta(){const tid=cv("coletaTransportadoraId");const m=coletaModelos.find(x=>String(x.transportadora_id||"")===tid);if(m)ce("coletaModeloId").value=m.id;atualizarPreviaColeta()}
 async function copiarMensagemColeta(){atualizarPreviaColeta();const t=cv("coletaPreviaMensagem");if(!t)return alert("Preencha os dados da coleta.");try{await navigator.clipboard.writeText(t);alert("Mensagem copiada para o WhatsApp.")}catch{ce("coletaPreviaMensagem").select();document.execCommand("copy")}}
 function whatsappTransportadoraColeta(){const t=coletaTransportadoras.find(x=>String(x.id)===cv("coletaTransportadoraId"));return String(t?.whatsapp||t?.telefone||"").replace(/\D/g,"")}
-function abrirWhatsAppColeta(){atualizarPreviaColeta();const tel=whatsappTransportadoraColeta();const url=tel?`https://wa.me/55${tel.replace(/^55/,"")}?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`:`https://wa.me/?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`;window.open(url,"_blank")}
+async function registrarSolicitacaoCanalExternoColeta(canal){
+  const d=dadosColeta();
+  if(!d.razao_destino)throw new Error("Informe o cliente/destino.");
+  if(!cv("coletaTransportadoraId"))throw new Error("Selecione a transportadora.");
+  atualizarPreviaColeta();
+
+  let id=cv("coletaAgendamentoId");
+  const atual=id?(coletaAgendamentos||[]).find(x=>String(x.id)===String(id)):null;
+  const agora=new Date().toISOString();
+  const payload={
+    cotacao_id:cv("coletaCotacaoId")||null,
+    resposta_cotacao_id:cv("coletaRespostaId")||null,
+    cliente_id:cv("coletaClienteId")||null,
+    cliente_nome:d.razao_destino,
+    transportadora_id:cv("coletaTransportadoraId")||null,
+    modelo_id:String(cv("coletaModeloId")).startsWith("padrao-")?null:cv("coletaModeloId")||null,
+    tipo_frete:cv("coletaTipoFrete")||"CIF",
+    dados:{
+      ...(atual?.dados||{}),
+      ...d,
+      origem_externa:canal,
+      solicitado_externo_em:agora
+    },
+    mensagem:cv("coletaPreviaMensagem"),
+    volumes:Number(d.volumes)||null,
+    peso:Number(String(d.peso).replace(",","."))||null,
+    numero_nf:d.numero_nf||null,
+    protocolo_cotacao:protocoloAtualParaColeta()||null,
+    data_programada:formatarDataHoraApiColeta()||atual?.data_programada||null,
+    origem:canal,
+    status:"solicitado",
+    status_api:"solicitado",
+    observacao:cv("coletaObservacao")||null,
+    atualizado_em:agora
+  };
+
+  let r;
+  if(id){
+    r=await banco.from("coleta_agendamentos").update(payload).eq("id",id).select().single();
+  }else{
+    payload.criado_por=usuarioLogado?.login||null;
+    r=await banco.from("coleta_agendamentos").insert([payload]).select().single();
+  }
+  if(r.error)throw r.error;
+
+  id=r.data.id;
+  ce("coletaAgendamentoId").value=id;
+  await registrarEventoColeta(
+    id,
+    atual?statusColetaPainel(atual):"rascunho",
+    "solicitado",
+    canal,
+    {registro_automatico:true}
+  );
+  await criarOuVincularRastreioDaColeta(id,r.data,canal);
+  await carregarAgendamentosColeta();
+  return r.data;
+}
+
+async function abrirWhatsAppColeta(){
+  try{
+    await registrarSolicitacaoCanalExternoColeta("whatsapp");
+    atualizarPreviaColeta();
+    const tel=whatsappTransportadoraColeta();
+    const url=tel
+      ?`https://wa.me/55${tel.replace(/^55/,"")}?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`
+      :`https://wa.me/?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`;
+    window.open(url,"_blank");
+  }catch(erro){
+    alert("Não foi possível registrar a solicitação antes de abrir o WhatsApp: "+erro.message);
+  }
+}
+
+async function registrarColetaViaPortalTransportadora(){
+  try{
+    await registrarSolicitacaoCanalExternoColeta("portal_transportadora");
+    mostrarBalaoSistema("Solicitação registrada","Registrada como enviada pelo portal da transportadora.");
+    await carregarPainelRodonaves();
+  }catch(erro){alert("Não foi possível registrar: "+erro.message)}
+}
+
+async function registrarColetaViaTelefone(){
+  try{
+    await registrarSolicitacaoCanalExternoColeta("telefone");
+    mostrarBalaoSistema("Solicitação registrada","Registrada como solicitada por telefone.");
+    await carregarPainelRodonaves();
+  }catch(erro){alert("Não foi possível registrar: "+erro.message)}
+}
 async function salvarAgendamentoColeta(){
   const d=dadosColeta();
   if(!d.razao_destino)return alert("Informe o cliente/destino.");
@@ -982,7 +1069,7 @@ async function carregarPainelRodonaves(){
         ${codigoColetaPodeConsultar(a)&&/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<button class="btn azul" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar API</button>`:""}
         ${a?.dados?.origem_externa?`<span class="coleta-manual-tag">Origem: ${escaparHtmlEmail(String(a.dados.origem_externa).replace(/_/g," "))}</span>`:""}
         ${!/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<span class="coleta-manual-tag">Atualização manual</span>`:""}
-        ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&!codigoColetaPodeConsultar(a)?`<span class="coleta-manual-tag">${a.codigo_coleta?"Código ainda não validado":"Aguardando código da coleta"}</span>`:""}
+        ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&!codigoColetaPodeConsultar(a)?`<span class="coleta-manual-tag">${a.numero_nf||a?.dados?.numero_nf||a.protocolo_cotacao?"Monitorando pelo rastreio (protocolo/NF)":"Aguardando identificador"}</span>`:""}
         ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&!codigoColetaPodeConsultar(a)?`<button class="btn roxo" onclick="abrirVinculoCodigoColeta('${a.id}')">Informar/vincular código</button>`:""}
         <button class="btn verde" onclick="editarAgendamentoColeta('${a.id}');mostrarPainelColeta('nova')">Abrir</button>
         ${rascunho?`<button class="btn vermelho" onclick="excluirRascunhoColetaRodonaves('${a.id}')">Excluir</button>`:""}
@@ -1124,7 +1211,11 @@ async function alterarStatusManualColeta(id,novoStatus){
   const r=await banco.from("coleta_agendamentos").update(payload).eq("id",id);
   if(r.error)return alert(r.error.message);
   await registrarEventoColeta(id,anterior,novoStatus,"atualizacao_manual",{observacao:obs||null});
+  if(novoStatus==="coletado"){
+    await criarOuVincularRastreioDaColeta(id,{...a,...payload,status:"coletado"},"atualizacao_manual");
+  }
   await carregarPainelRodonaves();
+  if(ce("rastreamentoTabelaSaidas"))await carregarRastreamentosLogistica("saida");
 }
 
 async function reagendarColetaManual(id){
@@ -1296,31 +1387,49 @@ async function atualizarRastreioRodonaves(id){
 }
 
 async function criarOuVincularRastreioDaColeta(agendamentoId,payload,origemExterna){
-  if(!payload.transportadora_id||!payload.protocolo_cotacao)return;
-  const transportadora=(coletaTransportadoras||[]).find(t=>String(t.id)===String(payload.transportadora_id));
-  if(!/rodonaves/i.test(transportadora?.nome||""))return;
+  if(!payload?.transportadora_id||!agendamentoId)return;
+
+  const transportadora=(coletaTransportadoras||[]).find(
+    t=>String(t.id)===String(payload.transportadora_id)
+  );
+  const protocolo=payload.protocolo_cotacao||payload.protocolo_rastreio||null;
+  const numeroNfe=payload.numero_nf||payload.numero_nfe||
+    payload?.dados?.numero_nf||payload?.dados?.numero_nfe||null;
+  const numeroCte=payload.numero_cte||payload?.dados?.numero_cte||null;
+  const chaveNfe=payload.chave_nfe||payload?.dados?.chave_nfe||payload?.dados?.chave_nf||null;
+  const ehRodonaves=/rodonaves/i.test(transportadora?.nome||"");
+  const statusColeta=String(payload.status_api||payload.status||"").toLowerCase();
+  const coletada=/coletad/.test(statusColeta);
+
+  // Rodonaves entra no monitoramento antes da coleta para detectar a viagem
+  // por protocolo/NF. Outras transportadoras entram automaticamente ao coletar.
+  if(!ehRodonaves&&!coletada)return;
+  if(!protocolo&&!numeroNfe&&!numeroCte&&!chaveNfe&&!coletada)return;
 
   const existente=await banco.from("logistica_rastreamentos")
-    .select("id")
-    .eq("protocolo_rastreio",payload.protocolo_cotacao)
+    .select("id,status")
+    .eq("coleta_agendamento_id",agendamentoId)
     .limit(1)
     .maybeSingle();
 
   const rastreioPayload={
     sentido:"saida",
-    parceiro_nome:payload.cliente_nome,
+    parceiro_nome:payload.cliente_nome||"Cliente",
     transportadora_id:payload.transportadora_id,
-    protocolo_rastreio:payload.protocolo_cotacao,
-    numero_nfe:payload.numero_nfe||payload?.dados?.numero_nf||payload?.dados?.numero_nfe||null,
-    chave_nfe:payload.chave_nfe||payload?.dados?.chave_nfe||null,
-    data_postagem:payload.data_programada?String(payload.data_programada).slice(0,10):null,
+    protocolo_rastreio:protocolo,
+    numero_nfe:numeroNfe,
+    chave_nfe:chaveNfe,
+    numero_cte:numeroCte,
+    data_postagem:coletada
+      ?String(payload.coletado_em||payload.data_programada||new Date().toISOString()).slice(0,10)
+      :(payload.data_programada?String(payload.data_programada).slice(0,10):null),
     volumes:payload.volumes||null,
-    status:["coletado","em_transito"].includes(payload.status)?"em_transito":"aguardando_coleta",
-    observacao:`Origem: ${origemExterna||"importacao_externa"}`,
-    coleta_agendamento_id:agendamentoId||null,
-    origem:"coleta_importada",
+    status:coletada?"em_transito":(existente.data?.status||"aguardando_coleta"),
+    observacao:`Origem da coleta: ${origemExterna||payload.origem||"sistema"}`,
+    coleta_agendamento_id:agendamentoId,
+    origem:"coleta_agendamento",
     atualizado_em:new Date().toISOString(),
-    atualizado_por:usuarioLogado?.login||null
+    atualizado_por:usuarioLogado?.login||"sistema"
   };
 
   const resultado=existente.data?.id
@@ -1329,7 +1438,6 @@ async function criarOuVincularRastreioDaColeta(agendamentoId,payload,origemExter
 
   if(resultado.error)console.warn("Não foi possível criar/vincular o rastreio:",resultado.error.message);
 }
-
 function statusLabelRastreamento(s){
   const m={aguardando_coleta:"Aguardando coleta",em_transito:"Em trânsito",na_filial:"Na filial",saiu_entrega:"Saiu para entrega",entregue:"Entregue",recebido:"Recebido",atrasado:"Atrasado",ocorrencia:"Com ocorrência",cancelado:"Cancelado"};
   return m[s]||String(s||"—").replace(/_/g," ");
