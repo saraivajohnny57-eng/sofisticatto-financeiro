@@ -2099,3 +2099,21 @@ html.modo-portal-publico .portal-conteudo{
   .coleta-grupo-resumo{grid-template-columns:repeat(2,1fr)}
   .novo-pedido-grid{grid-template-columns:1fr 1fr}
 }
+
+.rastreamento-acoes-topo{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px;
+  margin:8px 0 14px;
+}
+.status-atualizacao-rastreios{
+  font-size:12px;
+  font-weight:700;
+  color:#5b4bb2;
+}
+#btnAtualizarTodosRastreios:disabled,
+.linha-rastreamento-logistica .btn:disabled{
+  opacity:.65;
+  cursor:wait;
+}

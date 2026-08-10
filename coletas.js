@@ -1441,7 +1441,7 @@ async function carregarRastreamentosLogistica(sentido){
       ${x.metodo_consulta?`<div class="rastreio-metodo">Localizado por: ${escaparHtmlEmail(x.metodo_consulta)}</div>`:""}
     </td>
     <td>
-    ${/rodonaves/i.test(x.frete_transportadoras?.nome||"")&&(x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe)?`<button class="btn azul" onclick="atualizarRastreioRodonaves('${x.id}')">Atualizar rastreio</button>`:""}
+    ${/rodonaves/i.test(x.frete_transportadoras?.nome||"")&&(x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe)?`<button class="btn azul" onclick="atualizarRastreioRodonaves('${x.id}',this)">Atualizar rastreio</button>`:""}
     <button class="btn azul" onclick="abrirFormularioRastreamento('${sentido}','${x.id}')">Editar</button>
     ${!["entregue","recebido"].includes(x.status)?`<button class="btn verde" onclick="finalizarRastreamentoLogistica('${x.id}','${sentido}')">${sentido==="entrada"?"Marcar recebido":"Marcar entregue"}</button>`:""}
     <button class="btn vermelho" onclick="excluirRastreamentoLogistica('${x.id}','${sentido}')">Excluir</button></td></tr>`;
@@ -1449,31 +1449,163 @@ async function carregarRastreamentosLogistica(sentido){
   filtrarRastreamentosLogistica(sentido);
 }
 
-async function atualizarRastreioRodonaves(id){
-  const rastro=(rastreamentosLogistica||[]).find(x=>String(x.id)===String(id));
-  if(!rastro)return;
-  const chave=await chaveAdminColeta();
-  if(!chave)return alert("Informe a chave administrativa.");
+async function obterRastreamentoPorId(id){
+  const r=await banco.from("logistica_rastreamentos")
+    .select("*,frete_transportadoras(nome)")
+    .eq("id",id)
+    .maybeSingle();
+  if(r.error)throw r.error;
+  return r.data||null;
+}
 
-  const params=new URLSearchParams({action:"consultar-rastreio-rodonaves",registro_id:String(id)});
+async function consultarRastreioRodonavesRegistro(id,{silencioso=false,chave=null}={}){
+  const rastro=await obterRastreamentoPorId(id);
+  if(!rastro)throw new Error("Rastreio não encontrado no banco de dados.");
+
+  if(!/rodonaves/i.test(rastro.frete_transportadoras?.nome||"")){
+    throw new Error("Este registro não pertence à Rodonaves.");
+  }
+  if(!(rastro.protocolo_rastreio||rastro.numero_cte||rastro.numero_nfe||rastro.chave_nfe)){
+    throw new Error("O rastreio não possui protocolo, NF, CT-e ou chave NF-e para consulta.");
+  }
+
+  const chaveUsar=chave||await chaveAdminColeta();
+  if(!chaveUsar)throw new Error("Informe a chave administrativa.");
+
+  const params=new URLSearchParams({
+    action:"consultar-rastreio-rodonaves",
+    registro_id:String(id)
+  });
   if(rastro.protocolo_rastreio)params.set("protocolo",rastro.protocolo_rastreio);
   if(rastro.numero_cte)params.set("cte",rastro.numero_cte);
   if(rastro.numero_nfe)params.set("nfe",rastro.numero_nfe);
   if(rastro.chave_nfe)params.set("chave_nfe",rastro.chave_nfe);
 
+  const resposta=await fetch(`/api/integracoes?${params.toString()}`,{
+    headers:{"x-integrations-admin-key":chaveUsar}
+  });
+  const dados=await resposta.json().catch(()=>({}));
+  if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
+
+  return {rastro,dados};
+}
+
+async function atualizarRastreioRodonaves(id,botao=null){
+  const textoOriginal=botao?.textContent||"Atualizar rastreio";
+  if(botao){
+    botao.disabled=true;
+    botao.textContent="Atualizando...";
+  }
+
   try{
-    const resposta=await fetch(`/api/integracoes?${params.toString()}`,{
-      headers:{"x-integrations-admin-key":chave}
-    });
-    const dados=await resposta.json().catch(()=>({}));
-    if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
+    const {rastro,dados}=await consultarRastreioRodonavesRegistro(id);
     alert(`Rastreio atualizado.\n\nLocalizado por: ${dados.metodoConsulta||"consulta automática"}\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${dados.previsaoEntrega?`\nPrevisão: ${new Date(dados.previsaoEntrega).toLocaleDateString("pt-BR")}`:""}`);
+
+    // Recarrega somente o painel ao qual este registro pertence.
+    // Isso evita sobrescrever rastreamentosLogistica com a lista de Entradas.
     await carregarRastreamentosLogistica(rastro.sentido||"saida");
-    await carregarPainelRodonaves();
-    if(ce("rastreamentoTabelaSaidas"))await carregarRastreamentosLogistica("saida");
-    if(ce("rastreamentoTabelaEntradas"))await carregarRastreamentosLogistica("entrada");
+
+    // Se for saída vinculada a uma coleta, atualiza também o Painel de Coletas.
+    if((rastro.sentido||"saida")==="saida"){
+      await carregarPainelRodonaves();
+    }
   }catch(erro){
     alert("Não foi possível atualizar o rastreio: "+erro.message);
+  }finally{
+    if(botao&&document.body.contains(botao)){
+      botao.disabled=false;
+      botao.textContent=textoOriginal;
+    }
+  }
+}
+
+let atualizacaoTodosRastreiosEmAndamento=false;
+
+async function atualizarTodosRastreiosSaida(){
+  if(atualizacaoTodosRastreiosEmAndamento)return;
+
+  const botao=ce("btnAtualizarTodosRastreios");
+  const status=ce("statusAtualizarTodosRastreios");
+  const textoOriginal=botao?.textContent||"Atualizar todos os rastreios";
+
+  try{
+    atualizacaoTodosRastreiosEmAndamento=true;
+    if(botao){
+      botao.disabled=true;
+      botao.textContent="Preparando...";
+    }
+
+    const chave=await chaveAdminColeta();
+    if(!chave)throw new Error("Informe a chave administrativa.");
+
+    await carregarTransportadorasRastreamentoIntegrado();
+
+    const r=await banco.from("logistica_rastreamentos")
+      .select("id,status,protocolo_rastreio,numero_cte,numero_nfe,chave_nfe,frete_transportadoras(nome)")
+      .eq("sentido","saida")
+      .order("created_at",{ascending:false});
+    if(r.error)throw r.error;
+
+    // Atualiza somente rastreios que realmente possuem integração disponível.
+    // Na versão atual, a consulta automática implementada é a Rodonaves.
+    const lista=(r.data||[]).filter(x=>
+      transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome) &&
+      /rodonaves/i.test(x.frete_transportadoras?.nome||"") &&
+      (x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe) &&
+      !["cancelado"].includes(String(x.status||"").toLowerCase())
+    );
+
+    if(!lista.length){
+      if(status)status.textContent="Nenhum rastreio integrado disponível para atualizar.";
+      return;
+    }
+
+    let sucesso=0, erros=0, alterados=0;
+    const detalhes=[];
+
+    for(let i=0;i<lista.length;i++){
+      const item=lista[i];
+      if(botao)botao.textContent=`Atualizando ${i+1}/${lista.length}`;
+      if(status)status.textContent=`Consultando ${i+1} de ${lista.length} rastreios...`;
+
+      try{
+        const antes=String(item.status||"");
+        const {dados}=await consultarRastreioRodonavesRegistro(item.id,{
+          silencioso:true,
+          chave
+        });
+        sucesso++;
+        if(String(dados.status||"")!==antes)alterados++;
+      }catch(erro){
+        erros++;
+        detalhes.push(`${item.numero_nfe||item.numero_cte||item.protocolo_rastreio||item.id}: ${erro.message}`);
+      }
+
+      // Pequena pausa entre chamadas para evitar disparar várias requisições ao mesmo tempo.
+      if(i<lista.length-1)await new Promise(resolve=>setTimeout(resolve,250));
+    }
+
+    await carregarRastreamentosLogistica("saida");
+    await carregarPainelRodonaves();
+
+    const resumo=`Concluído: ${sucesso} atualizado(s), ${alterados} com mudança de status, ${erros} erro(s).`;
+    if(status)status.textContent=resumo;
+
+    if(erros){
+      console.warn("Falhas na atualização em lote:",detalhes);
+      alert(`${resumo}\n\nOs erros individuais foram registrados no Console.`);
+    }else{
+      alert(resumo);
+    }
+  }catch(erro){
+    if(status)status.textContent="Falha ao atualizar todos os rastreios.";
+    alert("Não foi possível atualizar todos os rastreios: "+erro.message);
+  }finally{
+    atualizacaoTodosRastreiosEmAndamento=false;
+    if(botao){
+      botao.disabled=false;
+      botao.textContent=textoOriginal;
+    }
   }
 }
 
