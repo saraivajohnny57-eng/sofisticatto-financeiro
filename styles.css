@@ -2117,3 +2117,14 @@ html.modo-portal-publico .portal-conteudo{
   opacity:.65;
   cursor:wait;
 }
+
+.coleta-identificadores-rastreio{margin:14px 0;padding:16px;border:1px solid #ddd4fb;border-radius:16px;background:#faf8ff}
+.coleta-identificadores-topo{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}
+.coleta-identificadores-topo b{display:block;color:#44368d;font-size:16px}
+.coleta-identificadores-topo small{display:block;margin-top:3px;color:#74699a}
+.coleta-identificadores-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.coleta-identificadores-grid label{display:block;font-size:11px;font-weight:700;color:#55449a;margin-bottom:4px}
+.coleta-identificadores-grid input{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #d8d0ef;border-radius:10px;background:#fff}
+.coleta-identificadores-status{min-height:18px;margin-top:10px;font-size:12px;font-weight:700;color:#4b3a96}
+.rast-detalhe{font-size:11px;margin-top:4px;color:#5f557b;max-width:260px}
+@media(max-width:900px){.coleta-identificadores-grid{grid-template-columns:1fr 1fr}}

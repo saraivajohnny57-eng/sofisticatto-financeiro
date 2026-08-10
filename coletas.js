@@ -59,7 +59,7 @@ Endereço de coleta: *{{endereco_origem}}*
 function ce(id){return document.getElementById(id)}
 function cv(id){return ce(id)?.value?.trim()||""}
 function coletaMoeda(v){let n=Number(String(v||"").replace(/\./g,"").replace(",","."));return Number.isFinite(n)&&n? n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}):""}
-function mostrarPainelColeta(p){["nova","historico","rodonaves","saidas","entradas","transportadoras","modelos"].forEach(x=>{ce("coletaPainel"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p);ce("coletaTab"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p)});if(p==="historico")montarHistoricoColetas();if(p==="rodonaves"){carregarPainelRodonaves();iniciarSincronizacaoAutomaticaColetas()}else{pararSincronizacaoAutomaticaColetas()}if(p==="saidas")carregarRastreamentosLogistica("saida");if(p==="entradas")carregarRastreamentosLogistica("entrada");if(p==="transportadoras")carregarTransportadorasLogistica();if(p==="modelos")montarModelosColeta()}
+function mostrarPainelColeta(p){["nova","historico","rodonaves","saidas","entregues","entradas","transportadoras","modelos"].forEach(x=>{ce("coletaPainel"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p);ce("coletaTab"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p)});if(p==="historico")montarHistoricoColetas();if(p==="rodonaves"){carregarPainelRodonaves();iniciarSincronizacaoAutomaticaColetas()}else{pararSincronizacaoAutomaticaColetas()}if(p==="saidas")carregarRastreamentosLogistica("saida");if(p==="entregues")carregarRastreamentosEntregues();if(p==="entradas")carregarRastreamentosLogistica("entrada");if(p==="transportadoras")carregarTransportadorasLogistica();if(p==="modelos")montarModelosColeta()}
 async function inicializarModuloColetas(){if(coletaInicializado){atualizarPreviaColeta();return}coletaInicializado=true;await Promise.all([carregarTransportadorasColeta(),carregarModelosColeta(),carregarAgendamentosColeta()]);montarClientesColeta();atualizarPreviaColeta()}
 async function carregarTransportadorasColeta(){const r=await banco.from("frete_transportadoras").select("*").order("nome");coletaTransportadoras=r.error?[]:r.data||[];const opts='<option value="">Selecione</option>'+coletaTransportadoras.map(t=>`<option value="${t.id}">${escaparHtmlEmail(t.nome||"")}</option>`).join("");ce("coletaTransportadoraId").innerHTML=opts;ce("coletaModeloTransportadoraId").innerHTML='<option value="">Modelo geral</option>'+opts.replace('<option value="">Selecione</option>','')}
 async function carregarModelosColeta(){const r=await banco.from("coleta_modelos").select("*").eq("ativo",true).order("nome");coletaModelos=r.error?[]:r.data||[];if(!coletaModelos.length)coletaModelos=COLETA_MODELOS_PADRAO.map((m,i)=>({id:`padrao-${i+1}`,...m,ativo:true}));ce("coletaModeloId").innerHTML=coletaModelos.map(m=>`<option value="${m.id}">${escaparHtmlEmail(m.nome)}</option>`).join("");montarModelosColeta()}
@@ -277,7 +277,12 @@ function montarHistoricoColetas(){
     <td><button class="btn azul" onclick="editarAgendamentoColeta('${a.id}')">Editar</button><button class="btn verde" onclick="copiarAgendamentoColeta('${a.id}')">Copiar</button>${a.codigo_coleta?`<button class="btn roxo" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar API</button>`:""}</td>
   </tr>`).join(""):'<tr><td colspan="10">Nenhum agendamento encontrado.</td></tr>';
 }
-function editarAgendamentoColeta(id){const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(!a)return;const d=a.dados||{};ce("coletaAgendamentoId").value=a.id;ce("coletaCotacaoId").value=a.cotacao_id||"";ce("coletaRespostaId").value=a.resposta_cotacao_id||"";ce("coletaClienteId").value=a.cliente_id||"";ce("coletaClienteBusca").value=a.cliente_nome||"";ce("coletaTransportadoraId").value=a.transportadora_id||"";if(a.modelo_id)ce("coletaModeloId").value=a.modelo_id;ce("coletaTipoFrete").value=a.tipo_frete||"CIF";const map={solicitante:"coletaSolicitante",telefone_origem:"coletaTelefoneOrigem",cnpj_origem:"coletaCnpjOrigem",razao_origem:"coletaRazaoOrigem",cep_origem:"coletaCepOrigem",endereco_origem:"coletaEnderecoOrigem",cnpj_destino:"coletaCnpjDestino",razao_destino:"coletaRazaoDestino",cep_destino:"coletaCepDestino",cidade_destino:"coletaCidadeDestino",volumes:"coletaVolumes",peso:"coletaPeso",numero_nf:"coletaNumeroNf",medidas:"coletaMedidas",natureza:"coletaNatureza",mercadoria:"coletaMercadoria",embalagem:"coletaEmbalagem",horario_limite:"coletaHorarioLimite",pausa:"coletaPausa",referencia:"coletaReferencia",localizacao:"coletaLocalizacao"};Object.entries(map).forEach(([k,id])=>{if(ce(id))ce(id).value=d[k]||""});ce("coletaObservacao").value=a.observacao||"";atualizarPreviaColeta();mostrarPainelColeta("nova")}
+function editarAgendamentoColeta(id){const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(!a)return;const d=a.dados||{};ce("coletaAgendamentoId").value=a.id;ce("coletaCotacaoId").value=a.cotacao_id||"";ce("coletaRespostaId").value=a.resposta_cotacao_id||"";ce("coletaClienteId").value=a.cliente_id||"";ce("coletaClienteBusca").value=a.cliente_nome||"";ce("coletaTransportadoraId").value=a.transportadora_id||"";if(a.modelo_id)ce("coletaModeloId").value=a.modelo_id;ce("coletaTipoFrete").value=a.tipo_frete||"CIF";const map={solicitante:"coletaSolicitante",telefone_origem:"coletaTelefoneOrigem",cnpj_origem:"coletaCnpjOrigem",razao_origem:"coletaRazaoOrigem",cep_origem:"coletaCepOrigem",endereco_origem:"coletaEnderecoOrigem",cnpj_destino:"coletaCnpjDestino",razao_destino:"coletaRazaoDestino",cep_destino:"coletaCepDestino",cidade_destino:"coletaCidadeDestino",volumes:"coletaVolumes",peso:"coletaPeso",numero_nf:"coletaNumeroNf",medidas:"coletaMedidas",natureza:"coletaNatureza",mercadoria:"coletaMercadoria",embalagem:"coletaEmbalagem",horario_limite:"coletaHorarioLimite",pausa:"coletaPausa",referencia:"coletaReferencia",localizacao:"coletaLocalizacao"};Object.entries(map).forEach(([k,id])=>{if(ce(id))ce(id).value=d[k]||""});ce("coletaObservacao").value=a.observacao||"";atualizarPreviaColeta();mostrarPainelColeta("nova")
+if(ce("coletaNumeroNfRastreio"))ce("coletaNumeroNfRastreio").value=a.numero_nf||a?.dados?.numero_nf||a?.dados?.numero_nfe||"";
+if(ce("coletaChaveNfeRastreio"))ce("coletaChaveNfeRastreio").value=a.chave_nfe||a?.dados?.chave_nfe||a?.dados?.chave_nf||"";
+if(ce("coletaNumeroCteRastreio"))ce("coletaNumeroCteRastreio").value=a.numero_cte||a?.dados?.numero_cte||"";
+if(ce("coletaProtocoloRastreio"))ce("coletaProtocoloRastreio").value=a.protocolo_rastreio||a.protocolo_cotacao||"";
+}
 async function copiarAgendamentoColeta(id){const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(a){await navigator.clipboard.writeText(a.mensagem||"");alert("Mensagem copiada.")}}
 async function alterarStatusColeta(id,status){const r=await banco.from("coleta_agendamentos").update({status,atualizado_em:new Date().toISOString()}).eq("id",id);if(r.error)alert(r.error.message);else carregarAgendamentosColeta()}
 function montarModelosColeta(){const box=ce("coletaListaModelos");if(!box)return;box.innerHTML=coletaModelos.map(m=>`<div class="coleta-modelo-card"><h3>${escaparHtmlEmail(m.nome)}</h3><p>${escaparHtmlEmail(m.texto)}</p><div class="email-acoes">${!String(m.id).startsWith("padrao-")?`<button class="btn azul" onclick="editarModeloColeta('${m.id}')">Editar</button><button class="btn vermelho" onclick="excluirModeloColeta('${m.id}')">Excluir</button>`:"<small>Modelo padrão</small>"}</div></div>`).join("")}
@@ -1416,7 +1421,8 @@ async function carregarRastreamentosLogistica(sentido){
   rastreamentosLogistica=r.error?[]:(r.data||[]);
   if(sentido==="saida"){
     rastreamentosLogistica=rastreamentosLogistica.filter(x=>
-      transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)
+      transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome) &&
+      !["entregue","recebido"].includes(String(x.status||"").toLowerCase())
     );
   }
   const entreguesStatus=sentido==="entrada"?"recebido":"entregue";
@@ -1447,6 +1453,155 @@ async function carregarRastreamentosLogistica(sentido){
     <button class="btn vermelho" onclick="excluirRastreamentoLogistica('${x.id}','${sentido}')">Excluir</button></td></tr>`;
   }).join(""):'<tr><td colspan="8">Nenhum registro encontrado.</td></tr>';
   filtrarRastreamentosLogistica(sentido);
+}
+
+
+let rastreamentosEntregues=[];
+
+async function salvarIdentificadoresERastrearColeta(){
+  const agendamentoId=cv("coletaAgendamentoId");
+  if(!agendamentoId)return alert("Abra primeiro uma coleta salva no Painel de Coletas.");
+  const coleta=(coletaAgendamentos||[]).find(x=>String(x.id)===String(agendamentoId));
+  if(!coleta)return alert("Coleta não encontrada.");
+
+  const numeroNf=cv("coletaNumeroNfRastreio").trim()||null;
+  const chaveNfe=cv("coletaChaveNfeRastreio").replace(/\D/g,"")||null;
+  const numeroCte=cv("coletaNumeroCteRastreio").trim()||null;
+  const protocolo=cv("coletaProtocoloRastreio").trim()||coleta.protocolo_cotacao||null;
+  const statusEl=ce("coletaIdentificadoresStatus");
+
+  if(!numeroNf&&!chaveNfe&&!numeroCte&&!protocolo){
+    return alert("Informe pelo menos NF, chave NF-e, CT-e ou protocolo.");
+  }
+
+  try{
+    if(statusEl)statusEl.textContent="Salvando identificadores...";
+    const dadosAtualizados={
+      ...(coleta.dados||{}),
+      numero_nf:numeroNf,numero_nfe:numeroNf,chave_nfe:chaveNfe,
+      numero_cte:numeroCte,protocolo_rastreio:protocolo
+    };
+    const up=await banco.from("coleta_agendamentos").update({
+      numero_nf:numeroNf,chave_nfe:chaveNfe,numero_cte:numeroCte,
+      protocolo_rastreio:protocolo,dados:dadosAtualizados,
+      atualizado_em:new Date().toISOString()
+    }).eq("id",agendamentoId).select().single();
+    if(up.error)throw up.error;
+
+    await criarOuVincularRastreioDaColeta(agendamentoId,{
+      ...coleta,...up.data,
+      numero_nf:numeroNf,numero_nfe:numeroNf,chave_nfe:chaveNfe,
+      numero_cte:numeroCte,protocolo_rastreio:protocolo,
+      protocolo_cotacao:protocolo||coleta.protocolo_cotacao
+    },"painel_coletas");
+
+    const existente=await localizarRastreamentoExistente({
+      sentido:"saida",transportadoraId:coleta.transportadora_id,
+      numeroNfe:numeroNf,chaveNfe,numeroCte,protocolo,
+      coletaAgendamentoId:agendamentoId
+    });
+
+    if(existente?.id && /rodonaves/i.test(coleta.frete_transportadoras?.nome||"")){
+      try{
+        const {dados}=await consultarRastreioRodonavesRegistro(existente.id,{silencioso:true});
+        if(statusEl)statusEl.textContent=`Rastreio localizado e atualizado: ${dados.statusBruto||statusLabelRastreamento(dados.status)||"OK"}`;
+      }catch(e){
+        if(statusEl)statusEl.textContent="Identificadores salvos. O rastreio ainda não retornou dados.";
+      }
+    }else if(statusEl){
+      statusEl.textContent="Identificadores salvos e vinculados.";
+    }
+
+    await carregarPainelRodonaves();
+    await carregarRastreamentosLogistica("saida");
+    await carregarRastreamentosEntregues();
+  }catch(e){
+    if(statusEl)statusEl.textContent="Falha ao salvar/rastrear.";
+    alert("Não foi possível salvar e rastrear: "+e.message);
+  }
+}
+
+async function carregarRastreamentosEntregues(){
+  await carregarTransportadorasRastreamentoIntegrado();
+  const r=await banco.from("logistica_rastreamentos")
+    .select("*,frete_transportadoras(nome)")
+    .eq("sentido","saida")
+    .in("status",["entregue","recebido"])
+    .order("ultima_ocorrencia_em",{ascending:false,nullsFirst:false})
+    .order("created_at",{ascending:false});
+  rastreamentosEntregues=r.error?[]:(r.data||[]).filter(x=>
+    transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)
+  );
+  renderRastreamentosEntregues();
+}
+
+function renderRastreamentosEntregues(){
+  const tbody=ce("rastreamentoTabelaEntregues");
+  if(!tbody)return;
+  const busca=String(cv("rastBusca_entregues")||"").toLowerCase().trim();
+  const lista=(rastreamentosEntregues||[]).filter(x=>!busca||[
+    x.parceiro_nome,x.frete_transportadoras?.nome,x.numero_nfe,x.chave_nfe,
+    x.numero_cte,x.protocolo_rastreio,x.status,x.ultima_ocorrencia
+  ].some(v=>String(v||"").toLowerCase().includes(busca)));
+
+  const hoje=new Date().toISOString().slice(0,10);
+  if(ce("rastResumoEntregues"))ce("rastResumoEntregues").textContent=lista.length;
+  if(ce("rastResumoEntreguesTotal"))ce("rastResumoEntreguesTotal").textContent=(rastreamentosEntregues||[]).length;
+  if(ce("rastResumoEntreguesHoje"))ce("rastResumoEntreguesHoje").textContent=(rastreamentosEntregues||[]).filter(x=>String(x.ultima_ocorrencia_em||x.atualizado_em||"").slice(0,10)===hoje).length;
+
+  tbody.innerHTML=lista.length?lista.map(x=>`
+    <tr>
+      <td>${x.data_postagem?new Date(x.data_postagem+"T12:00:00").toLocaleDateString("pt-BR"):"—"}</td>
+      <td>${escaparHtmlEmail(x.parceiro_nome||"—")}</td>
+      <td>${escaparHtmlEmail(x.frete_transportadoras?.nome||"—")}</td>
+      <td>${escaparHtmlEmail(x.numero_nfe||"—")}</td>
+      <td>${escaparHtmlEmail(x.numero_cte||x.protocolo_rastreio||"—")}</td>
+      <td>${x.ultima_ocorrencia_em?new Date(x.ultima_ocorrencia_em).toLocaleString("pt-BR"):"—"}</td>
+      <td><span class="status-rastreamento entregue">ENTREGUE</span>${x.ultima_ocorrencia?`<div class="rast-detalhe">${escaparHtmlEmail(x.ultima_ocorrencia)}</div>`:""}</td>
+      <td>
+        ${/rodonaves/i.test(x.frete_transportadoras?.nome||"")?`<button class="btn azul" onclick="atualizarRastreioEntregue('${x.id}',this)">Atualizar rastreio</button>`:""}
+        <button class="btn vermelho" onclick="excluirRastreamentoLogistica('${x.id}','saida')">Excluir</button>
+      </td>
+    </tr>`).join(""):'<tr><td colspan="8">Nenhuma mercadoria entregue encontrada.</td></tr>';
+}
+
+async function atualizarRastreioEntregue(id,botao=null){
+  const original=botao?.textContent||"Atualizar rastreio";
+  if(botao){botao.disabled=true;botao.textContent="Atualizando..."}
+  try{
+    await consultarRastreioRodonavesRegistro(id,{silencioso:true});
+    await carregarRastreamentosEntregues();
+  }catch(e){
+    alert("Não foi possível atualizar: "+e.message);
+  }finally{
+    if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original}
+  }
+}
+
+async function atualizarTodosRastreiosEntregues(){
+  const botao=ce("btnAtualizarTodosEntregues");
+  const status=ce("statusAtualizarTodosEntregues");
+  if(botao){botao.disabled=true;botao.textContent="Atualizando..."}
+  try{
+    await carregarRastreamentosEntregues();
+    const chave=await chaveAdminColeta();
+    if(!chave)throw new Error("Informe a chave administrativa.");
+    let ok=0,erro=0;
+    for(let i=0;i<rastreamentosEntregues.length;i++){
+      const x=rastreamentosEntregues[i];
+      if(!/rodonaves/i.test(x.frete_transportadoras?.nome||""))continue;
+      if(status)status.textContent=`Atualizando ${i+1}/${rastreamentosEntregues.length}...`;
+      try{await consultarRastreioRodonavesRegistro(x.id,{silencioso:true,chave});ok++}catch(e){erro++}
+      if(i<rastreamentosEntregues.length-1)await new Promise(r=>setTimeout(r,200));
+    }
+    await carregarRastreamentosEntregues();
+    if(status)status.textContent=`Concluído: ${ok} atualizado(s), ${erro} erro(s).`;
+  }catch(e){
+    if(status)status.textContent="Falha na atualização.";
+    alert(e.message);
+  }finally{
+    if(botao){botao.disabled=false;botao.textContent="🔄 Atualizar entregues"}
+  }
 }
 
 async function obterRastreamentoPorId(id){
@@ -1586,6 +1741,7 @@ async function atualizarTodosRastreiosSaida(){
     }
 
     await carregarRastreamentosLogistica("saida");
+    await carregarRastreamentosEntregues();
     await carregarPainelRodonaves();
 
     const resumo=`Concluído: ${sucesso} atualizado(s), ${alterados} com mudança de status, ${erros} erro(s).`;
