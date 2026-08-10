@@ -1068,7 +1068,7 @@ async function carregarPainelRodonaves(){
     const encerrada=["coletado","cancelado"].includes(s);
     const podeAtualizarManual=!rascunho&&!encerrada;
     const origemExterna=a?.dados?.origem_externa||a?.origem||"";
-    const textoBusca=[a.cliente_nome,a.frete_transportadoras?.nome,a.protocolo_cotacao,a.codigo_coleta,enderecoColetaPainel(a),statusLabelColeta(s),s,origemExterna].filter(Boolean).join(" ").toLowerCase();
+    const textoBusca=[a.cliente_nome,a.frete_transportadoras?.nome,a.numero_nf,a?.dados?.numero_nf,a?.dados?.numero_nfe,a.protocolo_cotacao,a.codigo_coleta,enderecoColetaPainel(a),statusLabelColeta(s),s,origemExterna].filter(Boolean).join(" ").toLowerCase();
     return `<tr class="linha-painel-coleta" data-status="${escaparHtmlEmail(s)}" data-busca="${escaparHtmlEmail(textoBusca)}">
       <td>${rascunho?`<input type="checkbox" class="coleta-check-rascunho" value="${a.id}" aria-label="Selecionar rascunho">`:""}</td>
       <td>${dataColetaPainel(a)?new Date(dataColetaPainel(a)).toLocaleString("pt-BR"):"—"}</td>
@@ -1083,6 +1083,7 @@ async function carregarPainelRodonaves(){
         ${a?.dados?.origem_externa?`<span class="coleta-manual-tag">Origem: ${escaparHtmlEmail(String(a.dados.origem_externa).replace(/_/g," "))}</span>`:""}
         ${!/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<span class="coleta-manual-tag">Atualização manual</span>`:""}
         ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&!codigoColetaPodeConsultar(a)?`<span class="coleta-manual-tag">${a.numero_nf||a?.dados?.numero_nf||a.protocolo_cotacao?"Monitorando pelo rastreio (protocolo/NF)":"Aguardando identificador"}</span>`:""}
+        ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<button class="btn azul" onclick="informarNfPainelColeta('${a.id}')">Informar NF / rastrear</button>`:""}
         ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&!codigoColetaPodeConsultar(a)?`<button class="btn roxo" onclick="abrirVinculoCodigoColeta('${a.id}')">Informar/vincular código</button>`:""}
         <button class="btn verde" onclick="editarAgendamentoColeta('${a.id}');mostrarPainelColeta('nova')">Abrir</button>
         <button class="btn azul" onclick="abrirPedidosDaColeta('${a.id}')">Pedidos (${contagemPedidos[a.id]||1})</button>
@@ -2324,6 +2325,107 @@ async function salvarImportacaoColetaExterna(){
   await carregarPainelRodonaves();
 }
 
+
+
+async function informarNfPainelColeta(id){
+  const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
+  if(!a)return alert("Coleta não encontrada.");
+
+  const atual=a.numero_nf||a?.dados?.numero_nf||a?.dados?.numero_nfe||"";
+  const informado=prompt(
+    "Informe o número da Nota Fiscal para localizar o rastreio desta coleta:",
+    atual
+  );
+  if(informado===null)return;
+
+  const numeroNf=String(informado||"").trim();
+  if(!numeroNf)return alert("Informe o número da Nota Fiscal.");
+
+  try{
+    const dadosAtualizados={
+      ...(a.dados||{}),
+      numero_nf:numeroNf,
+      numero_nfe:numeroNf
+    };
+
+    const up=await banco.from("coleta_agendamentos")
+      .update({
+        numero_nf:numeroNf,
+        dados:dadosAtualizados,
+        atualizado_em:new Date().toISOString()
+      })
+      .eq("id",id)
+      .select()
+      .single();
+
+    if(up.error)throw up.error;
+
+    const payload={
+      ...a,
+      ...up.data,
+      numero_nf:numeroNf,
+      numero_nfe:numeroNf,
+      dados:dadosAtualizados
+    };
+
+    await criarOuVincularRastreioDaColeta(
+      id,
+      payload,
+      a?.dados?.origem_externa||a?.origem||"painel_coletas"
+    );
+
+    const existente=await localizarRastreamentoExistente({
+      sentido:"saida",
+      transportadoraId:a.transportadora_id,
+      numeroNfe:numeroNf,
+      chaveNfe:a.chave_nfe||a?.dados?.chave_nfe||a?.dados?.chave_nf||null,
+      numeroCte:a.numero_cte||a?.dados?.numero_cte||null,
+      protocolo:a.protocolo_rastreio||a.protocolo_cotacao||null,
+      coletaAgendamentoId:id
+    });
+
+    if(!existente?.id){
+      await carregarPainelRodonaves();
+      return alert(
+        `NF ${numeroNf} salva na coleta.\n\n`+
+        "O registro de rastreio ainda não pôde ser localizado/criado."
+      );
+    }
+
+    let mensagem=`NF ${numeroNf} salva e vinculada ao rastreio.`;
+
+    if(/rodonaves/i.test(a.frete_transportadoras?.nome||"")){
+      try{
+        const {dados}=await consultarRastreioRodonavesRegistro(
+          existente.id,
+          {silencioso:true}
+        );
+        mensagem=
+          `NF ${numeroNf} localizada na Rodonaves.\n\n`+
+          `Status: ${dados.statusBruto||statusLabelRastreamento(dados.status)||"Atualizado"}`
+          +(dados.previsaoEntrega
+            ?`\nPrevisão: ${new Date(dados.previsaoEntrega).toLocaleDateString("pt-BR")}`
+            :"");
+      }catch(e){
+        mensagem=
+          `NF ${numeroNf} salva e vinculada.\n\n`+
+          "A Rodonaves ainda não retornou um rastreio para esta NF. "+
+          "Você poderá tentar novamente pelo botão Atualizar rastreio.";
+        console.warn("Consulta por NF no Painel de Coletas:",e);
+      }
+    }
+
+    await carregarPainelRodonaves();
+    await carregarRastreamentosLogistica("saida");
+    if(typeof carregarRastreamentosEntregues==="function"){
+      await carregarRastreamentosEntregues();
+    }
+
+    alert(mensagem);
+  }catch(e){
+    alert("Não foi possível salvar/rastrear pela NF: "+(e.message||e));
+  }
+}
 
 function abrirVinculoCodigoColeta(id){
   abrirImportacaoColetaExterna();
