@@ -1315,14 +1315,15 @@ async function salvarRastreamentoLogistica(sentido){
   const id=cv(`rastId_${sentido}`);
   const parceiro=cv(`rastParceiro_${sentido}`).trim();
   if(!parceiro)return alert(sentido==="entrada"?"Informe o fornecedor/remetente.":"Informe o cliente/destinatário.");
+
   const payload={
     sentido,
     parceiro_nome:parceiro,
     transportadora_id:cv(`rastTransportadora_${sentido}`)||null,
-    numero_nfe:cv(`rastNfe_${sentido}`)||null,
+    numero_nfe:cv(`rastNfe_${sentido}`).trim()||null,
     chave_nfe:cv(`rastChave_${sentido}`).replace(/\D/g,"")||null,
-    numero_cte:cv(`rastCte_${sentido}`)||null,
-    protocolo_rastreio:cv(`rastProtocolo_${sentido}`)||null,
+    numero_cte:cv(`rastCte_${sentido}`).trim()||null,
+    protocolo_rastreio:cv(`rastProtocolo_${sentido}`).trim()||null,
     data_postagem:cv(`rastData_${sentido}`)||null,
     previsao_entrega:cv(`rastPrevisao_${sentido}`)||null,
     volumes:Number(cv(`rastVolumes_${sentido}`))||null,
@@ -1331,10 +1332,77 @@ async function salvarRastreamentoLogistica(sentido){
     atualizado_em:new Date().toISOString(),
     atualizado_por:usuarioLogado?.login||null
   };
-  const r=id
-    ?await banco.from("logistica_rastreamentos").update(payload).eq("id",id)
-    :await banco.from("logistica_rastreamentos").insert([payload]);
-  if(r.error)return alert(r.error.message);
+
+  // Ao EDITAR, o próprio registro aberto é sempre a base.
+  // Procuramos outro registro com a mesma NF/chave/CT-e/protocolo apenas para consolidar.
+  if(id){
+    const atual=(rastreamentosLogistica||[]).find(x=>String(x.id)===String(id));
+    const duplicado=await localizarRastreamentoExistente({
+      id,
+      sentido,
+      transportadoraId:payload.transportadora_id,
+      numeroNfe:payload.numero_nfe,
+      chaveNfe:payload.chave_nfe,
+      numeroCte:payload.numero_cte,
+      protocolo:payload.protocolo_rastreio,
+      coletaAgendamentoId:atual?.coleta_agendamento_id||null
+    });
+
+    const consolidado={
+      ...payload,
+      coleta_agendamento_id:atual?.coleta_agendamento_id||duplicado?.coleta_agendamento_id||null,
+      origem:atual?.origem||duplicado?.origem||null,
+      status_api:atual?.status_api||duplicado?.status_api||null,
+      ultima_ocorrencia:atual?.ultima_ocorrencia||duplicado?.ultima_ocorrencia||null,
+      ultima_ocorrencia_em:atual?.ultima_ocorrencia_em||duplicado?.ultima_ocorrencia_em||null,
+      consulta_api:atual?.consulta_api||duplicado?.consulta_api||null,
+      consultado_api_em:atual?.consultado_api_em||duplicado?.consultado_api_em||null,
+      metodo_consulta:atual?.metodo_consulta||duplicado?.metodo_consulta||null,
+      sincronizacao_erro:null
+    };
+
+    // Se o duplicado possui um vínculo de coleta e o atual ainda não,
+    // removemos o duplicado primeiro para não bater no índice único do vínculo.
+    if(duplicado?.id&&duplicado.coleta_agendamento_id&&!atual?.coleta_agendamento_id){
+      const del=await banco.from("logistica_rastreamentos").delete().eq("id",duplicado.id);
+      if(del.error)return alert("Não foi possível consolidar o rastreio duplicado: "+del.error.message);
+    }
+
+    const upd=await banco.from("logistica_rastreamentos").update(consolidado).eq("id",id);
+    if(upd.error)return alert(upd.error.message);
+
+    if(duplicado?.id&&!(duplicado.coleta_agendamento_id&&!atual?.coleta_agendamento_id)){
+      await banco.from("logistica_rastreamentos").delete().eq("id",duplicado.id);
+    }
+
+    // A função SQL também faz uma segunda conferência contra duplicidades antigas.
+    try{await banco.rpc("fn_deduplicar_rastreamento",{p_id:id})}catch(e){console.warn(e)}
+  }else{
+    // Novo cadastro: se já houver um rastreio com algum identificador igual,
+    // atualiza o existente em vez de inserir outro.
+    const existente=await localizarRastreamentoExistente({
+      sentido,
+      transportadoraId:payload.transportadora_id,
+      numeroNfe:payload.numero_nfe,
+      chaveNfe:payload.chave_nfe,
+      numeroCte:payload.numero_cte,
+      protocolo:payload.protocolo_rastreio
+    });
+
+    const r=existente?.id
+      ?await banco.from("logistica_rastreamentos").update({
+          ...payload,
+          coleta_agendamento_id:existente.coleta_agendamento_id||null,
+          origem:existente.origem||null
+        }).eq("id",existente.id)
+      :await banco.from("logistica_rastreamentos").insert([payload]);
+
+    if(r.error)return alert(r.error.message);
+    if(existente?.id){
+      try{await banco.rpc("fn_deduplicar_rastreamento",{p_id:existente.id})}catch(e){console.warn(e)}
+    }
+  }
+
   fecharFormularioRastreamento(sentido);
   await carregarRastreamentosLogistica(sentido);
 }
@@ -1405,6 +1473,39 @@ async function atualizarRastreioRodonaves(id){
   }
 }
 
+async function localizarRastreamentoExistente({id=null,sentido="saida",transportadoraId=null,numeroNfe=null,chaveNfe=null,numeroCte=null,protocolo=null,coletaAgendamentoId=null}={}){
+  if(coletaAgendamentoId){
+    const r=await banco.from("logistica_rastreamentos")
+      .select("*")
+      .eq("coleta_agendamento_id",coletaAgendamentoId)
+      .limit(1)
+      .maybeSingle();
+    if(!r.error&&r.data)return r.data;
+  }
+
+  const tentativas=[
+    ["chave_nfe",String(chaveNfe||"").replace(/\D/g,"")],
+    ["numero_cte",String(numeroCte||"").trim()],
+    ["numero_nfe",String(numeroNfe||"").trim()],
+    ["protocolo_rastreio",String(protocolo||"").trim()]
+  ].filter(x=>x[1]);
+
+  for(const [campo,valor] of tentativas){
+    let q=banco.from("logistica_rastreamentos")
+      .select("*")
+      .eq("sentido",sentido)
+      .eq(campo,valor);
+    if(transportadoraId)q=q.eq("transportadora_id",transportadoraId);
+    if(id)q=q.neq("id",id);
+    const r=await q.order("consultado_api_em",{ascending:false,nullsFirst:false})
+      .order("created_at",{ascending:false})
+      .limit(1)
+      .maybeSingle();
+    if(!r.error&&r.data)return r.data;
+  }
+  return null;
+}
+
 async function criarOuVincularRastreioDaColeta(agendamentoId,payload,origemExterna){
   if(!payload?.transportadora_id||!agendamentoId)return;
 
@@ -1420,30 +1521,34 @@ async function criarOuVincularRastreioDaColeta(agendamentoId,payload,origemExter
   const statusColeta=String(payload.status_api||payload.status||"").toLowerCase();
   const coletada=/coletad/.test(statusColeta);
 
-  // Rodonaves entra no monitoramento antes da coleta para detectar a viagem
-  // por protocolo/NF. Outras transportadoras entram automaticamente ao coletar.
   if(!ehRodonaves&&!coletada)return;
   if(!protocolo&&!numeroNfe&&!numeroCte&&!chaveNfe&&!coletada)return;
 
-  const existente=await banco.from("logistica_rastreamentos")
-    .select("id,status")
-    .eq("coleta_agendamento_id",agendamentoId)
-    .limit(1)
-    .maybeSingle();
+  const existente=await localizarRastreamentoExistente({
+    sentido:"saida",
+    transportadoraId:payload.transportadora_id,
+    numeroNfe,
+    chaveNfe,
+    numeroCte,
+    protocolo,
+    coletaAgendamentoId:agendamentoId
+  });
 
   const rastreioPayload={
     sentido:"saida",
-    parceiro_nome:payload.cliente_nome||"Cliente",
+    parceiro_nome:payload.cliente_nome||existente?.parceiro_nome||"Cliente",
     transportadora_id:payload.transportadora_id,
-    protocolo_rastreio:protocolo,
-    numero_nfe:numeroNfe,
-    chave_nfe:chaveNfe,
-    numero_cte:numeroCte,
+    protocolo_rastreio:protocolo||existente?.protocolo_rastreio||null,
+    numero_nfe:numeroNfe||existente?.numero_nfe||null,
+    chave_nfe:String(chaveNfe||existente?.chave_nfe||"").replace(/\D/g,"")||null,
+    numero_cte:numeroCte||existente?.numero_cte||null,
     data_postagem:coletada
       ?String(payload.coletado_em||payload.data_programada||new Date().toISOString()).slice(0,10)
-      :(payload.data_programada?String(payload.data_programada).slice(0,10):null),
-    volumes:payload.volumes||null,
-    status:coletada?"em_transito":(existente.data?.status||"aguardando_coleta"),
+      :(payload.data_programada?String(payload.data_programada).slice(0,10):existente?.data_postagem||null),
+    volumes:payload.volumes||existente?.volumes||null,
+    status:coletada
+      ?(["entregue","recebido"].includes(existente?.status)?existente.status:"em_transito")
+      :(existente?.status||"aguardando_coleta"),
     observacao:`Origem da coleta: ${origemExterna||payload.origem||"sistema"}`,
     coleta_agendamento_id:agendamentoId,
     origem:"coleta_agendamento",
@@ -1451,208 +1556,14 @@ async function criarOuVincularRastreioDaColeta(agendamentoId,payload,origemExter
     atualizado_por:usuarioLogado?.login||"sistema"
   };
 
-  const resultado=existente.data?.id
-    ?await banco.from("logistica_rastreamentos").update(rastreioPayload).eq("id",existente.data.id)
+  const resultado=existente?.id
+    ?await banco.from("logistica_rastreamentos").update(rastreioPayload).eq("id",existente.id)
     :await banco.from("logistica_rastreamentos").insert([rastreioPayload]);
 
-  if(resultado.error)console.warn("Não foi possível criar/vincular o rastreio:",resultado.error.message);
-}
-
-function moedaNumeroColeta(v){
-  const s=String(v??"").trim().replace(/\s/g,"");
-  if(!s)return 0;
-  if(s.includes(",")&&s.includes("."))return Number(s.replace(/\./g,"").replace(",", "."))||0;
-  return Number(s.replace(",", "."))||0;
-}
-function formatarPesoColeta(v){
-  return Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:3});
-}
-function formatarMoedaColeta(v){
-  return Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
-}
-async function carregarPedidosVinculadosColeta(agendamentoId){
-  const r=await banco.from("coleta_pedidos_vinculados")
-    .select("*")
-    .eq("agendamento_id",agendamentoId)
-    .order("principal",{ascending:false})
-    .order("created_at",{ascending:true});
-  if(r.error)throw r.error;
-  pedidosVinculadosColeta=r.data||[];
-  return pedidosVinculadosColeta;
-}
-function resumoPedidosVinculados(lista){
-  return (lista||[]).reduce((a,p)=>({
-    pedidos:a.pedidos+1,
-    volumes:a.volumes+(Number(p.volumes)||0),
-    peso:a.peso+(Number(p.peso)||0),
-    valor:a.valor+(Number(p.valor_nf)||0)
-  }),{pedidos:0,volumes:0,peso:0,valor:0});
-}
-async function abrirPedidosDaColeta(id){
-  const coleta=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
-  if(!coleta)return;
-  let lista=[];
-  try{lista=await carregarPedidosVinculadosColeta(id)}
-  catch(e){return alert("Não foi possível carregar os pedidos vinculados: "+e.message)}
-
-  const resumo=resumoPedidosVinculados(lista);
-  document.getElementById("modalPedidosColeta")?.remove();
-  const overlay=document.createElement("div");
-  overlay.id="modalPedidosColeta";
-  overlay.className="modal-pedidos-coleta-overlay";
-  overlay.innerHTML=`
-    <div class="modal-pedidos-coleta">
-      <div class="modal-pedidos-coleta-topo">
-        <div>
-          <h2>📦 Pedidos da mesma coleta</h2>
-          <div class="modal-pedidos-subtitulo">
-            ${escaparHtmlEmail(coleta.frete_transportadoras?.nome||"Transportadora")} •
-            ${escaparHtmlEmail(coleta.protocolo_cotacao||coleta.codigo_coleta||"sem protocolo")}
-          </div>
-        </div>
-        <button class="btn roxo" onclick="fecharPedidosDaColeta()">Fechar</button>
-      </div>
-
-      <div class="coleta-grupo-resumo">
-        <div><small>Pedidos</small><b id="pedGrupoQtd">${resumo.pedidos}</b></div>
-        <div><small>Volumes</small><b id="pedGrupoVolumes">${resumo.volumes}</b></div>
-        <div><small>Peso total</small><b id="pedGrupoPeso">${formatarPesoColeta(resumo.peso)} kg</b></div>
-        <div><small>Valor NF</small><b id="pedGrupoValor">${formatarMoedaColeta(resumo.valor)}</b></div>
-      </div>
-
-      ${coleta.ajuste_carga_pendente?`
-        <div class="aviso-ajuste-coleta">
-          ⚠️ A carga foi alterada depois da solicitação da coleta.
-          O sistema atualizou os totais internamente, mas a transportadora ainda precisa confirmar o ajuste.
-          <button class="btn verde" onclick="confirmarAjusteCargaColeta('${id}')">Marcar ajuste confirmado</button>
-        </div>`:""}
-
-      <div class="tabela-pedidos-coleta-wrap">
-        <table class="tabela-pedidos-coleta">
-          <thead><tr>
-            <th>Cliente</th><th>NF</th><th>Volumes</th><th>Peso</th><th>Valor NF</th><th></th>
-          </tr></thead>
-          <tbody id="pedidosColetaLista">
-            ${lista.length?lista.map(p=>`
-              <tr>
-                <td>${p.principal?'<span class="pedido-principal-tag">Principal</span> ':''}${escaparHtmlEmail(p.cliente_nome||"—")}</td>
-                <td>${escaparHtmlEmail(p.numero_nf||"—")}</td>
-                <td>${Number(p.volumes)||0}</td>
-                <td>${formatarPesoColeta(p.peso)} kg</td>
-                <td>${formatarMoedaColeta(p.valor_nf)}</td>
-                <td>${p.principal?"":`<button class="btn vermelho" onclick="excluirPedidoVinculadoColeta('${p.id}','${id}')">Remover</button>`}</td>
-              </tr>`).join(""):'<tr><td colspan="6">Nenhum pedido vinculado.</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-
-      <div class="novo-pedido-coleta">
-        <h3>+ Vincular outro pedido a esta coleta</h3>
-        <div class="novo-pedido-grid">
-          <div><label>Cliente</label><input id="pedVincCliente" placeholder="Ex.: LITORAL MODA ÍNTIMA"></div>
-          <div><label>Nº da NF</label><input id="pedVincNf" placeholder="Número da nota"></div>
-          <div><label>Volumes</label><input id="pedVincVolumes" type="number" min="1" step="1"></div>
-          <div><label>Peso (kg)</label><input id="pedVincPeso" inputmode="decimal" placeholder="266,00"></div>
-          <div><label>Valor da NF</label><input id="pedVincValor" inputmode="decimal" placeholder="0,00"></div>
-          <div><label>Observação</label><input id="pedVincObs" placeholder="Opcional"></div>
-        </div>
-        <div class="novo-pedido-acoes">
-          <button class="btn verde" onclick="salvarPedidoVinculadoColeta('${id}')">Vincular pedido</button>
-        </div>
-        <div class="nota-integracao-coleta">
-          <b>Importante:</b> o vínculo agrupa os pedidos na mesma coleta física dentro da Sofisticatto.
-          Se a coleta já foi enviada à transportadora, o sistema marca o ajuste como pendente porque
-          a API da transportadora pode não permitir alterar uma solicitação já criada.
-        </div>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-}
-function fecharPedidosDaColeta(){
-  document.getElementById("modalPedidosColeta")?.remove();
-}
-async function salvarPedidoVinculadoColeta(agendamentoId){
-  const cliente=cv("pedVincCliente");
-  const volumes=Number(cv("pedVincVolumes"))||0;
-  const peso=moedaNumeroColeta(cv("pedVincPeso"));
-  if(!cliente)return alert("Informe o cliente do novo pedido.");
-  if(volumes<=0)return alert("Informe a quantidade de volumes.");
-  if(peso<=0)return alert("Informe o peso do pedido.");
-
-  const payload={
-    agendamento_id:agendamentoId,
-    cliente_nome:cliente,
-    numero_nf:cv("pedVincNf")||null,
-    volumes,
-    peso,
-    valor_nf:moedaNumeroColeta(cv("pedVincValor"))||null,
-    observacao:cv("pedVincObs")||null,
-    principal:false,
-    criado_por:usuarioLogado?.login||null
-  };
-  const r=await banco.from("coleta_pedidos_vinculados").insert([payload]);
-  if(r.error)return alert(r.error.message);
-
-  await carregarAgendamentosColeta();
-  await abrirPedidosDaColeta(agendamentoId);
-  await carregarPainelRodonaves();
-
-  const coleta=(coletaAgendamentos||[]).find(x=>String(x.id)===String(agendamentoId));
-  if(coleta?.ajuste_carga_pendente){
-    alert("Pedido vinculado com sucesso.\n\nOs totais da coleta foram atualizados no sistema. Como a coleta já havia sido solicitada, ficou marcado: AJUSTE PENDENTE NA TRANSPORTADORA.");
-  }else{
-    alert("Pedido vinculado. Os volumes e o peso total da coleta foram atualizados automaticamente.");
+  if(resultado.error){
+    console.warn("Não foi possível criar/vincular o rastreio:",resultado.error.message);
   }
 }
-async function excluirPedidoVinculadoColeta(pedidoId,agendamentoId){
-  if(!confirm("Remover este pedido da coleta?"))return;
-  const r=await banco.from("coleta_pedidos_vinculados").delete().eq("id",pedidoId).eq("principal",false);
-  if(r.error)return alert(r.error.message);
-  await carregarAgendamentosColeta();
-  await abrirPedidosDaColeta(agendamentoId);
-  await carregarPainelRodonaves();
-}
-async function confirmarAjusteCargaColeta(agendamentoId){
-  if(!confirm("Confirmar que a transportadora foi avisada e aceitou os novos volumes/peso desta coleta?"))return;
-  const r=await banco.from("coleta_agendamentos").update({
-    ajuste_carga_pendente:false,
-    ajuste_carga_confirmado_em:new Date().toISOString(),
-    atualizado_em:new Date().toISOString()
-  }).eq("id",agendamentoId);
-  if(r.error)return alert(r.error.message);
-  await carregarAgendamentosColeta();
-  await abrirPedidosDaColeta(agendamentoId);
-  await carregarPainelRodonaves();
-}
-
-async function carregarTransportadorasRastreamentoIntegrado(){
-  try{
-    const r=await banco.from("transportadora_integracoes")
-      .select("transportadora_nome,status_tecnico,rastreamento_ativo")
-      .eq("rastreamento_ativo",true);
-    if(r.error)throw r.error;
-    transportadorasRastreamentoIntegrado=(r.data||[]).filter(
-      x=>String(x.status_tecnico||"").toLowerCase()!=="suspensa"
-    );
-  }catch(e){
-    console.warn("Não foi possível carregar transportadoras integradas:",e.message);
-    transportadorasRastreamentoIntegrado=[];
-  }
-}
-function nomeNormalizadoTransportadora(v){
-  return String(v||"")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-    .toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
-}
-function transportadoraTemRastreamentoIntegrado(nome){
-  const n=nomeNormalizadoTransportadora(nome);
-  if(!n)return false;
-  return transportadorasRastreamentoIntegrado.some(i=>{
-    const x=nomeNormalizadoTransportadora(i.transportadora_nome);
-    return x&&(n.includes(x)||x.includes(n));
-  });
-}
-
 function statusLabelRastreamento(s){
   const m={aguardando_coleta:"Aguardando coleta",em_transito:"Em trânsito",na_filial:"Na filial",saiu_entrega:"Saiu para entrega",entregue:"Entregue",recebido:"Recebido",atrasado:"Atrasado",ocorrencia:"Com ocorrência",cancelado:"Cancelado"};
   return m[s]||String(s||"—").replace(/_/g," ");
