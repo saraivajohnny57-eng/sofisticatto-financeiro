@@ -191,15 +191,79 @@ async function registrarSolicitacaoCanalExternoColeta(canal){
   return r.data;
 }
 
+/* =========================================================
+   V36 — FLUXO COTAÇÃO → COLETA → ETIQUETA / XML
+   Depois que a solicitação de coleta é efetivamente registrada,
+   oferece continuar diretamente para a emissão da etiqueta.
+   ========================================================= */
+function contextoEtiquetaDaColeta(registro){
+  const d=(registro&&registro.dados)||dadosColeta()||{};
+  const transportadora=coletaTransportadoraAtual();
+  return {
+    agendamento_id:(registro&&registro.id)||cv("coletaAgendamentoId")||"",
+    cotacao_id:(registro&&registro.cotacao_id)||cv("coletaCotacaoId")||"",
+    cliente_id:(registro&&registro.cliente_id)||cv("coletaClienteId")||"",
+    cliente_nome:(registro&&registro.cliente_nome)||d.razao_destino||cv("coletaRazaoDestino")||"",
+    numero_nf:(registro&&registro.numero_nf)||d.numero_nf||cv("coletaNumeroNf")||"",
+    volumes:(registro&&registro.volumes)||d.volumes||cv("coletaVolumes")||"",
+    transportadora:(transportadora&&transportadora.nome)||""
+  };
+}
+
+function preencherEtiquetaComContextoColeta(ctx){
+  if(!ctx)return;
+  const set=(id,valor)=>{const el=ce(id);if(el&&valor!==undefined&&valor!==null&&String(valor)!=="")el.value=valor;};
+  set("etqCliente",ctx.cliente_nome);
+  set("etqNf",ctx.numero_nf);
+  set("etqVolumes",ctx.volumes);
+  set("etqTransportadora",ctx.transportadora);
+  try{ if(typeof atualizarPreviewEtiqueta==="function") atualizarPreviewEtiqueta(); }catch(_e){}
+}
+
+async function abrirEtiquetaAposColeta(registro){
+  const ctx=contextoEtiquetaDaColeta(registro);
+  try{sessionStorage.setItem("sofisticatto_etiqueta_coleta_pendente",JSON.stringify(ctx));}catch(_e){}
+
+  mostrarAbaEmail("etiquetas");
+  if(typeof inicializarModuloEtiquetas==="function"){
+    try{await inicializarModuloEtiquetas();}catch(_e){}
+  }
+  preencherEtiquetaComContextoColeta(ctx);
+
+  // O navegador exige que o arquivo seja escolhido pelo próprio usuário.
+  // Portanto abrimos e destacamos exatamente a área do XML, sem tentar ler
+  // arquivos do computador automaticamente.
+  setTimeout(()=>{
+    const xml=ce("etqXml");
+    if(!xml)return;
+    xml.scrollIntoView({behavior:"smooth",block:"center"});
+    xml.focus({preventScroll:true});
+    const bloco=xml.closest("div");
+    if(bloco){
+      bloco.classList.add("fluxo-etiqueta-xml-destaque");
+      setTimeout(()=>bloco.classList.remove("fluxo-etiqueta-xml-destaque"),5000);
+    }
+    mostrarBalaoSistema("Próxima etapa: etiqueta",ctx.numero_nf?`Selecione o XML da NF ${ctx.numero_nf}. Os dados da coleta já foram levados para a etiqueta.`:"Selecione o XML da NF-e para preencher e emitir a etiqueta.");
+  },250);
+}
+
+async function perguntarEtiquetaAposConfirmarColeta(registro){
+  const ctx=contextoEtiquetaDaColeta(registro);
+  const nf=ctx.numero_nf?`\nNF: ${ctx.numero_nf}`:"";
+  const deseja=confirm(`Coleta registrada com sucesso.${nf}\n\nDeseja emitir a etiqueta desta mercadoria agora?`);
+  if(deseja)await abrirEtiquetaAposColeta(registro);
+}
+
 async function abrirWhatsAppColeta(){
   try{
-    await registrarSolicitacaoCanalExternoColeta("whatsapp");
+    const registro=await registrarSolicitacaoCanalExternoColeta("whatsapp");
     atualizarPreviaColeta();
     const tel=whatsappTransportadoraColeta();
     const url=tel
       ?`https://wa.me/55${tel.replace(/^55/,"")}?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`
       :`https://wa.me/?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`;
     window.open(url,"_blank");
+    await perguntarEtiquetaAposConfirmarColeta(registro);
   }catch(erro){
     alert("Não foi possível registrar a solicitação antes de abrir o WhatsApp: "+erro.message);
   }
@@ -207,17 +271,19 @@ async function abrirWhatsAppColeta(){
 
 async function registrarColetaViaPortalTransportadora(){
   try{
-    await registrarSolicitacaoCanalExternoColeta("portal_transportadora");
+    const registro=await registrarSolicitacaoCanalExternoColeta("portal_transportadora");
     mostrarBalaoSistema("Solicitação registrada","Registrada como enviada pelo portal da transportadora.");
     await carregarPainelRodonaves();
+    await perguntarEtiquetaAposConfirmarColeta(registro);
   }catch(erro){alert("Não foi possível registrar: "+erro.message)}
 }
 
 async function registrarColetaViaTelefone(){
   try{
-    await registrarSolicitacaoCanalExternoColeta("telefone");
+    const registro=await registrarSolicitacaoCanalExternoColeta("telefone");
     mostrarBalaoSistema("Solicitação registrada","Registrada como solicitada por telefone.");
     await carregarPainelRodonaves();
+    await perguntarEtiquetaAposConfirmarColeta(registro);
   }catch(erro){alert("Não foi possível registrar: "+erro.message)}
 }
 async function salvarAgendamentoColeta(){
@@ -645,6 +711,8 @@ async function agendarColetaRodonavesPorProtocolo(){
 
     await carregarAgendamentosColeta();
     mostrarBalaoSistema("Coleta Rodonaves solicitada",dados.pickup_id?`Código ${dados.pickup_id}`:"Solicitação registrada");
+    const registroConfirmado=(coletaAgendamentos||[]).find(x=>String(x.id)===String(dados.agendamento_id||id))||{id:dados.agendamento_id||id,dados:dadosColeta(),numero_nf:cv("coletaNumeroNf")};
+    await perguntarEtiquetaAposConfirmarColeta(registroConfirmado);
   }catch(erro){
     console.error("Agendamento Rodonaves:",erro);
     resultadoApiColeta("erro","Não foi possível agendar:\n"+erro.message);
