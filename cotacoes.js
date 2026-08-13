@@ -104,6 +104,21 @@ function respostaAtualFrete(transportadoraId, tipoFrete){
   );
 }
 
+async function solicitarCompletarDestinatarioRodonaves(dados, camposFaltantes=[]){
+  const cliente=(typeof clienteFretePorId==="function"&&clienteFretePorId(dados.cliente_id))||(typeof clienteFretePorNome==="function"&&clienteFretePorNome(dados.cliente_nome))||null;
+  const faltam=new Set(camposFaltantes||[]);
+  const pedir=(campo,rotulo,atual="")=>{if(!faltam.has(campo))return atual||"";const v=prompt(`Rodonaves precisa de ${rotulo} para cadastrar o destinatário:\n\n${dados.cliente_nome||"Cliente"}`,atual||"");if(v===null)throw new Error("Cadastro do destinatário cancelado.");return String(v).trim();};
+  let email=Array.isArray(cliente?.emails)?(cliente.emails.find(Boolean)||""):(cliente?.email||"");
+  let telefone=cliente?.telefone||cliente?.celular||"", numero=cliente?.numero||"", logradouro=cliente?.endereco||dados.logradouro_destino||"", complemento=cliente?.complemento||"", bairro=cliente?.bairro||dados.bairro_destino||"", cidade=cliente?.cidade||dados.cidade_destino||"", uf=cliente?.uf||dados.uf_destino||"", cep=cliente?.cep||dados.cep_destino||"";
+  email=pedir("email","E-MAIL",email); telefone=pedir("telefone","TELEFONE com DDD",telefone); numero=pedir("numero","NÚMERO DO ENDEREÇO",numero); logradouro=pedir("logradouro","LOGRADOURO",logradouro); bairro=pedir("bairro","BAIRRO",bairro); cidade=pedir("cidade","CIDADE",cidade); uf=pedir("uf","UF",uf).toUpperCase(); cep=pedir("cep","CEP",cep);
+  const valores={email,telefone,numero,logradouro,bairro,cidade,uf,cep}; for(const campo of faltam){if(!String(valores[campo]||"").trim())throw new Error(`O campo ${campo} é obrigatório para a Rodonaves.`);}
+  if(cliente?.id&&typeof banco!=="undefined"){
+    const payload={}; if(email)payload.emails=[email];if(telefone)payload.telefone=telefone;if(numero)payload.numero=numero;if(logradouro)payload.endereco=logradouro;if(complemento)payload.complemento=complemento;if(bairro)payload.bairro=bairro;if(cidade)payload.cidade=cidade;if(uf)payload.uf=uf;if(cep)payload.cep=cep;
+    const salvo=await banco.from("email_clientes").update(payload).eq("id",cliente.id).select().single(); if(salvo.error)throw new Error("Não foi possível salvar os dados do cliente: "+salvo.error.message); const i=(emailClientes||[]).findIndex(c=>String(c.id)===String(cliente.id));if(i>=0)emailClientes[i]=salvo.data;
+  }
+  return {...dados,email_destino:email,telefone_destino:telefone,numero_destino:numero,logradouro_destino:logradouro,complemento_destino:complemento,bairro_destino:bairro,cidade_destino:cidade,uf_destino:uf,cep_destino:cep};
+}
+
 function dadosFormularioFrete(){
   const clienteSelecionado =
     (typeof clienteFretePorId==="function" && clienteFretePorId(freteValor("freteCliente"))) ||
@@ -390,7 +405,7 @@ async function obterChaveIntegracoesCotacao(){
 }
 
 async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
-  const dados=dadosFormularioFrete();
+  let dados=dadosFormularioFrete();
   const chave=chaveRespostaFrete(transportadoraId,tipoFrete);
   const botao=document.getElementById(`btnRodonaves_${chave}`);
 
@@ -472,8 +487,10 @@ async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
         throw new Error("A chave administrativa expirou ou está incorreta. Clique novamente em cotar e informe a chave cadastrada na Vercel.");
       }
       if(resposta.status===422 && corpo.codigo==="DESTINATARIO_DADOS_INCOMPLETOS"){
-        throw new Error((corpo.erro||"Complete o cadastro do destinatário.")+
-          "\n\nDepois disso, clique novamente em Cotar Rodonaves.");
+        dados=await solicitarCompletarDestinatarioRodonaves(dados,corpo.campos_faltantes||[]);
+        mostrarBalaoSistema("Cadastro atualizado","Dados preenchidos. Continuando automaticamente a cotação Rodonaves...");
+        botao.disabled=false; botao.textContent=textoOriginal;
+        return cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete);
       }
       throw new Error(corpo.erro||`Falha HTTP ${resposta.status}`);
     }
