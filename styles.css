@@ -2128,3 +2128,26 @@ html.modo-portal-publico .portal-conteudo{
 .coleta-identificadores-status{min-height:18px;margin-top:10px;font-size:12px;font-weight:700;color:#4b3a96}
 .rast-detalhe{font-size:11px;margin-top:4px;color:#5f557b;max-width:260px}
 @media(max-width:900px){.coleta-identificadores-grid{grid-template-columns:1fr 1fr}}
+
+/* V34 — Central de Integrações */
+.integracoes-status-geral{margin:16px 0 20px;padding:16px;border:1px solid #e4def8;border-radius:18px;background:#fbfaff}
+.motor-status-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.motor-status-card{padding:14px;border:1px solid #e4def8;border-left:5px solid #8d7bc6;border-radius:14px;background:#fff}
+.motor-status-card.producao{border-left-color:#1ca85c}
+.motor-status-card.homologacao{border-left-color:#e5a100}
+.motor-status-card.suspensa{border-left-color:#cf3e32}
+.motor-status-card.configurando{border-left-color:#6f5bb4}
+.motor-status-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.motor-status-card-top strong{display:block;font-size:16px}
+.motor-status-card-top small{display:block;margin-top:4px;color:#6e6686;font-weight:700}
+.motor-status-badge{padding:6px 9px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap;background:#eee9ff;color:#544198}
+.motor-status-badge.producao{background:#d8f5e4;color:#08713a}
+.motor-status-badge.homologacao{background:#fff0c7;color:#8a5d00}
+.motor-status-badge.suspensa{background:#ffe0dd;color:#a52a22}
+.motor-servicos-status{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.motor-servicos-status span{padding:5px 8px;border-radius:8px;font-size:11px;font-weight:700}
+.motor-servicos-status .ativo{background:#e0f7e9;color:#08713a}
+.motor-servicos-status .inativo{background:#f0eef6;color:#857e96}
+.motor-status-rodape{margin-top:12px;padding-top:10px;border-top:1px solid #eeeaf8;display:flex;flex-direction:column;gap:4px;font-size:11px;color:#6d6682}
+.motor-status-vazio{padding:18px;text-align:center;color:#766c91}
+@media(max-width:900px){.motor-status-cards{grid-template-columns:1fr}}

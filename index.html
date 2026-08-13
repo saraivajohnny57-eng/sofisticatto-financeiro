@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=33">
+<link rel="stylesheet" href="styles.css?v=34">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -1782,7 +1782,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <p>Cadastre endpoints, acompanhe homologações e teste a autenticação das transportadoras.</p>
           </div>
           <div class="email-acoes">
-            <button class="btn verde" onclick="criarPresetRodonaves()">Configurar Rodonaves</button>
+            <button class="btn verde" onclick="marcarRodonavesProducao()">✓ Rodonaves em produção</button>
+            <button class="btn roxo" onclick="criarPresetRodonaves()">Reconfigurar Rodonaves</button>
             <button class="btn azul" onclick="carregarMotorIntegracoes()">Atualizar</button>
             <button class="btn roxo" onclick="fecharMotorIntegracoes()">Fechar</button>
           </div>
@@ -1793,6 +1794,16 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <div><span>Em homologação</span><b>0</b></div>
           <div><span>Ativas</span><b>0</b></div>
           <div><span>Testes com sucesso</span><b>0</b></div>
+        </div>
+
+        <div class="integracoes-status-geral">
+          <div class="top">
+            <div>
+              <h3>📡 Situação das integrações</h3>
+              <p>Visão rápida de produção, homologação, serviços ativos e última sincronização.</p>
+            </div>
+          </div>
+          <div id="motorStatusCards" class="motor-status-cards"></div>
         </div>
 
         <div class="motor-grid">
@@ -1807,6 +1818,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <label><span>Versão da API</span><input id="motorApiVersao" value="v1"></label>
               <label><span>Status</span>
                 <select id="motorStatus">
+                  <option value="aguardando_credenciais">Aguardando credenciais</option>
                   <option value="configurando">Configurando</option>
                   <option value="homologacao">Em homologação</option>
                   <option value="homologacao_aprovada">Homologação aprovada</option>
@@ -1814,10 +1826,30 @@ SOFISTICATTO COSMÉTICOS</textarea>
                   <option value="suspensa">Suspensa</option>
                 </select>
               </label>
+              <label><span>Tipo de integração</span>
+                <select id="motorTipoIntegracao">
+                  <option value="api">API</option>
+                  <option value="webservice">WebService</option>
+                  <option value="edi">EDI</option>
+                  <option value="ssw">SSW</option>
+                  <option value="portal">Portal / integração externa</option>
+                  <option value="manual">Manual</option>
+                </select>
+              </label>
+              <label><span>Ambiente atual</span>
+                <select id="motorAmbienteAtual">
+                  <option value="homologacao">Homologação</option>
+                  <option value="producao">Produção</option>
+                </select>
+              </label>
               <label><span><input type="checkbox" id="motorCotacaoAtiva"> Cotação</span></label>
               <label><span><input type="checkbox" id="motorPrazoAtivo"> Prazo</span></label>
               <label><span><input type="checkbox" id="motorColetaAtiva"> Coleta</span></label>
               <label><span><input type="checkbox" id="motorRastreioAtivo"> Rastreamento</span></label>
+              <label><span><input type="checkbox" id="motorComprovanteAtivo"> Comprovante de entrega</span></label>
+              <label class="integracao-largo"><span>Observação do status</span>
+                <input id="motorObservacaoStatus" placeholder="Ex.: integração validada em produção">
+              </label>
             </div>
             <div class="email-acoes">
               <button class="btn verde" onclick="salvarIntegracaoMotor()">Salvar ficha técnica</button>
@@ -2507,7 +2539,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="painel-logistico.js?v=11.6"></script>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=24"></script>
-<script src="motor-integracoes.js?v=24"></script>
+<script src="motor-integracoes.js?v=34"></script>
 <script src="coletas.js?v=33.1"></script>
 
 

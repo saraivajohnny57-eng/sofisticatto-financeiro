@@ -47,6 +47,62 @@ function montarKpisMotor(){
     <div><span>Em homologação</span><b>${homologacao}</b></div>
     <div><span>Ativas</span><b>${ativas}</b></div>
     <div><span>Testes com sucesso</span><b>${sucessos}</b></div>`;
+  montarStatusIntegracoesMotor();
+}
+
+function statusIntegracaoMotorLabel(status){
+  return ({
+    aguardando_credenciais:"Aguardando credenciais",
+    configurando:"Configurando",
+    homologacao:"Em homologação",
+    homologacao_aprovada:"Homologação aprovada",
+    producao:"Ativa em produção",
+    suspensa:"Suspensa"
+  })[status]||status||"Não informado";
+}
+
+function montarStatusIntegracoesMotor(){
+  const box=mi("motorStatusCards");
+  if(!box)return;
+  if(!motorIntegracoes.length){
+    box.innerHTML='<div class="motor-status-vazio">Nenhuma integração cadastrada.</div>';
+    return;
+  }
+
+  const ordem={producao:0,homologacao_aprovada:1,homologacao:2,configurando:3,aguardando_credenciais:4,suspensa:5};
+  const lista=[...motorIntegracoes].sort((a,b)=>(ordem[a.status_tecnico]??9)-(ordem[b.status_tecnico]??9));
+
+  box.innerHTML=lista.map(it=>{
+    const servicos=[
+      ["Cotação",it.cotacao_ativa],
+      ["Prazo",it.prazo_ativo],
+      ["Coleta",it.coleta_ativa],
+      ["Rastreamento",it.rastreamento_ativo],
+      ["Comprovante",it.comprovante_ativo]
+    ];
+    const cls=it.status_tecnico==="producao"?"producao":
+      ["homologacao","homologacao_aprovada"].includes(it.status_tecnico)?"homologacao":
+      it.status_tecnico==="suspensa"?"suspensa":"configurando";
+    const ultima=it.ultima_sincronizacao_em
+      ?new Date(it.ultima_sincronizacao_em).toLocaleString("pt-BR")
+      :"Ainda não registrada";
+    return `<div class="motor-status-card ${cls}">
+      <div class="motor-status-card-top">
+        <div>
+          <strong>${escaparMotor(it.transportadora_nome)}</strong>
+          <small>${escaparMotor((it.integracao_tipo||"api").toUpperCase())} • ${escaparMotor(it.ambiente_atual==="producao"?"PRODUÇÃO":"HOMOLOGAÇÃO")}</small>
+        </div>
+        <span class="motor-status-badge ${cls}">${escaparMotor(statusIntegracaoMotorLabel(it.status_tecnico))}</span>
+      </div>
+      <div class="motor-servicos-status">
+        ${servicos.map(([nome,ativo])=>`<span class="${ativo?"ativo":"inativo"}">${ativo?"●":"○"} ${nome}</span>`).join("")}
+      </div>
+      <div class="motor-status-rodape">
+        <span>Última sincronização: <b>${escaparMotor(ultima)}</b></span>
+        ${it.observacao_status?`<small>${escaparMotor(it.observacao_status)}</small>`:""}
+      </div>
+    </div>`;
+  }).join("");
 }
 
 function integracaoMotorAtual(){
@@ -56,10 +112,14 @@ function selecionarIntegracaoMotor(){
   const it=integracaoMotorAtual();
   mi("motorApiVersao").value=it?.api_versao||"v1";
   mi("motorStatus").value=it?.status_tecnico||"configurando";
+  mi("motorTipoIntegracao").value=it?.integracao_tipo||"api";
+  mi("motorAmbienteAtual").value=it?.ambiente_atual||((it?.status_tecnico==="producao")?"producao":"homologacao");
   mi("motorCotacaoAtiva").checked=!!it?.cotacao_ativa;
   mi("motorPrazoAtivo").checked=!!it?.prazo_ativo;
   mi("motorColetaAtiva").checked=!!it?.coleta_ativa;
   mi("motorRastreioAtivo").checked=!!it?.rastreamento_ativo;
+  mi("motorComprovanteAtivo").checked=!!it?.comprovante_ativo;
+  mi("motorObservacaoStatus").value=it?.observacao_status||"";
   montarEndpointsMotor();
   montarLogsMotor();
 }
@@ -73,10 +133,14 @@ async function salvarIntegracaoMotor(){
     transportadora_nome:convite?.transportadora_nome||"Transportadora",
     api_versao:miv("motorApiVersao")||"v1",
     status_tecnico:miv("motorStatus"),
+    integracao_tipo:miv("motorTipoIntegracao")||"api",
+    ambiente_atual:miv("motorAmbienteAtual")||"homologacao",
     cotacao_ativa:mi("motorCotacaoAtiva").checked,
     prazo_ativo:mi("motorPrazoAtivo").checked,
     coleta_ativa:mi("motorColetaAtiva").checked,
     rastreamento_ativo:mi("motorRastreioAtivo").checked,
+    comprovante_ativo:mi("motorComprovanteAtivo").checked,
+    observacao_status:miv("motorObservacaoStatus")||null,
     atualizado_em:new Date().toISOString()
   };
   const r=await banco.from("transportadora_integracoes").upsert(payload,{onConflict:"convite_id"}).select().single();
@@ -147,6 +211,41 @@ async function excluirEndpointMotor(id){
   if(r.error)alert(r.error.message);else{await carregarMotorIntegracoes();selecionarIntegracaoMotor()}
 }
 
+
+async function marcarRodonavesProducao(){
+  let convite=(integracoesTransportadoras||[]).find(x=>/rodonaves/i.test(x.transportadora_nome||""));
+  if(!convite)return alert("Não encontrei a Rodonaves na Central de Integrações.");
+
+  const payload={
+    convite_id:convite.id,
+    transportadora_nome:convite.transportadora_nome,
+    api_versao:"v1",
+    status_tecnico:"producao",
+    integracao_tipo:"api",
+    ambiente_atual:"producao",
+    cotacao_ativa:true,
+    prazo_ativo:true,
+    coleta_ativa:true,
+    rastreamento_ativo:true,
+    comprovante_ativo:false,
+    observacao_status:"Integração validada e operacional em produção",
+    ultima_sincronizacao_em:new Date().toISOString(),
+    atualizado_em:new Date().toISOString()
+  };
+
+  const r=await banco.from("transportadora_integracoes")
+    .upsert(payload,{onConflict:"convite_id"})
+    .select()
+    .single();
+
+  if(r.error)return alert("Não foi possível atualizar a Rodonaves: "+r.error.message);
+
+  await carregarMotorIntegracoes();
+  mi("motorConviteId").value=convite.id;
+  selecionarIntegracaoMotor();
+  alert("Rodonaves atualizada para ATIVA EM PRODUÇÃO.");
+}
+
 async function criarPresetRodonaves(){
   let convite=(integracoesTransportadoras||[]).find(x=>/rodonaves/i.test(x.transportadora_nome||""));
   if(!convite){
@@ -155,8 +254,11 @@ async function criarPresetRodonaves(){
   }
   await banco.from("transportadora_integracoes").upsert({
     convite_id:convite.id,transportadora_nome:convite.transportadora_nome,api_versao:"v1",
-    status_tecnico:"configurando",cotacao_ativa:true,prazo_ativo:true,
-    coleta_ativa:false,rastreamento_ativo:true,atualizado_em:new Date().toISOString()
+    status_tecnico:"producao",integracao_tipo:"api",ambiente_atual:"producao",
+    cotacao_ativa:true,prazo_ativo:true,coleta_ativa:true,rastreamento_ativo:true,
+    comprovante_ativo:false,
+    observacao_status:"Integração operacional no Portal Sofisticatto",
+    atualizado_em:new Date().toISOString()
   },{onConflict:"convite_id"});
 
   const endpoints=[
