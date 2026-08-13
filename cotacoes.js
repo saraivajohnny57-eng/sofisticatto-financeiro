@@ -105,6 +105,11 @@ function respostaAtualFrete(transportadoraId, tipoFrete){
 }
 
 function dadosFormularioFrete(){
+  const clienteSelecionado =
+    (typeof clienteFretePorId==="function" && clienteFretePorId(freteValor("freteCliente"))) ||
+    (typeof clienteFretePorNome==="function" && clienteFretePorNome(freteValor("freteClienteNome"))) ||
+    null;
+
   return {
     id: freteValor("freteCotacaoId"),
     cliente_id: freteValor("freteCliente") || null,
@@ -115,6 +120,14 @@ function dadosFormularioFrete(){
     uf_destino: freteValor("freteUf").toUpperCase(),
     endereco_destino: freteValor("freteEndereco"),
     bairro_destino: freteValor("freteBairro"),
+    logradouro_destino: clienteSelecionado?.endereco || null,
+    numero_destino: clienteSelecionado?.numero || null,
+    complemento_destino: clienteSelecionado?.complemento || null,
+    email_destino: Array.isArray(clienteSelecionado?.emails)
+      ? (clienteSelecionado.emails.find(Boolean)||null)
+      : (clienteSelecionado?.email||null),
+    telefone_destino: clienteSelecionado?.telefone || clienteSelecionado?.celular || null,
+    inscricao_estadual_destino: clienteSelecionado?.inscricao_estadual || clienteSelecionado?.ie || null,
     numero_nf: freteValor("freteNumeroNf"),
     valor_nf: numeroFrete(freteValor("freteValorNf")),
     volumes: Number(freteValor("freteVolumes") || 1),
@@ -425,6 +438,16 @@ async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
         cliente_nome:dados.cliente_nome,
         cpf_cnpj_destino:documento,
         cep_destino:cep,
+        cidade_destino:dados.cidade_destino,
+        uf_destino:dados.uf_destino,
+        endereco_destino:dados.endereco_destino,
+        logradouro_destino:dados.logradouro_destino,
+        numero_destino:dados.numero_destino,
+        complemento_destino:dados.complemento_destino,
+        bairro_destino:dados.bairro_destino,
+        email_destino:dados.email_destino,
+        telefone_destino:dados.telefone_destino,
+        inscricao_estadual_destino:dados.inscricao_estadual_destino,
         peso_total:dados.peso_total,
         valor_nf:dados.valor_nf,
         volumes:dados.volumes,
@@ -447,6 +470,10 @@ async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
       if(resposta.status===401){
         sessionStorage.removeItem("integrations_admin_key");
         throw new Error("A chave administrativa expirou ou está incorreta. Clique novamente em cotar e informe a chave cadastrada na Vercel.");
+      }
+      if(resposta.status===422 && corpo.codigo==="DESTINATARIO_DADOS_INCOMPLETOS"){
+        throw new Error((corpo.erro||"Complete o cadastro do destinatário.")+
+          "\n\nDepois disso, clique novamente em Cotar Rodonaves.");
       }
       throw new Error(corpo.erro||`Falha HTTP ${resposta.status}`);
     }
