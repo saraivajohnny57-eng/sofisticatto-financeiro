@@ -537,6 +537,38 @@ async function cotarAutomaticamenteRodonaves(transportadoraId,tipoFrete){
   }
 }
 
+async function cotarAutomaticamenteAlfa(transportadoraId,tipoFrete){
+  const dados=dadosFormularioFrete();
+  const chave=chaveRespostaFrete(transportadoraId,tipoFrete);
+  const botao=document.getElementById(`btnAlfa_${chave}`);
+  const documento=String(dados.cpf_cnpj_destino||"").replace(/\D/g,"");
+  const cep=String(dados.cep_destino||"").replace(/\D/g,"");
+  if(!dados.cliente_nome||![11,14].includes(documento.length)||cep.length!==8){
+    return alert("Para cotar automaticamente na Alfa, informe cliente, CPF/CNPJ válido e CEP de destino.");
+  }
+  if(!dados.peso_total||!dados.valor_nf||!dados.volumes||!String(dados.medidas||"").trim()){
+    return alert("A Alfa exige valor da mercadoria, peso, volumes e cubagem. Informe também as medidas dos volumes.");
+  }
+  const original=botao?.textContent||"⚡ Cotar Alfa"; if(botao){botao.disabled=true;botao.textContent="Consultando Alfa...";}
+  try{
+    const adm=await obterChaveIntegracoesCotacao(); if(!adm)throw new Error("Cotação cancelada: chave administrativa não informada.");
+    const salva=await salvarCotacaoFrete("rascunho"); if(!salva)throw new Error("Não foi possível salvar a cotação antes da consulta.");
+    const r=await fetch("/api/integracoes?action=cotar-alfa",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":adm},body:JSON.stringify({
+      cotacao_id:salva.id,cliente_nome:dados.cliente_nome,cpf_cnpj_destino:documento,cep_destino:cep,
+      peso_total:dados.peso_total,valor_nf:dados.valor_nf,volumes:dados.volumes,medidas:dados.medidas,tipo_frete:tipoFrete
+    })});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){if(r.status===401)sessionStorage.removeItem("integrations_admin_key");throw new Error(d.erro||`HTTP ${r.status}`);}
+    const valor=Number(d.valor_frete||0);const prazo=d.prazo||"";
+    freteCampo(`freteRespNumero_${chave}`).value=d.numero_cotacao||"";
+    freteCampo(`freteRespValor_${chave}`).value=valor?valor.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}):"";
+    freteCampo(`freteRespPrazo_${chave}`).value=prazo;
+    await registrarRespostaFrete(transportadoraId,tipoFrete);
+    mostrarBalaoSistema("Cotação Alfa recebida",`${moedaFrete(valor)}${prazo?` • ${prazo}`:""}`);
+  }catch(e){console.error("Cotação automática Alfa:",e);alert("Não foi possível gerar a cotação automática da Alfa:\n\n"+(e.message||e));}
+  finally{if(botao){botao.disabled=false;botao.textContent=original;}}
+}
+
 function gerarCotacoesFrete(){
   const dados = dadosFormularioFrete();
 
@@ -587,6 +619,8 @@ function gerarCotacoesFrete(){
                  </button>` : ""}
             ${/rodonaves/i.test(transportadora?.nome||"") && tipoResposta==="FOB"
               ? `<span class="frete-aviso-fob">FOB Rodonaves: manual por WhatsApp ou telefone</span>` : ""}
+            ${/(^|\s)alfa(\s|$)|alfa transportes/i.test(transportadora?.nome||"")
+              ? `<button class="btn roxo" id="btnAlfa_${chave}" onclick="cotarAutomaticamenteAlfa('${id}','${tipoResposta}')">⚡ Cotar Alfa automaticamente</button>` : ""}
             <button class="btn azul" onclick="copiarTextoFrete('${chave}')">Copiar solicitação</button>
             <button class="btn verde" onclick="abrirWhatsAppTransportadoraFrete('${id}','${tipoResposta}')">📱 Enviar WhatsApp</button>
           </span>

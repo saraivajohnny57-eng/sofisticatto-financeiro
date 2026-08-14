@@ -191,79 +191,15 @@ async function registrarSolicitacaoCanalExternoColeta(canal){
   return r.data;
 }
 
-/* =========================================================
-   V36 — FLUXO COTAÇÃO → COLETA → ETIQUETA / XML
-   Depois que a solicitação de coleta é efetivamente registrada,
-   oferece continuar diretamente para a emissão da etiqueta.
-   ========================================================= */
-function contextoEtiquetaDaColeta(registro){
-  const d=(registro&&registro.dados)||dadosColeta()||{};
-  const transportadora=coletaTransportadoraAtual();
-  return {
-    agendamento_id:(registro&&registro.id)||cv("coletaAgendamentoId")||"",
-    cotacao_id:(registro&&registro.cotacao_id)||cv("coletaCotacaoId")||"",
-    cliente_id:(registro&&registro.cliente_id)||cv("coletaClienteId")||"",
-    cliente_nome:(registro&&registro.cliente_nome)||d.razao_destino||cv("coletaRazaoDestino")||"",
-    numero_nf:(registro&&registro.numero_nf)||d.numero_nf||cv("coletaNumeroNf")||"",
-    volumes:(registro&&registro.volumes)||d.volumes||cv("coletaVolumes")||"",
-    transportadora:(transportadora&&transportadora.nome)||""
-  };
-}
-
-function preencherEtiquetaComContextoColeta(ctx){
-  if(!ctx)return;
-  const set=(id,valor)=>{const el=ce(id);if(el&&valor!==undefined&&valor!==null&&String(valor)!=="")el.value=valor;};
-  set("etqCliente",ctx.cliente_nome);
-  set("etqNf",ctx.numero_nf);
-  set("etqVolumes",ctx.volumes);
-  set("etqTransportadora",ctx.transportadora);
-  try{ if(typeof atualizarPreviewEtiqueta==="function") atualizarPreviewEtiqueta(); }catch(_e){}
-}
-
-async function abrirEtiquetaAposColeta(registro){
-  const ctx=contextoEtiquetaDaColeta(registro);
-  try{sessionStorage.setItem("sofisticatto_etiqueta_coleta_pendente",JSON.stringify(ctx));}catch(_e){}
-
-  mostrarAbaEmail("etiquetas");
-  if(typeof inicializarModuloEtiquetas==="function"){
-    try{await inicializarModuloEtiquetas();}catch(_e){}
-  }
-  preencherEtiquetaComContextoColeta(ctx);
-
-  // O navegador exige que o arquivo seja escolhido pelo próprio usuário.
-  // Portanto abrimos e destacamos exatamente a área do XML, sem tentar ler
-  // arquivos do computador automaticamente.
-  setTimeout(()=>{
-    const xml=ce("etqXml");
-    if(!xml)return;
-    xml.scrollIntoView({behavior:"smooth",block:"center"});
-    xml.focus({preventScroll:true});
-    const bloco=xml.closest("div");
-    if(bloco){
-      bloco.classList.add("fluxo-etiqueta-xml-destaque");
-      setTimeout(()=>bloco.classList.remove("fluxo-etiqueta-xml-destaque"),5000);
-    }
-    mostrarBalaoSistema("Próxima etapa: etiqueta",ctx.numero_nf?`Selecione o XML da NF ${ctx.numero_nf}. Os dados da coleta já foram levados para a etiqueta.`:"Selecione o XML da NF-e para preencher e emitir a etiqueta.");
-  },250);
-}
-
-async function perguntarEtiquetaAposConfirmarColeta(registro){
-  const ctx=contextoEtiquetaDaColeta(registro);
-  const nf=ctx.numero_nf?`\nNF: ${ctx.numero_nf}`:"";
-  const deseja=confirm(`Coleta registrada com sucesso.${nf}\n\nDeseja emitir a etiqueta desta mercadoria agora?`);
-  if(deseja)await abrirEtiquetaAposColeta(registro);
-}
-
 async function abrirWhatsAppColeta(){
   try{
-    const registro=await registrarSolicitacaoCanalExternoColeta("whatsapp");
+    await registrarSolicitacaoCanalExternoColeta("whatsapp");
     atualizarPreviaColeta();
     const tel=whatsappTransportadoraColeta();
     const url=tel
       ?`https://wa.me/55${tel.replace(/^55/,"")}?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`
       :`https://wa.me/?text=${encodeURIComponent(cv("coletaPreviaMensagem"))}`;
     window.open(url,"_blank");
-    await perguntarEtiquetaAposConfirmarColeta(registro);
   }catch(erro){
     alert("Não foi possível registrar a solicitação antes de abrir o WhatsApp: "+erro.message);
   }
@@ -271,19 +207,17 @@ async function abrirWhatsAppColeta(){
 
 async function registrarColetaViaPortalTransportadora(){
   try{
-    const registro=await registrarSolicitacaoCanalExternoColeta("portal_transportadora");
+    await registrarSolicitacaoCanalExternoColeta("portal_transportadora");
     mostrarBalaoSistema("Solicitação registrada","Registrada como enviada pelo portal da transportadora.");
     await carregarPainelRodonaves();
-    await perguntarEtiquetaAposConfirmarColeta(registro);
   }catch(erro){alert("Não foi possível registrar: "+erro.message)}
 }
 
 async function registrarColetaViaTelefone(){
   try{
-    const registro=await registrarSolicitacaoCanalExternoColeta("telefone");
+    await registrarSolicitacaoCanalExternoColeta("telefone");
     mostrarBalaoSistema("Solicitação registrada","Registrada como solicitada por telefone.");
     await carregarPainelRodonaves();
-    await perguntarEtiquetaAposConfirmarColeta(registro);
   }catch(erro){alert("Não foi possível registrar: "+erro.message)}
 }
 async function salvarAgendamentoColeta(){
@@ -711,8 +645,6 @@ async function agendarColetaRodonavesPorProtocolo(){
 
     await carregarAgendamentosColeta();
     mostrarBalaoSistema("Coleta Rodonaves solicitada",dados.pickup_id?`Código ${dados.pickup_id}`:"Solicitação registrada");
-    const registroConfirmado=(coletaAgendamentos||[]).find(x=>String(x.id)===String(dados.agendamento_id||id))||{id:dados.agendamento_id||id,dados:dadosColeta(),numero_nf:cv("coletaNumeroNf")};
-    await perguntarEtiquetaAposConfirmarColeta(registroConfirmado);
   }catch(erro){
     console.error("Agendamento Rodonaves:",erro);
     resultadoApiColeta("erro","Não foi possível agendar:\n"+erro.message);
@@ -1516,7 +1448,7 @@ async function carregarRastreamentosLogistica(sentido){
       ${x.metodo_consulta?`<div class="rastreio-metodo">Localizado por: ${escaparHtmlEmail(x.metodo_consulta)}</div>`:""}
     </td>
     <td>
-    ${/rodonaves/i.test(x.frete_transportadoras?.nome||"")&&(x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe)?`<button class="btn azul" onclick="atualizarRastreioRodonaves('${x.id}',this)">Atualizar rastreio</button>`:""}
+    ${transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)&&(x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe)?`<button class="btn azul" onclick="atualizarRastreioIntegrado('${x.id}',this)">Atualizar rastreio</button>`:""}
     <button class="btn azul" onclick="abrirFormularioRastreamento('${sentido}','${x.id}')">Editar</button>
     ${!["entregue","recebido"].includes(x.status)?`<button class="btn verde" onclick="finalizarRastreamentoLogistica('${x.id}','${sentido}')">${sentido==="entrada"?"Marcar recebido":"Marcar entregue"}</button>`:""}
     <button class="btn vermelho" onclick="excluirRastreamentoLogistica('${x.id}','${sentido}')">Excluir</button></td></tr>`;
@@ -1574,9 +1506,12 @@ async function salvarIdentificadoresERastrearColeta(){
       try{
         const {dados}=await consultarRastreioRodonavesRegistro(existente.id,{silencioso:true});
         if(statusEl)statusEl.textContent=`Rastreio localizado e atualizado: ${dados.statusBruto||statusLabelRastreamento(dados.status)||"OK"}`;
-      }catch(e){
-        if(statusEl)statusEl.textContent="Identificadores salvos. O rastreio ainda não retornou dados.";
-      }
+      }catch(e){if(statusEl)statusEl.textContent="Identificadores salvos. O rastreio ainda não retornou dados.";}
+    }else if(existente?.id && /(^|\s)alfa(\s|$)|alfa transportes/i.test(coleta.frete_transportadoras?.nome||"")){
+      try{
+        const {dados}=await consultarRastreioAlfaRegistro(existente.id,{silencioso:true});
+        if(statusEl)statusEl.textContent=`Rastreio Alfa localizado: ${dados.statusBruto||statusLabelRastreamento(dados.status)||"OK"}`;
+      }catch(e){if(statusEl)statusEl.textContent="NF salva. A Alfa ainda não retornou rastreamento para esta nota.";}
     }else if(statusEl){
       statusEl.textContent="Identificadores salvos e vinculados.";
     }
@@ -1628,7 +1563,7 @@ function renderRastreamentosEntregues(){
       <td>${x.ultima_ocorrencia_em?new Date(x.ultima_ocorrencia_em).toLocaleString("pt-BR"):"—"}</td>
       <td><span class="status-rastreamento entregue">ENTREGUE</span>${x.ultima_ocorrencia?`<div class="rast-detalhe">${escaparHtmlEmail(x.ultima_ocorrencia)}</div>`:""}</td>
       <td>
-        ${/rodonaves/i.test(x.frete_transportadoras?.nome||"")?`<button class="btn azul" onclick="atualizarRastreioEntregue('${x.id}',this)">Atualizar rastreio</button>`:""}
+        ${transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)?`<button class="btn azul" onclick="atualizarRastreioIntegrado('${x.id}',this)">Atualizar rastreio</button>`:""}
         <button class="btn vermelho" onclick="excluirRastreamentoLogistica('${x.id}','saida')">Excluir</button>
       </td>
     </tr>`).join(""):'<tr><td colspan="8">Nenhuma mercadoria entregue encontrada.</td></tr>';
@@ -1658,9 +1593,14 @@ async function atualizarTodosRastreiosEntregues(){
     let ok=0,erro=0;
     for(let i=0;i<rastreamentosEntregues.length;i++){
       const x=rastreamentosEntregues[i];
-      if(!/rodonaves/i.test(x.frete_transportadoras?.nome||""))continue;
+      const nome=x.frete_transportadoras?.nome||"";
+      if(!(/rodonaves/i.test(nome)||/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome)))continue;
       if(status)status.textContent=`Atualizando ${i+1}/${rastreamentosEntregues.length}...`;
-      try{await consultarRastreioRodonavesRegistro(x.id,{silencioso:true,chave});ok++}catch(e){erro++}
+      try{
+        if(/rodonaves/i.test(nome))await consultarRastreioRodonavesRegistro(x.id,{silencioso:true,chave});
+        else await consultarRastreioAlfaRegistro(x.id,{silencioso:true,chave});
+        ok++;
+      }catch(e){erro++}
       if(i<rastreamentosEntregues.length-1)await new Promise(r=>setTimeout(r,200));
     }
     await carregarRastreamentosEntregues();
@@ -1712,6 +1652,30 @@ async function consultarRastreioRodonavesRegistro(id,{silencioso=false,chave=nul
   if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
 
   return {rastro,dados};
+}
+
+async function consultarRastreioAlfaRegistro(id,{silencioso=false,chave=null}={}){
+  const rastro=await obterRastreamentoPorId(id);
+  if(!rastro)throw new Error("Rastreio não encontrado no banco de dados.");
+  if(!/(^|\s)alfa(\s|$)|alfa transportes/i.test(rastro.frete_transportadoras?.nome||""))throw new Error("Este registro não pertence à Alfa Transportes.");
+  if(!rastro.numero_nfe)throw new Error("A Alfa exige o número da NF para consultar o rastreamento.");
+  const chaveUsar=chave||await chaveAdminColeta(); if(!chaveUsar)throw new Error("Informe a chave administrativa.");
+  const params=new URLSearchParams({action:"consultar-rastreio-alfa",registro_id:String(id),nfe:String(rastro.numero_nfe),cnpj:"05451985000195"});
+  const resposta=await fetch(`/api/integracoes?${params.toString()}`,{headers:{"x-integrations-admin-key":chaveUsar}});
+  const dados=await resposta.json().catch(()=>({})); if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
+  return {rastro,dados};
+}
+async function atualizarRastreioIntegrado(id,botao=null){
+  const rastro=await obterRastreamentoPorId(id); if(!rastro)return alert("Rastreio não encontrado.");
+  const nome=rastro.frete_transportadoras?.nome||"";
+  if(/rodonaves/i.test(nome))return atualizarRastreioRodonaves(id,botao);
+  if(/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome)){
+    const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Atualizando...";}
+    try{const {dados}=await consultarRastreioAlfaRegistro(id);alert(`Rastreio Alfa atualizado.\n\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${dados.previsaoEntrega?`\nPrevisão: ${new Date(dados.previsaoEntrega+"T12:00:00").toLocaleDateString("pt-BR")}`:""}`);await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();if((rastro.sentido||"saida")==="saida")await carregarPainelRodonaves();}
+    catch(e){alert("Não foi possível atualizar o rastreio Alfa: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
+    return;
+  }
+  alert("Esta transportadora ainda não possui consulta automática implementada.");
 }
 
 async function atualizarRastreioRodonaves(id,botao=null){
@@ -1774,7 +1738,7 @@ async function atualizarTodosRastreiosSaida(){
     // Na versão atual, a consulta automática implementada é a Rodonaves.
     const lista=(r.data||[]).filter(x=>
       transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome) &&
-      /rodonaves/i.test(x.frete_transportadoras?.nome||"") &&
+      (/rodonaves/i.test(x.frete_transportadoras?.nome||"") || /(^|\s)alfa(\s|$)|alfa transportes/i.test(x.frete_transportadoras?.nome||"")) &&
       (x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe) &&
       !["cancelado"].includes(String(x.status||"").toLowerCase())
     );
@@ -1794,10 +1758,11 @@ async function atualizarTodosRastreiosSaida(){
 
       try{
         const antes=String(item.status||"");
-        const {dados}=await consultarRastreioRodonavesRegistro(item.id,{
-          silencioso:true,
-          chave
-        });
+        const nome=item.frete_transportadoras?.nome||"";
+        const consulta=/rodonaves/i.test(nome)
+          ?await consultarRastreioRodonavesRegistro(item.id,{silencioso:true,chave})
+          :await consultarRastreioAlfaRegistro(item.id,{silencioso:true,chave});
+        const dados=consulta.dados;
         sucesso++;
         if(String(dados.status||"")!==antes)alterados++;
       }catch(erro){
