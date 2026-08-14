@@ -1245,12 +1245,6 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <div><label class="relatorio-label">CIF / FOB</label><select id="coletaTipoFrete" onchange="atualizarPreviaColeta();atualizarAreaApiColeta()"><option value="CIF">REMETENTE (CIF)</option><option value="FOB">DESTINO (FOB)</option></select></div>
               <div><label class="relatorio-label">Nome do solicitante</label><input id="coletaSolicitante" value="Johnny" oninput="atualizarPreviaColeta()"></div>
 
-              <div id="coletaApiAccertBloco" class="campo-largo coleta-api-rodonaves" style="display:none;">
-                <div class="coleta-api-topo"><div><strong>🚚 Coleta automática ACCERT / SSW</strong><small>Envia a coleta diretamente ao WebService oficial SSW e grava o número retornado no Painel de Coletas.</small></div><span class="coleta-api-status">SSW</span></div>
-                <div class="email-acoes" style="margin-top:12px"><button type="button" class="btn verde" id="btnAgendarAccertApi" onclick="agendarColetaAccertSSW()">Agendar na ACCERT / SSW</button></div>
-                <div id="coletaAccertResultado" class="coleta-api-resultado"></div>
-              </div>
-
               <div id="coletaApiRodonavesBloco" class="campo-largo coleta-api-rodonaves" style="display:none;">
                 <div class="coleta-api-topo">
                   <div>
@@ -1357,6 +1351,38 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 </div>
                 <div id="coletaApiResultado" class="coleta-api-resultado"></div>
               </div>
+
+              <div id="coletaApiAccertBloco" class="campo-largo coleta-api-rodonaves" style="display:none;">
+                <div class="coleta-api-topo">
+                  <div>
+                    <strong>🚚 Agendamento automático ACCERT / SSW</strong>
+                    <small>Envia a coleta diretamente ao WebService SSW da Accert e grava o número oficial retornado.</small>
+                  </div>
+                  <span class="coleta-api-status">SSW</span>
+                </div>
+                <div class="coleta-api-grid">
+                  <div>
+                    <label class="relatorio-label">Data limite da coleta</label>
+                    <input id="coletaDataAccert" type="date">
+                  </div>
+                  <div>
+                    <label class="relatorio-label">Horário limite</label>
+                    <input id="coletaHoraAccert" type="time" value="17:30">
+                  </div>
+                  <div class="campo-largo">
+                    <label class="relatorio-label">Observação para a Accert</label>
+                    <input id="coletaObservacaoAccert" placeholder="Ex.: Coletar até 17:30 h. Mercadoria pronta na expedição.">
+                  </div>
+                </div>
+                <div class="email-acoes">
+                  <button type="button" class="btn verde" id="btnAgendarAccertApi" onclick="agendarColetaAccertSSW()">
+                    Agendar na ACCERT / SSW
+                  </button>
+                  <span class="coleta-api-status">Credenciais protegidas na Vercel</span>
+                </div>
+                <div id="coletaAccertResultado" class="coleta-api-resultado"></div>
+              </div>
+
               <div><label class="relatorio-label">Telefone da coleta</label><input id="coletaTelefoneOrigem" value="(62) 3293-0035" oninput="atualizarPreviaColeta()"></div>
 
               <div><label class="relatorio-label">CNPJ da origem</label><input id="coletaCnpjOrigem" value="05.451.985/0001-95" oninput="atualizarPreviaColeta()"></div>
@@ -2546,7 +2572,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=24"></script>
 <script src="motor-integracoes.js?v=34"></script>
-<script src="coletas.js?v=36-alfa"></script>
+<script src="coletas.js?v=37-1-accert"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">
