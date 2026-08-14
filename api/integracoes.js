@@ -17,6 +17,9 @@ const agendarColetaRodonavesEndereco = require("../lib/integracoes/agendar-colet
 const consultarColetaRodonaves = require("../lib/integracoes/consultar-coleta-rodonaves");
 const atualizarStatus = require("../lib/integracoes/atualizar-status");
 const consultarRastreioRodonaves = require("../lib/integracoes/consultar-rastreio-rodonaves");
+const cotarAlfa = require("../lib/integracoes/cotar-alfa");
+const consultarRastreioAlfa = require("../lib/integracoes/consultar-rastreio-alfa");
+const atualizarRastreiosAlfa = require("../lib/integracoes/atualizar-rastreios-alfa");
 
 const ROTAS = Object.freeze({
   "validar-chave": validarChave,
@@ -30,7 +33,10 @@ const ROTAS = Object.freeze({
   "agendar-coleta-rodonaves-endereco": agendarColetaRodonavesEndereco,
   "consultar-coleta-rodonaves": consultarColetaRodonaves,
   "atualizar-status": atualizarStatus,
-  "consultar-rastreio-rodonaves": consultarRastreioRodonaves
+  "consultar-rastreio-rodonaves": consultarRastreioRodonaves,
+  "cotar-alfa": cotarAlfa,
+  "consultar-rastreio-alfa": consultarRastreioAlfa,
+  "atualizar-rastreios-alfa": atualizarRastreiosAlfa
 });
 
 function responder(res, status, body) {
@@ -54,7 +60,7 @@ module.exports = async function handler(req, res) {
       ok: true,
       servico: "sofisticatto-financeiro",
       modulo: "api-integracoes-unificada",
-      versao: "33",
+      versao: "36-alfa",
       rotas_carregadas: Object.keys(ROTAS).length,
       node: process.version,
       ambiente: process.env.VERCEL_ENV || "local",
@@ -63,7 +69,8 @@ module.exports = async function handler(req, res) {
         integrations_encryption_key: Boolean(process.env.INTEGRATIONS_ENCRYPTION_KEY),
         supabase_url: Boolean(process.env.SUPABASE_URL),
         supabase_service_role_key: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-        cron_secret: Boolean(process.env.CRON_SECRET)
+        cron_secret: Boolean(process.env.CRON_SECRET),
+        alfa_api_key: Boolean(process.env.ALFA_API_KEY)
       },
       data: new Date().toISOString()
     });
