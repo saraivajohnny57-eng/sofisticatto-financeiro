@@ -48,3 +48,20 @@ jobs:
           if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
             exit 1
           fi
+
+          echo
+          echo "Sincronizando rastreios Alfa..."
+          URL_ALFA="${APP_URL%/}/api/integracoes?action=atualizar-rastreios-alfa"
+          HTTP_ALFA=$(curl --silent --show-error \
+            --output resposta-alfa.json \
+            --write-out "%{http_code}" \
+            --request POST \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --header "Content-Type: application/json" \
+            "$URL_ALFA")
+          cat resposta-alfa.json
+          echo
+          echo "HTTP Alfa: ${HTTP_ALFA}"
+          if [ "$HTTP_ALFA" -lt 200 ] || [ "$HTTP_ALFA" -ge 300 ]; then
+            exit 1
+          fi
