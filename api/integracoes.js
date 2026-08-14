@@ -20,6 +20,7 @@ const consultarRastreioRodonaves = require("../lib/integracoes/consultar-rastrei
 const cotarAlfa = require("../lib/integracoes/cotar-alfa");
 const consultarRastreioAlfa = require("../lib/integracoes/consultar-rastreio-alfa");
 const atualizarRastreiosAlfa = require("../lib/integracoes/atualizar-rastreios-alfa");
+const agendarColetaAccert = require("../lib/integracoes/agendar-coleta-accert");
 
 const ROTAS = Object.freeze({
   "validar-chave": validarChave,
@@ -36,7 +37,8 @@ const ROTAS = Object.freeze({
   "consultar-rastreio-rodonaves": consultarRastreioRodonaves,
   "cotar-alfa": cotarAlfa,
   "consultar-rastreio-alfa": consultarRastreioAlfa,
-  "atualizar-rastreios-alfa": atualizarRastreiosAlfa
+  "atualizar-rastreios-alfa": atualizarRastreiosAlfa,
+  "agendar-coleta-accert": agendarColetaAccert
 });
 
 function responder(res, status, body) {
@@ -60,7 +62,7 @@ module.exports = async function handler(req, res) {
       ok: true,
       servico: "sofisticatto-financeiro",
       modulo: "api-integracoes-unificada",
-      versao: "36-alfa",
+      versao: "37-accert-ssw",
       rotas_carregadas: Object.keys(ROTAS).length,
       node: process.version,
       ambiente: process.env.VERCEL_ENV || "local",
@@ -70,7 +72,8 @@ module.exports = async function handler(req, res) {
         supabase_url: Boolean(process.env.SUPABASE_URL),
         supabase_service_role_key: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
         cron_secret: Boolean(process.env.CRON_SECRET),
-        alfa_api_key: Boolean(process.env.ALFA_API_KEY)
+        alfa_api_key: Boolean(process.env.ALFA_API_KEY),
+        accert_ssw: Boolean(process.env.ACCERT_SSW_DOMINIO && process.env.ACCERT_SSW_LOGIN && process.env.ACCERT_SSW_SENHA)
       },
       data: new Date().toISOString()
     });
