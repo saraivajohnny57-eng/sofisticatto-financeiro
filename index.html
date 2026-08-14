@@ -1245,6 +1245,12 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <div><label class="relatorio-label">CIF / FOB</label><select id="coletaTipoFrete" onchange="atualizarPreviaColeta();atualizarAreaApiColeta()"><option value="CIF">REMETENTE (CIF)</option><option value="FOB">DESTINO (FOB)</option></select></div>
               <div><label class="relatorio-label">Nome do solicitante</label><input id="coletaSolicitante" value="Johnny" oninput="atualizarPreviaColeta()"></div>
 
+              <div id="coletaApiAccertBloco" class="campo-largo coleta-api-rodonaves" style="display:none;">
+                <div class="coleta-api-topo"><div><strong>🚚 Coleta automática ACCERT / SSW</strong><small>Envia a coleta diretamente ao WebService oficial SSW e grava o número retornado no Painel de Coletas.</small></div><span class="coleta-api-status">SSW</span></div>
+                <div class="email-acoes" style="margin-top:12px"><button type="button" class="btn verde" id="btnAgendarAccertApi" onclick="agendarColetaAccertSSW()">Agendar na ACCERT / SSW</button></div>
+                <div id="coletaAccertResultado" class="coleta-api-resultado"></div>
+              </div>
+
               <div id="coletaApiRodonavesBloco" class="campo-largo coleta-api-rodonaves" style="display:none;">
                 <div class="coleta-api-topo">
                   <div>

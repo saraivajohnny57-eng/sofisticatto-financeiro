@@ -440,6 +440,9 @@ function coletaTransportadoraAtual(){
 function coletaEhRodonaves(){
   return /rodonaves/i.test(coletaTransportadoraAtual()?.nome||"");
 }
+function coletaEhAccert(){
+  return /accert/i.test(coletaTransportadoraAtual()?.nome||"");
+}
 function dataAmanhaColeta(){
   const d=new Date();
   d.setDate(d.getDate()+1);
@@ -450,6 +453,8 @@ function atualizarAreaApiColeta(){
   if(!bloco)return;
   const mostrar=coletaEhRodonaves()&&cv("coletaTipoFrete")==="CIF";
   bloco.style.display=mostrar?"block":"none";
+  const accert=ce("coletaApiAccertBloco");
+  if(accert) accert.style.display=coletaEhAccert()?"block":"none";
   if(mostrar&&!cv("coletaDataApi"))ce("coletaDataApi").value=dataAmanhaColeta();
   if(mostrar){
     atualizarModoEnderecoColeta();
@@ -2470,4 +2475,30 @@ function abrirVinculoCodigoColeta(id){
       ce("importColetaCodigo")?.focus();
     }
   },50);
+}
+
+async function agendarColetaAccertSSW(){
+  if(!coletaEhAccert())return alert("Selecione a ACCERT como transportadora.");
+  const dataHora=formatarDataHoraApiColeta();
+  if(!dataHora)return alert("Informe a data e o horário limite da coleta.");
+  if(!cv("coletaCepDestino"))return alert("Informe o CEP do destino.");
+  if(!(numeroColetaApi(cv("coletaVolumes"))>0))return alert("Informe a quantidade de volumes.");
+  if(!(numeroColetaApi(cv("coletaPeso"))>0))return alert("Informe o peso total.");
+  if(!confirm(`CONFIRMAR COLETA REAL NA ACCERT/SSW?\n\nCliente: ${cv("coletaRazaoDestino")}\nNF: ${cv("coletaNumeroNf")||"—"}\nVolumes: ${cv("coletaVolumes")}\nPeso: ${cv("coletaPeso")} kg\nLimite: ${new Date(dataHora).toLocaleString("pt-BR")}`))return;
+  const chave=await chaveAdminColeta(); if(!chave)return;
+  let id=cv("coletaAgendamentoId");
+  if(!id){await salvarAgendamentoColetaSemAviso();id=cv("coletaAgendamentoId");}
+  const btn=ce("btnAgendarAccertApi"); if(btn){btn.disabled=true;btn.textContent="Enviando ao SSW...";}
+  const st=ce("coletaAccertResultado"); if(st)st.textContent="Enviando solicitação para ACCERT/SSW...";
+  try{
+    const endereco=[cv("coletaEnderecoDestino"),cv("coletaNumeroDestino"),cv("coletaComplementoDestino"),cv("coletaBairroDestino"),cv("coletaCidadeDestino")].filter(Boolean).join(", ");
+    const r=await fetch("/api/integracoes?action=agendar-coleta-accert",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":chave},body:JSON.stringify({
+      agendamento_id:id||null,cnpj_remetente:cv("coletaCnpjOrigem"),cnpj_destinatario:cv("coletaCnpjDestino"),numero_nf:cv("coletaNumeroNf"),tipo_pagamento:cv("coletaTipoFrete")==="FOB"?"D":"O",endereco_entrega:endereco,cep_entrega:cv("coletaCepDestino"),solicitante:cv("coletaSolicitante"),limite_coleta:dataHora,quantidade:cv("coletaVolumes"),peso:cv("coletaPeso"),observacao:cv("coletaObservacao"),valor_mercadoria:cv("coletaValorNf"),mercadoria:cv("coletaMercadoria"),cnpj_solicitante:cv("coletaCnpjOrigem"),cep_coleta:cv("coletaCepOrigem"),logradouro_coleta:cv("coletaEnderecoOrigem"),nome_remetente:cv("coletaRazaoOrigem")
+    })});
+    const d=await r.json().catch(()=>({})); if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);
+    if(st)st.textContent=`✅ Coleta criada na ACCERT/SSW. Nº ${d.numero_coleta||"não informado"}`;
+    await carregarAgendamentosColeta();
+    mostrarBalaoSistema("Coleta ACCERT criada",d.numero_coleta?`Número ${d.numero_coleta}`:"SSW confirmou a solicitação");
+  }catch(e){console.error("Coleta ACCERT/SSW",e);if(st)st.textContent="❌ "+e.message;alert("Não foi possível criar a coleta na ACCERT/SSW:\n"+e.message);}
+  finally{if(btn){btn.disabled=false;btn.textContent="Agendar na ACCERT / SSW";}}
 }
