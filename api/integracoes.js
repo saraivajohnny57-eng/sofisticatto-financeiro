@@ -21,6 +21,7 @@ const cotarAlfa = require("../lib/integracoes/cotar-alfa");
 const consultarRastreioAlfa = require("../lib/integracoes/consultar-rastreio-alfa");
 const atualizarRastreiosAlfa = require("../lib/integracoes/atualizar-rastreios-alfa");
 const agendarColetaAccert = require("../lib/integracoes/agendar-coleta-accert");
+const agendarColetaSSW = require("../lib/integracoes/agendar-coleta-ssw");
 
 const ROTAS = Object.freeze({
   "validar-chave": validarChave,
@@ -38,7 +39,8 @@ const ROTAS = Object.freeze({
   "cotar-alfa": cotarAlfa,
   "consultar-rastreio-alfa": consultarRastreioAlfa,
   "atualizar-rastreios-alfa": atualizarRastreiosAlfa,
-  "agendar-coleta-accert": agendarColetaAccert
+  "agendar-coleta-accert": agendarColetaAccert,
+  "agendar-coleta-ssw": agendarColetaSSW
 });
 
 function responder(res, status, body) {
@@ -62,7 +64,7 @@ module.exports = async function handler(req, res) {
       ok: true,
       servico: "sofisticatto-financeiro",
       modulo: "api-integracoes-unificada",
-      versao: "37-accert-ssw",
+      versao: "38-portal-credenciais-ssw",
       rotas_carregadas: Object.keys(ROTAS).length,
       node: process.version,
       ambiente: process.env.VERCEL_ENV || "local",
