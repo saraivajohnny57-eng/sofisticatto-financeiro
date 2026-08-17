@@ -108,6 +108,7 @@ async function abrirIntegracaoSegura(conviteId){
 
   integracaoSeguraAtual=convite||{id:conviteId};
   document.getElementById("integracaoSeguraConviteId").value=conviteId;
+  atualizarWebhookSSW(conviteId);
   document.getElementById("integracaoSeguraCard").style.display="block";
   document.getElementById("integracaoSeguraSubtitulo").textContent=
     `${convite?.transportadora_nome||"Transportadora"} — credenciais, ambientes e testes`;
@@ -123,6 +124,18 @@ async function abrirIntegracaoSegura(conviteId){
 
   document.getElementById("integracaoSeguraCard")
     .scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+
+function atualizarWebhookSSW(conviteId){
+  const el=document.getElementById("integracaoWebhookSSW");
+  if(!el)return;
+  el.value=conviteId?`${window.location.origin}/api/ssw-ocorrencias?convite_id=${encodeURIComponent(conviteId)}`:"";
+}
+async function copiarWebhookSSW(){
+  const el=document.getElementById("integracaoWebhookSSW");
+  if(!el?.value)return;
+  try{await navigator.clipboard.writeText(el.value);statusCampoIntegracao("integracaoWebhookSSWStatus","URL copiada","ok")}catch{el.select();document.execCommand("copy");}
 }
 
 function fecharIntegracaoSegura(){
@@ -225,6 +238,7 @@ function atualizarCamposAuthIntegracao(){
 function credenciaisTelaIntegracao(){
   return {
     username:document.getElementById("integracaoCredUsuario").value,
+    ssw_dominio:document.getElementById("integracaoCredDominioSSW")?.value.trim()||"",
     password:document.getElementById("integracaoCredSenha").value,
     token:document.getElementById("integracaoCredToken").value,
     api_key:document.getElementById("integracaoCredApiKey").value,

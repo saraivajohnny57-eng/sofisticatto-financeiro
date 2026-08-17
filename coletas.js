@@ -2,7 +2,7 @@
 /* =========================================================
    AGENDAMENTO DE COLETA — V13.4
    ========================================================= */
-let coletaModelos=[],coletaAgendamentos=[],coletaTransportadoras=[],coletaInicializado=false;
+let coletaModelos=[],coletaAgendamentos=[],coletaTransportadoras=[],coletaIntegracoesSSW=[],coletaInicializado=false;
 
 const COLETA_MODELOS_PADRAO=[
  {nome:"Modelo 1 — WhatsApp",texto:`Para solicitar *Coleta*:
@@ -61,7 +61,7 @@ function cv(id){return ce(id)?.value?.trim()||""}
 function coletaMoeda(v){let n=Number(String(v||"").replace(/\./g,"").replace(",","."));return Number.isFinite(n)&&n? n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}):""}
 function mostrarPainelColeta(p){["nova","historico","rodonaves","saidas","entregues","entradas","transportadoras","modelos"].forEach(x=>{ce("coletaPainel"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p);ce("coletaTab"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p)});if(p==="historico")montarHistoricoColetas();if(p==="rodonaves"){carregarPainelRodonaves();iniciarSincronizacaoAutomaticaColetas()}else{pararSincronizacaoAutomaticaColetas()}if(p==="saidas")carregarRastreamentosLogistica("saida");if(p==="entregues")carregarRastreamentosEntregues();if(p==="entradas")carregarRastreamentosLogistica("entrada");if(p==="transportadoras")carregarTransportadorasLogistica();if(p==="modelos")montarModelosColeta()}
 async function inicializarModuloColetas(){if(coletaInicializado){atualizarPreviaColeta();return}coletaInicializado=true;await Promise.all([carregarTransportadorasColeta(),carregarModelosColeta(),carregarAgendamentosColeta()]);montarClientesColeta();atualizarPreviaColeta()}
-async function carregarTransportadorasColeta(){const r=await banco.from("frete_transportadoras").select("*").order("nome");coletaTransportadoras=r.error?[]:r.data||[];const opts='<option value="">Selecione</option>'+coletaTransportadoras.map(t=>`<option value="${t.id}">${escaparHtmlEmail(t.nome||"")}</option>`).join("");ce("coletaTransportadoraId").innerHTML=opts;ce("coletaModeloTransportadoraId").innerHTML='<option value="">Modelo geral</option>'+opts.replace('<option value="">Selecione</option>','')}
+async function carregarTransportadorasColeta(){const [r,ri]=await Promise.all([banco.from("frete_transportadoras").select("*").order("nome"),banco.from("transportadora_integracoes").select("convite_id,transportadora_nome,coleta_ativa,integracao_tipo,status_tecnico,ambiente_atual")]);coletaTransportadoras=r.error?[]:r.data||[];coletaIntegracoesSSW=ri.error?[]:(ri.data||[]).filter(x=>x.coleta_ativa&&String(x.integracao_tipo||"").toLowerCase()==="webservice");const opts='<option value="">Selecione</option>'+coletaTransportadoras.map(t=>`<option value="${t.id}">${escaparHtmlEmail(t.nome||"")}</option>`).join("");ce("coletaTransportadoraId").innerHTML=opts;ce("coletaModeloTransportadoraId").innerHTML='<option value="">Modelo geral</option>'+opts.replace('<option value="">Selecione</option>','')}
 async function carregarModelosColeta(){const r=await banco.from("coleta_modelos").select("*").eq("ativo",true).order("nome");coletaModelos=r.error?[]:r.data||[];if(!coletaModelos.length)coletaModelos=COLETA_MODELOS_PADRAO.map((m,i)=>({id:`padrao-${i+1}`,...m,ativo:true}));ce("coletaModeloId").innerHTML=coletaModelos.map(m=>`<option value="${m.id}">${escaparHtmlEmail(m.nome)}</option>`).join("");montarModelosColeta()}
 async function carregarAgendamentosColeta(){const r=await banco.from("coleta_agendamentos").select("*,frete_transportadoras(nome),coleta_modelos(nome)").order("created_at",{ascending:false});coletaAgendamentos=r.error?[]:r.data||[];montarHistoricoColetas()}
 function montarClientesColeta(){const dl=ce("coletaClientesLista");if(!dl)return;dl.innerHTML=(emailClientes||[]).map(c=>`<option value="${escaparHtmlEmail(c.nome||"")}"></option>`).join("")}
@@ -443,6 +443,14 @@ function coletaEhRodonaves(){
 function coletaEhAccert(){
   return /accert/i.test(coletaTransportadoraAtual()?.nome||"");
 }
+function coletaEhSSW(){
+  const nome=coletaTransportadoraAtual()?.nome||"";
+  return coletaIntegracoesSSW.some(x=>String(x.transportadora_nome||"").toLowerCase()===String(nome).toLowerCase()) || coletaEhAccert();
+}
+function coletaConviteSSW(){
+  const nome=coletaTransportadoraAtual()?.nome||"";
+  return coletaIntegracoesSSW.find(x=>String(x.transportadora_nome||"").toLowerCase()===String(nome).toLowerCase())?.convite_id||"";
+}
 function dataAmanhaColeta(){
   const d=new Date();
   d.setDate(d.getDate()+1);
@@ -454,11 +462,7 @@ function atualizarAreaApiColeta(){
   const mostrar=coletaEhRodonaves()&&cv("coletaTipoFrete")==="CIF";
   bloco.style.display=mostrar?"block":"none";
   const accert=ce("coletaApiAccertBloco");
-  const ehAccert=coletaEhAccert();
-  if(accert) accert.style.display=ehAccert?"block":"none";
-  if(ehAccert && ce("coletaDataAccert") && !ce("coletaDataAccert").value){
-    ce("coletaDataAccert").value=new Date().toISOString().slice(0,10);
-  }
+  if(accert){ accert.style.display=coletaEhSSW()?"block":"none"; const nome=coletaTransportadoraAtual()?.nome||"SSW"; const titulo=accert.querySelector("strong"); const btn=ce("btnAgendarAccertApi"); if(titulo)titulo.textContent=`🚚 Coleta automática ${nome} / SSW`; if(btn)btn.textContent=`Agendar na ${nome} / SSW`; }
   if(mostrar&&!cv("coletaDataApi"))ce("coletaDataApi").value=dataAmanhaColeta();
   if(mostrar){
     atualizarModoEnderecoColeta();
@@ -2481,35 +2485,28 @@ function abrirVinculoCodigoColeta(id){
   },50);
 }
 
-function formatarDataHoraAccert(){
-  const data=cv("coletaDataAccert");
-  const hora=cv("coletaHoraAccert")||"17:30";
-  if(!data)return "";
-  return `${data}T${hora}:00`;
-}
-
 async function agendarColetaAccertSSW(){
-  if(!coletaEhAccert())return alert("Selecione a ACCERT como transportadora.");
-  const dataHora=formatarDataHoraAccert();
-  if(!dataHora)return alert("Informe a data e o horário limite da coleta ACCERT.");
+  if(!coletaEhSSW())return alert("Selecione uma transportadora com integração SSW ativa.");
+  const dataHora=formatarDataHoraApiColeta();
+  if(!dataHora)return alert("Informe a data e o horário limite da coleta.");
   if(!cv("coletaCepDestino"))return alert("Informe o CEP do destino.");
   if(!(numeroColetaApi(cv("coletaVolumes"))>0))return alert("Informe a quantidade de volumes.");
   if(!(numeroColetaApi(cv("coletaPeso"))>0))return alert("Informe o peso total.");
-  if(!confirm(`CONFIRMAR COLETA REAL NA ACCERT/SSW?\n\nCliente: ${cv("coletaRazaoDestino")}\nNF: ${cv("coletaNumeroNf")||"—"}\nVolumes: ${cv("coletaVolumes")}\nPeso: ${cv("coletaPeso")} kg\nLimite: ${new Date(dataHora).toLocaleString("pt-BR")}`))return;
+  if(!confirm(`CONFIRMAR COLETA REAL VIA SSW?\n\nCliente: ${cv("coletaRazaoDestino")}\nNF: ${cv("coletaNumeroNf")||"—"}\nVolumes: ${cv("coletaVolumes")}\nPeso: ${cv("coletaPeso")} kg\nLimite: ${new Date(dataHora).toLocaleString("pt-BR")}`))return;
   const chave=await chaveAdminColeta(); if(!chave)return;
   let id=cv("coletaAgendamentoId");
   if(!id){await salvarAgendamentoColetaSemAviso();id=cv("coletaAgendamentoId");}
   const btn=ce("btnAgendarAccertApi"); if(btn){btn.disabled=true;btn.textContent="Enviando ao SSW...";}
-  const st=ce("coletaAccertResultado"); if(st)st.textContent="Enviando solicitação para ACCERT/SSW...";
+  const st=ce("coletaAccertResultado"); if(st)st.textContent="Enviando solicitação para o SSW...";
   try{
     const endereco=[cv("coletaEnderecoDestino"),cv("coletaNumeroDestino"),cv("coletaComplementoDestino"),cv("coletaBairroDestino"),cv("coletaCidadeDestino")].filter(Boolean).join(", ");
-    const r=await fetch("/api/integracoes?action=agendar-coleta-accert",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":chave},body:JSON.stringify({
-      agendamento_id:id||null,cnpj_remetente:cv("coletaCnpjOrigem"),cnpj_destinatario:cv("coletaCnpjDestino"),numero_nf:cv("coletaNumeroNf"),tipo_pagamento:cv("coletaTipoFrete")==="FOB"?"D":"O",endereco_entrega:endereco,cep_entrega:cv("coletaCepDestino"),solicitante:cv("coletaSolicitante"),limite_coleta:dataHora,quantidade:cv("coletaVolumes"),peso:cv("coletaPeso"),observacao:cv("coletaObservacaoAccert")||cv("coletaObservacao"),valor_mercadoria:cv("coletaValorNf"),mercadoria:cv("coletaMercadoria"),cnpj_solicitante:cv("coletaCnpjOrigem"),cep_coleta:cv("coletaCepOrigem"),logradouro_coleta:cv("coletaEnderecoOrigem"),nome_remetente:cv("coletaRazaoOrigem")
+    const r=await fetch("/api/integracoes?action=agendar-coleta-ssw",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":chave},body:JSON.stringify({
+      agendamento_id:id||null,transportadora_id:cv("coletaTransportadoraId"),convite_id:coletaConviteSSW()||null,transportadora_nome:coletaTransportadoraAtual()?.nome||"",cnpj_remetente:cv("coletaCnpjOrigem"),cnpj_destinatario:cv("coletaCnpjDestino"),numero_nf:cv("coletaNumeroNf"),tipo_pagamento:cv("coletaTipoFrete")==="FOB"?"D":"O",endereco_entrega:endereco,cep_entrega:cv("coletaCepDestino"),solicitante:cv("coletaSolicitante"),limite_coleta:dataHora,quantidade:cv("coletaVolumes"),peso:cv("coletaPeso"),observacao:cv("coletaObservacao"),valor_mercadoria:cv("coletaValorNf"),mercadoria:cv("coletaMercadoria"),cnpj_solicitante:cv("coletaCnpjOrigem"),cep_coleta:cv("coletaCepOrigem"),logradouro_coleta:cv("coletaEnderecoOrigem"),nome_remetente:cv("coletaRazaoOrigem")
     })});
     const d=await r.json().catch(()=>({})); if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);
-    if(st)st.textContent=`✅ Coleta criada na ACCERT/SSW. Nº ${d.numero_coleta||"não informado"}`;
+    if(st)st.textContent=`✅ Coleta criada via SSW. Nº ${d.numero_coleta||"não informado"}`;
     await carregarAgendamentosColeta();
-    mostrarBalaoSistema("Coleta ACCERT criada",d.numero_coleta?`Número ${d.numero_coleta}`:"SSW confirmou a solicitação");
-  }catch(e){console.error("Coleta ACCERT/SSW",e);if(st)st.textContent="❌ "+e.message;alert("Não foi possível criar a coleta na ACCERT/SSW:\n"+e.message);}
-  finally{if(btn){btn.disabled=false;btn.textContent="Agendar na ACCERT / SSW";}}
+    mostrarBalaoSistema(`Coleta ${coletaTransportadoraAtual()?.nome||"SSW"} criada`,d.numero_coleta?`Número ${d.numero_coleta}`:"SSW confirmou a solicitação");
+  }catch(e){console.error("Coleta SSW",e);if(st)st.textContent="❌ "+e.message;alert("Não foi possível criar a coleta na ACCERT/SSW:\n"+e.message);}
+  finally{if(btn){btn.disabled=false;btn.textContent=`Agendar via ${coletaTransportadoraAtual()?.nome||"SSW"} / SSW`;}}
 }
