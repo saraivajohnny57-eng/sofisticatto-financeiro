@@ -18,10 +18,8 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-
           p = Path("coletas.js")
           s = p.read_text(encoding="utf-8")
-
           old = '''async function carregarTransportadorasRastreamentoIntegrado(){
             try{
               const r=await banco.from("transportadora_integracoes")
@@ -36,25 +34,17 @@ jobs:
               transportadorasRastreamentoIntegrado=[];
             }
           }'''
-
           new = '''async function carregarTransportadorasRastreamentoIntegrado(){
             try{
               const r=await banco.from("transportadora_integracoes")
                 .select("transportadora_nome,status_tecnico,rastreamento_ativo,integracao_tipo,coleta_ativa,ambiente_atual");
               if(r.error)throw r.error;
-
               transportadorasRastreamentoIntegrado=(r.data||[]).filter(x=>{
                 const status=String(x.status_tecnico||"").toLowerCase();
                 if(status==="suspensa")return false;
-
-                // Rastreamento explicitamente ativado no Motor de Integrações.
                 if(x.rastreamento_ativo===true)return true;
-
-                // WebServices SSW podem atualizar o rastreio por ocorrência/webhook,
-                // mesmo quando o checkbox antigo de rastreamento ainda não foi marcado.
                 const tipo=String(x.integracao_tipo||"").toLowerCase();
                 if(tipo==="webservice" && x.rastreamento_ativo!==false)return true;
-
                 return false;
               });
             }catch(e){
@@ -62,7 +52,6 @@ jobs:
               transportadorasRastreamentoIntegrado=[];
             }
           }'''
-
           if old not in s:
               raise SystemExit("Bloco carregarTransportadorasRastreamentoIntegrado não encontrado")
           s = s.replace(old, new, 1)
@@ -72,17 +61,11 @@ jobs:
   const coletada=/coletad/.test(statusColeta);
 
   if(!ehRodonaves&&!coletada)return;'''
-
           new2 = '''  const ehRodonaves=/rodonaves/i.test(transportadora?.nome||"");
   const integrado=transportadoraTemRastreamentoIntegrado(transportadora?.nome||"");
   const statusColeta=String(payload.status_api||payload.status||"").toLowerCase();
   const coletada=/coletad/.test(statusColeta);
-
-  // Cria o registro de rastreio para qualquer transportadora integrada.
-  // Para SSW/webhook, o registro fica pronto para receber as ocorrências.
-  // Para APIs diretas, a rotina específica poderá atualizá-lo depois.
   if(!ehRodonaves&&!integrado&&!coletada)return;'''
-
           if old2 not in s:
               raise SystemExit("Bloco de criação do rastreio não encontrado")
           s = s.replace(old2, new2, 1)
@@ -94,18 +77,16 @@ jobs:
     return a&&(a.includes(b)||b.includes(a));
   });
   if(integracao && String(integracao.integracao_tipo||"").toLowerCase()==="webservice"){
-    alert(`O rastreio de ${nome} está integrado por WebService/SSW. As ocorrências são recebidas automaticamente e atualizam este registro quando a transportadora envia os eventos.`);
+    alert(`O rastreio de ${nome} está integrado por WebService/SSW. As ocorrências são recebidas automaticamente quando a transportadora envia os eventos.`);
     return;
   }
-  alert(`A transportadora ${nome} está cadastrada no painel de integrações, mas ainda não possui uma rotina de consulta direta configurada. O registro continua disponível para atualização por webhook/SSW ou acompanhamento manual.`);'''
-
+  alert(`A transportadora ${nome} está integrada no painel, mas ainda não possui uma consulta direta configurada. O registro pode ser atualizado por webhook/SSW ou acompanhamento manual.`);'''
           if old3 not in s:
               raise SystemExit("Mensagem de consulta não encontrada")
           s = s.replace(old3, new3, 1)
-
           p.write_text(s, encoding="utf-8")
 
-      - name: Atualizar versão do arquivo
+      - name: Atualizar cache do navegador
         shell: bash
         run: |
           python - <<'PY'
@@ -122,10 +103,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add coletas.js index.html
-          git diff --cached --quiet && echo "Nenhuma alteração necessária." && exit 0
+          if git diff --cached --quiet; then echo "Nenhuma alteração necessária."; exit 0; fi
           git commit -m "Rastreamento multi-transportadoras e SSW"
-          git push
-          rm -f .github/workflows/ajustar-rastreamento-transportadoras.yml
-          git add -u .github/workflows/ajustar-rastreamento-transportadoras.yml
-          git commit -m "Remove workflow temporario de ajuste"
           git push
