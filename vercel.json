@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/cron-rastreios-alfa",
-      "schedule": "0 12 * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }
