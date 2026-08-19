@@ -1,0 +1,131 @@
+name: Ajustar rastreamento das transportadoras
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Aplicar ajuste do painel de rastreio
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path("coletas.js")
+          s = p.read_text(encoding="utf-8")
+
+          old = '''async function carregarTransportadorasRastreamentoIntegrado(){
+            try{
+              const r=await banco.from("transportadora_integracoes")
+                .select("transportadora_nome,status_tecnico,rastreamento_ativo")
+                .eq("rastreamento_ativo",true);
+              if(r.error)throw r.error;
+              transportadorasRastreamentoIntegrado=(r.data||[]).filter(
+                x=>String(x.status_tecnico||"").toLowerCase()!=="suspensa"
+              );
+            }catch(e){
+              console.warn("Não foi possível carregar transportadoras integradas:",e.message);
+              transportadorasRastreamentoIntegrado=[];
+            }
+          }'''
+
+          new = '''async function carregarTransportadorasRastreamentoIntegrado(){
+            try{
+              const r=await banco.from("transportadora_integracoes")
+                .select("transportadora_nome,status_tecnico,rastreamento_ativo,integracao_tipo,coleta_ativa,ambiente_atual");
+              if(r.error)throw r.error;
+
+              transportadorasRastreamentoIntegrado=(r.data||[]).filter(x=>{
+                const status=String(x.status_tecnico||"").toLowerCase();
+                if(status==="suspensa")return false;
+
+                // Rastreamento explicitamente ativado no Motor de Integrações.
+                if(x.rastreamento_ativo===true)return true;
+
+                // WebServices SSW podem atualizar o rastreio por ocorrência/webhook,
+                // mesmo quando o checkbox antigo de rastreamento ainda não foi marcado.
+                const tipo=String(x.integracao_tipo||"").toLowerCase();
+                if(tipo==="webservice" && x.rastreamento_ativo!==false)return true;
+
+                return false;
+              });
+            }catch(e){
+              console.warn("Não foi possível carregar transportadoras integradas:",e.message);
+              transportadorasRastreamentoIntegrado=[];
+            }
+          }'''
+
+          if old not in s:
+              raise SystemExit("Bloco carregarTransportadorasRastreamentoIntegrado não encontrado")
+          s = s.replace(old, new, 1)
+
+          old2 = '''  const ehRodonaves=/rodonaves/i.test(transportadora?.nome||"");
+  const statusColeta=String(payload.status_api||payload.status||"").toLowerCase();
+  const coletada=/coletad/.test(statusColeta);
+
+  if(!ehRodonaves&&!coletada)return;'''
+
+          new2 = '''  const ehRodonaves=/rodonaves/i.test(transportadora?.nome||"");
+  const integrado=transportadoraTemRastreamentoIntegrado(transportadora?.nome||"");
+  const statusColeta=String(payload.status_api||payload.status||"").toLowerCase();
+  const coletada=/coletad/.test(statusColeta);
+
+  // Cria o registro de rastreio para qualquer transportadora integrada.
+  // Para SSW/webhook, o registro fica pronto para receber as ocorrências.
+  // Para APIs diretas, a rotina específica poderá atualizá-lo depois.
+  if(!ehRodonaves&&!integrado&&!coletada)return;'''
+
+          if old2 not in s:
+              raise SystemExit("Bloco de criação do rastreio não encontrado")
+          s = s.replace(old2, new2, 1)
+
+          old3 = '''  alert("Esta transportadora ainda não possui consulta automática implementada.");'''
+          new3 = '''  const integracao=(transportadorasRastreamentoIntegrado||[]).find(i=>{
+    const a=nomeNormalizadoTransportadora(i.transportadora_nome);
+    const b=nomeNormalizadoTransportadora(nome);
+    return a&&(a.includes(b)||b.includes(a));
+  });
+  if(integracao && String(integracao.integracao_tipo||"").toLowerCase()==="webservice"){
+    alert(`O rastreio de ${nome} está integrado por WebService/SSW. As ocorrências são recebidas automaticamente e atualizam este registro quando a transportadora envia os eventos.`);
+    return;
+  }
+  alert(`A transportadora ${nome} está cadastrada no painel de integrações, mas ainda não possui uma rotina de consulta direta configurada. O registro continua disponível para atualização por webhook/SSW ou acompanhamento manual.`);'''
+
+          if old3 not in s:
+              raise SystemExit("Mensagem de consulta não encontrada")
+          s = s.replace(old3, new3, 1)
+
+          p.write_text(s, encoding="utf-8")
+
+      - name: Atualizar versão do arquivo
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('coletas.js?v=36-alfa','coletas.js?v=37-rastreio-multi',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Commit e publicar
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add coletas.js index.html
+          git diff --cached --quiet && echo "Nenhuma alteração necessária." && exit 0
+          git commit -m "Rastreamento multi-transportadoras e SSW"
+          git push
+          rm -f .github/workflows/ajustar-rastreamento-transportadoras.yml
+          git add -u .github/workflows/ajustar-rastreamento-transportadoras.yml
+          git commit -m "Remove workflow temporario de ajuste"
+          git push
