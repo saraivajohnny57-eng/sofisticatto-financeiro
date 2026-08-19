@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "node scripts/patch-rastreamento-multi.js",
   "crons": [
     {
       "path": "/api/cron-rastreios-alfa",
