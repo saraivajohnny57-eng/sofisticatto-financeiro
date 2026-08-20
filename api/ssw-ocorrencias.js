@@ -29,7 +29,20 @@ module.exports=async function(req,res){
     const conv=await supabaseRest('integracao_convites',{query:`?select=id,transportadora_nome&id=eq.${encodeURIComponent(conviteId)}&limit=1`});
     if(!conv?.[0]?.id)return json(res,404,{ok:false,erro:'Integração não encontrada.'});
     const nomeTransportadora=conv[0].transportadora_nome;
-    const trans=await supabaseRest('frete_transportadoras',{query:`?select=id,nome&nome=eq.${encodeURIComponent(nomeTransportadora)}&limit=1`});
+
+    // Resolve a transportadora de forma tolerante a maiúsculas/minúsculas e pequenos
+    // espaços no cadastro. Isso evita que uma ocorrência SSW seja criada sem vínculo
+    // apenas porque o nome do convite não ficou byte a byte igual ao cadastro.
+    let trans=await supabaseRest('frete_transportadoras',{
+      query:`?select=id,nome&nome=ilike.${encodeURIComponent(nomeTransportadora)}&limit=1`
+    }).catch(()=>[]);
+    if(!trans?.length){
+      const todas=await supabaseRest('frete_transportadoras',{query:'?select=id,nome&limit=500'}).catch(()=>[]);
+      const norm=v=>String(v||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ');
+      const alvo=norm(nomeTransportadora);
+      const achada=(todas||[]).find(t=>norm(t.nome)===alvo);
+      if(achada)trans=[achada];
+    }
     const transportadoraId=trans?.[0]?.id||null;
 
     const corpo=req.body||{};
