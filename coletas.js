@@ -1,6 +1,6 @@
 
 /* =========================================================
-   AGENDAMENTO DE COLETA — V13.4
+   AGENDAMENTO DE COLETA — V40 RASTREIO MULTITRANSPORTADORAS
    ========================================================= */
 let coletaModelos=[],coletaAgendamentos=[],coletaTransportadoras=[],coletaIntegracoesSSW=[],coletaInicializado=false;
 
@@ -1425,7 +1425,51 @@ async function salvarRastreamentoLogistica(sentido){
   fecharFormularioRastreamento(sentido);
   await carregarRastreamentosLogistica(sentido);
 }
+let reconciliacaoRastreiosColetasEmAndamento=false;
+async function reconciliarRastreiosDasColetasConfiguradas(){
+  if(reconciliacaoRastreiosColetasEmAndamento)return;
+  reconciliacaoRastreiosColetasEmAndamento=true;
+  try{
+    if(!Array.isArray(coletaTransportadoras)||!coletaTransportadoras.length){
+      await carregarTransportadorasColeta();
+    }
+    const r=await banco.from("coleta_agendamentos")
+      .select("*")
+      .not("transportadora_id","is",null)
+      .order("created_at",{ascending:false})
+      .limit(1000);
+    if(r.error)throw r.error;
+    const candidatas=(r.data||[]).filter(c=>{
+      const st=String(c.status_api||c.status||"").toLowerCase();
+      if(["rascunho","cancelado","cancelamento_solicitado","erro"].includes(st))return false;
+      const d=c.dados||{};
+      return !!(String(c.numero_nf||d.numero_nf||d.numero_nfe||"").trim()||
+        String(c.chave_nfe||d.chave_nfe||d.chave_nf||"").replace(/\D/g,"")||
+        String(c.numero_cte||d.numero_cte||"").trim()||
+        String(c.protocolo_rastreio||c.protocolo_cotacao||"").trim());
+    });
+    for(const c of candidatas){
+      const existente=await localizarRastreamentoExistente({
+        sentido:"saida",transportadoraId:c.transportadora_id,
+        numeroNfe:c.numero_nf||c.dados?.numero_nf||c.dados?.numero_nfe||null,
+        chaveNfe:c.chave_nfe||c.dados?.chave_nfe||c.dados?.chave_nf||null,
+        numeroCte:c.numero_cte||c.dados?.numero_cte||null,
+        protocolo:c.protocolo_rastreio||c.protocolo_cotacao||null,
+        coletaAgendamentoId:c.id
+      });
+      if(!existente?.id){
+        await criarOuVincularRastreioDaColeta(c.id,c,"reconciliacao_v40");
+      }
+    }
+  }catch(e){
+    console.warn("V40: não foi possível reconciliar coletas e rastreios:",e.message);
+  }finally{
+    reconciliacaoRastreiosColetasEmAndamento=false;
+  }
+}
+
 async function carregarRastreamentosLogistica(sentido){
+  if(sentido==="saida")await reconciliarRastreiosDasColetasConfiguradas();
   try{
     if(sentido==="saida")await carregarTransportadorasRastreamentoIntegrado();
   }catch(e){
@@ -1434,8 +1478,10 @@ async function carregarRastreamentosLogistica(sentido){
   const r=await banco.from("logistica_rastreamentos").select("*,frete_transportadoras(nome)").eq("sentido",sentido).order("created_at",{ascending:false});
   rastreamentosLogistica=r.error?[]:(r.data||[]);
   if(sentido==="saida"){
+    // V40: o painel mostra TODAS as transportadoras cadastradas.
+    // A integração automática define apenas se haverá consulta/ocorrência externa,
+    // e não se a mercadoria pode ou não aparecer no rastreamento.
     rastreamentosLogistica=rastreamentosLogistica.filter(x=>
-      transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome) &&
       !["entregue","recebido"].includes(String(x.status||"").toLowerCase())
     );
   }
@@ -1546,9 +1592,7 @@ async function carregarRastreamentosEntregues(){
     .in("status",["entregue","recebido"])
     .order("ultima_ocorrencia_em",{ascending:false,nullsFirst:false})
     .order("created_at",{ascending:false});
-  rastreamentosEntregues=r.error?[]:(r.data||[]).filter(x=>
-    transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)
-  );
+  rastreamentosEntregues=r.error?[]:(r.data||[]);
   renderRastreamentosEntregues();
 }
 
@@ -1678,6 +1722,24 @@ async function consultarRastreioAlfaRegistro(id,{silencioso=false,chave=null}={}
   const dados=await resposta.json().catch(()=>({})); if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
   return {rastro,dados};
 }
+async function consultarRastreioSSWRegistro(id){
+  const rastro=await obterRastreamentoPorId(id);
+  if(!rastro)throw new Error("Rastreio não encontrado no banco de dados.");
+  const nome=rastro.frete_transportadoras?.nome||"";
+  if(!transportadoraEhSSW(nome))throw new Error("Esta transportadora não está configurada como SSW/WebService.");
+
+  let q=banco.from("ssw_ocorrencias_recebidas")
+    .select("*")
+    .order("created_at",{ascending:false})
+    .limit(1);
+  if(rastro.chave_nfe)q=q.eq("chave_nfe",String(rastro.chave_nfe).replace(/\D/g,""));
+  else if(rastro.numero_nfe)q=q.eq("numero_nfe",String(rastro.numero_nfe));
+  else throw new Error("Informe NF ou chave NF-e para consultar as ocorrências SSW.");
+  const resp=await q.maybeSingle();
+  if(resp.error)throw resp.error;
+  return {rastro,ocorrencia:resp.data||null};
+}
+
 async function atualizarRastreioIntegrado(id,botao=null){
   const rastro=await obterRastreamentoPorId(id); if(!rastro)return alert("Rastreio não encontrado.");
   const nome=rastro.frete_transportadoras?.nome||"";
@@ -1688,7 +1750,21 @@ async function atualizarRastreioIntegrado(id,botao=null){
     catch(e){alert("Não foi possível atualizar o rastreio Alfa: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
     return;
   }
-  alert("Esta transportadora ainda não possui consulta automática implementada.");
+  if(transportadoraEhSSW(nome)){
+    const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Verificando SSW...";}
+    try{
+      const {ocorrencia}=await consultarRastreioSSWRegistro(id);
+      await carregarRastreamentosLogistica(rastro.sentido||"saida");
+      await carregarRastreamentosEntregues();
+      if(ocorrencia){
+        alert(`Última ocorrência SSW recebida.\n\nTransportadora: ${nome}\nNF: ${rastro.numero_nfe||"—"}\nOcorrência: ${ocorrencia.descricao||"—"}${ocorrencia.complemento?`\n${ocorrencia.complemento}`:""}`);
+      }else{
+        alert(`A NF ${rastro.numero_nfe||"—"} já está no painel de rastreamento.\n\nAinda não recebemos uma ocorrência SSW de ${nome}. Assim que a transportadora/SSW enviar o evento para o portal, o status será atualizado automaticamente.`);
+      }
+    }catch(e){alert("Não foi possível verificar as ocorrências SSW: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
+    return;
+  }
+  alert("A mercadoria está registrada no painel, mas esta transportadora ainda não possui consulta automática externa configurada.");
 }
 
 async function atualizarRastreioRodonaves(id,botao=null){
@@ -1856,11 +1932,12 @@ async function criarOuVincularRastreioDaColeta(agendamentoId,payload,origemExter
     payload?.dados?.numero_nf||payload?.dados?.numero_nfe||null;
   const numeroCte=payload.numero_cte||payload?.dados?.numero_cte||null;
   const chaveNfe=payload.chave_nfe||payload?.dados?.chave_nfe||payload?.dados?.chave_nf||null;
-  const ehRodonaves=/rodonaves/i.test(transportadora?.nome||"");
   const statusColeta=String(payload.status_api||payload.status||"").toLowerCase();
   const coletada=/coletad/.test(statusColeta);
 
-  if(!ehRodonaves&&!coletada)return;
+  // V40: qualquer transportadora cadastrada entra no monitoramento quando a
+  // coleta possui pelo menos NF, chave NF-e, CT-e ou protocolo. Antes isso
+  // acontecia antecipadamente apenas com a Rodonaves.
   if(!protocolo&&!numeroNfe&&!numeroCte&&!chaveNfe&&!coletada)return;
 
   const existente=await localizarRastreamentoExistente({
@@ -2074,8 +2151,8 @@ async function confirmarAjusteCargaColeta(agendamentoId){
 async function carregarTransportadorasRastreamentoIntegrado(){
   try{
     const r=await banco.from("transportadora_integracoes")
-      .select("transportadora_nome,status_tecnico,rastreamento_ativo")
-      .eq("rastreamento_ativo",true);
+      .select("transportadora_nome,status_tecnico,rastreamento_ativo,coleta_ativa,integracao_tipo,api_versao,convite_id")
+      .or("rastreamento_ativo.eq.true,coleta_ativa.eq.true");
     if(r.error)throw r.error;
     transportadorasRastreamentoIntegrado=(r.data||[]).filter(
       x=>String(x.status_tecnico||"").toLowerCase()!=="suspensa"
@@ -2097,6 +2174,18 @@ function transportadoraTemRastreamentoIntegrado(nome){
     const x=nomeNormalizadoTransportadora(i.transportadora_nome);
     return x&&(n.includes(x)||x.includes(n));
   });
+}
+function integracaoRastreamentoDaTransportadora(nome){
+  const n=nomeNormalizadoTransportadora(nome);
+  if(!n)return null;
+  return transportadorasRastreamentoIntegrado.find(i=>{
+    const x=nomeNormalizadoTransportadora(i.transportadora_nome);
+    return x&&(n.includes(x)||x.includes(n));
+  })||null;
+}
+function transportadoraEhSSW(nome){
+  const i=integracaoRastreamentoDaTransportadora(nome);
+  return !!i&&(String(i.integracao_tipo||"").toLowerCase()==="webservice"||/ssw/i.test(String(i.api_versao||"")));
 }
 
 
