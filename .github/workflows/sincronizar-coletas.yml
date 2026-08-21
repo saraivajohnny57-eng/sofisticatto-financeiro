@@ -65,3 +65,20 @@ jobs:
           if [ "$HTTP_ALFA" -lt 200 ] || [ "$HTTP_ALFA" -ge 300 ]; then
             exit 1
           fi
+
+          echo
+          echo "Sincronizando rastreios de todas as transportadoras integradas..."
+          URL_RASTREIOS="${APP_URL%/}/api/integracoes?action=atualizar-rastreios-geral"
+          HTTP_RASTREIOS=$(curl --silent --show-error \
+            --output resposta-rastreios.json \
+            --write-out "%{http_code}" \
+            --request POST \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --header "Content-Type: application/json" \
+            "$URL_RASTREIOS")
+          cat resposta-rastreios.json
+          echo
+          echo "HTTP Rastreios: ${HTTP_RASTREIOS}"
+          if [ "$HTTP_RASTREIOS" -lt 200 ] || [ "$HTTP_RASTREIOS" -ge 300 ]; then
+            exit 1
+          fi
