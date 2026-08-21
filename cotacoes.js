@@ -569,6 +569,31 @@ async function cotarAutomaticamenteAlfa(transportadoraId,tipoFrete){
   finally{if(botao){botao.disabled=false;botao.textContent=original;}}
 }
 
+async function cotarAutomaticamenteSSW(transportadoraId,tipoFrete){
+  const dados=dadosFormularioFrete();const chave=chaveRespostaFrete(transportadoraId,tipoFrete);
+  const botao=document.getElementById(`btnSSW_${chave}`);const tr=freteTransportadoras.find(t=>String(t.id)===String(transportadoraId));
+  const cep=String(dados.cep_destino||"").replace(/\D/g,"");
+  const cnpjDestino=String(dados.cpf_cnpj_destino||"").replace(/\D/g,"");
+  if(cep.length!==8)return alert("Para cotar automaticamente no SSW, informe um CEP de destino válido.");
+  if(!Number(dados.valor_nf||0))return alert("Informe o valor da NF para cotação SSW.");
+  if(!Number(dados.peso_total||0)&&!String(dados.medidas||"").trim())return alert("Informe peso ou medidas/volume para cotação SSW.");
+  const cnpjRem=String(FRETE_REMETENTE.cnpj||"").replace(/\D/g,"");
+  const cnpjPagador=tipoFrete==="CIF"?cnpjRem:cnpjDestino;
+  if(cnpjPagador.length!==14)return alert(`Para cotação ${tipoFrete}, o pagador precisa possuir CNPJ de 14 dígitos. O WebService SSW cotar() não aceita CPF como CNPJ pagador.`);
+  const original=botao?.textContent||"⚡ Cotar SSW automaticamente";if(botao){botao.disabled=true;botao.textContent="Consultando SSW...";}
+  try{
+    const adm=await chaveAdminColeta();if(!adm)throw new Error("Informe a chave administrativa.");
+    const r=await fetch("/api/integracoes?action=cotar-ssw",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":adm},body:JSON.stringify({transportadora_id:transportadoraId,tipo_frete:tipoFrete,cnpj_pagador:cnpjPagador,cnpj_remetente:cnpjRem,cnpj_destinatario:cnpjDestino,cep_origem:String(FRETE_REMETENTE.cep||"").replace(/\D/g,""),cep_destino:cep,valor_nf:dados.valor_nf,quantidade:dados.volumes||1,peso:dados.peso_total||0,medidas:dados.medidas||"",coletar:dados.coleta||"Sim"})});
+    const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);
+    if(!Number(d.valor||0))throw new Error(d.mensagem||"O SSW não retornou valor de frete.");
+    freteCampo(`freteRespNumero_${chave}`).value="SSW";
+    freteCampo(`freteRespValor_${chave}`).value=Number(d.valor).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+    freteCampo(`freteRespPrazo_${chave}`).value=d.prazo?`${d.prazo} dias corridos`:"";
+    registrarRespostaFrete(transportadoraId,tipoFrete);
+    mostrarBalaoSistema(`Cotação ${tr?.nome||"SSW"} recebida`,`${Number(d.valor).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}${d.prazo?` • ${d.prazo} dias`:""}${d.mensagem?` • ${d.mensagem}`:""}`);
+  }catch(e){console.error("Cotação automática SSW:",e);alert(`Não foi possível gerar a cotação automática de ${tr?.nome||"SSW"}:\n\n${e.message||e}`);}finally{if(botao){botao.disabled=false;botao.textContent=original;}}
+}
+
 async function cotarAutomaticamenteCorreios(transportadoraId,tipoFrete){
   const dados=dadosFormularioFrete();
   const chave=chaveRespostaFrete(transportadoraId,tipoFrete);
@@ -652,7 +677,9 @@ function gerarCotacoesFrete(){
               ? `<span class="frete-aviso-fob">FOB Rodonaves: manual por WhatsApp ou telefone</span>` : ""}
             ${/(^|\s)alfa(\s|$)|alfa transportes/i.test(transportadora?.nome||"")
               ? `<button class="btn roxo" id="btnAlfa_${chave}" onclick="cotarAutomaticamenteAlfa('${id}','${tipoResposta}')">⚡ Cotar Alfa automaticamente</button>` : ""}
-            ${/correios/i.test(transportadora?.nome||"")
+            ${/(accert|tg\s+transportes|tgtransportes)/i.test(transportadora?.nome||"")
+              ? `<button class="btn roxo" id="btnSSW_${chave}" onclick="cotarAutomaticamenteSSW('${id}','${tipoResposta}')">⚡ Cotar SSW automaticamente</button>` : ""}
+            ${/(correios|coreios)/i.test(transportadora?.nome||"")
               ? `<button class="btn roxo" id="btnCorreios_${chave}" onclick="cotarAutomaticamenteCorreios('${id}','${tipoResposta}')">📮 Cotar Correios automaticamente</button>` : ""}
             <button class="btn azul" onclick="copiarTextoFrete('${chave}')">Copiar solicitação</button>
             <button class="btn verde" onclick="abrirWhatsAppTransportadoraFrete('${id}','${tipoResposta}')">📱 Enviar WhatsApp</button>
