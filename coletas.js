@@ -1387,19 +1387,24 @@ async function salvarRastreamentoLogistica(sentido){
       if(del.error)return alert("Não foi possível consolidar o rastreio duplicado: "+del.error.message);
     }
 
+    const identificadoresIguais=(linha)=>{
+      if(!linha)return false;
+      const txt=v=>String(v||"").trim();
+      const dig=v=>txt(v).replace(/\D/g,"");
+      return txt(linha.protocolo_rastreio)===txt(payload.protocolo_rastreio)
+        && dig(linha.chave_nfe)===dig(payload.chave_nfe)
+        && txt(linha.numero_nfe)===txt(payload.numero_nfe)
+        && txt(linha.numero_cte)===txt(payload.numero_cte);
+    };
     let upd=await banco.from("logistica_rastreamentos").update(consolidado).eq("id",id).select("id,protocolo_rastreio,chave_nfe,numero_nfe,numero_cte").limit(1);
     if(upd.error)return alert(upd.error.message);
-    let confirmado=Array.isArray(upd.data)&&upd.data.some(x=>String(x.id)===String(id));
+    let confirmado=Array.isArray(upd.data)&&upd.data.some(x=>String(x.id)===String(id)&&identificadoresIguais(x));
 
-    // Alguns projetos antigos possuem uma policy de UPDATE que não retorna a linha
-    // no .select(), apesar de o registro ser visível. Confere novamente por leitura.
+    // Confere TODOS os identificadores. Antes a confirmação olhava praticamente só
+    // o protocolo, então uma alteração apenas de NF/chave podia parecer salva sem estar.
     if(!confirmado){
       const conf=await banco.from("logistica_rastreamentos").select("id,protocolo_rastreio,chave_nfe,numero_nfe,numero_cte").eq("id",id).maybeSingle();
-      if(!conf.error&&conf.data){
-        const esperado=String(payload.protocolo_rastreio||"").trim();
-        const atualProto=String(conf.data.protocolo_rastreio||"").trim();
-        confirmado=!esperado||esperado===atualProto;
-      }
+      if(!conf.error&&conf.data)confirmado=identificadoresIguais(conf.data);
     }
     if(!confirmado){
       // Fallback seguro pelo backend (service role), protegido pela chave administrativa.
@@ -1418,19 +1423,33 @@ async function salvarRastreamentoLogistica(sentido){
     }
     if(!confirmado)return alert("A alteração não foi gravada. Verifique a permissão de UPDATE da tabela logistica_rastreamentos ou a chave administrativa.");
 
-    // V44: quando o rastreio nasceu de uma coleta, preserva também o código
-    // editado na coleta. Isso impede a reconciliação automática de recolocar
-    // o protocolo de cotação no lugar do código postal dos Correios.
-    if(atual?.coleta_agendamento_id && payload.protocolo_rastreio){
+    // Mantém a coleta vinculada com os MESMOS identificadores editados. Assim a
+    // reconciliação automática não volta a colocar a NF/chave/CT-e/protocolo antigo.
+    if(atual?.coleta_agendamento_id){
       try{
         const ca=await banco.from("coleta_agendamentos").select("dados").eq("id",atual.coleta_agendamento_id).maybeSingle();
-        const dadosColeta={...(ca.data?.dados||{}),protocolo_rastreio:payload.protocolo_rastreio};
-        await banco.from("coleta_agendamentos").update({
+        const dadosColeta={...(ca.data?.dados||{}),
+          numero_nf:payload.numero_nfe,numero_nfe:payload.numero_nfe,
+          chave_nfe:payload.chave_nfe,numero_cte:payload.numero_cte,
+          protocolo_rastreio:payload.protocolo_rastreio};
+        const rc=await banco.from("coleta_agendamentos").update({
+          numero_nf:payload.numero_nfe,
+          chave_nfe:payload.chave_nfe,
+          numero_cte:payload.numero_cte,
           protocolo_rastreio:payload.protocolo_rastreio,
           dados:dadosColeta,
           atualizado_em:new Date().toISOString()
         }).eq("id",atual.coleta_agendamento_id);
-      }catch(e){console.warn("V44: não foi possível replicar protocolo para a coleta:",e.message)}
+        if(rc.error)console.warn("V49: coleta vinculada não atualizada pelo navegador:",rc.error.message);
+      }catch(e){console.warn("V49: não foi possível replicar identificadores para a coleta:",e.message)}
+      // Também chama o backend seguro para garantir a persistência quando houver RLS antiga.
+      try{
+        const chave=await chaveAdminColeta();
+        if(chave)await fetch('/api/integracoes?action=salvar-rastreio-logistica',{
+          method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+          body:JSON.stringify({id,patch:consolidado})
+        });
+      }catch(e){console.warn('V49: sincronização segura da coleta:',e.message)}
     }
 
     if(duplicado?.id&&!(duplicado.coleta_agendamento_id&&!atual?.coleta_agendamento_id)){
@@ -1562,6 +1581,7 @@ async function carregarRastreamentosLogistica(sentido){
     <td>
       <span class="coleta-status-painel ${classeStatusRastreamento(x.status)}">${statusLabelRastreamento(x.status)}</span>
       ${x.ultima_ocorrencia?`<div class="rastreio-ultima-ocorrencia">${escaparHtmlEmail(x.ultima_ocorrencia)}</div>`:""}
+      ${x.sincronizacao_erro?`<div class="rastreio-ultima-ocorrencia" style="color:#a33;">⚠ ${escaparHtmlEmail(x.sincronizacao_erro)}</div>`:""}
       ${x.metodo_consulta?`<div class="rastreio-metodo">Localizado por: ${escaparHtmlEmail(x.metodo_consulta)}</div>`:""}
     </td>
     <td>
