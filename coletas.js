@@ -1492,18 +1492,33 @@ async function carregarRastreamentosLogistica(sentido){
   }
   const r=await banco.from("logistica_rastreamentos").select("*,frete_transportadoras(nome)").eq("sentido",sentido).order("created_at",{ascending:false});
   rastreamentosLogistica=r.error?[]:(r.data||[]);
+  const todosRastreiosDoSentido=[...rastreamentosLogistica];
   if(sentido==="saida"){
-    // V40: o painel mostra TODAS as transportadoras cadastradas.
-    // A integração automática define apenas se haverá consulta/ocorrência externa,
-    // e não se a mercadoria pode ou não aparecer no rastreamento.
+    // O painel mostra TODAS as transportadoras cadastradas, mas prioriza no topo
+    // aquilo que o sistema consegue rastrear automaticamente.
     rastreamentosLogistica=rastreamentosLogistica.filter(x=>
       !["entregue","recebido"].includes(String(x.status||"").toLowerCase())
     );
+    const prioridade=x=>{
+      const nome=x.frete_transportadoras?.nome||"";
+      const integrado=transportadoraTemRastreamentoIntegrado(nome);
+      const temId=Boolean(x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe);
+      if(integrado&&temId)return 0;
+      if(integrado)return 1;
+      if(temId)return 2;
+      return 3;
+    };
+    rastreamentosLogistica.sort((a,b)=>{
+      const pa=prioridade(a),pb=prioridade(b);if(pa!==pb)return pa-pb;
+      return new Date(b.created_at||0)-new Date(a.created_at||0);
+    });
   }
   const entreguesStatus=sentido==="entrada"?"recebido":"entregue";
-  const emTransito=rastreamentosLogistica.filter(x=>!["entregue","recebido","cancelado"].includes(x.status)).length;
-  const entregues=rastreamentosLogistica.filter(x=>x.status===entreguesStatus).length;
-  const atrasadas=rastreamentosLogistica.filter(x=>x.status==="atrasado"||(x.previsao_entrega&&new Date(x.previsao_entrega)<new Date()&&!["entregue","recebido"].includes(x.status))).length;
+  // Os KPIs usam a lista completa; a tabela de Saídas continua escondendo os entregues,
+  // que aparecem na aba própria.
+  const emTransito=todosRastreiosDoSentido.filter(x=>!["entregue","recebido","cancelado"].includes(x.status)).length;
+  const entregues=todosRastreiosDoSentido.filter(x=>x.status===entreguesStatus).length;
+  const atrasadas=todosRastreiosDoSentido.filter(x=>x.status==="atrasado"||(x.previsao_entrega&&new Date(x.previsao_entrega)<new Date()&&!["entregue","recebido"].includes(x.status))).length;
   if(sentido==="saida"){ce("rastSaidaTransito").textContent=emTransito;ce("rastSaidaEntregues").textContent=entregues;ce("rastSaidaAtrasadas").textContent=atrasadas}
   else{ce("rastEntradaTransito").textContent=emTransito;ce("rastEntradaRecebidas").textContent=entregues;ce("rastEntradaAtrasadas").textContent=atrasadas}
   const tb=ce(sentido==="entrada"?"rastreamentoTabelaEntradas":"rastreamentoTabelaSaidas");
@@ -1512,7 +1527,7 @@ async function carregarRastreamentosLogistica(sentido){
     return `<tr class="linha-rastreamento-logistica" data-status="${escaparHtmlEmail(x.status||"")}" data-busca="${escaparHtmlEmail(textoBusca)}">
     <td>${x.created_at?new Date(x.created_at).toLocaleDateString("pt-BR"):"—"}</td>
     <td>${escaparHtmlEmail(x.parceiro_nome||"—")}</td>
-    <td>${escaparHtmlEmail(x.frete_transportadoras?.nome||"Não informada")}</td>
+    <td>${escaparHtmlEmail(x.frete_transportadoras?.nome||"Não informada")}${transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)?`<div class="rastreio-metodo">● Rastreio automático</div>`:""}</td>
     <td>${escaparHtmlEmail(x.numero_nfe||"—")}</td>
     <td>${escaparHtmlEmail(x.numero_cte||x.protocolo_rastreio||"—")}</td>
     <td>${x.previsao_entrega?new Date(x.previsao_entrega+"T12:00:00").toLocaleDateString("pt-BR"):"—"}</td>
@@ -1633,7 +1648,7 @@ function renderRastreamentosEntregues(){
       <td>${escaparHtmlEmail(x.numero_nfe||"—")}</td>
       <td>${escaparHtmlEmail(x.numero_cte||x.protocolo_rastreio||"—")}</td>
       <td>${x.ultima_ocorrencia_em?new Date(x.ultima_ocorrencia_em).toLocaleString("pt-BR"):"—"}</td>
-      <td><span class="status-rastreamento entregue">ENTREGUE</span>${x.ultima_ocorrencia?`<div class="rast-detalhe">${escaparHtmlEmail(x.ultima_ocorrencia)}</div>`:""}</td>
+      <td><span class="status-rastreamento entregue">ENTREGUE</span>${x.ultima_ocorrencia?`<div class="rast-detalhe">${escaparHtmlEmail(x.ultima_ocorrencia)}</div>`:""}${x.metodo_consulta?`<div class="rastreio-metodo">Fonte: ${escaparHtmlEmail(x.metodo_consulta)}</div>`:""}</td>
       <td>
         ${transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)?`<button class="btn azul" onclick="atualizarRastreioIntegrado('${x.id}',this)">Atualizar rastreio</button>`:""}
         <button class="btn vermelho" onclick="excluirRastreamentoLogistica('${x.id}','saida')">Excluir</button>
@@ -1744,11 +1759,17 @@ async function consultarRastreioCorreiosRegistro(id,{chave=null}={}){
   if(!rastro)throw new Error("Rastreio não encontrado no banco de dados.");
   if(!/correios|coreios/i.test(rastro.frete_transportadoras?.nome||""))throw new Error("Este registro não pertence aos Correios.");
   const codigo=String(rastro.protocolo_rastreio||rastro.numero_cte||"").trim().toUpperCase();
-  if(!/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(codigo))throw new Error("Informe no campo protocolo/rastreio o código postal dos Correios (ex.: AA123456789BR).");
   const chaveUsar=chave||await chaveAdminColeta();if(!chaveUsar)throw new Error("Informe a chave administrativa.");
-  const params=new URLSearchParams({action:"consultar-rastreio-correios",registro_id:String(id),codigo});
+  // V46: não bloqueia mais quando o código ainda não está no registro. O backend
+  // tenta localizá-lo automaticamente nas pré-postagens do contrato dos Correios.
+  const params=new URLSearchParams({action:"consultar-rastreio-correios",registro_id:String(id)});
+  if(/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(codigo))params.set("codigo",codigo);
   const resposta=await fetch(`/api/integracoes?${params}`,{headers:{"x-integrations-admin-key":chaveUsar}});
-  const dados=await resposta.json().catch(()=>({}));if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
+  const dados=await resposta.json().catch(()=>({}));
+  if(!resposta.ok){
+    const e=new Error(dados.erro||`HTTP ${resposta.status}`);
+    e.codigo=dados.codigo||null;e.detalhes=dados;throw e;
+  }
   return {rastro,dados};
 }
 
@@ -1913,58 +1934,79 @@ async function atualizarRastreioRodonaves(id,botao=null){
 let atualizacaoTodosRastreiosEmAndamento=false;
 
 async function atualizarTodosRastreiosSaida(silencioso=false){
-  if(atualizacaoTodosRastreiosEmAndamento)return;
-
   const botao=ce("btnAtualizarTodosRastreios");
   const status=ce("statusAtualizarTodosRastreios");
-  const textoOriginal=botao?.textContent||"Atualizar todos os rastreios";
+  const textoOriginal="🔄 Atualizar todos os rastreios";
+
+  if(atualizacaoTodosRastreiosEmAndamento){
+    if(!silencioso){
+      if(status)status.textContent="Já existe uma atualização em andamento. Aguarde alguns segundos.";
+    }
+    return;
+  }
 
   try{
     atualizacaoTodosRastreiosEmAndamento=true;
     if(botao&&!silencioso){botao.disabled=true;botao.textContent="Preparando...";}
+    if(status&&!silencioso)status.textContent="Carregando transportadoras com rastreio automático...";
 
     await carregarTransportadorasRastreamentoIntegrado();
-    // Primeiro aplica todas as ocorrências SSW que já chegaram ao portal.
+    // Primeiro aplica ocorrências SSW já recebidas pelo endpoint automático.
     const sswAtualizados=await sincronizarRastreiosSSWLocais();
 
     const r=await banco.from("logistica_rastreamentos")
       .select("id,status,protocolo_rastreio,numero_cte,numero_nfe,chave_nfe,frete_transportadoras(nome)")
       .eq("sentido","saida")
+      .not("status","in",'(entregue,recebido,cancelado)')
       .order("created_at",{ascending:false});
     if(r.error)throw r.error;
 
-    // V44: Rodonaves + Alfa + Correios + SSW são consultados diretamente.
-    // Para SSW, o webhook continua como segundo caminho/fallback.
     const lista=(r.data||[]).filter(x=>{
       const nome=x.frete_transportadoras?.nome||"";
       const direta=transportadoraConhecidaPorConsultaDireta(nome)||transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome);
-      return direta && (x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe) &&
-        !["cancelado"].includes(String(x.status||"").toLowerCase());
+      // Correios pode entrar mesmo sem código: o backend tenta descobri-lo nas pré-postagens.
+      if(/correios|coreios/i.test(nome))return direta;
+      return direta&&(x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe);
     });
 
     const chaveSalva=localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key")||"";
     let chave=chaveSalva;
     if(lista.length&&!chave&&!silencioso)chave=await chaveAdminColeta();
 
-    let sucesso=0,erros=0,alterados=0;
+    if(!chave&&lista.length){
+      if(!silencioso)throw new Error("Informe a chave administrativa para consultar as transportadoras.");
+      return;
+    }
+
+    let sucesso=0,erros=0,alterados=0,entreguesNovos=0;
     const detalhes=[];
     for(let i=0;i<lista.length;i++){
       const item=lista[i];
       const nome=item.frete_transportadoras?.nome||"";
-      if(!chave){detalhes.push(`${item.numero_nfe||item.id}: chave administrativa não salva`);erros++;continue;}
       if(botao&&!silencioso)botao.textContent=`Atualizando ${i+1}/${lista.length}`;
-      if(status&&!silencioso)status.textContent=`Consultando ${i+1} de ${lista.length} rastreios...`;
+      if(status&&!silencioso)status.textContent=`Consultando ${nome} • ${i+1} de ${lista.length}...`;
       try{
         const antes=String(item.status||"");
         let consulta;
         if(/rodonaves/i.test(nome))consulta=await consultarRastreioRodonavesRegistro(item.id,{silencioso:true,chave});
         else if(/correios|coreios/i.test(nome))consulta=await consultarRastreioCorreiosRegistro(item.id,{chave});
-        else if(transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome))consulta=await consultarRastreioSSWDiretoRegistro(item.id,{chave});
-        else consulta=await consultarRastreioAlfaRegistro(item.id,{silencioso:true,chave});
+        else if(transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome)){
+          try{consulta=await consultarRastreioSSWDiretoRegistro(item.id,{chave});}
+          catch(direto){
+            // Se a consulta direta depender da senha 383 ou estiver temporariamente indisponível,
+            // aplica a última ocorrência que já tiver chegado do SSW.
+            const local=await consultarRastreioSSWRegistro(item.id).catch(()=>null);
+            if(local?.ocorrencia)consulta={dados:{status:normalizarStatusOcorrenciaSSWCliente(local.ocorrencia.descricao,local.ocorrencia.codigo_ocorrencia),statusBruto:local.ocorrencia.descricao}};
+            else throw direto;
+          }
+        }else consulta=await consultarRastreioAlfaRegistro(item.id,{silencioso:true,chave});
         const dados=consulta?.dados||{};
         sucesso++;
-        if(dados.status&&String(dados.status)!==antes)alterados++;
-      }catch(erro){erros++;detalhes.push(`${item.numero_nfe||item.numero_cte||item.protocolo_rastreio||item.id}: ${erro.message}`);}
+        if(dados.status&&String(dados.status)!==antes){alterados++;if(dados.status==="entregue")entreguesNovos++;}
+      }catch(erro){
+        erros++;
+        detalhes.push(`${nome} • ${item.numero_nfe||item.numero_cte||item.protocolo_rastreio||item.id}: ${erro.message}`);
+      }
       if(i<lista.length-1)await new Promise(resolve=>setTimeout(resolve,250));
     }
 
@@ -1972,10 +2014,14 @@ async function atualizarTodosRastreiosSaida(silencioso=false){
     await carregarRastreamentosEntregues();
     await carregarPainelRodonaves();
 
-    const resumo=`Concluído: ${sucesso} consulta(s) externa(s), ${sswAtualizados} ocorrência(s) SSW aplicada(s), ${alterados} mudança(s) de status, ${erros} erro(s).`;
+    const resumo=`Concluído: ${sucesso} consulta(s), ${alterados} mudança(s), ${entreguesNovos} nova(s) entrega(s), ${sswAtualizados} ocorrência(s) SSW aplicada(s), ${erros} erro(s).`;
     if(status)status.textContent=resumo;
-    if(!silencioso){
-      if(erros){console.warn("Falhas na atualização em lote:",detalhes);alert(`${resumo}\n\nVeja os erros individuais no Console.`);}else alert(resumo);
+    if(!silencioso&&erros){
+      console.warn("Falhas na atualização em lote:",detalhes);
+      // Não interrompe a operação por causa de uma transportadora: mostra resumo e continua.
+      alert(`${resumo}\n\nAlgumas transportadoras não responderam. Os detalhes ficaram registrados no Console.`);
+    }else if(!silencioso){
+      alert(resumo);
     }
   }catch(erro){
     if(status&&!silencioso)status.textContent="Falha ao atualizar todos os rastreios.";
@@ -1983,11 +2029,13 @@ async function atualizarTodosRastreiosSaida(silencioso=false){
     else console.warn("Atualização automática de rastreios:",erro.message);
   }finally{
     atualizacaoTodosRastreiosEmAndamento=false;
-    if(botao&&!silencioso){botao.disabled=false;botao.textContent=textoOriginal;}
+    if(botao&&document.body.contains(botao)){
+      botao.disabled=false;
+      botao.textContent=textoOriginal;
+    }
   }
 }
 
-let timerAtualizacaoAutomaticaRastreios=null;
 function iniciarAtualizacaoAutomaticaRastreios(){
   if(timerAtualizacaoAutomaticaRastreios)return;
   // Faz uma sincronização leve ao entrar na tela e repete a cada 2 minutos.
