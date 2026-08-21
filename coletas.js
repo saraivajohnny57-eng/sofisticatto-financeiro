@@ -1390,6 +1390,21 @@ async function salvarRastreamentoLogistica(sentido){
     const upd=await banco.from("logistica_rastreamentos").update(consolidado).eq("id",id);
     if(upd.error)return alert(upd.error.message);
 
+    // V44: quando o rastreio nasceu de uma coleta, preserva também o código
+    // editado na coleta. Isso impede a reconciliação automática de recolocar
+    // o protocolo de cotação no lugar do código postal dos Correios.
+    if(atual?.coleta_agendamento_id && payload.protocolo_rastreio){
+      try{
+        const ca=await banco.from("coleta_agendamentos").select("dados").eq("id",atual.coleta_agendamento_id).maybeSingle();
+        const dadosColeta={...(ca.data?.dados||{}),protocolo_rastreio:payload.protocolo_rastreio};
+        await banco.from("coleta_agendamentos").update({
+          protocolo_rastreio:payload.protocolo_rastreio,
+          dados:dadosColeta,
+          atualizado_em:new Date().toISOString()
+        }).eq("id",atual.coleta_agendamento_id);
+      }catch(e){console.warn("V44: não foi possível replicar protocolo para a coleta:",e.message)}
+    }
+
     if(duplicado?.id&&!(duplicado.coleta_agendamento_id&&!atual?.coleta_agendamento_id)){
       await banco.from("logistica_rastreamentos").delete().eq("id",duplicado.id);
     }
@@ -1746,6 +1761,20 @@ function normalizarStatusOcorrenciaSSWCliente(desc,codigo){
   if(/ocorr|insucesso|recusa|ausente|endereco/.test(s))return "ocorrencia";
   return "em_transito";
 }
+async function consultarRastreioSSWDiretoRegistro(id,{chave=null}={}){
+  const rastro=await obterRastreamentoPorId(id);
+  if(!rastro)throw new Error("Rastreio não encontrado no banco de dados.");
+  const nome=rastro.frete_transportadoras?.nome||"";
+  if(!transportadoraEhSSW(nome) && !/accert|\btg\b/i.test(nome))throw new Error("Esta transportadora não está configurada como SSW/WebService.");
+  if(!rastro.numero_nfe&&!rastro.chave_nfe)throw new Error("Informe NF ou chave NF-e para consultar o SSW.");
+  const chaveUsar=chave||await chaveAdminColeta();if(!chaveUsar)throw new Error("Informe a chave administrativa.");
+  const params=new URLSearchParams({action:"consultar-rastreio-ssw",registro_id:String(id)});
+  const resposta=await fetch(`/api/integracoes?${params}`,{headers:{"x-integrations-admin-key":chaveUsar}});
+  const dados=await resposta.json().catch(()=>({}));
+  if(!resposta.ok){const erro=new Error(dados.erro||`HTTP ${resposta.status}`);erro.codigo=dados.codigo||null;throw erro;}
+  return {rastro,dados};
+}
+
 async function consultarRastreioSSWRegistro(id){
   const rastro=await obterRastreamentoPorId(id);
   if(!rastro)throw new Error("Rastreio não encontrado no banco de dados.");
@@ -1830,18 +1859,23 @@ async function atualizarRastreioIntegrado(id,botao=null){
     catch(e){alert("Não foi possível atualizar o rastreio dos Correios: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
     return;
   }
-  if(transportadoraEhSSW(nome)){
-    const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Verificando SSW...";}
+  if(transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome)){
+    const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Consultando SSW...";}
     try{
-      const {ocorrencia}=await consultarRastreioSSWRegistro(id);
-      await carregarRastreamentosLogistica(rastro.sentido||"saida");
-      await carregarRastreamentosEntregues();
-      if(ocorrencia){
-        alert(`Última ocorrência SSW recebida.\n\nTransportadora: ${nome}\nNF: ${rastro.numero_nfe||"—"}\nOcorrência: ${ocorrencia.descricao||"—"}${ocorrencia.complemento?`\n${ocorrencia.complemento}`:""}`);
-      }else{
-        alert(`A NF ${rastro.numero_nfe||"—"} já está no painel de rastreamento.\n\nAinda não recebemos uma ocorrência SSW de ${nome}. Assim que a transportadora/SSW enviar o evento para o portal, o status será atualizado automaticamente.`);
+      try{
+        const {dados}=await consultarRastreioSSWDiretoRegistro(id);
+        await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();
+        alert(`Rastreio SSW atualizado.\n\nTransportadora: ${nome}\nNF: ${rastro.numero_nfe||"—"}\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}`);
+      }catch(direto){
+        const {ocorrencia}=await consultarRastreioSSWRegistro(id);
+        await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();
+        if(ocorrencia){
+          alert(`Consulta direta SSW indisponível (${direto.message}).\n\nFoi aplicada a última ocorrência recebida pelo endpoint automático:\n${ocorrencia.descricao||"—"}${ocorrencia.complemento?`\n${ocorrencia.complemento}`:""}`);
+        }else{
+          alert(`Ainda não foi possível obter o rastreio de ${nome}.\n\n${direto.message}\n\nSe for uma consulta por NF, peça à transportadora a senha de rastreio/pagador criada na opção 383 do SSW. O endpoint de ocorrências também pode atualizar este pedido automaticamente quando a transportadora concluir a parametrização.`);
+        }
       }
-    }catch(e){alert("Não foi possível verificar as ocorrências SSW: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
+    }catch(e){alert("Não foi possível consultar o rastreio SSW: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
     return;
   }
   alert("A mercadoria está registrada no painel, mas esta transportadora ainda não possui consulta automática externa configurada.");
@@ -1899,11 +1933,11 @@ async function atualizarTodosRastreiosSaida(silencioso=false){
       .order("created_at",{ascending:false});
     if(r.error)throw r.error;
 
-    // V43: Rodonaves + Alfa + Correios são consultados diretamente.
-    // SSW (ACCERT/TG) é sincronizado pelas ocorrências recebidas no webhook.
+    // V44: Rodonaves + Alfa + Correios + SSW são consultados diretamente.
+    // Para SSW, o webhook continua como segundo caminho/fallback.
     const lista=(r.data||[]).filter(x=>{
       const nome=x.frete_transportadoras?.nome||"";
-      const direta=transportadoraConhecidaPorConsultaDireta(nome);
+      const direta=transportadoraConhecidaPorConsultaDireta(nome)||transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome);
       return direta && (x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe) &&
         !["cancelado"].includes(String(x.status||"").toLowerCase());
     });
@@ -1925,6 +1959,7 @@ async function atualizarTodosRastreiosSaida(silencioso=false){
         let consulta;
         if(/rodonaves/i.test(nome))consulta=await consultarRastreioRodonavesRegistro(item.id,{silencioso:true,chave});
         else if(/correios|coreios/i.test(nome))consulta=await consultarRastreioCorreiosRegistro(item.id,{chave});
+        else if(transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome))consulta=await consultarRastreioSSWDiretoRegistro(item.id,{chave});
         else consulta=await consultarRastreioAlfaRegistro(item.id,{silencioso:true,chave});
         const dados=consulta?.dados||{};
         sucesso++;
@@ -2002,7 +2037,9 @@ async function criarOuVincularRastreioDaColeta(agendamentoId,payload,origemExter
   const transportadora=(coletaTransportadoras||[]).find(
     t=>String(t.id)===String(payload.transportadora_id)
   );
-  const protocolo=payload.protocolo_cotacao||payload.protocolo_rastreio||null;
+  const protocoloInformado=payload.protocolo_rastreio||payload?.dados?.protocolo_rastreio||null;
+  const protocoloCotacao=payload.protocolo_cotacao||null;
+  const protocolo=protocoloInformado||protocoloCotacao||null;
   const numeroNfe=payload.numero_nf||payload.numero_nfe||
     payload?.dados?.numero_nf||payload?.dados?.numero_nfe||null;
   const numeroCte=payload.numero_cte||payload?.dados?.numero_cte||null;
@@ -2029,7 +2066,9 @@ async function criarOuVincularRastreioDaColeta(agendamentoId,payload,origemExter
     sentido:"saida",
     parceiro_nome:payload.cliente_nome||existente?.parceiro_nome||"Cliente",
     transportadora_id:payload.transportadora_id,
-    protocolo_rastreio:protocolo||existente?.protocolo_rastreio||null,
+    protocolo_rastreio:(existente?.protocolo_rastreio && /^[A-Z]{2}\d{9}[A-Z]{2}$/i.test(String(existente.protocolo_rastreio).trim()) && !protocoloInformado)
+      ? existente.protocolo_rastreio
+      : (protocolo||existente?.protocolo_rastreio||null),
     numero_nfe:numeroNfe||existente?.numero_nfe||null,
     chave_nfe:String(chaveNfe||existente?.chave_nfe||"").replace(/\D/g,"")||null,
     numero_cte:numeroCte||existente?.numero_cte||null,

@@ -2165,12 +2165,20 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <div class="integracao-segura-form">
               <label><span>Usuário</span><input id="integracaoCredUsuario" autocomplete="off"></label>
               <label><span>Domínio SSW (3 letras)</span><input id="integracaoCredDominioSSW" maxlength="3" autocomplete="off" placeholder="Ex.: ACC"></label>
-              <label><span>Senha</span>
+              <label><span>Senha do usuário / WebService</span>
                 <div class="integracao-campo-senha">
                   <input id="integracaoCredSenha" type="password" autocomplete="new-password">
                   <button type="button" onclick="alternarSenhaIntegracao('integracaoCredSenha')">👁</button>
                 </div>
               </label>
+              <label><span>Senha de rastreio/pagador SSW (opção 383)</span>
+                <div class="integracao-campo-senha">
+                  <input id="integracaoCredSenhaRastreioSSW" type="password" autocomplete="new-password" placeholder="Somente para transportadoras SSW">
+                  <button type="button" onclick="alternarSenhaIntegracao('integracaoCredSenhaRastreioSSW')">👁</button>
+                </div>
+              </label>
+              <label><span>CNPJ usado no rastreio SSW</span><input id="integracaoCredCnpjRastreioSSW" autocomplete="off" placeholder="Padrão: 05.451.985/0001-95"></label>
+              <label><span>Código de mercadoria SSW</span><input id="integracaoCredMercadoriaSSW" autocomplete="off" placeholder="Padrão: 1"></label>
               <label><span>Bearer Token</span>
                 <div class="integracao-campo-senha">
                   <input id="integracaoCredToken" type="password" autocomplete="off">

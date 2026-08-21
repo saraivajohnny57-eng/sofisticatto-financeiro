@@ -240,6 +240,9 @@ function credenciaisTelaIntegracao(){
     username:document.getElementById("integracaoCredUsuario").value,
     ssw_dominio:document.getElementById("integracaoCredDominioSSW")?.value.trim()||"",
     password:document.getElementById("integracaoCredSenha").value,
+    ssw_senha_rastreio:document.getElementById("integracaoCredSenhaRastreioSSW")?.value||"",
+    ssw_cnpj_rastreio:document.getElementById("integracaoCredCnpjRastreioSSW")?.value.trim()||"",
+    ssw_mercadoria:document.getElementById("integracaoCredMercadoriaSSW")?.value.trim()||"",
     token:document.getElementById("integracaoCredToken").value,
     api_key:document.getElementById("integracaoCredApiKey").value,
     client_id:document.getElementById("integracaoCredClientId").value,
@@ -265,7 +268,7 @@ async function salvarCredenciaisIntegracao(){
       })
     });
 
-    ["integracaoCredSenha","integracaoCredToken","integracaoCredApiKey","integracaoCredClientSecret"]
+    ["integracaoCredSenha","integracaoCredSenhaRastreioSSW","integracaoCredToken","integracaoCredApiKey","integracaoCredClientSecret"]
       .forEach(id=>{const el=document.getElementById(id);if(el)el.value=""});
 
     statusCampoIntegracao(
@@ -291,7 +294,7 @@ async function carregarStatusCredenciaisIntegracao(){
     statusCampoIntegracao(
       "integracaoCredenciaisStatus",
       resposta.existe
-        ? `Credenciais protegidas — atualizadas em ${new Date(resposta.atualizado_em).toLocaleString("pt-BR")}`
+        ? `Credenciais protegidas — atualizadas em ${new Date(resposta.atualizado_em).toLocaleString("pt-BR")}${resposta.ssw_senha_rastreio?" — senha de rastreio SSW: OK":""}`
         : "Ainda não existem credenciais neste ambiente",
       resposta.existe?"ok":""
     );
