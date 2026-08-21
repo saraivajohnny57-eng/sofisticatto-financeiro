@@ -1651,10 +1651,11 @@ async function atualizarTodosRastreiosEntregues(){
     for(let i=0;i<rastreamentosEntregues.length;i++){
       const x=rastreamentosEntregues[i];
       const nome=x.frete_transportadoras?.nome||"";
-      if(!(/rodonaves/i.test(nome)||/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome)))continue;
+      if(!(/rodonaves/i.test(nome)||/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome)||/correios/i.test(nome)))continue;
       if(status)status.textContent=`Atualizando ${i+1}/${rastreamentosEntregues.length}...`;
       try{
         if(/rodonaves/i.test(nome))await consultarRastreioRodonavesRegistro(x.id,{silencioso:true,chave});
+        else if(/correios/i.test(nome))await consultarRastreioCorreiosRegistro(x.id,{chave});
         else await consultarRastreioAlfaRegistro(x.id,{silencioso:true,chave});
         ok++;
       }catch(e){erro++}
@@ -1722,6 +1723,19 @@ async function consultarRastreioAlfaRegistro(id,{silencioso=false,chave=null}={}
   const dados=await resposta.json().catch(()=>({})); if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
   return {rastro,dados};
 }
+async function consultarRastreioCorreiosRegistro(id,{chave=null}={}){
+  const rastro=await obterRastreamentoPorId(id);
+  if(!rastro)throw new Error("Rastreio não encontrado no banco de dados.");
+  if(!/correios/i.test(rastro.frete_transportadoras?.nome||""))throw new Error("Este registro não pertence aos Correios.");
+  const codigo=String(rastro.protocolo_rastreio||rastro.numero_cte||"").trim().toUpperCase();
+  if(!/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(codigo))throw new Error("Informe no campo protocolo/rastreio o código postal dos Correios (ex.: AA123456789BR).");
+  const chaveUsar=chave||await chaveAdminColeta();if(!chaveUsar)throw new Error("Informe a chave administrativa.");
+  const params=new URLSearchParams({action:"consultar-rastreio-correios",registro_id:String(id),codigo});
+  const resposta=await fetch(`/api/integracoes?${params}`,{headers:{"x-integrations-admin-key":chaveUsar}});
+  const dados=await resposta.json().catch(()=>({}));if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
+  return {rastro,dados};
+}
+
 async function consultarRastreioSSWRegistro(id){
   const rastro=await obterRastreamentoPorId(id);
   if(!rastro)throw new Error("Rastreio não encontrado no banco de dados.");
@@ -1748,6 +1762,12 @@ async function atualizarRastreioIntegrado(id,botao=null){
     const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Atualizando...";}
     try{const {dados}=await consultarRastreioAlfaRegistro(id);alert(`Rastreio Alfa atualizado.\n\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${dados.previsaoEntrega?`\nPrevisão: ${new Date(dados.previsaoEntrega+"T12:00:00").toLocaleDateString("pt-BR")}`:""}`);await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();if((rastro.sentido||"saida")==="saida")await carregarPainelRodonaves();}
     catch(e){alert("Não foi possível atualizar o rastreio Alfa: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
+    return;
+  }
+  if(/correios/i.test(nome)){
+    const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Consultando Correios...";}
+    try{const {dados}=await consultarRastreioCorreiosRegistro(id);alert(`Rastreio Correios atualizado.\n\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}`);await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();}
+    catch(e){alert("Não foi possível atualizar o rastreio dos Correios: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
     return;
   }
   if(transportadoraEhSSW(nome)){

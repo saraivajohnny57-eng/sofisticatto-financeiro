@@ -569,6 +569,37 @@ async function cotarAutomaticamenteAlfa(transportadoraId,tipoFrete){
   finally{if(botao){botao.disabled=false;botao.textContent=original;}}
 }
 
+async function cotarAutomaticamenteCorreios(transportadoraId,tipoFrete){
+  const dados=dadosFormularioFrete();
+  const chave=chaveRespostaFrete(transportadoraId,tipoFrete);
+  const botao=document.getElementById(`btnCorreios_${chave}`);
+  const cep=String(dados.cep_destino||"").replace(/\D/g,"");
+  if(cep.length!==8)return alert("Para cotar nos Correios, informe um CEP de destino válido.");
+  if(!Number(dados.peso_total||0))return alert("Informe o peso total da mercadoria para cotar nos Correios.");
+  const medidas=typeof extrairMedidasRodonaves==="function"?extrairMedidasRodonaves(dados.medidas):{};
+  const original=botao?.textContent||"📮 Cotar Correios";
+  if(botao){botao.disabled=true;botao.textContent="Consultando Correios...";}
+  try{
+    const adm=await obterChaveIntegracoesCotacao(); if(!adm)throw new Error("Chave administrativa não informada.");
+    const salva=await salvarCotacaoFrete("rascunho"); if(!salva)throw new Error("Não foi possível salvar a cotação antes da consulta.");
+    const r=await fetch("/api/integracoes?action=cotar-correios",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":adm},body:JSON.stringify({
+      cotacao_id:salva.id,cep_destino:cep,peso_total:Number(dados.peso_total),volumes:Number(dados.volumes||1),
+      comprimento_cm:medidas.comprimento_cm||20,largura_cm:medidas.largura_cm||20,altura_cm:medidas.altura_cm||20
+    })});
+    const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);
+    const melhor=d.melhor;if(!melhor)throw new Error("Nenhum serviço dos Correios configurado retornou preço. Verifique as APIs liberadas e os códigos de serviço do contrato.");
+    freteCampo(`freteRespNumero_${chave}`).value=`Correios ${melhor.coProduto}`;
+    freteCampo(`freteRespValor_${chave}`).value=Number(melhor.valor||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+    freteCampo(`freteRespPrazo_${chave}`).value=melhor.prazoDias?`${melhor.prazoDias} dias úteis`:"";
+    await registrarRespostaFrete(transportadoraId,tipoFrete);
+    const opcoes=(d.resultados||[]).filter(x=>!x.erro).map(x=>`${x.coProduto}: ${Number(x.valor||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}${x.prazoDias?` • ${x.prazoDias} dias`:""}`).join("\n");
+    mostrarBalaoSistema("Cotação Correios recebida",`${Number(melhor.valor||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}${melhor.prazoDias?` • ${melhor.prazoDias} dias`:""}`);
+    if(opcoes)alert(`Serviços Correios disponíveis:\n\n${opcoes}\n\nA opção de menor preço foi preenchida automaticamente.`);
+  }catch(e){console.error("Cotação Correios:",e);alert("Não foi possível cotar nos Correios:\n\n"+(e.message||e));}
+  finally{if(botao){botao.disabled=false;botao.textContent=original;}}
+}
+
+
 function gerarCotacoesFrete(){
   const dados = dadosFormularioFrete();
 
@@ -621,6 +652,8 @@ function gerarCotacoesFrete(){
               ? `<span class="frete-aviso-fob">FOB Rodonaves: manual por WhatsApp ou telefone</span>` : ""}
             ${/(^|\s)alfa(\s|$)|alfa transportes/i.test(transportadora?.nome||"")
               ? `<button class="btn roxo" id="btnAlfa_${chave}" onclick="cotarAutomaticamenteAlfa('${id}','${tipoResposta}')">⚡ Cotar Alfa automaticamente</button>` : ""}
+            ${/correios/i.test(transportadora?.nome||"")
+              ? `<button class="btn roxo" id="btnCorreios_${chave}" onclick="cotarAutomaticamenteCorreios('${id}','${tipoResposta}')">📮 Cotar Correios automaticamente</button>` : ""}
             <button class="btn azul" onclick="copiarTextoFrete('${chave}')">Copiar solicitação</button>
             <button class="btn verde" onclick="abrirWhatsAppTransportadoraFrete('${id}','${tipoResposta}')">📱 Enviar WhatsApp</button>
           </span>
