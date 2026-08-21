@@ -59,7 +59,7 @@ Endereço de coleta: *{{endereco_origem}}*
 function ce(id){return document.getElementById(id)}
 function cv(id){return ce(id)?.value?.trim()||""}
 function coletaMoeda(v){let n=Number(String(v||"").replace(/\./g,"").replace(",","."));return Number.isFinite(n)&&n? n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}):""}
-function mostrarPainelColeta(p){["nova","historico","rodonaves","saidas","entregues","entradas","transportadoras","modelos"].forEach(x=>{ce("coletaPainel"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p);ce("coletaTab"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p)});if(p==="historico")montarHistoricoColetas();if(p==="rodonaves"){carregarPainelRodonaves();iniciarSincronizacaoAutomaticaColetas()}else{pararSincronizacaoAutomaticaColetas()}if(p==="saidas")carregarRastreamentosLogistica("saida");if(p==="entregues")carregarRastreamentosEntregues();if(p==="entradas")carregarRastreamentosLogistica("entrada");if(p==="transportadoras")carregarTransportadorasLogistica();if(p==="modelos")montarModelosColeta()}
+function mostrarPainelColeta(p){["nova","historico","rodonaves","saidas","entregues","entradas","transportadoras","modelos"].forEach(x=>{ce("coletaPainel"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p);ce("coletaTab"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p)});if(p==="historico")montarHistoricoColetas();if(p==="rodonaves"){carregarPainelRodonaves();iniciarSincronizacaoAutomaticaColetas()}else{pararSincronizacaoAutomaticaColetas()}if(p==="saidas"){carregarRastreamentosLogistica("saida");iniciarAtualizacaoAutomaticaRastreios()}else if(p==="entregues"){carregarRastreamentosEntregues();iniciarAtualizacaoAutomaticaRastreios()}else{pararAtualizacaoAutomaticaRastreios()}if(p==="entradas")carregarRastreamentosLogistica("entrada");if(p==="transportadoras")carregarTransportadorasLogistica();if(p==="modelos")montarModelosColeta()}
 async function inicializarModuloColetas(){if(coletaInicializado){atualizarPreviaColeta();return}coletaInicializado=true;await Promise.all([carregarTransportadorasColeta(),carregarModelosColeta(),carregarAgendamentosColeta()]);montarClientesColeta();atualizarPreviaColeta()}
 async function carregarTransportadorasColeta(){const [r,ri]=await Promise.all([banco.from("frete_transportadoras").select("*").order("nome"),banco.from("transportadora_integracoes").select("convite_id,transportadora_nome,coleta_ativa,integracao_tipo,status_tecnico,ambiente_atual")]);coletaTransportadoras=r.error?[]:r.data||[];coletaIntegracoesSSW=ri.error?[]:(ri.data||[]).filter(x=>x.coleta_ativa&&String(x.integracao_tipo||"").toLowerCase()==="webservice");const opts='<option value="">Selecione</option>'+coletaTransportadoras.map(t=>`<option value="${t.id}">${escaparHtmlEmail(t.nome||"")}</option>`).join("");ce("coletaTransportadoraId").innerHTML=opts;ce("coletaModeloTransportadoraId").innerHTML='<option value="">Modelo geral</option>'+opts.replace('<option value="">Selecione</option>','')}
 async function carregarModelosColeta(){const r=await banco.from("coleta_modelos").select("*").eq("ativo",true).order("nome");coletaModelos=r.error?[]:r.data||[];if(!coletaModelos.length)coletaModelos=COLETA_MODELOS_PADRAO.map((m,i)=>({id:`padrao-${i+1}`,...m,ativo:true}));ce("coletaModeloId").innerHTML=coletaModelos.map(m=>`<option value="${m.id}">${escaparHtmlEmail(m.nome)}</option>`).join("");montarModelosColeta()}
@@ -1644,6 +1644,7 @@ async function atualizarTodosRastreiosEntregues(){
   const status=ce("statusAtualizarTodosEntregues");
   if(botao){botao.disabled=true;botao.textContent="Atualizando..."}
   try{
+    await sincronizarRastreiosSSWLocais();
     await carregarRastreamentosEntregues();
     const chave=await chaveAdminColeta();
     if(!chave)throw new Error("Informe a chave administrativa.");
@@ -1651,11 +1652,11 @@ async function atualizarTodosRastreiosEntregues(){
     for(let i=0;i<rastreamentosEntregues.length;i++){
       const x=rastreamentosEntregues[i];
       const nome=x.frete_transportadoras?.nome||"";
-      if(!(/rodonaves/i.test(nome)||/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome)||/correios/i.test(nome)))continue;
+      if(!(/rodonaves/i.test(nome)||/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome)||/correios|coreios/i.test(nome)))continue;
       if(status)status.textContent=`Atualizando ${i+1}/${rastreamentosEntregues.length}...`;
       try{
         if(/rodonaves/i.test(nome))await consultarRastreioRodonavesRegistro(x.id,{silencioso:true,chave});
-        else if(/correios/i.test(nome))await consultarRastreioCorreiosRegistro(x.id,{chave});
+        else if(/correios|coreios/i.test(nome))await consultarRastreioCorreiosRegistro(x.id,{chave});
         else await consultarRastreioAlfaRegistro(x.id,{silencioso:true,chave});
         ok++;
       }catch(e){erro++}
@@ -1726,7 +1727,7 @@ async function consultarRastreioAlfaRegistro(id,{silencioso=false,chave=null}={}
 async function consultarRastreioCorreiosRegistro(id,{chave=null}={}){
   const rastro=await obterRastreamentoPorId(id);
   if(!rastro)throw new Error("Rastreio não encontrado no banco de dados.");
-  if(!/correios/i.test(rastro.frete_transportadoras?.nome||""))throw new Error("Este registro não pertence aos Correios.");
+  if(!/correios|coreios/i.test(rastro.frete_transportadoras?.nome||""))throw new Error("Este registro não pertence aos Correios.");
   const codigo=String(rastro.protocolo_rastreio||rastro.numero_cte||"").trim().toUpperCase();
   if(!/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(codigo))throw new Error("Informe no campo protocolo/rastreio o código postal dos Correios (ex.: AA123456789BR).");
   const chaveUsar=chave||await chaveAdminColeta();if(!chaveUsar)throw new Error("Informe a chave administrativa.");
@@ -1736,22 +1737,81 @@ async function consultarRastreioCorreiosRegistro(id,{chave=null}={}){
   return {rastro,dados};
 }
 
+function normalizarStatusOcorrenciaSSWCliente(desc,codigo){
+  const s=`${desc||""} ${codigo||""}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  if(/entreg|baixa realizada|ctrc entregue|entrega realizada/.test(s))return "entregue";
+  if(/saiu.*entrega|em rota|rota de entrega|veiculo em entrega/.test(s))return "saiu_entrega";
+  if(/filial|unidade|chegada|recebida.*unidade/.test(s))return "na_filial";
+  if(/cancel|devol/.test(s))return "cancelado";
+  if(/ocorr|insucesso|recusa|ausente|endereco/.test(s))return "ocorrencia";
+  return "em_transito";
+}
 async function consultarRastreioSSWRegistro(id){
   const rastro=await obterRastreamentoPorId(id);
   if(!rastro)throw new Error("Rastreio não encontrado no banco de dados.");
   const nome=rastro.frete_transportadoras?.nome||"";
-  if(!transportadoraEhSSW(nome))throw new Error("Esta transportadora não está configurada como SSW/WebService.");
+  if(!transportadoraEhSSW(nome) && !/accert|\btg\b/i.test(nome))throw new Error("Esta transportadora não está configurada como SSW/WebService.");
 
   let q=banco.from("ssw_ocorrencias_recebidas")
     .select("*")
     .order("created_at",{ascending:false})
-    .limit(1);
+    .limit(25);
   if(rastro.chave_nfe)q=q.eq("chave_nfe",String(rastro.chave_nfe).replace(/\D/g,""));
   else if(rastro.numero_nfe)q=q.eq("numero_nfe",String(rastro.numero_nfe));
   else throw new Error("Informe NF ou chave NF-e para consultar as ocorrências SSW.");
-  const resp=await q.maybeSingle();
+  const resp=await q;
   if(resp.error)throw resp.error;
-  return {rastro,ocorrencia:resp.data||null};
+  const alvo=nomeNormalizadoTransportadora(nome);
+  const ocorrencia=(resp.data||[]).find(o=>{
+    const on=nomeNormalizadoTransportadora(o.transportadora_nome);
+    if(!on)return true;
+    return alvo.includes(on)||on.includes(alvo)||alvo.split(" ").some(w=>w.length>=3&&on.split(" ").includes(w));
+  }) || (resp.data||[])[0] || null;
+
+  if(ocorrencia){
+    const status=normalizarStatusOcorrenciaSSWCliente(ocorrencia.descricao,ocorrencia.codigo_ocorrencia);
+    const quando=ocorrencia.data_hora_evento && !Number.isNaN(new Date(ocorrencia.data_hora_evento).getTime())
+      ? new Date(ocorrencia.data_hora_evento).toISOString()
+      : (ocorrencia.processado_em||ocorrencia.created_at||new Date().toISOString());
+    const patch={
+      status,
+      status_api:ocorrencia.descricao||"Ocorrência SSW",
+      ultima_ocorrencia:[ocorrencia.descricao,ocorrencia.complemento].filter(Boolean).join(" — "),
+      ultima_ocorrencia_em:quando,
+      metodo_consulta:"SSW / ocorrência recebida",
+      consultado_api_em:new Date().toISOString(),
+      atualizado_em:new Date().toISOString(),
+      atualizado_por:"sincronizacao_v43_ssw"
+    };
+    if(status==="entregue")patch.finalizado_em=quando;
+    const up=await banco.from("logistica_rastreamentos").update(patch).eq("id",id);
+    if(up.error)throw up.error;
+  }
+  return {rastro,ocorrencia};
+}
+
+async function sincronizarRastreiosSSWLocais(){
+  try{
+    await carregarTransportadorasRastreamentoIntegrado();
+    const r=await banco.from("logistica_rastreamentos")
+      .select("id,status,numero_nfe,chave_nfe,frete_transportadoras(nome)")
+      .eq("sentido","saida")
+      .not("status","eq","cancelado")
+      .order("created_at",{ascending:false})
+      .limit(300);
+    if(r.error)throw r.error;
+    let atualizados=0;
+    for(const item of (r.data||[])){
+      const nome=item.frete_transportadoras?.nome||"";
+      if(!(transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome)))continue;
+      if(!item.numero_nfe&&!item.chave_nfe)continue;
+      try{
+        const {ocorrencia}=await consultarRastreioSSWRegistro(item.id);
+        if(ocorrencia)atualizados++;
+      }catch(e){console.warn("V43 SSW",nome,item.numero_nfe,e.message)}
+    }
+    return atualizados;
+  }catch(e){console.warn("Sincronização SSW local falhou:",e.message);return 0}
 }
 
 async function atualizarRastreioIntegrado(id,botao=null){
@@ -1764,7 +1824,7 @@ async function atualizarRastreioIntegrado(id,botao=null){
     catch(e){alert("Não foi possível atualizar o rastreio Alfa: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
     return;
   }
-  if(/correios/i.test(nome)){
+  if(/correios|coreios/i.test(nome)){
     const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Consultando Correios...";}
     try{const {dados}=await consultarRastreioCorreiosRegistro(id);alert(`Rastreio Correios atualizado.\n\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}`);await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();}
     catch(e){alert("Não foi possível atualizar o rastreio dos Correios: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
@@ -1818,7 +1878,7 @@ async function atualizarRastreioRodonaves(id,botao=null){
 
 let atualizacaoTodosRastreiosEmAndamento=false;
 
-async function atualizarTodosRastreiosSaida(){
+async function atualizarTodosRastreiosSaida(silencioso=false){
   if(atualizacaoTodosRastreiosEmAndamento)return;
 
   const botao=ce("btnAtualizarTodosRastreios");
@@ -1827,15 +1887,11 @@ async function atualizarTodosRastreiosSaida(){
 
   try{
     atualizacaoTodosRastreiosEmAndamento=true;
-    if(botao){
-      botao.disabled=true;
-      botao.textContent="Preparando...";
-    }
-
-    const chave=await chaveAdminColeta();
-    if(!chave)throw new Error("Informe a chave administrativa.");
+    if(botao&&!silencioso){botao.disabled=true;botao.textContent="Preparando...";}
 
     await carregarTransportadorasRastreamentoIntegrado();
+    // Primeiro aplica todas as ocorrências SSW que já chegaram ao portal.
+    const sswAtualizados=await sincronizarRastreiosSSWLocais();
 
     const r=await banco.from("logistica_rastreamentos")
       .select("id,status,protocolo_rastreio,numero_cte,numero_nfe,chave_nfe,frete_transportadoras(nome)")
@@ -1843,43 +1899,37 @@ async function atualizarTodosRastreiosSaida(){
       .order("created_at",{ascending:false});
     if(r.error)throw r.error;
 
-    // Atualiza somente rastreios que realmente possuem integração disponível.
-    // Na versão atual, a consulta automática implementada é a Rodonaves.
-    const lista=(r.data||[]).filter(x=>
-      transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome) &&
-      (/rodonaves/i.test(x.frete_transportadoras?.nome||"") || /(^|\s)alfa(\s|$)|alfa transportes/i.test(x.frete_transportadoras?.nome||"")) &&
-      (x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe) &&
-      !["cancelado"].includes(String(x.status||"").toLowerCase())
-    );
+    // V43: Rodonaves + Alfa + Correios são consultados diretamente.
+    // SSW (ACCERT/TG) é sincronizado pelas ocorrências recebidas no webhook.
+    const lista=(r.data||[]).filter(x=>{
+      const nome=x.frete_transportadoras?.nome||"";
+      const direta=transportadoraConhecidaPorConsultaDireta(nome);
+      return direta && (x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe) &&
+        !["cancelado"].includes(String(x.status||"").toLowerCase());
+    });
 
-    if(!lista.length){
-      if(status)status.textContent="Nenhum rastreio integrado disponível para atualizar.";
-      return;
-    }
+    const chaveSalva=localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key")||"";
+    let chave=chaveSalva;
+    if(lista.length&&!chave&&!silencioso)chave=await chaveAdminColeta();
 
-    let sucesso=0, erros=0, alterados=0;
+    let sucesso=0,erros=0,alterados=0;
     const detalhes=[];
-
     for(let i=0;i<lista.length;i++){
       const item=lista[i];
-      if(botao)botao.textContent=`Atualizando ${i+1}/${lista.length}`;
-      if(status)status.textContent=`Consultando ${i+1} de ${lista.length} rastreios...`;
-
+      const nome=item.frete_transportadoras?.nome||"";
+      if(!chave){detalhes.push(`${item.numero_nfe||item.id}: chave administrativa não salva`);erros++;continue;}
+      if(botao&&!silencioso)botao.textContent=`Atualizando ${i+1}/${lista.length}`;
+      if(status&&!silencioso)status.textContent=`Consultando ${i+1} de ${lista.length} rastreios...`;
       try{
         const antes=String(item.status||"");
-        const nome=item.frete_transportadoras?.nome||"";
-        const consulta=/rodonaves/i.test(nome)
-          ?await consultarRastreioRodonavesRegistro(item.id,{silencioso:true,chave})
-          :await consultarRastreioAlfaRegistro(item.id,{silencioso:true,chave});
-        const dados=consulta.dados;
+        let consulta;
+        if(/rodonaves/i.test(nome))consulta=await consultarRastreioRodonavesRegistro(item.id,{silencioso:true,chave});
+        else if(/correios|coreios/i.test(nome))consulta=await consultarRastreioCorreiosRegistro(item.id,{chave});
+        else consulta=await consultarRastreioAlfaRegistro(item.id,{silencioso:true,chave});
+        const dados=consulta?.dados||{};
         sucesso++;
-        if(String(dados.status||"")!==antes)alterados++;
-      }catch(erro){
-        erros++;
-        detalhes.push(`${item.numero_nfe||item.numero_cte||item.protocolo_rastreio||item.id}: ${erro.message}`);
-      }
-
-      // Pequena pausa entre chamadas para evitar disparar várias requisições ao mesmo tempo.
+        if(dados.status&&String(dados.status)!==antes)alterados++;
+      }catch(erro){erros++;detalhes.push(`${item.numero_nfe||item.numero_cte||item.protocolo_rastreio||item.id}: ${erro.message}`);}
       if(i<lista.length-1)await new Promise(resolve=>setTimeout(resolve,250));
     }
 
@@ -1887,25 +1937,30 @@ async function atualizarTodosRastreiosSaida(){
     await carregarRastreamentosEntregues();
     await carregarPainelRodonaves();
 
-    const resumo=`Concluído: ${sucesso} atualizado(s), ${alterados} com mudança de status, ${erros} erro(s).`;
+    const resumo=`Concluído: ${sucesso} consulta(s) externa(s), ${sswAtualizados} ocorrência(s) SSW aplicada(s), ${alterados} mudança(s) de status, ${erros} erro(s).`;
     if(status)status.textContent=resumo;
-
-    if(erros){
-      console.warn("Falhas na atualização em lote:",detalhes);
-      alert(`${resumo}\n\nOs erros individuais foram registrados no Console.`);
-    }else{
-      alert(resumo);
+    if(!silencioso){
+      if(erros){console.warn("Falhas na atualização em lote:",detalhes);alert(`${resumo}\n\nVeja os erros individuais no Console.`);}else alert(resumo);
     }
   }catch(erro){
-    if(status)status.textContent="Falha ao atualizar todos os rastreios.";
-    alert("Não foi possível atualizar todos os rastreios: "+erro.message);
+    if(status&&!silencioso)status.textContent="Falha ao atualizar todos os rastreios.";
+    if(!silencioso)alert("Não foi possível atualizar todos os rastreios: "+erro.message);
+    else console.warn("Atualização automática de rastreios:",erro.message);
   }finally{
     atualizacaoTodosRastreiosEmAndamento=false;
-    if(botao){
-      botao.disabled=false;
-      botao.textContent=textoOriginal;
-    }
+    if(botao&&!silencioso){botao.disabled=false;botao.textContent=textoOriginal;}
   }
+}
+
+let timerAtualizacaoAutomaticaRastreios=null;
+function iniciarAtualizacaoAutomaticaRastreios(){
+  if(timerAtualizacaoAutomaticaRastreios)return;
+  // Faz uma sincronização leve ao entrar na tela e repete a cada 2 minutos.
+  setTimeout(()=>atualizarTodosRastreiosSaida(true),1500);
+  timerAtualizacaoAutomaticaRastreios=setInterval(()=>atualizarTodosRastreiosSaida(true),120000);
+}
+function pararAtualizacaoAutomaticaRastreios(){
+  if(timerAtualizacaoAutomaticaRastreios){clearInterval(timerAtualizacaoAutomaticaRastreios);timerAtualizacaoAutomaticaRastreios=null;}
 }
 
 async function localizarRastreamentoExistente({id=null,sentido="saida",transportadoraId=null,numeroNfe=null,chaveNfe=null,numeroCte=null,protocolo=null,coletaAgendamentoId=null}={}){
@@ -2185,14 +2240,26 @@ async function carregarTransportadorasRastreamentoIntegrado(){
 function nomeNormalizadoTransportadora(v){
   return String(v||"")
     .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-    .toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+    .toLowerCase().replace(/[^a-z0-9]+/g," ").trim()
+    // V43: tolera cadastros antigos com COREIOS (um R) e variações PAC/SEDEX.
+    .replace(/\bcoreios\b/g,"correios");
+}
+function transportadoraConhecidaPorConsultaDireta(nome){
+  const n=nomeNormalizadoTransportadora(nome);
+  return /rodonaves/.test(n)||/(^| )alfa( |$)/.test(n)||/correios/.test(n);
 }
 function transportadoraTemRastreamentoIntegrado(nome){
   const n=nomeNormalizadoTransportadora(nome);
   if(!n)return false;
+  if(transportadoraConhecidaPorConsultaDireta(nome))return true;
   return transportadorasRastreamentoIntegrado.some(i=>{
     const x=nomeNormalizadoTransportadora(i.transportadora_nome);
-    return x&&(n.includes(x)||x.includes(n));
+    if(!x)return false;
+    if(n.includes(x)||x.includes(n))return true;
+    // V43: nomes longos/curtos (ex.: ACCERT x ACCERT TRANSPORTES E LOGISTICA).
+    const nt=n.split(" ").filter(w=>w.length>=3);
+    const xt=x.split(" ").filter(w=>w.length>=3);
+    return nt.some(w=>xt.includes(w));
   });
 }
 function integracaoRastreamentoDaTransportadora(nome){
