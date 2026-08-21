@@ -1387,9 +1387,36 @@ async function salvarRastreamentoLogistica(sentido){
       if(del.error)return alert("Não foi possível consolidar o rastreio duplicado: "+del.error.message);
     }
 
-    const upd=await banco.from("logistica_rastreamentos").update(consolidado).eq("id",id).select().maybeSingle();
+    let upd=await banco.from("logistica_rastreamentos").update(consolidado).eq("id",id).select("id,protocolo_rastreio,chave_nfe,numero_nfe,numero_cte").limit(1);
     if(upd.error)return alert(upd.error.message);
-    if(!upd.data?.id)return alert("O banco não confirmou a atualização do rastreio. Tente novamente.");
+    let confirmado=Array.isArray(upd.data)&&upd.data.some(x=>String(x.id)===String(id));
+
+    // Alguns projetos antigos possuem uma policy de UPDATE que não retorna a linha
+    // no .select(), apesar de o registro ser visível. Confere novamente por leitura.
+    if(!confirmado){
+      const conf=await banco.from("logistica_rastreamentos").select("id,protocolo_rastreio,chave_nfe,numero_nfe,numero_cte").eq("id",id).maybeSingle();
+      if(!conf.error&&conf.data){
+        const esperado=String(payload.protocolo_rastreio||"").trim();
+        const atualProto=String(conf.data.protocolo_rastreio||"").trim();
+        confirmado=!esperado||esperado===atualProto;
+      }
+    }
+    if(!confirmado){
+      // Fallback seguro pelo backend (service role), protegido pela chave administrativa.
+      try{
+        const chave=await chaveAdminColeta();
+        if(chave){
+          const rr=await fetch('/api/integracoes?action=salvar-rastreio-logistica',{
+            method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+            body:JSON.stringify({id,patch:consolidado})
+          });
+          const dd=await rr.json().catch(()=>({}));
+          if(!rr.ok)throw new Error(dd.erro||`HTTP ${rr.status}`);
+          confirmado=true;
+        }
+      }catch(e){console.warn('Fallback de gravação do rastreio:',e.message)}
+    }
+    if(!confirmado)return alert("A alteração não foi gravada. Verifique a permissão de UPDATE da tabela logistica_rastreamentos ou a chave administrativa.");
 
     // V44: quando o rastreio nasceu de uma coleta, preserva também o código
     // editado na coleta. Isso impede a reconciliação automática de recolocar
@@ -1932,6 +1959,7 @@ async function atualizarRastreioRodonaves(id,botao=null){
   }
 }
 
+let timerAtualizacaoAutomaticaRastreios=null;
 let atualizacaoTodosRastreiosEmAndamento=false;
 
 async function atualizarTodosRastreiosSaida(silencioso=false){
@@ -2286,7 +2314,9 @@ function nomeNormalizadoTransportadora(v){
 }
 function transportadoraConhecidaPorConsultaDireta(nome){
   const n=nomeNormalizadoTransportadora(nome);
-  return /rodonaves/.test(n)||/(^| )alfa( |$)/.test(n)||/correios/.test(n);
+  // ACCERT e TG usam o SSW. Mesmo que o cadastro antigo da integração esteja
+  // incompleto, elas devem aparecer como rastreáveis e tentar a WebAPI SSW.
+  return /rodonaves/.test(n)||/(^| )alfa( |$)/.test(n)||/correios/.test(n)||/accert/.test(n)||/(^| )tg( |$)/.test(n);
 }
 function transportadoraTemRastreamentoIntegrado(nome){
   const n=nomeNormalizadoTransportadora(nome);
@@ -2311,6 +2341,8 @@ function integracaoRastreamentoDaTransportadora(nome){
   })||null;
 }
 function transportadoraEhSSW(nome){
+  const n=nomeNormalizadoTransportadora(nome);
+  if(/accert/.test(n)||/(^| )tg( |$)/.test(n))return true;
   const i=integracaoRastreamentoDaTransportadora(nome);
   return !!i&&(String(i.integracao_tipo||"").toLowerCase()==="webservice"||/ssw/i.test(String(i.api_versao||"")));
 }
