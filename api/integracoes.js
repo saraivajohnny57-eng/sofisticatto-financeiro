@@ -25,6 +25,7 @@ const agendarColetaSSW = require("../lib/integracoes/agendar-coleta-ssw");
 const cotarCorreios = require("../lib/integracoes/cotar-correios");
 const consultarRastreioCorreios = require("../lib/integracoes/consultar-rastreio-correios");
 const testarCorreios = require("../lib/integracoes/testar-correios");
+const configuracaoCorreios = require("../lib/integracoes/configuracao-correios");
 
 const ROTAS = Object.freeze({
   "validar-chave": validarChave,
@@ -46,7 +47,8 @@ const ROTAS = Object.freeze({
   "agendar-coleta-ssw": agendarColetaSSW,
   "cotar-correios": cotarCorreios,
   "consultar-rastreio-correios": consultarRastreioCorreios,
-  "testar-correios": testarCorreios
+  "testar-correios": testarCorreios,
+  "configuracao-correios": configuracaoCorreios
 });
 
 function responder(res, status, body) {
@@ -70,7 +72,7 @@ module.exports = async function handler(req, res) {
       ok: true,
       servico: "sofisticatto-financeiro",
       modulo: "api-integracoes-unificada",
-      versao: "41-correios-cws",
+      versao: "42-correios-auto-contrato",
       rotas_carregadas: Object.keys(ROTAS).length,
       node: process.version,
       ambiente: process.env.VERCEL_ENV || "local",
