@@ -28,6 +28,7 @@ const testarCorreios = require("../lib/integracoes/testar-correios");
 const configuracaoCorreios = require("../lib/integracoes/configuracao-correios");
 const consultarRastreioSSW = require("../lib/integracoes/consultar-rastreio-ssw");
 const cotarSSW = require("../lib/integracoes/cotar-ssw");
+const salvarRastreioLogistica = require("../lib/integracoes/salvar-rastreio-logistica");
 const atualizarRastreiosGeral = require("../lib/integracoes/atualizar-rastreios-geral");
 
 const ROTAS = Object.freeze({
@@ -54,6 +55,7 @@ const ROTAS = Object.freeze({
   "configuracao-correios": configuracaoCorreios,
   "consultar-rastreio-ssw": consultarRastreioSSW,
   "cotar-ssw": cotarSSW,
+  "salvar-rastreio-logistica": salvarRastreioLogistica,
   "atualizar-rastreios-geral": atualizarRastreiosGeral,
 });
 
