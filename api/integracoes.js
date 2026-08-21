@@ -22,6 +22,9 @@ const consultarRastreioAlfa = require("../lib/integracoes/consultar-rastreio-alf
 const atualizarRastreiosAlfa = require("../lib/integracoes/atualizar-rastreios-alfa");
 const agendarColetaAccert = require("../lib/integracoes/agendar-coleta-accert");
 const agendarColetaSSW = require("../lib/integracoes/agendar-coleta-ssw");
+const cotarCorreios = require("../lib/integracoes/cotar-correios");
+const consultarRastreioCorreios = require("../lib/integracoes/consultar-rastreio-correios");
+const testarCorreios = require("../lib/integracoes/testar-correios");
 
 const ROTAS = Object.freeze({
   "validar-chave": validarChave,
@@ -40,7 +43,10 @@ const ROTAS = Object.freeze({
   "consultar-rastreio-alfa": consultarRastreioAlfa,
   "atualizar-rastreios-alfa": atualizarRastreiosAlfa,
   "agendar-coleta-accert": agendarColetaAccert,
-  "agendar-coleta-ssw": agendarColetaSSW
+  "agendar-coleta-ssw": agendarColetaSSW,
+  "cotar-correios": cotarCorreios,
+  "consultar-rastreio-correios": consultarRastreioCorreios,
+  "testar-correios": testarCorreios
 });
 
 function responder(res, status, body) {
@@ -64,7 +70,7 @@ module.exports = async function handler(req, res) {
       ok: true,
       servico: "sofisticatto-financeiro",
       modulo: "api-integracoes-unificada",
-      versao: "38-portal-credenciais-ssw",
+      versao: "41-correios-cws",
       rotas_carregadas: Object.keys(ROTAS).length,
       node: process.version,
       ambiente: process.env.VERCEL_ENV || "local",
@@ -75,7 +81,8 @@ module.exports = async function handler(req, res) {
         supabase_service_role_key: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
         cron_secret: Boolean(process.env.CRON_SECRET),
         alfa_api_key: Boolean(process.env.ALFA_API_KEY),
-        accert_ssw: Boolean(process.env.ACCERT_SSW_DOMINIO && process.env.ACCERT_SSW_LOGIN && process.env.ACCERT_SSW_SENHA)
+        accert_ssw: Boolean(process.env.ACCERT_SSW_DOMINIO && process.env.ACCERT_SSW_LOGIN && process.env.ACCERT_SSW_SENHA),
+        correios: Boolean(process.env.CORREIOS_USUARIO && process.env.CORREIOS_CODIGO_ACESSO)
       },
       data: new Date().toISOString()
     });
