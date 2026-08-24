@@ -1491,6 +1491,47 @@ function atualizarCamposUsuarioComercial(){
   const sel=document.getElementById("novoUsuarioVendedora");
   if(sel)sel.disabled=tipo!=="vendedora_rastreio";
 }
+
+function obterChaveAdminSmtp(){
+  let chave=sessionStorage.getItem("integrations_admin_key")||localStorage.getItem("integrations_admin_key")||"";
+  if(chave) return chave;
+  chave=prompt("Informe a chave administrativa INTEGRATIONS_ADMIN_KEY para configurar o remetente:")||"";
+  chave=chave.trim();
+  if(chave) sessionStorage.setItem("integrations_admin_key",chave);
+  return chave;
+}
+async function apiSmtpUsuario(acao,{login="",email="",nome="",senha_app=""}={}){
+  const chave=obterChaveAdminSmtp();
+  if(!chave) throw new Error("Chave administrativa não informada.");
+  const r=await fetch('/api/remetentes-smtp',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-key':chave},body:JSON.stringify({acao,login,email,nome,senha_app})});
+  const d=await r.json().catch(()=>({}));
+  if(r.status===401){sessionStorage.removeItem('integrations_admin_key');localStorage.removeItem('integrations_admin_key');}
+  if(!r.ok||!d.ok) throw new Error(d.erro||'Não foi possível configurar o remetente.');
+  return d;
+}
+async function configurarSmtpUsuario(login,email,nome){
+  if(!email){alert('Cadastre primeiro o e-mail remetente deste usuário.');return;}
+  const senha=prompt('Cole a senha de aplicativo do Google para '+email+' (os espaços podem ser mantidos):')||'';
+  if(!senha.trim()) return;
+  try{const d=await apiSmtpUsuario('salvar',{login,email,nome,senha_app:senha});alert(d.mensagem+'\n\nAgora clique em Testar.');carregarUsuarios();}
+  catch(e){alert('SMTP: '+e.message);}
+}
+async function testarSmtpUsuario(login,email,nome){
+  try{const d=await apiSmtpUsuario('testar',{login,email,nome});alert(d.mensagem);carregarUsuarios();}
+  catch(e){alert('Teste SMTP: '+e.message);}
+}
+async function desativarSmtpUsuario(login,email){
+  if(!confirm('Desativar este remetente? Os envios deste usuário deixarão de usar esta senha de aplicativo.')) return;
+  try{const d=await apiSmtpUsuario('desativar',{login,email});alert(d.mensagem);carregarUsuarios();}
+  catch(e){alert('SMTP: '+e.message);}
+}
+async function consultarStatusSmtpUsuario(id,login,email,nome){
+  const el=document.getElementById('smtpStatus_'+id); if(el)el.textContent='Consultando...';
+  try{const d=await apiSmtpUsuario('status',{login,email,nome});
+    if(el) el.innerHTML=d.configurado?(d.ativo?'<span style="color:#16894a;font-weight:700">Configurado</span>':'<span style="color:#b77900;font-weight:700">Desativado</span>'):'<span style="color:#b3261e">Não configurado</span>';
+  }catch(e){if(el)el.textContent='Erro';}
+}
+
 async function criarUsuario(){
   const login = document.getElementById("novoLogin").value.trim();
   const senha = document.getElementById("novaSenha").value.trim();
@@ -1498,19 +1539,22 @@ async function criarUsuario(){
   const vendedora_id = document.getElementById("novoUsuarioVendedora")?.value || null;
   const email_remetente = document.getElementById("novoUsuarioEmail")?.value.trim() || null;
   const nome_exibicao = document.getElementById("novoUsuarioNome")?.value.trim() || null;
+  const senha_app = document.getElementById("novoUsuarioSenhaApp")?.value || "";
   if(!login || !senha){ alert("Preencha login e senha"); return; }
   if(tipo==="vendedora_rastreio"&&!vendedora_id){alert("Selecione a vendedora vinculada.");return;}
   const r=await banco.from("usuarios").insert([{login,senha,tipo,vendedora_id:tipo==="vendedora_rastreio"?vendedora_id:null,email_remetente,nome_exibicao}]);
   if(r.error){alert("Erro ao criar usuário: "+r.error.message);return;}
   let msg="Usuário criado!";
-  if(email_remetente){
+  if(email_remetente && senha_app.trim()){
     try{
-      const g=await cadastrarRemetenteGoogle(email_remetente,nome_exibicao||login,false);
-      msg += "\n\nGoogle Workspace: "+(g.mensagem||statusRemetenteGoogleTexto(g.status));
-    }catch(e){ msg += "\n\nUsuário salvo, mas o remetente ainda não foi autorizado no Google: "+e.message; }
+      const x=await apiSmtpUsuario('salvar',{login,email:email_remetente,nome:nome_exibicao||login,senha_app});
+      msg += "\n\nSMTP: "+x.mensagem+" Use o botão Testar para validar o envio.";
+    }catch(e){ msg += "\n\nUsuário salvo, mas a senha de aplicativo não foi configurada: "+e.message; }
+  }else if(email_remetente){
+    msg += "\n\nE-mail remetente salvo. Você pode configurar a senha de aplicativo depois na tabela de usuários.";
   }
   alert(msg);
-  ["novoLogin","novaSenha","novoUsuarioEmail","novoUsuarioNome"].forEach(id=>{const e=document.getElementById(id);if(e)e.value=""});
+  ["novoLogin","novaSenha","novoUsuarioEmail","novoUsuarioNome","novoUsuarioSenhaApp"].forEach(id=>{const e=document.getElementById(id);if(e)e.value=""});
   if(document.getElementById("novoUsuarioVendedora"))document.getElementById("novoUsuarioVendedora").value="";
   carregarUsuarios();
 }
@@ -1523,7 +1567,7 @@ async function carregarUsuarios(){
   const tabela = document.getElementById("tabelaUsuarios"); tabela.innerHTML = "";
   resposta.data.forEach(user => {
     const email=user.email_remetente||"";
-    tabela.innerHTML += `<tr><td>${escaparHtmlEmail(user.login)}</td><td>${escaparHtmlEmail(user.tipo)}</td><td>${escaparHtmlEmail(mapa.get(String(user.vendedora_id||""))||"—")}</td><td>${escaparHtmlEmail(email||"—")}</td><td>${escaparHtmlEmail(user.nome_exibicao||"—")}</td><td>${email?`<div id="gmailStatus_${user.id}" style="font-size:12px;margin-bottom:6px">Não consultado</div><button class="btn azul" onclick="consultarRemetenteGoogle('${String(user.id)}','${escaparHtmlEmail(email)}')">Verificar</button> <button class="btn verde" onclick="cadastrarRemetenteGoogle('${escaparHtmlEmail(email)}','${escaparHtmlEmail(user.nome_exibicao||user.login)}',true)">Autorizar</button>`:"—"}</td></tr>`;
+    tabela.innerHTML += `<tr><td>${escaparHtmlEmail(user.login)}</td><td>${escaparHtmlEmail(user.tipo)}</td><td>${escaparHtmlEmail(mapa.get(String(user.vendedora_id||""))||"—")}</td><td>${escaparHtmlEmail(email||"—")}</td><td>${escaparHtmlEmail(user.nome_exibicao||"—")}</td><td>${email?`<div id="smtpStatus_${user.id}" style="font-size:12px;margin-bottom:6px">Não consultado</div><button class="btn azul" onclick="consultarStatusSmtpUsuario('${String(user.id)}','${escaparHtmlEmail(user.login)}','${escaparHtmlEmail(email)}','${escaparHtmlEmail(user.nome_exibicao||user.login)}')">Verificar</button> <button class="btn verde" onclick="configurarSmtpUsuario('${escaparHtmlEmail(user.login)}','${escaparHtmlEmail(email)}','${escaparHtmlEmail(user.nome_exibicao||user.login)}')">Configurar senha</button> <button class="btn azul" onclick="testarSmtpUsuario('${escaparHtmlEmail(user.login)}','${escaparHtmlEmail(email)}','${escaparHtmlEmail(user.nome_exibicao||user.login)}')">Testar</button> <button class="btn vermelho" onclick="desativarSmtpUsuario('${escaparHtmlEmail(user.login)}','${escaparHtmlEmail(email)}')">Desativar</button>`:"—"}</td><td>${email?`<div id="gmailStatus_${user.id}" style="font-size:12px;margin-bottom:6px">Opcional</div><button class="btn azul" onclick="consultarRemetenteGoogle('${String(user.id)}','${escaparHtmlEmail(email)}')">Verificar</button>`:"—"}</td></tr>`;
   });
 }
 
