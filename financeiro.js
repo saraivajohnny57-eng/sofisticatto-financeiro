@@ -135,6 +135,30 @@ let notificacoesRecebidas = new Set();
 let atualizacaoPendenteEnquantoEdita = false;
 let formularioRelatorioAlterado = false;
 
+function usuarioEhVendedoraRastreio(){ return usuarioLogado?.tipo === "vendedora_rastreio"; }
+function usuarioEhGerenteRastreio(){ return usuarioLogado?.tipo === "gerente_rastreio"; }
+function usuarioEhComercialRastreio(){ return usuarioEhVendedoraRastreio() || usuarioEhGerenteRastreio(); }
+function usuarioPodeModuloEmail(){ return !!usuarioLogado && ["financeiro","admin","vendedora_rastreio","gerente_rastreio"].includes(usuarioLogado.tipo); }
+function emailRemetenteUsuario(){
+  if(usuarioLogado?.email_remetente) return usuarioLogado.email_remetente;
+  if(usuarioLogado?.tipo === "financeiro") return "faturamento@sofisticatto1.com.br";
+  const v=(emailVendedoras||[]).find(x=>String(x.id)===String(usuarioLogado?.vendedora_id||""));
+  return v?.email || "faturamento@sofisticatto1.com.br";
+}
+function configurarInterfacePorPerfil(){
+  const comercial=usuarioEhComercialRastreio();
+  ["btnDashboard","btnRelatorios","btnHistoricoFinanceiro"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=comercial?"none":"block"});
+  const btnDoc=document.getElementById("btnEnvioDocumentos");
+  if(btnDoc) btnDoc.style.display=(usuarioLogado?.tipo==="financeiro"||comercial)?"block":"none";
+  if(!comercial) return;
+  const permitidas=new Set(["Coletas","Preparar","Historico"]);
+  ["Logistica","Preparar","Gerador","Etiquetas","Correios","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(n=>{
+    const b=document.getElementById("emailAba"+n); if(b)b.style.display=permitidas.has(n)?"inline-flex":"none";
+  });
+  ["Nova","Historico","Entradas","Transportadoras","Modelos"].forEach(n=>{const b=document.getElementById("coletaTab"+n);if(b)b.style.display="none"});
+  ["Rodonaves","Saidas","Entregues"].forEach(n=>{const b=document.getElementById("coletaTab"+n);if(b)b.style.display="inline-flex"});
+}
+
 async function entrar(){
   if(!bancoPronto()) return;
   const login = document.getElementById("login").value.trim();
@@ -156,14 +180,15 @@ function iniciarSistema(){
   document.getElementById("usuarioInfo").innerHTML = "Usuário: <b>" + usuarioLogado.login + "</b><br>Tipo: <b>" + usuarioLogado.tipo + "</b>";
   atualizarBotaoNotificacao();
   document.getElementById("btnAdmin").style.display = usuarioLogado.tipo === "admin" ? "block" : "none";
-  document.getElementById("btnEnvioDocumentos").style.display = usuarioLogado.tipo === "financeiro" ? "block" : "none";
+  document.getElementById("btnEnvioDocumentos").style.display = (usuarioLogado.tipo === "financeiro" || usuarioEhComercialRastreio()) ? "block" : "none";
   document.getElementById("boxNovoRelatorio").style.display = usuarioLogado.tipo === "banco" ? "none" : "block";
-  mostrarDashboardHoje();
-  mostrarSecao("dashboard");
+  configurarInterfacePorPerfil();
+  if(usuarioEhComercialRastreio()){ mostrarSecao("envioDocumentos"); mostrarAbaEmail("coletas"); setTimeout(()=>mostrarPainelColeta("rodonaves"),50); }
+  else { mostrarDashboardHoje(); mostrarSecao("dashboard"); }
   carregarRelatorios();
   carregarUsuarios();
 
-  if(usuarioLogado.tipo === "financeiro"){
+  if(usuarioLogado.tipo === "financeiro" || usuarioEhComercialRastreio()){
     carregarVendedorasEmail().then(() => carregarClientesEmail()).catch(erro => {
       console.error("Não foi possível carregar a lista rápida de clientes:", erro);
     });
@@ -177,8 +202,8 @@ function mostrarSecao(secao){
   document.getElementById("admin").style.display = "none";
   document.getElementById("envioDocumentos").style.display = "none";
 
-  if(secao === "envioDocumentos" && (!usuarioLogado || usuarioLogado.tipo !== "financeiro")){
-    alert("Somente o usuário Financeiro pode acessar esta área.");
+  if(secao === "envioDocumentos" && !usuarioPodeModuloEmail()){
+    alert("Seu usuário não possui acesso a esta área.");
     secao = "dashboard";
   }
 
@@ -1427,30 +1452,43 @@ async function excluirBanco(id){
   carregarRelatorios();
 }
 
+async function carregarVendedorasAdmin(){
+  const sel=document.getElementById("novoUsuarioVendedora"); if(!sel||!banco)return;
+  const r=await banco.from("email_vendedoras").select("id,nome,email").order("nome");
+  const itens=r.error?[]:(r.data||[]);
+  sel.innerHTML='<option value="">Vendedora vinculada (somente perfil vendedora)</option>'+itens.map(v=>`<option value="${v.id}" data-email="${escaparHtmlEmail(v.email||"")}">${escaparHtmlEmail(v.nome||"")}</option>`).join("");
+  sel.onchange=()=>{const o=sel.selectedOptions[0];const e=document.getElementById("novoUsuarioEmail");if(o?.dataset?.email&&!e.value)e.value=o.dataset.email};
+}
+function atualizarCamposUsuarioComercial(){
+  const tipo=document.getElementById("novoTipo")?.value||"";
+  const sel=document.getElementById("novoUsuarioVendedora");
+  if(sel)sel.disabled=tipo!=="vendedora_rastreio";
+}
 async function criarUsuario(){
   const login = document.getElementById("novoLogin").value.trim();
   const senha = document.getElementById("novaSenha").value.trim();
   const tipo = document.getElementById("novoTipo").value;
-
+  const vendedora_id = document.getElementById("novoUsuarioVendedora")?.value || null;
+  const email_remetente = document.getElementById("novoUsuarioEmail")?.value.trim() || null;
+  const nome_exibicao = document.getElementById("novoUsuarioNome")?.value.trim() || null;
   if(!login || !senha){ alert("Preencha login e senha"); return; }
-
-  await banco.from("usuarios").insert([{login:login,senha:senha,tipo:tipo}]);
+  if(tipo==="vendedora_rastreio"&&!vendedora_id){alert("Selecione a vendedora vinculada.");return;}
+  const r=await banco.from("usuarios").insert([{login,senha,tipo,vendedora_id:tipo==="vendedora_rastreio"?vendedora_id:null,email_remetente,nome_exibicao}]);
+  if(r.error){alert("Erro ao criar usuário: "+r.error.message);return;}
   alert("Usuário criado!");
-  document.getElementById("novoLogin").value = "";
-  document.getElementById("novaSenha").value = "";
+  ["novoLogin","novaSenha","novoUsuarioEmail","novoUsuarioNome"].forEach(id=>{const e=document.getElementById(id);if(e)e.value=""});
+  if(document.getElementById("novoUsuarioVendedora"))document.getElementById("novoUsuarioVendedora").value="";
   carregarUsuarios();
 }
-
 async function carregarUsuarios(){
   if(!usuarioLogado || usuarioLogado.tipo !== "admin") return;
-
-  const resposta = await banco.from("usuarios").select("*").order("login",{ascending:true});
+  await carregarVendedorasAdmin(); atualizarCamposUsuarioComercial();
+  const [resposta,rv]=await Promise.all([banco.from("usuarios").select("*").order("login",{ascending:true}),banco.from("email_vendedoras").select("id,nome")]);
   if(resposta.error) return;
-
-  const tabela = document.getElementById("tabelaUsuarios");
-  tabela.innerHTML = "";
+  const mapa=new Map((rv.data||[]).map(v=>[String(v.id),v.nome]));
+  const tabela = document.getElementById("tabelaUsuarios"); tabela.innerHTML = "";
   resposta.data.forEach(user => {
-    tabela.innerHTML += `<tr><td>${user.login}</td><td>${user.tipo}</td></tr>`;
+    tabela.innerHTML += `<tr><td>${escaparHtmlEmail(user.login)}</td><td>${escaparHtmlEmail(user.tipo)}</td><td>${escaparHtmlEmail(mapa.get(String(user.vendedora_id||""))||"—")}</td><td>${escaparHtmlEmail(user.email_remetente||"—")}</td><td>${escaparHtmlEmail(user.nome_exibicao||"—")}</td></tr>`;
   });
 }
 
@@ -1564,8 +1602,8 @@ const ETIQUETA_INSTAGRAM_URL = "https://www.instagram.com/sofisticatto.cosmetico
 let emailLogoTemporariaDataUrl = "";
 
 function garantirFinanceiroEmail(){
-  if(!usuarioLogado || usuarioLogado.tipo !== "financeiro"){
-    alert("Somente o usuário Financeiro pode utilizar o envio de documentos.");
+  if(!usuarioPodeModuloEmail()){
+    alert("Seu usuário não possui acesso ao módulo de e-mails/logística.");
     return false;
   }
   return true;
@@ -1673,7 +1711,11 @@ function descricaoModoEmail(){
 
 async function carregarModuloEmail(){
   if(!garantirFinanceiroEmail() || !bancoPronto()) return;
-  await Promise.all([carregarVendedorasEmail(), carregarClientesEmail(), carregarAssinaturasEmail(), carregarHistoricoEmail(), carregarConfiguracoesRelatorio(), carregarRelatoriosClientes()]);
+  if(usuarioEhComercialRastreio()){
+    await Promise.all([carregarVendedorasEmail(), carregarClientesEmail(), carregarHistoricoEmail()]);
+  }else{
+    await Promise.all([carregarVendedorasEmail(), carregarClientesEmail(), carregarAssinaturasEmail(), carregarHistoricoEmail(), carregarConfiguracoesRelatorio(), carregarRelatoriosClientes()]);
+  }
   emailModuloCarregado = true;
 
   const campoMensagem = document.getElementById("emailMensagemPrincipal");
@@ -1687,6 +1729,9 @@ async function carregarModuloEmail(){
 
 function mostrarAbaEmail(aba){
   if(!garantirFinanceiroEmail()) return;
+  if(usuarioEhComercialRastreio() && !["coletas","preparar","historico"].includes(aba)){
+    aba="coletas";
+  }
   ["Logistica","Preparar","Gerador","Etiquetas","Correios","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
     document.getElementById("emailSub" + nome).classList.remove("ativa");
     document.getElementById("emailAba" + nome).classList.remove("ativo");
@@ -2876,6 +2921,9 @@ async function carregarClientesEmail(){
   emailClientes=[...porId.values()].sort((a,b)=>
     String(a.nome||"").localeCompare(String(b.nome||""),"pt-BR")
   );
+  if(usuarioEhVendedoraRastreio()){
+    emailClientes=emailClientes.filter(c=>String(c.vendedora_id||"")===String(usuarioLogado.vendedora_id||""));
+  }
 
   montarTabelaClientesEmail();
 
@@ -3213,7 +3261,8 @@ function arquivoParaBase64Email(arquivo){
 
 async function montarPayloadEmail(item){
   return {
-    remetente:"faturamento@sofisticatto1.com.br",
+    remetente:emailRemetenteUsuario(),
+    nome_remetente:usuarioLogado?.nome_exibicao || usuarioLogado?.login || "Sofisticatto Cosméticos",
     para:item.para,
     cc:item.cc,
     assunto:item.assunto,
@@ -3325,7 +3374,9 @@ async function enviarTodosEmails(){
 
 async function carregarHistoricoEmail(){
   if(!garantirFinanceiroEmail() || !banco) return;
-  const resposta = await banco.from("email_envios").select("*").order("created_at",{ascending:false}).limit(300);
+  let consultaHistorico=banco.from("email_envios").select("*").order("created_at",{ascending:false}).limit(300);
+  if(usuarioEhVendedoraRastreio()) consultaHistorico=consultaHistorico.eq("enviado_por",usuarioLogado.login);
+  const resposta = await consultaHistorico;
   if(resposta.error){
     console.error("Erro ao carregar histórico de e-mails:",resposta.error);
     return;

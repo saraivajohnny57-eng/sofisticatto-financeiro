@@ -3,6 +3,19 @@
    AGENDAMENTO DE COLETA — V40 RASTREIO MULTITRANSPORTADORAS
    ========================================================= */
 let coletaModelos=[],coletaAgendamentos=[],coletaTransportadoras=[],coletaIntegracoesSSW=[],coletaInicializado=false;
+let coletaEscopoVendedora={carregado:false,ids:new Set(),nomes:new Set()};
+async function carregarEscopoVendedoraColetas(){
+  if(!usuarioEhVendedoraRastreio?.()){coletaEscopoVendedora={carregado:true,ids:new Set(),nomes:new Set()};return;}
+  const r=await banco.from("email_clientes").select("id,nome").eq("vendedora_id",usuarioLogado.vendedora_id);
+  const dados=r.error?[]:(r.data||[]);
+  coletaEscopoVendedora={carregado:true,ids:new Set(dados.map(x=>String(x.id))),nomes:new Set(dados.map(x=>normalizarNomeEmail(x.nome||"")))};
+}
+function registroPermitidoVendedora(clienteId,nome){
+  if(!usuarioEhVendedoraRastreio?.())return true;
+  if(!coletaEscopoVendedora.carregado)return false;
+  return (clienteId&&coletaEscopoVendedora.ids.has(String(clienteId))) || coletaEscopoVendedora.nomes.has(normalizarNomeEmail(nome||""));
+}
+
 
 const COLETA_MODELOS_PADRAO=[
  {nome:"Modelo 1 — WhatsApp",texto:`Para solicitar *Coleta*:
@@ -59,11 +72,17 @@ Endereço de coleta: *{{endereco_origem}}*
 function ce(id){return document.getElementById(id)}
 function cv(id){return ce(id)?.value?.trim()||""}
 function coletaMoeda(v){let n=Number(String(v||"").replace(/\./g,"").replace(",","."));return Number.isFinite(n)&&n? n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}):""}
-function mostrarPainelColeta(p){["nova","historico","rodonaves","saidas","entregues","entradas","transportadoras","modelos"].forEach(x=>{ce("coletaPainel"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p);ce("coletaTab"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p)});if(p==="historico")montarHistoricoColetas();if(p==="rodonaves"){carregarPainelRodonaves();iniciarSincronizacaoAutomaticaColetas()}else{pararSincronizacaoAutomaticaColetas()}if(p==="saidas"){carregarRastreamentosLogistica("saida");iniciarAtualizacaoAutomaticaRastreios()}else if(p==="entregues"){carregarRastreamentosEntregues();iniciarAtualizacaoAutomaticaRastreios()}else{pararAtualizacaoAutomaticaRastreios()}if(p==="entradas")carregarRastreamentosLogistica("entrada");if(p==="transportadoras")carregarTransportadorasLogistica();if(p==="modelos")montarModelosColeta()}
+function mostrarPainelColeta(p){if(usuarioEhComercialRastreio?.()&&!["rodonaves","saidas","entregues"].includes(p))p="rodonaves";["nova","historico","rodonaves","saidas","entregues","entradas","transportadoras","modelos"].forEach(x=>{ce("coletaPainel"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p);ce("coletaTab"+x[0].toUpperCase()+x.slice(1))?.classList.toggle("ativo",x===p)});if(p==="historico")montarHistoricoColetas();if(p==="rodonaves"){carregarPainelRodonaves();iniciarSincronizacaoAutomaticaColetas()}else{pararSincronizacaoAutomaticaColetas()}if(p==="saidas"){carregarRastreamentosLogistica("saida");iniciarAtualizacaoAutomaticaRastreios()}else if(p==="entregues"){carregarRastreamentosEntregues();iniciarAtualizacaoAutomaticaRastreios()}else{pararAtualizacaoAutomaticaRastreios()}if(p==="entradas")carregarRastreamentosLogistica("entrada");if(p==="transportadoras")carregarTransportadorasLogistica();if(p==="modelos")montarModelosColeta()}
 async function inicializarModuloColetas(){if(coletaInicializado){atualizarPreviaColeta();return}coletaInicializado=true;await Promise.all([carregarTransportadorasColeta(),carregarModelosColeta(),carregarAgendamentosColeta()]);montarClientesColeta();atualizarPreviaColeta()}
 async function carregarTransportadorasColeta(){const [r,ri]=await Promise.all([banco.from("frete_transportadoras").select("*").order("nome"),banco.from("transportadora_integracoes").select("convite_id,transportadora_nome,coleta_ativa,integracao_tipo,status_tecnico,ambiente_atual")]);coletaTransportadoras=r.error?[]:r.data||[];coletaIntegracoesSSW=ri.error?[]:(ri.data||[]).filter(x=>x.coleta_ativa&&String(x.integracao_tipo||"").toLowerCase()==="webservice");const opts='<option value="">Selecione</option>'+coletaTransportadoras.map(t=>`<option value="${t.id}">${escaparHtmlEmail(t.nome||"")}</option>`).join("");ce("coletaTransportadoraId").innerHTML=opts;ce("coletaModeloTransportadoraId").innerHTML='<option value="">Modelo geral</option>'+opts.replace('<option value="">Selecione</option>','')}
 async function carregarModelosColeta(){const r=await banco.from("coleta_modelos").select("*").eq("ativo",true).order("nome");coletaModelos=r.error?[]:r.data||[];if(!coletaModelos.length)coletaModelos=COLETA_MODELOS_PADRAO.map((m,i)=>({id:`padrao-${i+1}`,...m,ativo:true}));ce("coletaModeloId").innerHTML=coletaModelos.map(m=>`<option value="${m.id}">${escaparHtmlEmail(m.nome)}</option>`).join("");montarModelosColeta()}
-async function carregarAgendamentosColeta(){const r=await banco.from("coleta_agendamentos").select("*,frete_transportadoras(nome),coleta_modelos(nome)").order("created_at",{ascending:false});coletaAgendamentos=r.error?[]:r.data||[];montarHistoricoColetas()}
+async function carregarAgendamentosColeta(){
+  await carregarEscopoVendedoraColetas();
+  const r=await banco.from("coleta_agendamentos").select("*,frete_transportadoras(nome),coleta_modelos(nome)").order("created_at",{ascending:false});
+  coletaAgendamentos=r.error?[]:r.data||[];
+  if(usuarioEhVendedoraRastreio?.()) coletaAgendamentos=coletaAgendamentos.filter(a=>registroPermitidoVendedora(a.cliente_id,a.cliente_nome));
+  montarHistoricoColetas();
+}
 function montarClientesColeta(){const dl=ce("coletaClientesLista");if(!dl)return;dl.innerHTML=(emailClientes||[]).map(c=>`<option value="${escaparHtmlEmail(c.nome||"")}"></option>`).join("")}
 function pesquisarClienteColeta(){ce("coletaClienteId").value="";const q=normalizarNomeEmail(cv("coletaClienteBusca"));const box=ce("coletaClienteResultados");if(q.length<2){box.style.display="none";return}const lista=(emailClientes||[]).filter(c=>normalizarNomeEmail([c.nome,c.cpf_cnpj,c.cidade,c.uf].filter(Boolean).join(" ")).includes(q)).slice(0,12);box.innerHTML=lista.map(c=>`<button type="button" class="coleta-resultado" onclick="selecionarClienteColeta('${c.id}')"><strong>${escaparHtmlEmail(c.nome||"")}</strong><span>${escaparHtmlEmail([c.cpf_cnpj,c.cidade,c.uf].filter(Boolean).join(" • "))}</span></button>`).join("")||'<div class="frete-cliente-sem-resultado">Nenhum cliente encontrado.</div>';box.style.display="block"}
 function selecionarClienteColetaPorNome(){const c=(emailClientes||[]).find(x=>normalizarNomeEmail(x.nome)===normalizarNomeEmail(cv("coletaClienteBusca")));if(c)selecionarClienteColeta(c.id)}
@@ -1539,6 +1558,13 @@ async function carregarRastreamentosLogistica(sentido){
   }
   const r=await banco.from("logistica_rastreamentos").select("*,frete_transportadoras(nome)").eq("sentido",sentido).order("created_at",{ascending:false});
   rastreamentosLogistica=r.error?[]:(r.data||[]);
+  if(usuarioEhVendedoraRastreio?.()){
+    if(!coletaEscopoVendedora.carregado)await carregarEscopoVendedoraColetas();
+    const agIds=new Set((coletaAgendamentos||[]).map(a=>String(a.id)));
+    rastreamentosLogistica=rastreamentosLogistica.filter(x=>
+      (x.coleta_agendamento_id&&agIds.has(String(x.coleta_agendamento_id))) || registroPermitidoVendedora(null,x.parceiro_nome)
+    );
+  }
   const todosRastreiosDoSentido=[...rastreamentosLogistica];
   if(sentido==="saida"){
     // O painel mostra TODAS as transportadoras cadastradas, mas prioriza no topo
@@ -1671,6 +1697,11 @@ async function carregarRastreamentosEntregues(){
     .order("ultima_ocorrencia_em",{ascending:false,nullsFirst:false})
     .order("created_at",{ascending:false});
   rastreamentosEntregues=r.error?[]:(r.data||[]);
+  if(usuarioEhVendedoraRastreio?.()){
+    if(!coletaEscopoVendedora.carregado)await carregarEscopoVendedoraColetas();
+    const agIds=new Set((coletaAgendamentos||[]).map(a=>String(a.id)));
+    rastreamentosEntregues=rastreamentosEntregues.filter(x=>(x.coleta_agendamento_id&&agIds.has(String(x.coleta_agendamento_id)))||registroPermitidoVendedora(null,x.parceiro_nome));
+  }
   renderRastreamentosEntregues();
 }
 

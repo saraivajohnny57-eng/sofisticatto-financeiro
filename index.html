@@ -38,9 +38,9 @@
       <div id="listaNotificacoes" style="max-height:230px;overflow:auto;margin-top:10px;"></div>
     </div>
     <div class="menu" style="margin-top:15px;">
-      <button onclick="mostrarSecao('dashboard')">Dashboard</button>
-      <button onclick="mostrarSecao('relatorios')">Relatórios</button>
-      <button onclick="mostrarSecao('historico')">Histórico</button>
+      <button id="btnDashboard" onclick="mostrarSecao('dashboard')">Dashboard</button>
+      <button id="btnRelatorios" onclick="mostrarSecao('relatorios')">Relatórios</button>
+      <button id="btnHistoricoFinanceiro" onclick="mostrarSecao('historico')">Histórico</button>
       <button id="btnEnvioDocumentos" onclick="mostrarSecao('envioDocumentos')" style="display:none;">Envio de Documentos</button>
       <button id="btnAdmin" onclick="mostrarSecao('admin')" style="display:none;">Admin</button>
     </div>
@@ -2408,7 +2408,18 @@ SOFISTICATTO COSMÉTICOS</textarea>
   <div id="admin" style="display:none;">
     <div class="card">
       <h2>Criar Usuário</h2>
-      <div class="inputs"><input type="text" id="novoLogin" placeholder="Login"><input type="text" id="novaSenha" placeholder="Senha"><select id="novoTipo"><option value="financeiro">Financeiro</option><option value="banco">Banco</option><option value="admin">Admin</option></select></div>
+      <div class="inputs">
+        <input type="text" id="novoLogin" placeholder="Login">
+        <input type="text" id="novaSenha" placeholder="Senha">
+        <select id="novoTipo" onchange="atualizarCamposUsuarioComercial()">
+          <option value="financeiro">Financeiro</option><option value="banco">Banco</option><option value="admin">Admin</option>
+          <option value="vendedora_rastreio">Vendedora — Rastreamento + E-mail</option>
+          <option value="gerente_rastreio">Gerente — Rastreamento + E-mail</option>
+        </select>
+        <select id="novoUsuarioVendedora"><option value="">Vendedora vinculada (somente perfil vendedora)</option></select>
+        <input type="email" id="novoUsuarioEmail" placeholder="E-mail remetente (ex.: comercial01@sofisticatto1.com.br)">
+        <input type="text" id="novoUsuarioNome" placeholder="Nome exibido (ex.: Thais Alves)">
+      </div>
       <button class="salvar" onclick="criarUsuario()">Criar Usuário</button>
     </div>
     <div class="card">
@@ -2419,7 +2430,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
     </div>
     <div class="card">
       <h2>Usuários</h2>
-      <div class="table-wrap"><table><thead><tr><th>Login</th><th>Tipo</th></tr></thead><tbody id="tabelaUsuarios"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Login</th><th>Tipo</th><th>Vendedora</th><th>E-mail remetente</th><th>Nome</th></tr></thead><tbody id="tabelaUsuarios"></tbody></table></div>
     </div>
   </div>
 </div>
