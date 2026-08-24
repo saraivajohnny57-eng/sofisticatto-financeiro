@@ -27,6 +27,7 @@ module.exports = async function handler(req, res) {
   try {
     const {
       remetente,
+      nome_remetente,
       para,
       cc,
       assunto,
@@ -69,14 +70,12 @@ module.exports = async function handler(req, res) {
     await transporter.verify();
 
     const nomeRemetente =
-      process.env.SMTP_FROM_NAME ||
-      process.env.SMTP_FROM ||
-      "Sofisticatto Cosméticos";
+      nome_remetente || process.env.SMTP_FROM_NAME || process.env.SMTP_FROM || "Sofisticatto Cosméticos";
 
-    const emailRemetente =
-      remetente ||
-      process.env.SMTP_FROM_EMAIL ||
-      process.env.SMTP_USER;
+    const solicitado=String(remetente||"").trim().toLowerCase();
+    const emailRemetente = solicitado.endsWith("@sofisticatto1.com.br")
+      ? solicitado
+      : (process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER);
 
     const arquivos = Array.isArray(anexos)
       ? anexos.map(anexo => ({
@@ -89,6 +88,7 @@ module.exports = async function handler(req, res) {
 
     const resultado = await transporter.sendMail({
       from: `"${nomeRemetente}" <${emailRemetente}>`,
+      replyTo: emailRemetente,
       to: destinatarios,
       cc: copias.length ? copias : undefined,
       subject: assunto || "Documentos Sofisticatto",
