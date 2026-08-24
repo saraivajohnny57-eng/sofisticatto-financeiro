@@ -544,7 +544,7 @@ function montarImportacaoClientes(){
  botao.style.display=sel?"inline-block":"none"
 }
 function alterarSelecaoImportacaoCliente(i,v){if(clientesImportacaoPendentes[i])clientesImportacaoPendentes[i].selecionado=v;montarImportacaoClientes()}
-function preencherSelectVendedoraImportacao(){const s=document.getElementById("importadorClienteVendedora");if(!s)return;const a=s.value;s.innerHTML='<option value="">Não definir</option>'+(emailVendedoras||[]).map(v=>`<option value="${v.id}">${escaparHtmlEmail(v.nome||"")}</option>`).join("");s.value=a}
+function preencherSelectVendedoraImportacao(){const s=document.getElementById("importadorClienteVendedora");if(!s)return;const a=s.value;s.innerHTML='<option value="">Não definir</option>'+(emailVendedoras||[]).map(v=>`<option value="${v.id}">${escaparHtmlEmail(v.nome||"")}</option>`).join("");if(typeof usuarioEhVendedoraRastreio==="function"&&usuarioEhVendedoraRastreio()){s.value=String(usuarioLogado?.vendedora_id||"");s.disabled=true}else{s.disabled=false;s.value=a}}
 function dadosBancoImportacaoCliente(i){
   const vend=document.getElementById("importadorClienteVendedora")?.value||null;
   return{

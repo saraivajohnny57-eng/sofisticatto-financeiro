@@ -257,6 +257,10 @@
           </div>
         </div>
 
+        <div id="emailRemetenteAtual" class="email-aviso" style="margin-top:14px;">
+          <b>Remetente deste login:</b> carregando...
+        </div>
+
         <div class="email-aviso email-sucesso" style="margin-top:14px;">
           <b>Prévia da mensagem:</b>
           <div id="emailPreviaMensagem" style="margin-top:9px;line-height:1.5;"></div>
@@ -2249,6 +2253,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <div id="emailSubClientes" class="email-subsecao">
       <div class="card">
         <h2>Cadastro de Cliente</h2>
+        <p id="emailClientesPerfilAviso" style="margin:0 0 14px;color:#71689b;font-size:13px;line-height:1.45;">Vendedoras visualizam e mantêm somente seus próprios clientes. A gerente pode acessar todos os clientes.</p>
         <input type="hidden" id="emailClienteId">
         <div class="inputs">
           <input id="emailClienteNome" placeholder="Nome do cliente">
@@ -2426,7 +2431,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
         </div>
       </div>
       <button class="salvar" onclick="criarUsuario()">Criar Usuário</button>
-      <div style="margin-top:10px;font-size:12px;color:#655d7a;line-height:1.5"><b>V57:</b> ao criar uma vendedora/gerente com e-mail, o portal tentará cadastrá-lo automaticamente no Google Workspace. Se o Google exigir confirmação, a própria vendedora receberá o link.</div>
+      <div style="margin-top:10px;font-size:12px;color:#655d7a;line-height:1.5"><b>V59:</b> o e-mail remetente fica vinculado ao login. Ao preparar arquivos, o portal usa automaticamente o remetente do usuário logado e busca o e-mail do cliente no cadastro.</div>
     </div>
     <div class="card">
       <h2>Cadastrar Banco</h2>
@@ -2570,8 +2575,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=13.8"></script>
-<script src="clientes.js?v=13.3"></script>
+<script src="financeiro.js?v=13.9"></script>
+<script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
 <script src="cotacoes.js?v=36-alfa"></script>
 <script src="whatsapp.js?v=11"></script>

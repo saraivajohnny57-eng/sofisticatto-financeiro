@@ -140,10 +140,37 @@ function usuarioEhGerenteRastreio(){ return usuarioLogado?.tipo === "gerente_ras
 function usuarioEhComercialRastreio(){ return usuarioEhVendedoraRastreio() || usuarioEhGerenteRastreio(); }
 function usuarioPodeModuloEmail(){ return !!usuarioLogado && ["financeiro","admin","vendedora_rastreio","gerente_rastreio"].includes(usuarioLogado.tipo); }
 function emailRemetenteUsuario(){
-  if(usuarioLogado?.email_remetente) return usuarioLogado.email_remetente;
+  if(usuarioLogado?.email_remetente) return String(usuarioLogado.email_remetente).trim();
   if(usuarioLogado?.tipo === "financeiro") return "faturamento@sofisticatto1.com.br";
   const v=(emailVendedoras||[]).find(x=>String(x.id)===String(usuarioLogado?.vendedora_id||""));
-  return v?.email || "faturamento@sofisticatto1.com.br";
+  if(usuarioEhComercialRastreio()) return String(v?.email||"").trim();
+  return String(v?.email || "faturamento@sofisticatto1.com.br").trim();
+}
+function nomeRemetenteUsuario(){
+  if(usuarioLogado?.nome_exibicao) return String(usuarioLogado.nome_exibicao).trim();
+  const v=(emailVendedoras||[]).find(x=>String(x.id)===String(usuarioLogado?.vendedora_id||""));
+  return String(v?.nome || usuarioLogado?.login || "Sofisticatto Cosméticos").trim();
+}
+function atualizarRemetenteAtualEmail(){
+  const box=document.getElementById("emailRemetenteAtual");
+  if(!box) return;
+  const email=emailRemetenteUsuario();
+  const nome=nomeRemetenteUsuario();
+  box.innerHTML=email
+    ? `<b>Remetente deste login:</b> ${escaparHtmlEmail(nome)} &lt;${escaparHtmlEmail(email)}&gt;`
+    : `<b>Remetente deste login:</b> <span style="color:#c0392b">não cadastrado. Peça ao administrador para informar o e-mail remetente no usuário.</span>`;
+}
+function configurarCadastroClientesPorPerfil(){
+  const sel=document.getElementById("emailClienteVendedora");
+  const imp=document.getElementById("importadorClienteVendedora");
+  if(usuarioEhVendedoraRastreio()){
+    if(sel){ sel.value=String(usuarioLogado?.vendedora_id||""); sel.disabled=true; }
+    if(imp){ imp.value=String(usuarioLogado?.vendedora_id||""); imp.disabled=true; }
+  }else{
+    if(sel) sel.disabled=false;
+    if(imp) imp.disabled=false;
+  }
+  atualizarEmailVendedoraAutomatico?.();
 }
 function configurarInterfacePorPerfil(){
   const comercial=usuarioEhComercialRastreio();
@@ -151,7 +178,7 @@ function configurarInterfacePorPerfil(){
   const btnDoc=document.getElementById("btnEnvioDocumentos");
   if(btnDoc) btnDoc.style.display=(usuarioLogado?.tipo==="financeiro"||comercial)?"block":"none";
   if(!comercial) return;
-  const permitidas=new Set(["Coletas","Preparar","Historico"]);
+  const permitidas=new Set(["Coletas","Preparar","Clientes","Historico"]);
   ["Logistica","Preparar","Gerador","Etiquetas","Correios","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(n=>{
     const b=document.getElementById("emailAba"+n); if(b)b.style.display=permitidas.has(n)?"inline-flex":"none";
   });
@@ -189,7 +216,7 @@ function iniciarSistema(){
   carregarUsuarios();
 
   if(usuarioLogado.tipo === "financeiro" || usuarioEhComercialRastreio()){
-    carregarVendedorasEmail().then(() => carregarClientesEmail()).catch(erro => {
+    carregarVendedorasEmail().then(() => { atualizarRemetenteAtualEmail(); return carregarClientesEmail(); }).catch(erro => {
       console.error("Não foi possível carregar a lista rápida de clientes:", erro);
     });
   }
@@ -1761,7 +1788,7 @@ async function carregarModuloEmail(){
 
 function mostrarAbaEmail(aba){
   if(!garantirFinanceiroEmail()) return;
-  if(usuarioEhComercialRastreio() && !["coletas","preparar","historico"].includes(aba)){
+  if(usuarioEhComercialRastreio() && !["coletas","preparar","clientes","historico"].includes(aba)){
     aba="coletas";
   }
   ["Logistica","Preparar","Gerador","Etiquetas","Correios","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
@@ -1796,6 +1823,12 @@ function mostrarAbaEmail(aba){
   }
   if(aba === "integracoes" && typeof carregarIntegracoesTransportadoras === "function"){
     carregarIntegracoesTransportadoras();
+  }
+  if(aba === "clientes"){
+    configurarCadastroClientesPorPerfil();
+  }
+  if(aba === "preparar"){
+    atualizarRemetenteAtualEmail();
   }
 }
 
@@ -2829,6 +2862,8 @@ async function carregarVendedorasEmail(){
   montarTabelaVendedorasEmail();
   montarSelectVendedorasEmail();
   if(typeof preencherSelectVendedoraImportacao==="function") preencherSelectVendedoraImportacao();
+  configurarCadastroClientesPorPerfil();
+  atualizarRemetenteAtualEmail();
 }
 
 function montarTabelaVendedorasEmail(){
@@ -3037,7 +3072,8 @@ async function salvarClienteEmail(){
   const nome = document.getElementById("emailClienteNome").value.trim();
   const cpf_cnpj = document.getElementById("emailClienteCpfCnpj")?.value.trim() || "";
   const emails = separarEmailsEmail(document.getElementById("emailClienteEmails").value);
-  const vendedora_id = document.getElementById("emailClienteVendedora").value;
+  let vendedora_id = document.getElementById("emailClienteVendedora").value;
+  if(usuarioEhVendedoraRastreio()) vendedora_id=String(usuarioLogado?.vendedora_id||"");
 
   if(!nome || !vendedora_id){
     alert("Preencha o nome e selecione a vendedora. O e-mail do cliente pode ficar vazio.");
@@ -3072,6 +3108,10 @@ function editarClienteEmail(id){
   if(!garantirFinanceiroEmail()) return;
   const item = emailClientes.find(c => c.id === id);
   if(!item) return;
+  if(usuarioEhVendedoraRastreio() && String(item.vendedora_id||"")!==String(usuarioLogado?.vendedora_id||"")){
+    alert("Você só pode editar clientes vinculados à sua vendedora.");
+    return;
+  }
   document.getElementById("emailClienteId").value = item.id;
   document.getElementById("emailClienteNome").value = item.nome || "";
   document.getElementById("emailClienteCpfCnpj").value = item.cpf_cnpj || "";
@@ -3222,6 +3262,7 @@ function adicionarArquivosEmail(novosArquivos){
 function prepararEnviosEmail(){
   const tabela = document.getElementById("emailTabelaPrevia");
   if(!tabela) return;
+  atualizarRemetenteAtualEmail();
 
   const arquivosValidos = emailArquivosSelecionados.filter(arquivoCompativelModoEmail);
   const grupos = new Map();
@@ -3245,7 +3286,7 @@ function prepararEnviosEmail(){
       assunto:grupo.nome,
       corpo:textoCorpoEmail(),
       arquivos:grupo.arquivos,
-      status:cliente && vendedora?.email ? "pronto" : "pendente",
+      status:cliente && ((cliente?.emails || []).length || vendedora?.email) && (!usuarioEhComercialRastreio() || !!emailRemetenteUsuario()) ? "pronto" : "pendente",
       somenteVendedora:!!cliente && !(cliente.emails || []).length && !!vendedora?.email
     };
   });
@@ -3262,7 +3303,7 @@ function prepararEnviosEmail(){
       <td>${item.para.length ? item.para.map(escaparHtmlEmail).join("<br>") : "—"}</td>
       <td>${item.cc.length ? item.cc.map(escaparHtmlEmail).join("<br>") : "—"}</td>
       <td class="email-arquivos">${item.arquivos.map(arquivo => `• ${escaparHtmlEmail(arquivo.name)} <small>(${(arquivo.size/1024).toFixed(0)} KB)</small>`).join("<br>")}</td>
-      <td class="${item.status === "pronto" ? "email-status-ok" : "email-status-erro"}">${item.status === "pronto" ? (item.somenteVendedora ? "Pronto — somente vendedora" : "Pronto") : "Cliente/vendedora não cadastrado"}</td>
+      <td class="${item.status === "pronto" ? "email-status-ok" : "email-status-erro"}">${item.status === "pronto" ? (item.somenteVendedora ? "Pronto — somente vendedora" : "Pronto") : (!emailRemetenteUsuario() && usuarioEhComercialRastreio() ? "Remetente do usuário não cadastrado" : "Cliente/e-mail não cadastrado")}</td>
       <td>${item.status === "pronto"
         ? `<button class="btn verde" onclick="enviarEmailIndividual(${indice},this)">Enviar</button>`
         : `<button class="btn azul" onclick="cadastrarClientePendenteEmail('${encodeURIComponent(item.clienteNome)}')">Cadastrar</button>`}
@@ -3292,9 +3333,13 @@ function arquivoParaBase64Email(arquivo){
 }
 
 async function montarPayloadEmail(item){
+  const remetente=emailRemetenteUsuario();
+  if(usuarioEhComercialRastreio() && !remetente){
+    throw new Error("Este usuário ainda não possui e-mail remetente cadastrado. Peça ao administrador para configurar o campo E-mail remetente no cadastro do usuário.");
+  }
   return {
-    remetente:emailRemetenteUsuario(),
-    nome_remetente:usuarioLogado?.nome_exibicao || usuarioLogado?.login || "Sofisticatto Cosméticos",
+    remetente,
+    nome_remetente:nomeRemetenteUsuario(),
     para:item.para,
     cc:item.cc,
     assunto:item.assunto,
