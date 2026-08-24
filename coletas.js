@@ -1934,7 +1934,7 @@ async function atualizarRastreioIntegrado(id,botao=null){
       try{
         const {dados}=await consultarRastreioSSWDiretoRegistro(id);
         await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();
-        alert(`Rastreio SSW atualizado.\n\nTransportadora: ${nome}\nNF: ${rastro.numero_nfe||"—"}\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}`);
+        alert(`Rastreio SSW atualizado.\n\nTransportadora: ${nome}\nNF: ${rastro.numero_nfe||"—"}\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${dados.local?`\nLocal: ${dados.local}`:""}${dados.ultimaOcorrenciaEm?`\nData/hora: ${new Date(dados.ultimaOcorrenciaEm).toLocaleString("pt-BR")}`:""}${dados.totalEventos?`\nEventos encontrados: ${dados.totalEventos}`:""}`);
       }catch(direto){
         const {ocorrencia}=await consultarRastreioSSWRegistro(id);
         await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();
