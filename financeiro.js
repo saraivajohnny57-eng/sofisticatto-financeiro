@@ -1475,7 +1475,14 @@ async function criarUsuario(){
   if(tipo==="vendedora_rastreio"&&!vendedora_id){alert("Selecione a vendedora vinculada.");return;}
   const r=await banco.from("usuarios").insert([{login,senha,tipo,vendedora_id:tipo==="vendedora_rastreio"?vendedora_id:null,email_remetente,nome_exibicao}]);
   if(r.error){alert("Erro ao criar usuário: "+r.error.message);return;}
-  alert("Usuário criado!");
+  let msg="Usuário criado!";
+  if(email_remetente){
+    try{
+      const g=await cadastrarRemetenteGoogle(email_remetente,nome_exibicao||login,false);
+      msg += "\n\nGoogle Workspace: "+(g.mensagem||statusRemetenteGoogleTexto(g.status));
+    }catch(e){ msg += "\n\nUsuário salvo, mas o remetente ainda não foi autorizado no Google: "+e.message; }
+  }
+  alert(msg);
   ["novoLogin","novaSenha","novoUsuarioEmail","novoUsuarioNome"].forEach(id=>{const e=document.getElementById(id);if(e)e.value=""});
   if(document.getElementById("novoUsuarioVendedora"))document.getElementById("novoUsuarioVendedora").value="";
   carregarUsuarios();
@@ -1488,8 +1495,33 @@ async function carregarUsuarios(){
   const mapa=new Map((rv.data||[]).map(v=>[String(v.id),v.nome]));
   const tabela = document.getElementById("tabelaUsuarios"); tabela.innerHTML = "";
   resposta.data.forEach(user => {
-    tabela.innerHTML += `<tr><td>${escaparHtmlEmail(user.login)}</td><td>${escaparHtmlEmail(user.tipo)}</td><td>${escaparHtmlEmail(mapa.get(String(user.vendedora_id||""))||"—")}</td><td>${escaparHtmlEmail(user.email_remetente||"—")}</td><td>${escaparHtmlEmail(user.nome_exibicao||"—")}</td></tr>`;
+    const email=user.email_remetente||"";
+    tabela.innerHTML += `<tr><td>${escaparHtmlEmail(user.login)}</td><td>${escaparHtmlEmail(user.tipo)}</td><td>${escaparHtmlEmail(mapa.get(String(user.vendedora_id||""))||"—")}</td><td>${escaparHtmlEmail(email||"—")}</td><td>${escaparHtmlEmail(user.nome_exibicao||"—")}</td><td>${email?`<div id="gmailStatus_${user.id}" style="font-size:12px;margin-bottom:6px">Não consultado</div><button class="btn azul" onclick="consultarRemetenteGoogle('${String(user.id)}','${escaparHtmlEmail(email)}')">Verificar</button> <button class="btn verde" onclick="cadastrarRemetenteGoogle('${escaparHtmlEmail(email)}','${escaparHtmlEmail(user.nome_exibicao||user.login)}',true)">Autorizar</button>`:"—"}</td></tr>`;
   });
+}
+
+function statusRemetenteGoogleTexto(status){
+  return ({accepted:"Autorizado",pending:"Aguardando confirmação",nao_cadastrado:"Não cadastrado"})[status]||String(status||"Desconhecido");
+}
+async function apiRemetenteGoogle(acao,email,nome=""){
+  const r=await fetch('/api/gmail-remetentes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({acao,email,nome})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok||!d.ok) throw new Error(d.erro||'Falha na integração com Google Workspace.');
+  return d;
+}
+async function cadastrarRemetenteGoogle(email,nome,mostrar=true){
+  const d=await apiRemetenteGoogle('cadastrar',email,nome);
+  if(mostrar) alert((d.mensagem||'Remetente processado.')+'\nStatus: '+statusRemetenteGoogleTexto(d.status));
+  return d;
+}
+async function consultarRemetenteGoogle(id,email){
+  try{
+    const d=await apiRemetenteGoogle('status',email);
+    const el=document.getElementById('gmailStatus_'+id); if(el)el.textContent=statusRemetenteGoogleTexto(d.status);
+    if(d.status==='pending' && confirm('Este endereço está aguardando confirmação. Deseja reenviar o e-mail de confirmação?')){
+      const x=await apiRemetenteGoogle('reenviar',email); alert(x.mensagem||'Confirmação reenviada.');
+    }
+  }catch(e){alert('Google Workspace: '+e.message);}
 }
 
 function marcarEdicaoRelatorio(){
