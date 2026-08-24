@@ -1571,7 +1571,7 @@ async function carregarRastreamentosLogistica(sentido){
   const tb=ce(sentido==="entrada"?"rastreamentoTabelaEntradas":"rastreamentoTabelaSaidas");
   tb.innerHTML=rastreamentosLogistica.length?rastreamentosLogistica.map(x=>{
     const textoBusca=[x.parceiro_nome,x.frete_transportadoras?.nome,x.numero_nfe,x.chave_nfe,x.numero_cte,x.protocolo_rastreio,statusLabelRastreamento(x.status),x.status,x.observacao].filter(Boolean).join(" ").toLowerCase();
-    return `<tr class="linha-rastreamento-logistica" data-status="${escaparHtmlEmail(x.status||"")}" data-busca="${escaparHtmlEmail(textoBusca)}">
+    return `<tr class="linha-rastreamento-logistica" style="cursor:pointer" title="Clique para ver a linha do tempo do rastreio" onclick="if(event.target.closest(\'button\'))return;abrirLinhaTempoRastreio(\'${x.id}\')" data-status="${escaparHtmlEmail(x.status||"")}" data-busca="${escaparHtmlEmail(textoBusca)}">
     <td>${x.created_at?new Date(x.created_at).toLocaleDateString("pt-BR"):"—"}</td>
     <td>${escaparHtmlEmail(x.parceiro_nome||"—")}</td>
     <td>${escaparHtmlEmail(x.frete_transportadoras?.nome||"Não informada")}${transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)?`<div class="rastreio-metodo">● Rastreio automático</div>`:""}</td>
@@ -2781,4 +2781,98 @@ async function agendarColetaAccertSSW(){
     mostrarBalaoSistema(`Coleta ${coletaTransportadoraAtual()?.nome||"SSW"} criada`,d.numero_coleta?`Número ${d.numero_coleta}`:"SSW confirmou a solicitação");
   }catch(e){console.error("Coleta SSW",e);if(st)st.textContent="❌ "+e.message;alert("Não foi possível criar a coleta na ACCERT/SSW:\n"+e.message);}
   finally{if(btn){btn.disabled=false;btn.textContent=`Agendar via ${coletaTransportadoraAtual()?.nome||"SSW"} / SSW`;}}
+}
+
+
+// V52 — Linha do tempo unificada de rastreamento
+function garantirModalLinhaTempoRastreio(){
+  let modal=document.getElementById("modalLinhaTempoRastreio");
+  if(modal)return modal;
+  const style=document.createElement("style");
+  style.textContent=`
+    #modalLinhaTempoRastreio{position:fixed;inset:0;background:rgba(23,18,54,.58);z-index:99999;display:none;align-items:center;justify-content:center;padding:18px}
+    #modalLinhaTempoRastreio.ativo{display:flex}
+    .rast-timeline-card{width:min(900px,96vw);max-height:90vh;overflow:hidden;background:#fff;border-radius:20px;box-shadow:0 20px 70px rgba(0,0,0,.28);display:flex;flex-direction:column}
+    .rast-timeline-topo{padding:20px 24px;border-bottom:1px solid #eee;display:flex;gap:18px;justify-content:space-between;align-items:flex-start}
+    .rast-timeline-topo h2{margin:0 0 7px;font-size:23px;color:#332c63}
+    .rast-timeline-meta{font-size:13px;color:#635e79;line-height:1.45}
+    .rast-timeline-fechar{border:0;background:#eeeafa;color:#4f43a5;border-radius:12px;padding:9px 13px;font-weight:700;cursor:pointer}
+    .rast-timeline-body{padding:22px 26px 28px;overflow:auto}
+    .rast-timeline-vazio{padding:26px;text-align:center;color:#746e88;background:#faf9ff;border-radius:14px}
+    .rast-timeline{position:relative;padding-left:32px}
+    .rast-timeline:before{content:"";position:absolute;left:10px;top:8px;bottom:8px;width:3px;background:#ded8f7;border-radius:3px}
+    .rast-evento{position:relative;padding:0 0 24px 14px}
+    .rast-evento:last-child{padding-bottom:4px}
+    .rast-evento:before{content:"";position:absolute;left:-27px;top:5px;width:14px;height:14px;border-radius:50%;background:#6554c0;border:4px solid #ede9ff;box-sizing:content-box}
+    .rast-evento.atual:before{background:#20a864}
+    .rast-evento-titulo{font-weight:800;color:#302b56;font-size:15px;margin-bottom:4px}
+    .rast-evento-data{font-size:12px;color:#77718d;margin-bottom:6px}
+    .rast-evento-desc{font-size:14px;color:#4d4960;line-height:1.45;white-space:pre-wrap}
+    .rast-evento-local{font-size:12px;color:#5c4ec2;font-weight:700;margin-top:6px}
+    .rast-evento-fonte{font-size:11px;color:#8b849d;margin-top:5px}
+    .rast-timeline-aviso{margin:0 0 18px;padding:11px 13px;border-radius:12px;background:#fff4df;color:#8a5a00;font-size:13px;line-height:1.4}
+  `;
+  document.head.appendChild(style);
+  modal=document.createElement("div");
+  modal.id="modalLinhaTempoRastreio";
+  modal.innerHTML=`<div class="rast-timeline-card"><div class="rast-timeline-topo"><div><h2 id="rastTimelineTitulo">Linha do tempo</h2><div class="rast-timeline-meta" id="rastTimelineMeta"></div></div><button class="rast-timeline-fechar" onclick="fecharLinhaTempoRastreio()">Fechar</button></div><div class="rast-timeline-body" id="rastTimelineBody"></div></div>`;
+  modal.addEventListener("click",e=>{if(e.target===modal)fecharLinhaTempoRastreio();});
+  document.body.appendChild(modal);
+  return modal;
+}
+function fecharLinhaTempoRastreio(){document.getElementById("modalLinhaTempoRastreio")?.classList.remove("ativo")}
+function dataEventoTimeline(v){
+  if(!v)return null;
+  const d=new Date(v);if(!Number.isNaN(d.getTime()))return d;
+  const m=String(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if(!m)return null;let a=Number(m[3]);if(a<100)a+=2000;return new Date(a,Number(m[2])-1,Number(m[1]),Number(m[4]||0),Number(m[5]||0),Number(m[6]||0));
+}
+function extrairEventosTimelineGenericos(obj,fonte="API"){
+  const out=[];const vistos=new Set();
+  const descKeys=["descricao","descrição","description","ocorrencia","ocorrência","evento","event","status","situacao","situação","mensagem","message","detalhe","complemento"];
+  const dateKeys=["data_hora_efetiva","data_hora","dataHora","data_hora_evento","dataOcorrencia","data_ocorrencia","dhEvento","data","timestamp","dtHrCriado","dt_hr_criado","created_at"];
+  const localKeys=["cidade","local","filial","unidade","unidadeDestino","unidade_origem","cidade_evento"];
+  function primeiro(o,ks){for(const k of ks){if(o&&o[k]!=null&&String(o[k]).trim())return o[k];}return null}
+  function visit(x){
+    if(!x||typeof x!=="object")return;
+    if(Array.isArray(x)){x.forEach(visit);return;}
+    const desc=primeiro(x,descKeys),dt=primeiro(x,dateKeys),local=primeiro(x,localKeys);
+    if(desc&&(dt||local||x.codigo||x.tipo)){
+      const titulo=String(x.ocorrencia||x.evento||x.status||x.situacao||x.tipo||desc).trim();
+      const detalhe=String(x.descricao||x.description||x.complemento||x.detalhe||"").trim();
+      const key=[titulo,dt,local,detalhe].join("|");
+      if(!vistos.has(key)){vistos.add(key);out.push({titulo,descricao:detalhe&&detalhe!==titulo?detalhe:String(desc),data:dt||null,local:local||null,fonte});}
+    }
+    Object.values(x).forEach(visit);
+  }
+  visit(obj);return out;
+}
+async function abrirLinhaTempoRastreio(id){
+  const modal=garantirModalLinhaTempoRastreio();modal.classList.add("ativo");
+  const body=document.getElementById("rastTimelineBody");body.innerHTML='<div class="rast-timeline-vazio">Carregando ocorrências…</div>';
+  try{
+    const rastro=await obterRastreamentoPorId(id);if(!rastro)throw new Error("Rastreio não encontrado.");
+    const nome=rastro.frete_transportadoras?.nome||"Transportadora";
+    document.getElementById("rastTimelineTitulo").textContent=rastro.parceiro_nome||"Linha do tempo do rastreio";
+    document.getElementById("rastTimelineMeta").innerHTML=`${escaparHtmlEmail(nome)} &nbsp;•&nbsp; NF ${escaparHtmlEmail(rastro.numero_nfe||"—")} &nbsp;•&nbsp; ${escaparHtmlEmail(rastro.protocolo_rastreio||rastro.numero_cte||"sem protocolo")}`;
+    let eventos=[];
+    if(rastro.consulta_api)eventos.push(...extrairEventosTimelineGenericos(rastro.consulta_api,rastro.metodo_consulta||"API da transportadora"));
+    if(transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome)){
+      let q=banco.from("ssw_ocorrencias_recebidas").select("*").order("data_hora_evento",{ascending:false,nullsFirst:false}).limit(100);
+      if(rastro.chave_nfe)q=q.eq("chave_nfe",String(rastro.chave_nfe).replace(/\D/g,""));
+      else if(rastro.numero_nfe)q=q.eq("numero_nfe",String(rastro.numero_nfe));
+      const rr=await q;
+      if(!rr.error){
+        for(const o of (rr.data||[]))eventos.push({titulo:o.codigo_ocorrencia?`Ocorrência ${o.codigo_ocorrencia}`:"Ocorrência SSW",descricao:[o.descricao,o.complemento].filter(Boolean).join(" — "),data:o.data_hora_evento||o.processado_em||o.created_at,local:o.cidade||o.filial||null,fonte:"SSW — ocorrência recebida"});
+      }
+    }
+    if(rastro.ultima_ocorrencia)eventos.push({titulo:statusLabelRastreamento(rastro.status)||"Última ocorrência",descricao:rastro.ultima_ocorrencia,data:rastro.ultima_ocorrencia_em||rastro.atualizado_em,local:null,fonte:rastro.metodo_consulta||"Portal Sofisticatto"});
+    const map=new Map();
+    for(const e of eventos){const k=[e.titulo,e.descricao,e.data,e.local].join("|");if(!map.has(k))map.set(k,e)}
+    eventos=[...map.values()].sort((a,b)=>(dataEventoTimeline(b.data)?.getTime()||0)-(dataEventoTimeline(a.data)?.getTime()||0));
+    let aviso="";
+    if(rastro.sincronizacao_erro)aviso=`<div class="rast-timeline-aviso">⚠ ${escaparHtmlEmail(rastro.sincronizacao_erro)}</div>`;
+    if(!eventos.length){body.innerHTML=aviso+'<div class="rast-timeline-vazio">Ainda não há ocorrências detalhadas disponíveis para este pedido. Quando a transportadora/API enviar eventos, eles aparecerão aqui automaticamente.</div>';return;}
+    body.innerHTML=aviso+`<div class="rast-timeline">${eventos.map((e,i)=>`<div class="rast-evento ${i===0?'atual':''}"><div class="rast-evento-titulo">${escaparHtmlEmail(e.titulo||"Ocorrência")}</div><div class="rast-evento-data">${e.data&&dataEventoTimeline(e.data)?dataEventoTimeline(e.data).toLocaleString("pt-BR"):"Data não informada"}</div>${e.descricao?`<div class="rast-evento-desc">${escaparHtmlEmail(e.descricao)}</div>`:""}${e.local?`<div class="rast-evento-local">📍 ${escaparHtmlEmail(e.local)}</div>`:""}<div class="rast-evento-fonte">Fonte: ${escaparHtmlEmail(e.fonte||"Portal")}</div></div>`).join("")}</div>`;
+  }catch(e){body.innerHTML=`<div class="rast-timeline-vazio">Não foi possível carregar a linha do tempo: ${escaparHtmlEmail(e.message)}</div>`;}
 }
