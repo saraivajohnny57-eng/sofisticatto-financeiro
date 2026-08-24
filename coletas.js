@@ -1067,6 +1067,24 @@ async function carregarEventosRodonaves(){
   tb.innerHTML=coletaEventosRodonaves.length?coletaEventosRodonaves.map(e=>`<tr><td>${new Date(e.created_at).toLocaleString("pt-BR")}</td><td>${escaparHtmlEmail(e.coleta_agendamentos?.cliente_nome||"—")}</td><td>${escaparHtmlEmail(e.coleta_agendamentos?.codigo_coleta||"—")}</td><td>${escaparHtmlEmail(statusLabelColeta(e.status_anterior))}</td><td>${escaparHtmlEmail(statusLabelColeta(e.status_novo))}</td><td>${escaparHtmlEmail(e.origem||"sistema")}</td><td>${escaparHtmlEmail(e.usuario||"—")}</td></tr>`).join(""):'<tr><td colspan="7">Nenhum evento registrado.</td></tr>';
 }
 function detectarDuplicidadesRodonaves(lista){const g={};lista.filter(a=>a.protocolo_cotacao&&!["cancelado","coletado"].includes(statusColetaPainel(a))).forEach(a=>{const k=String(a.protocolo_cotacao);(g[k]??=[]).push(a)});return Object.entries(g).filter(([,v])=>v.length>1)}
+async function arquivarColetaPainel(id){
+  const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
+  if(!a)return;
+  if(!confirm(`Arquivar esta coleta e remover do painel principal?\n\nCliente: ${a.cliente_nome||"—"}\nStatus: ${statusLabelColeta(statusColetaPainel(a))}\n\nO registro continuará salvo no histórico.`))return;
+  const dados={...(a.dados||{}),arquivado_painel:true,arquivado_em:new Date().toISOString(),arquivado_por:usuarioLogado?.login||"sistema"};
+  const r=await banco.from("coleta_agendamentos").update({dados,atualizado_em:new Date().toISOString()}).eq("id",id);
+  if(r.error)return alert("Não foi possível arquivar: "+r.error.message);
+  await registrarEventoColeta(id,statusColetaPainel(a),statusColetaPainel(a),"arquivamento_painel",{arquivado:true});
+  await carregarPainelRodonaves();
+}
+function coletaVisivelNoPainelPrincipal(a){
+  const s=statusColetaPainel(a);
+  if(a?.dados?.arquivado_painel===true)return false;
+  // V56: ao ser coletada, a mercadoria deixa o Painel de Coletas e passa a ser
+  // acompanhada em Saídas em trânsito. O registro permanece no banco/histórico.
+  if(/coletado|coletada/.test(s))return false;
+  return true;
+}
 async function carregarPainelRodonaves(){
   await carregarAgendamentosColeta();
   const ids=(coletaAgendamentos||[]).map(x=>x.id);
@@ -1077,13 +1095,13 @@ async function carregarPainelRodonaves(){
       if(!rp.error)(rp.data||[]).forEach(p=>contagemPedidos[p.agendamento_id]=(contagemPedidos[p.agendamento_id]||0)+1);
     }catch(e){console.warn("Pedidos vinculados:",e)}
   }
-  const lista=(coletaAgendamentos||[]);
+  const lista=(coletaAgendamentos||[]).filter(coletaVisivelNoPainelPrincipal);
   const hoje=new Date().toISOString().slice(0,10);
 
   ce("coletaKpiHoje").textContent=lista.filter(a=>String(dataColetaPainel(a)||"").slice(0,10)===hoje).length;
   ce("coletaKpiAbertas").textContent=lista.filter(a=>!["coletado","cancelado"].includes(statusColetaPainel(a))).length;
   ce("coletaKpiConfirmadas").textContent=lista.filter(a=>/confirmado|confirmada/.test(statusColetaPainel(a))).length;
-  ce("coletaKpiColetadas").textContent=lista.filter(a=>/coletado|coletada/.test(statusColetaPainel(a))).length;
+  ce("coletaKpiColetadas").textContent=(coletaAgendamentos||[]).filter(a=>/coletado|coletada/.test(statusColetaPainel(a))).length;
   ce("coletaKpiErros").textContent=lista.filter(a=>/erro/.test(statusColetaPainel(a))).length;
 
   const dup=detectarDuplicidadesRodonaves(lista);
@@ -1125,6 +1143,7 @@ async function carregarPainelRodonaves(){
         ${podeAtualizarManual?`<button class="btn coleta-alerta" onclick="alterarStatusManualColeta('${a.id}','nao_coletada')">Não coletada</button>`:""}
         ${podeAtualizarManual?`<button class="btn roxo" onclick="reagendarColetaManual('${a.id}')">Reagendar</button>`:""}
         ${podeAtualizarManual?`<button class="btn vermelho" onclick="solicitarCancelamentoColetaRodonaves('${a.id}')">Cancelar</button>`:""}
+        ${/cancelamento_solicitado|cancelado/.test(s)?`<button class="btn cinza" onclick="arquivarColetaPainel('${a.id}')">Arquivar</button>`:""}
       </td>
     </tr>`;
   }).join(""):'<tr><td colspan="9">Nenhuma coleta Rodonaves registrada.</td></tr>';
@@ -1266,6 +1285,9 @@ async function alterarStatusManualColeta(id,novoStatus){
     await criarOuVincularRastreioDaColeta(id,{...a,...payload,status:"coletado"},"atualizacao_manual");
   }
   await carregarPainelRodonaves();
+  if(novoStatus==="coletado"){
+    alert("Coleta marcada como coletada. Ela saiu do Painel de Coletas e foi enviada para Saídas em trânsito.");
+  }
   if(ce("rastreamentoTabelaSaidas"))await carregarRastreamentosLogistica("saida");
 }
 
