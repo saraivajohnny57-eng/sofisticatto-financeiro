@@ -2422,17 +2422,18 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <option value="gerente_rastreio">Gerente — Rastreamento + E-mail</option>
         </select>
         <select id="novoUsuarioVendedora"><option value="">Vendedora vinculada (somente perfil vendedora)</option></select>
-        <input type="email" id="novoUsuarioEmail" placeholder="E-mail remetente (ex.: comercial01@sofisticatto1.com.br)">
+        <input type="email" id="novoUsuarioEmailRecebimento" placeholder="E-mail para receber (ex.: thais.sofisticatto@gmail.com)">
+        <input type="email" id="novoUsuarioEmail" placeholder="E-mail remetente / enviar (ex.: comercial01@sofisticatto1.com.br)">
         <input type="text" id="novoUsuarioNome" placeholder="Nome exibido (ex.: Thais Alves)">
         <input type="password" id="novoUsuarioSenhaApp" autocomplete="new-password" placeholder="Senha de aplicativo do Google (opcional — 16 caracteres)">
         <div style="font-size:12px;color:#655d7a;margin-top:6px;line-height:1.45">
-          <b>Remetente por login:</b> o e-mail acima será usado nos envios feitos por este usuário.
-          Ex.: Thais → comercial01@sofisticatto1.com.br; Financeiro → faturamento@sofisticatto1.com.br.
+          <b>Dois e-mails por usuário:</b> o primeiro é usado para <b>receber</b> notificações/cópias; o segundo é o <b>remetente</b> usado para enviar pelo portal.
+          Ex.: Thais recebe em thais.sofisticatto@gmail.com e envia como comercial01@sofisticatto1.com.br. Se os dois forem iguais, informe o mesmo endereço nos dois campos.
           Se você informar a senha de aplicativo, o próprio portal configura o SMTP deste remetente. A senha é enviada ao backend e armazenada criptografada; não fica visível novamente.
         </div>
       </div>
       <button class="salvar" onclick="criarUsuario()">Criar Usuário</button>
-      <div style="margin-top:10px;font-size:12px;color:#655d7a;line-height:1.5"><b>V60:</b> o e-mail remetente e a senha de aplicativo podem ser configurados no próprio portal. Use o botão <b>Testar</b> para confirmar o envio antes de liberar a usuária.</div>
+      <div style="margin-top:10px;font-size:12px;color:#655d7a;line-height:1.5"><b>V61:</b> o e-mail remetente e a senha de aplicativo podem ser configurados no próprio portal. Use o botão <b>Testar</b> para confirmar o envio antes de liberar a usuária.</div>
     </div>
     <div class="card">
       <h2>Cadastrar Banco</h2>
@@ -2442,7 +2443,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
     </div>
     <div class="card">
       <h2>Usuários</h2>
-      <div class="table-wrap"><table><thead><tr><th>Login</th><th>Tipo</th><th>Vendedora</th><th>E-mail remetente</th><th>Nome</th><th>SMTP / Senha de aplicativo</th><th>Google Workspace</th></tr></thead><tbody id="tabelaUsuarios"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Login</th><th>Tipo</th><th>Vendedora</th><th>E-mail para receber</th><th>E-mail remetente</th><th>Nome</th><th>Cadastro</th><th>SMTP / Senha de aplicativo</th><th>Google Workspace</th></tr></thead><tbody id="tabelaUsuarios"></tbody></table></div>
     </div>
   </div>
 </div>
