@@ -1941,7 +1941,11 @@ async function atualizarRastreioIntegrado(id,botao=null){
         if(ocorrencia){
           alert(`Consulta direta SSW indisponível (${direto.message}).\n\nFoi aplicada a última ocorrência recebida pelo endpoint automático:\n${ocorrencia.descricao||"—"}${ocorrencia.complemento?`\n${ocorrencia.complemento}`:""}`);
         }else{
-          alert(`Ainda não foi possível obter o rastreio de ${nome}.\n\n${direto.message}\n\nSe for uma consulta por NF, peça à transportadora a senha de rastreio/pagador criada na opção 383 do SSW. O endpoint de ocorrências também pode atualizar este pedido automaticamente quando a transportadora concluir a parametrização.`);
+          const msg=String(direto.message||'');
+          const senha=/senha.*(invál|inval|rastreio|383)/i.test(msg);
+          alert(senha
+            ? `Rastreio SSW não autorizado para ${nome}.\n\n${msg}\n\nA cotação pode funcionar com domínio/login/senha geral, mas o rastreio por NF exige a senha de rastreamento/pagador criada na opção 383. Cadastre essa senha no Portal de Integrações.`
+            : `Ainda não foi possível obter o rastreio de ${nome}.\n\n${msg}\n\nConfira NF/chave NF-e e, se a transportadora exigir, a senha de rastreio/pagador da opção 383. O endpoint de ocorrências também pode atualizar este pedido automaticamente.`);
         }
       }
     }catch(e){alert("Não foi possível consultar o rastreio SSW: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
