@@ -1587,6 +1587,24 @@ async function carregarRastreamentosLogistica(sentido){
       (x.coleta_agendamento_id&&agIds.has(String(x.coleta_agendamento_id))) || registroPermitidoVendedora(null,x.parceiro_nome)
     );
   }
+  // V58: evita duplicidade visual quando a mesma coleta/NF foi reconciliada mais de
+  // uma vez. Só consolida registros com identificadores realmente iguais; remessas
+  // distintas da mesma NF continuam separadas quando protocolo/CT-e forem diferentes.
+  if(sentido==="saida"){
+    const unicos=new Map();
+    for(const x of rastreamentosLogistica){
+      const nf=String(x.numero_nfe||'').trim();
+      const chave=String(x.chave_nfe||'').replace(/\D/g,'');
+      const cte=String(x.numero_cte||'').trim();
+      const prot=String(x.protocolo_rastreio||'').trim();
+      const idTrans=String(x.transportadora_id||x.frete_transportadoras?.nome||'').toLowerCase();
+      const ident=prot||cte||chave||nf;
+      const key=ident?`${idTrans}|${nf}|${chave}|${cte}|${prot}`:`id:${x.id}`;
+      const atual=unicos.get(key);
+      if(!atual || (!atual.coleta_agendamento_id&&x.coleta_agendamento_id) || new Date(x.updated_at||x.atualizado_em||x.created_at||0)>new Date(atual.updated_at||atual.atualizado_em||atual.created_at||0)) unicos.set(key,x);
+    }
+    rastreamentosLogistica=[...unicos.values()];
+  }
   const todosRastreiosDoSentido=[...rastreamentosLogistica];
   if(sentido==="saida"){
     // O painel mostra TODAS as transportadoras cadastradas, mas prioriza no topo
@@ -1987,7 +2005,11 @@ async function atualizarRastreioIntegrado(id,botao=null){
       try{
         const {dados}=await consultarRastreioSSWDiretoRegistro(id);
         await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();
-        alert(`Rastreio SSW atualizado.\n\nTransportadora: ${nome}\nNF: ${rastro.numero_nfe||"—"}\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${dados.local?`\nLocal: ${dados.local}`:""}${dados.ultimaOcorrenciaEm?`\nData/hora: ${new Date(dados.ultimaOcorrenciaEm).toLocaleString("pt-BR")}`:""}${dados.totalEventos?`\nEventos encontrados: ${dados.totalEventos}`:""}`);
+        if(dados.aguardandoColeta){
+          alert(`Coleta ainda aguardando a transportadora.\n\nTransportadora: ${nome}\nNF: ${rastro.numero_nfe||"—"}${dados.codigoColeta?`\nNº coleta: ${dados.codigoColeta}`:""}\n\nO rastreamento SSW começará quando a mercadoria for coletada. Isso não é erro de NF.`);
+        }else{
+          alert(`Rastreio SSW atualizado.\n\nTransportadora: ${nome}\nNF: ${rastro.numero_nfe||"—"}\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${dados.local?`\nLocal: ${dados.local}`:""}${dados.ultimaOcorrenciaEm?`\nData/hora: ${new Date(dados.ultimaOcorrenciaEm).toLocaleString("pt-BR")}`:""}${dados.totalEventos?`\nEventos encontrados: ${dados.totalEventos}`:""}`);
+        }
       }catch(direto){
         const {ocorrencia}=await consultarRastreioSSWRegistro(id);
         await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();
