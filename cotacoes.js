@@ -610,9 +610,29 @@ async function cotarAutomaticamenteCorreios(transportadoraId,tipoFrete){
     const salva=await salvarCotacaoFrete("rascunho"); if(!salva)throw new Error("Não foi possível salvar a cotação antes da consulta.");
     const r=await fetch("/api/integracoes?action=cotar-correios",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":adm},body:JSON.stringify({
       cotacao_id:salva.id,cep_destino:cep,peso_total:Number(dados.peso_total),volumes:Number(dados.volumes||1),
-      comprimento_cm:medidas.comprimento_cm||20,largura_cm:medidas.largura_cm||20,altura_cm:medidas.altura_cm||20
+      comprimento_cm:medidas.comprimento_cm||20,largura_cm:medidas.largura_cm||20,altura_cm:medidas.altura_cm||20,
+      uf_destino:dados.uf_destino||"",cidade_destino:dados.cidade_destino||"",bairro_destino:dados.bairro_destino||"",endereco_destino:dados.endereco_destino||""
     })});
     const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);
+    if(d.cepFallback?.cepUtilizado){
+      const novo=String(d.cepFallback.cepUtilizado).replace(/(\d{5})(\d{3})/,"$1-$2");
+      const antigo=String(d.cepFallback.cepOriginal||cep).replace(/(\d{5})(\d{3})/,"$1-$2");
+      const e=d.cepFallback.endereco||{};
+      const descricao=[e.logradouro,e.bairro,[e.localidade,e.uf].filter(Boolean).join("/")].filter(Boolean).join(" • ");
+      const usar=confirm(`O CEP ${antigo} não retornou cotação.\n\nOs Correios localizaram um CEP mais específico pelo endereço:\n${novo}${descricao?`\n${descricao}`:""}\n\nDeseja usar ${novo} nesta cotação?`);
+      if(!usar)throw new Error("Cotação cancelada: o CEP específico encontrado pelo endereço não foi confirmado.");
+      mostrarBalaoSistema("CEP específico encontrado",`${novo} será usado somente nesta cotação.`);
+      if(dados.cliente_id && confirm(`Deseja também atualizar o CEP deste cliente no cadastro para ${novo}?`)){
+        try{
+          const resp=await banco.from("email_clientes").update({cep:novo}).eq("id",dados.cliente_id).select().single();
+          if(resp.error)throw resp.error;
+          const idx=(emailClientes||[]).findIndex(c=>String(c.id)===String(dados.cliente_id));
+          if(idx>=0)emailClientes[idx]=resp.data;
+          if(freteCampo("freteCep"))freteCampo("freteCep").value=novo;
+          mostrarBalaoSistema("CEP do cliente atualizado",novo);
+        }catch(err){console.error("Atualizar CEP do cliente:",err);alert("A cotação continuará usando o CEP encontrado, mas não foi possível atualizar o cadastro do cliente: "+(err.message||err));}
+      }
+    }
     const validas=(d.resultados||[]).filter(x=>!x.erro&&Number(x.valor||0)>0);
     const melhor=d.melhor;if(!melhor||!validas.length)throw new Error("Nenhum serviço dos Correios configurado retornou preço. Verifique as APIs liberadas e os códigos de serviço do contrato.");
     freteOpcoesCorreios[chave]=validas;
@@ -632,26 +652,23 @@ function nomeServicoCorreios(op){
   const codigo=String(op?.coProduto||'').trim();
   const retornado=String(op?.servico||'').trim();
   const nomesPadrao={
-    '03298':'PAC',
-    '03220':'SEDEX',
-    '03158':'SEDEX 10',
-    '03140':'SEDEX 12',
-    '03204':'SEDEX HOJE',
-    '04227':'CORREIOS MINI ENVIOS'
+    '03298':'PAC CONTRATO AG',
+    '03220':'SEDEX CONTRATO AG',
+    '03158':'SEDEX 10 CONTRATO AG',
+    '03140':'SEDEX 12 CONTRATO AG',
+    '03204':'SEDEX HOJE CONTRATO AG',
+    '04227':'CORREIOS MINI ENVIOS CTR AG'
   };
-  // Quando a API Meu Contrato retorna uma descrição, damos preferência a ela.
-  // Os nomes padrão ajudam quando CORREIOS_SERVICOS foi configurado manualmente.
+  // Nesta versão a cotação é exclusivamente contratual. Mantemos AG visível
+  // para não confundir a tarifa do contrato com preço avulso dos Correios.
   if(retornado){
     const u=retornado.toUpperCase();
-    if(u.includes('SEDEX 10'))return 'SEDEX 10';
-    if(u.includes('SEDEX 12'))return 'SEDEX 12';
-    if(u.includes('SEDEX HOJE'))return 'SEDEX HOJE';
-    if(u.includes('SEDEX'))return 'SEDEX';
-    if(u.includes('PAC'))return 'PAC';
-    if(u.includes('MINI'))return 'CORREIOS MINI ENVIOS';
-    return retornado;
+    if(/\bAG\s*$/.test(u)) return retornado;
+    const base=nomesPadrao[codigo];
+    if(base)return base;
+    return `${retornado} — CONTRATO AG`;
   }
-  return nomesPadrao[codigo]||`Serviço Correios ${codigo}`;
+  return nomesPadrao[codigo]||`Serviço Correios ${codigo} — CONTRATO AG`;
 }
 
 function opcoesCorreiosDaCotacao(dados){
@@ -700,10 +717,9 @@ function renderizarOpcoesCorreios(chave,opcoes,melhorCodigo,todosResultados=[]){
           <button class="btn verde" style="width:100%;" onclick="selecionarOpcaoCorreios('${chave}',${i})">Usar esta opção no pedido</button>
         </div>`;
       }).join('')}
-      ${['03298','03220'].filter(cod=>!(lista||[]).some(x=>String(x.coProduto)===cod)).map(cod=>{
-        const falha=(todosResultados||[]).find(x=>String(x.coProduto)===cod);
-        const nome=cod==='03298'?'PAC':'SEDEX';
-        return `<div style="border:1px dashed #e1b9b9;border-radius:12px;padding:11px;background:#fffafa;color:#8c3333;"><strong>${nome}</strong><br><small>Código ${cod}</small><div style="margin-top:7px;font-size:12px;">⚠ ${escaparHtmlEmail(falha?.erro||'Serviço não retornado pelos Correios para esta cotação.')}</div></div>`;
+      ${(todosResultados||[]).filter(f=>f?.erro && !(lista||[]).some(x=>String(x.coProduto)===String(f.coProduto))).map(falha=>{
+        const nome=nomeServicoCorreios(falha);
+        return `<div style="border:1px dashed #e1b9b9;border-radius:12px;padding:11px;background:#fffafa;color:#8c3333;"><strong>${escaparHtmlEmail(nome)}</strong><br><small>Código ${escaparHtmlEmail(falha.coProduto||'')}</small><div style="margin-top:7px;font-size:12px;">⚠ ${escaparHtmlEmail(falha.erro||'Serviço AG indisponível para esta cotação.')}</div></div>`;
       }).join('')}
     </div>
   </div>`;
