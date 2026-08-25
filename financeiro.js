@@ -6322,7 +6322,12 @@ async function abrirDocumentoCorreiosOficial(tipo){
     p=parametrosCorreiosOficiais();
   }
   const rotulo=tipo==='rotulo' || tipo==='rotulo-l42';
-  statusCorreiosOficial(tipo==='rotulo-l42'?'Preparando rótulo L42-DT 100×150...':(rotulo?'Gerando rótulo oficial...':'Gerando declaração oficial...'),true);
+  const dace=tipo==='dace';
+  statusCorreiosOficial(
+    tipo==='rotulo-l42'?'Preparando rótulo L42-DT 100×150...':
+    dace?'Gerando formulário oficial A4 (DACE)...':
+    (rotulo?'Gerando rótulo oficial...':'Gerando declaração oficial...'),true
+  );
   try{
     const qs=new URLSearchParams({action:'documentos-correios',modo:tipo,idPrePostagem:p.idPrePostagem});
     if(rotulo)qs.set('tipoRotulo','P');
@@ -6341,7 +6346,11 @@ async function abrirDocumentoCorreiosOficial(tipo){
       const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.click();
     }
     setTimeout(()=>URL.revokeObjectURL(url),120000);
-    statusCorreiosOficial(tipo==='rotulo-l42'?'✅ Rótulo 100×150 pronto para a Elgin L42-DT.':(rotulo?'✅ Rótulo oficial gerado pelos Correios.':'✅ Declaração oficial gerada pelos Correios.'),true);
+    statusCorreiosOficial(
+      tipo==='rotulo-l42'?'✅ Rótulo 100×150 pronto para a Elgin L42-DT.':
+      dace?'✅ DACE oficial A4 gerada pelos Correios.':
+      (rotulo?'✅ Rótulo oficial gerado pelos Correios.':'✅ Declaração oficial gerada pelos Correios.'),true
+    );
   }catch(e){
     statusCorreiosOficial('⚠️ '+e.message,false);
     alert('Não foi possível emitir o documento oficial dos Correios.\n\n'+e.message+'\n\nVocê ainda pode usar a etiqueta/declaração local do portal.');
