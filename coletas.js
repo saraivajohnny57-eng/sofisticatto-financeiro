@@ -6,7 +6,11 @@ let coletaModelos=[],coletaAgendamentos=[],coletaTransportadoras=[],coletaIntegr
 let coletaEscopoVendedora={carregado:false,ids:new Set(),nomes:new Set()};
 async function carregarEscopoVendedoraColetas(){
   if(!usuarioEhVendedoraRastreio?.()){coletaEscopoVendedora={carregado:true,ids:new Set(),nomes:new Set()};return;}
-  const r=await banco.from("email_clientes").select("id,nome").eq("vendedora_id",usuarioLogado.vendedora_id);
+  const idsVend=(typeof idsVendedoraUsuario==="function")?[...idsVendedoraUsuario()]:[String(usuarioLogado?.vendedora_id||"")].filter(Boolean);
+  if(!idsVend.length){coletaEscopoVendedora={carregado:true,ids:new Set(),nomes:new Set()};return;}
+  let q=banco.from("email_clientes").select("id,nome,vendedora_id");
+  q=idsVend.length===1?q.eq("vendedora_id",idsVend[0]):q.in("vendedora_id",idsVend);
+  const r=await q;
   const dados=r.error?[]:(r.data||[]);
   coletaEscopoVendedora={carregado:true,ids:new Set(dados.map(x=>String(x.id))),nomes:new Set(dados.map(x=>normalizarNomeEmail(x.nome||"")))};
 }

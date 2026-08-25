@@ -138,6 +138,44 @@ let formularioRelatorioAlterado = false;
 function usuarioEhVendedoraRastreio(){ return usuarioLogado?.tipo === "vendedora_rastreio"; }
 function usuarioEhGerenteRastreio(){ return usuarioLogado?.tipo === "gerente_rastreio"; }
 function usuarioEhComercialRastreio(){ return usuarioEhVendedoraRastreio() || usuarioEhGerenteRastreio(); }
+
+// V62: resolve a carteira da vendedora de forma tolerante a cadastros antigos/duplicados.
+function idsVendedoraUsuario(){
+  if(!usuarioEhVendedoraRastreio()) return new Set();
+  const ids=new Set();
+  const idDireto=String(usuarioLogado?.vendedora_id||"").trim();
+  if(idDireto) ids.add(idDireto);
+
+  const norm=v=>normalizarNomeEmail(String(v||""));
+  const nomeUsuario=norm(usuarioLogado?.nome_exibicao||usuarioLogado?.login||"");
+  const emailsUsuario=new Set([
+    String(usuarioLogado?.email_recebimento||"").trim().toLowerCase(),
+    String(usuarioLogado?.email_remetente||"").trim().toLowerCase()
+  ].filter(Boolean));
+
+  let referencia=(emailVendedoras||[]).find(v=>String(v.id)===idDireto);
+  const nomeRef=norm(referencia?.nome||nomeUsuario);
+  const emailRef=String(referencia?.email||"").trim().toLowerCase();
+  if(emailRef) emailsUsuario.add(emailRef);
+
+  (emailVendedoras||[]).forEach(v=>{
+    const vn=norm(v?.nome||"");
+    const ve=String(v?.email||"").trim().toLowerCase();
+    const mesmoNome=!!nomeRef && vn===nomeRef;
+    const nomeLogin=!!nomeUsuario && vn===nomeUsuario;
+    const mesmoEmail=!!ve && emailsUsuario.has(ve);
+    if(mesmoNome||nomeLogin||mesmoEmail) ids.add(String(v.id));
+  });
+  return ids;
+}
+function clientePertenceVendedoraUsuario(cliente){
+  if(!usuarioEhVendedoraRastreio()) return true;
+  const ids=idsVendedoraUsuario();
+  return ids.has(String(cliente?.vendedora_id||""));
+}
+function nomesClientesVendedoraUsuario(){
+  return new Set((emailClientes||[]).filter(clientePertenceVendedoraUsuario).map(c=>normalizarNomeEmail(c?.nome||"")).filter(Boolean));
+}
 function usuarioPodeModuloEmail(){ return !!usuarioLogado && ["financeiro","admin","vendedora_rastreio","gerente_rastreio"].includes(usuarioLogado.tipo); }
 function emailRecebimentoUsuario(){
   if(usuarioLogado?.email_recebimento) return String(usuarioLogado.email_recebimento).trim();
@@ -3073,7 +3111,8 @@ async function carregarClientesEmail(){
     String(a.nome||"").localeCompare(String(b.nome||""),"pt-BR")
   );
   if(usuarioEhVendedoraRastreio()){
-    emailClientes=emailClientes.filter(c=>String(c.vendedora_id||"")===String(usuarioLogado.vendedora_id||""));
+    const idsPermitidos=idsVendedoraUsuario();
+    emailClientes=emailClientes.filter(c=>idsPermitidos.has(String(c.vendedora_id||"")));
   }
 
   montarTabelaClientesEmail();
@@ -3192,7 +3231,7 @@ function editarClienteEmail(id){
   if(!garantirFinanceiroEmail()) return;
   const item = emailClientes.find(c => c.id === id);
   if(!item) return;
-  if(usuarioEhVendedoraRastreio() && String(item.vendedora_id||"")!==String(usuarioLogado?.vendedora_id||"")){
+  if(usuarioEhVendedoraRastreio() && !idsVendedoraUsuario().has(String(item.vendedora_id||""))){
     alert("Você só pode editar clientes vinculados à sua vendedora.");
     return;
   }
@@ -3535,8 +3574,7 @@ async function enviarTodosEmails(){
 
 async function carregarHistoricoEmail(){
   if(!garantirFinanceiroEmail() || !banco) return;
-  let consultaHistorico=banco.from("email_envios").select("*").order("created_at",{ascending:false}).limit(300);
-  if(usuarioEhVendedoraRastreio()) consultaHistorico=consultaHistorico.eq("enviado_por",usuarioLogado.login);
+  let consultaHistorico=banco.from("email_envios").select("*").order("created_at",{ascending:false}).limit(500);
   const resposta = await consultaHistorico;
   if(resposta.error){
     console.error("Erro ao carregar histórico de e-mails:",resposta.error);
@@ -3545,7 +3583,18 @@ async function carregarHistoricoEmail(){
 
   const tabela = document.getElementById("emailTabelaHistorico");
   if(!tabela) return;
-  tabela.innerHTML = (resposta.data || []).length ? resposta.data.map(item => `
+  let historicoVisivel=resposta.data || [];
+  if(usuarioEhVendedoraRastreio()){
+    const nomesPermitidos=new Set((emailClientes||[]).map(c=>normalizarNomeEmail(c?.nome||"")).filter(Boolean));
+    const emailReceber=String(emailRecebimentoUsuario?.()||"").trim().toLowerCase();
+    const emailEnviar=String(emailRemetenteUsuario?.()||"").trim().toLowerCase();
+    historicoVisivel=historicoVisivel.filter(item=>{
+      const nome=normalizarNomeEmail(item?.cliente_nome||"");
+      const enderecos=[...(item?.destinatarios||[]),...(item?.copia||[])].map(x=>String(x||"").trim().toLowerCase());
+      return nomesPermitidos.has(nome) || (emailReceber&&enderecos.includes(emailReceber)) || (emailEnviar&&enderecos.includes(emailEnviar));
+    });
+  }
+  tabela.innerHTML = historicoVisivel.length ? historicoVisivel.map(item => `
     <tr>
       <td>${new Date(item.created_at).toLocaleString("pt-BR")}</td>
       <td>${escaparHtmlEmail(item.cliente_nome || "")}</td>
