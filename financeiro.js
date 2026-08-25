@@ -6311,48 +6311,71 @@ async function localizarPrePostagemCorreiosOficial(silencioso=false){
   }
 }
 async function abrirDocumentoCorreiosOficial(tipo){
-  let p=parametrosCorreiosOficiais();
-  if(!p.idPrePostagem){
-    const loc=await localizarPrePostagemCorreiosOficial(true);
-    if(!loc.ok){
-      statusCorreiosOficial('⚠️ '+(loc.erro||'Pré-postagem não localizada.'),false);
-      alert('Antes de emitir o documento oficial, o portal precisa localizar uma pré-postagem válida dos Correios.\n\n'+(loc.erro||''));
-      return;
-    }
-    p=parametrosCorreiosOficiais();
-  }
-  const rotulo=tipo==='rotulo' || tipo==='rotulo-l42';
-  const dace=tipo==='dace';
-  statusCorreiosOficial(
-    tipo==='rotulo-l42'?'Preparando rótulo L42-DT 100×150...':
-    dace?'Gerando declaração oficial A4 dos Correios...':
-    (rotulo?'Gerando rótulo oficial...':'Gerando declaração oficial...'),true
-  );
   try{
-    const qs=new URLSearchParams({action:'documentos-correios',modo:tipo,idPrePostagem:p.idPrePostagem});
+    const pre=await localizarPrePostagemCorreiosOficial(true);
+    const id=String(pre?.idPrePostagem||pre?.id||valorCampoCorreios('corIdPrePostagem')||'').trim();
+    if(!id)throw new Error('Informe ou localize primeiro o ID da pré-postagem.');
+
+    const rotulo=tipo==='rotulo' || tipo==='rotulo-l42';
+    const dace=tipo==='dace';
+
+    statusCorreiosOficial(
+      tipo==='rotulo-l42'?'Preparando rótulo L42-DT 100×150...':
+      dace?'Gerando DACE completa oficial dos Correios...':
+      (rotulo?'Gerando rótulo oficial...':'Gerando declaração oficial...'),
+      true
+    );
+
+    const qs=new URLSearchParams({action:'documentos-correios',modo:tipo,idPrePostagem:id});
     if(rotulo)qs.set('tipoRotulo','P');
-    const r=await fetch('/api/integracoes?'+qs.toString());
-    const ct=(r.headers.get('content-type')||'').toLowerCase();
-    if(!r.ok){
-      let msg='Erro ao emitir documento.';
-      if(ct.includes('json')){const j=await r.json().catch(()=>({}));msg=j.erro||msg;}
-      else msg=(await r.text())||msg;
-      throw new Error(msg);
+
+    const chave=typeof chaveIntegracoesCotacao==='function'?chaveIntegracoesCotacao():'';
+    const resp=await fetch('/api/integracoes?'+qs.toString(),{
+      headers:chave?{'x-integrations-admin-key':chave}:{}
+    });
+
+    if(!resp.ok){
+      const ct=resp.headers.get('content-type')||'';
+      let detalhe='';
+      if(ct.includes('application/json')){
+        const j=await resp.json().catch(()=>({}));
+        detalhe=j.erro||j.message||j.mensagem||JSON.stringify(j);
+      }else{
+        detalhe=await resp.text().catch(()=>`HTTP ${resp.status}`);
+      }
+      throw new Error(detalhe||`HTTP ${resp.status}`);
     }
-    const blob=await r.blob();
-    const url=URL.createObjectURL(blob);
-    const janela=window.open(url,'_blank');
-    if(!janela){
-      const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.click();
+
+    const ct=(resp.headers.get('content-type')||'').toLowerCase();
+    const dados=await resp.arrayBuffer();
+
+    if(!rotulo && !dace && ct.includes('text/html')){
+      const html=new TextDecoder('utf-8').decode(dados);
+      const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+      const url=URL.createObjectURL(blob);
+      window.open(url,'_blank');
+      setTimeout(()=>URL.revokeObjectURL(url),120000);
+    }else{
+      const mime=ct.includes('pdf')?'application/pdf':(ct||'application/octet-stream');
+      const blob=new Blob([dados],{type:mime});
+      const url=URL.createObjectURL(blob);
+      window.open(url,'_blank');
+      setTimeout(()=>URL.revokeObjectURL(url),120000);
     }
-    setTimeout(()=>URL.revokeObjectURL(url),120000);
+
     statusCorreiosOficial(
       tipo==='rotulo-l42'?'✅ Rótulo 100×150 pronto para a Elgin L42-DT.':
-      dace?'✅ Declaração oficial A4 recebida diretamente dos Correios.':
-      (rotulo?'✅ Rótulo oficial gerado pelos Correios.':'✅ Declaração oficial gerada pelos Correios.'),true
+      dace?'✅ DACE completa oficial gerada pelos Correios.':
+      (rotulo?'✅ Rótulo oficial gerado pelos Correios.':'✅ Declaração oficial aberta corretamente.'),
+      true
     );
-  }catch(e){
-    statusCorreiosOficial('⚠️ '+e.message,false);
-    alert('Não foi possível emitir o documento oficial dos Correios.\n\n'+e.message+'\n\nVocê ainda pode usar a etiqueta/declaração local do portal.');
+  }catch(erro){
+    console.error('Documento oficial Correios:',erro);
+    statusCorreiosOficial('⚠️ '+(erro?.message||erro),false);
+    alert(
+      'Não foi possível emitir o documento oficial dos Correios.\n\n'+
+      (erro?.message||erro)+
+      '\n\nSe for a DACE, confirme que a pré-postagem possui DC-e eletrônica emitida.'
+    );
   }
 }
