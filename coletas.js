@@ -586,18 +586,11 @@ async function chaveAdminColeta(forcarTroca=false){
     await validarChaveColetaNoServidor(chave);
     atualizarStatusChaveColeta("Chave salva e validada",true);
     return chave;
-  }catch(erro){
-    // V71: não apaga automaticamente a chave já salva. Uma falha de rede,
-    // deploy ou endpoint não deve ser tratada como troca de chave.
-    atualizarStatusChaveColeta("Não foi possível validar a chave salva");
-    const trocar=confirm(
-      "Não foi possível validar a chave administrativa salva.\n\n"+
-      (erro?.message||"Falha na validação.")+"\n\n"+
-      "Deseja informar outra chave agora?\n\n"+
-      "Cancelar mantém a chave atual salva neste computador."
-    );
-    if(trocar) return solicitarChaveColeta();
-    throw erro;
+  }catch{
+    localStorage.removeItem("integrations_admin_key");
+    sessionStorage.removeItem("integrations_admin_key");
+    atualizarStatusChaveColeta("Chave inválida");
+    return solicitarChaveColeta();
   }
 }
 
@@ -1322,6 +1315,10 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   const j=await r.json().catch(()=>({})); if(!r.ok||!j.ok)throw new Error(j.erro||`HTTP ${r.status}`);
   const pre={idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico,servico:j.servico||'',gerada_em:new Date().toISOString()};
   const novosDados={...d,codigo_servico_correios:codigo,prepostagem_correios:pre};
+  if(j.cepUtilizado && String(j.cepUtilizado)!==String(j.cepOriginal||'')){
+    novosDados.cep_destino=String(j.cepUtilizado).replace(/(\d{5})(\d{3})/,'$1-$2');
+    mostrarBalaoSistema('CEP específico usado pelos Correios',novosDados.cep_destino);
+  }
   const patch={dados:novosDados,atualizado_em:new Date().toISOString()};
   if(j.codigoObjeto)patch.protocolo_rastreio=j.codigoObjeto;
   const up=await banco.from('coleta_agendamentos').update(patch).eq('id',id); if(up.error)console.warn('Pré-postagem criada, mas falhou ao gravar no agendamento:',up.error.message);

@@ -328,17 +328,11 @@ async function validarChaveIntegracoesCotacao(chave){
     method:"POST",
     headers:{
       "Content-Type":"application/json",
-      "x-integrations-admin-key":String(chave||"").trim()
+      "x-integrations-admin-key":chave
     },
     body:"{}"
   });
-  const dados=await resposta.json().catch(()=>({}));
-  if(!resposta.ok){
-    const erro=new Error(dados.erro||`Falha ao validar a chave (HTTP ${resposta.status}).`);
-    erro.status=resposta.status;
-    throw erro;
-  }
-  return !!dados.ok;
+  return resposta.ok;
 }
 
 function abrirModalChaveIntegracoesCotacao(){
@@ -405,16 +399,8 @@ async function obterChaveIntegracoesCotacao(){
   if(chave){
     try{
       if(await validarChaveIntegracoesCotacao(chave))return chave;
-    }catch(erro){
-      // V71: mantém a chave salva; erro de rede/deploy não significa chave incorreta.
-      console.warn("Falha ao validar chave salva:",erro);
-      const trocar=confirm(
-        "A chave salva não pôde ser validada agora.\n\n"+
-        (erro?.message||"Falha na validação.")+"\n\n"+
-        "Deseja informar outra chave?\n\nCancelar mantém a chave atual."
-      );
-      if(!trocar) throw erro;
-    }
+    }catch{}
+    sessionStorage.removeItem("integrations_admin_key");
   }
   return abrirModalChaveIntegracoesCotacao();
 }
