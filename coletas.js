@@ -148,7 +148,7 @@ function selecionarClienteColeta(id){
     );
   }
 }
-function dadosColeta(){return{solicitante:cv("coletaSolicitante"),telefone_origem:cv("coletaTelefoneOrigem"),tipo_frete:cv("coletaTipoFrete")==="FOB"?"DESTINO (FOB)":"REMETENTE (CIF)",cnpj_origem:cv("coletaCnpjOrigem"),razao_origem:cv("coletaRazaoOrigem"),cep_origem:cv("coletaCepOrigem"),endereco_origem:cv("coletaEnderecoOrigem"),cnpj_destino:cv("coletaCnpjDestino"),razao_destino:cv("coletaRazaoDestino"),cep_destino:cv("coletaCepDestino"),cidade_destino:cv("coletaCidadeDestino"),volumes:cv("coletaVolumes"),peso:cv("coletaPeso"),valor_nf:coletaMoeda(cv("coletaValorNf")),numero_nf:cv("coletaNumeroNf"),medidas:cv("coletaMedidas"),natureza:cv("coletaNatureza"),mercadoria:cv("coletaMercadoria"),embalagem:cv("coletaEmbalagem"),horario_limite:cv("coletaHorarioLimite"),pausa:cv("coletaPausa"),referencia:cv("coletaReferencia"),localizacao:cv("coletaLocalizacao")}}
+function dadosColeta(){return{solicitante:cv("coletaSolicitante"),telefone_origem:cv("coletaTelefoneOrigem"),tipo_frete:cv("coletaTipoFrete")==="FOB"?"DESTINO (FOB)":"REMETENTE (CIF)",cnpj_origem:cv("coletaCnpjOrigem"),razao_origem:cv("coletaRazaoOrigem"),cep_origem:cv("coletaCepOrigem"),endereco_origem:cv("coletaEnderecoOrigem"),cnpj_destino:cv("coletaCnpjDestino"),razao_destino:cv("coletaRazaoDestino"),cep_destino:cv("coletaCepDestino"),cidade_destino:cv("coletaCidadeDestino"),endereco_destino:cv("coletaEnderecoDestino"),numero_destino:cv("coletaNumeroDestino"),complemento_destino:cv("coletaComplementoDestino"),bairro_destino:cv("coletaBairroDestino"),volumes:cv("coletaVolumes"),peso:cv("coletaPeso"),valor_nf:coletaMoeda(cv("coletaValorNf")),numero_nf:cv("coletaNumeroNf"),medidas:cv("coletaMedidas"),natureza:cv("coletaNatureza"),mercadoria:cv("coletaMercadoria"),embalagem:cv("coletaEmbalagem"),horario_limite:cv("coletaHorarioLimite"),pausa:cv("coletaPausa"),referencia:cv("coletaReferencia"),localizacao:cv("coletaLocalizacao")}}
 function modeloAtualColeta(){return coletaModelos.find(m=>String(m.id)===cv("coletaModeloId"))||coletaModelos[0]}
 function renderizarModeloColeta(texto,d){return String(texto||"").replace(/\{\{([a-z0-9_]+)\}\}/gi,(_,k)=>d[k]||"-").replace(/\n{3,}/g,"\n\n").trim()}
 function atualizarPreviaColeta(){const m=modeloAtualColeta();ce("coletaPreviaMensagem").value=m?renderizarModeloColeta(m.texto,dadosColeta()):""}
@@ -300,7 +300,7 @@ function montarHistoricoColetas(){
     <td><button class="btn azul" onclick="editarAgendamentoColeta('${a.id}')">Editar</button><button class="btn verde" onclick="copiarAgendamentoColeta('${a.id}')">Copiar</button>${a.codigo_coleta?`<button class="btn roxo" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar API</button>`:""}</td>
   </tr>`).join(""):'<tr><td colspan="10">Nenhum agendamento encontrado.</td></tr>';
 }
-function editarAgendamentoColeta(id){const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(!a)return;const d=a.dados||{};ce("coletaAgendamentoId").value=a.id;ce("coletaCotacaoId").value=a.cotacao_id||"";ce("coletaRespostaId").value=a.resposta_cotacao_id||"";ce("coletaClienteId").value=a.cliente_id||"";ce("coletaClienteBusca").value=a.cliente_nome||"";ce("coletaTransportadoraId").value=a.transportadora_id||"";if(a.modelo_id)ce("coletaModeloId").value=a.modelo_id;ce("coletaTipoFrete").value=a.tipo_frete||"CIF";const map={solicitante:"coletaSolicitante",telefone_origem:"coletaTelefoneOrigem",cnpj_origem:"coletaCnpjOrigem",razao_origem:"coletaRazaoOrigem",cep_origem:"coletaCepOrigem",endereco_origem:"coletaEnderecoOrigem",cnpj_destino:"coletaCnpjDestino",razao_destino:"coletaRazaoDestino",cep_destino:"coletaCepDestino",cidade_destino:"coletaCidadeDestino",volumes:"coletaVolumes",peso:"coletaPeso",numero_nf:"coletaNumeroNf",medidas:"coletaMedidas",natureza:"coletaNatureza",mercadoria:"coletaMercadoria",embalagem:"coletaEmbalagem",horario_limite:"coletaHorarioLimite",pausa:"coletaPausa",referencia:"coletaReferencia",localizacao:"coletaLocalizacao"};Object.entries(map).forEach(([k,id])=>{if(ce(id))ce(id).value=d[k]||""});ce("coletaObservacao").value=a.observacao||"";atualizarPreviaColeta();mostrarPainelColeta("nova")
+function editarAgendamentoColeta(id){const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(!a)return;const d=a.dados||{};ce("coletaAgendamentoId").value=a.id;ce("coletaCotacaoId").value=a.cotacao_id||"";ce("coletaRespostaId").value=a.resposta_cotacao_id||"";ce("coletaClienteId").value=a.cliente_id||"";ce("coletaClienteBusca").value=a.cliente_nome||"";ce("coletaTransportadoraId").value=a.transportadora_id||"";if(a.modelo_id)ce("coletaModeloId").value=a.modelo_id;ce("coletaTipoFrete").value=a.tipo_frete||"CIF";const map={solicitante:"coletaSolicitante",telefone_origem:"coletaTelefoneOrigem",cnpj_origem:"coletaCnpjOrigem",razao_origem:"coletaRazaoOrigem",cep_origem:"coletaCepOrigem",endereco_origem:"coletaEnderecoOrigem",cnpj_destino:"coletaCnpjDestino",razao_destino:"coletaRazaoDestino",cep_destino:"coletaCepDestino",cidade_destino:"coletaCidadeDestino",volumes:"coletaVolumes",peso:"coletaPeso",numero_nf:"coletaNumeroNf",medidas:"coletaMedidas",natureza:"coletaNatureza",mercadoria:"coletaMercadoria",embalagem:"coletaEmbalagem",horario_limite:"coletaHorarioLimite",pausa:"coletaPausa",referencia:"coletaReferencia",localizacao:"coletaLocalizacao",endereco_destino:"coletaEnderecoDestino",numero_destino:"coletaNumeroDestino",complemento_destino:"coletaComplementoDestino",bairro_destino:"coletaBairroDestino"};Object.entries(map).forEach(([k,id])=>{if(ce(id))ce(id).value=d[k]||""});ce("coletaObservacao").value=a.observacao||"";atualizarPreviaColeta();mostrarPainelColeta("nova")
 if(ce("coletaNumeroNfRastreio"))ce("coletaNumeroNfRastreio").value=a.numero_nf||a?.dados?.numero_nf||a?.dados?.numero_nfe||"";
 if(ce("coletaChaveNfeRastreio"))ce("coletaChaveNfeRastreio").value=a.chave_nfe||a?.dados?.chave_nfe||a?.dados?.chave_nf||"";
 if(ce("coletaNumeroCteRastreio"))ce("coletaNumeroCteRastreio").value=a.numero_cte||a?.dados?.numero_cte||"";
@@ -328,6 +328,10 @@ function dadosColetaDaCotacao(cotacao,tipoFrete){
     razao_destino:cotacao.cliente_nome||"",
     cep_destino:cotacao.cep_destino||"",
     cidade_destino:[cotacao.cidade_destino,cotacao.uf_destino].filter(Boolean).join("/"),
+    endereco_destino:cotacao.endereco_destino||cotacao.endereco||"",
+    numero_destino:cotacao.numero_destino||cotacao.numero||"",
+    complemento_destino:cotacao.complemento_destino||cotacao.complemento||"",
+    bairro_destino:cotacao.bairro_destino||cotacao.bairro||"",
     volumes:cotacao.volumes||"",
     peso:cotacao.peso_total||"",
     valor_nf:cotacao.valor_nf||"",
@@ -378,7 +382,8 @@ async function abrirColetaComDadosCotacao(cotacao,resposta,transportadora,agenda
     volumes:"coletaVolumes",peso:"coletaPeso",numero_nf:"coletaNumeroNf",
     medidas:"coletaMedidas",natureza:"coletaNatureza",mercadoria:"coletaMercadoria",
     embalagem:"coletaEmbalagem",horario_limite:"coletaHorarioLimite",
-    pausa:"coletaPausa",referencia:"coletaReferencia",localizacao:"coletaLocalizacao"
+    pausa:"coletaPausa",referencia:"coletaReferencia",localizacao:"coletaLocalizacao",
+    endereco_destino:"coletaEnderecoDestino",numero_destino:"coletaNumeroDestino",complemento_destino:"coletaComplementoDestino",bairro_destino:"coletaBairroDestino"
   };
   Object.entries(mapa).forEach(([chave,id])=>{if(ce(id))ce(id).value=d[chave]??""});
   ce("coletaValorNf").value=Number(cotacao.valor_nf||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -1143,6 +1148,7 @@ async function carregarPainelRodonaves(){
         <button class="btn azul" onclick="abrirPedidosDaColeta('${a.id}')">Pedidos (${contagemPedidos[a.id]||1})</button>
         ${a.ajuste_carga_pendente?`<span class="coleta-ajuste-pendente">⚠ Ajuste de carga pendente</span>`:""}
         ${rascunho?`<button class="btn vermelho" onclick="excluirRascunhoColetaRodonaves('${a.id}')">Excluir</button>`:""}
+        ${coletaRegistroEhCorreios(a)?`<button class="btn roxo" onclick="gerarPrePostagemCorreiosDaColeta('${a.id}')">${prepostagemCorreiosDaColeta(a)?.idPrePostagem?'Pré-postagem / documentos':'Gerar pré-postagem'}</button>`:""}
         ${podeAtualizarManual?`<button class="btn coleta-manual" onclick="alterarStatusManualColeta('${a.id}','coletado')">Marcar coletada</button>`:""}
         ${podeAtualizarManual?`<button class="btn coleta-alerta" onclick="alterarStatusManualColeta('${a.id}','nao_coletada')">Não coletada</button>`:""}
         ${podeAtualizarManual?`<button class="btn roxo" onclick="reagendarColetaManual('${a.id}')">Reagendar</button>`:""}
@@ -1266,6 +1272,60 @@ let transportadorasRastreamentoIntegrado=[];
 let pedidosVinculadosColeta=[];
 
 
+
+function coletaRegistroEhCorreios(a){return /(correios|coreios)/i.test(a?.frete_transportadoras?.nome||a?.dados?.transportadora_nome||'');}
+function codigoServicoCorreiosDaColeta(a){
+  const textos=[a?.dados?.codigo_servico_correios,a?.dados?.codigoServico,a?.protocolo_cotacao,a?.dados?.protocolo_cotacao,a?.dados?.referencia].filter(Boolean).join(' ');
+  const m=String(textos).match(/\b(03298|03220|03158|03140|03204|04227)\b/);
+  return m?m[1]:'';
+}
+function prepostagemCorreiosDaColeta(a){return a?.dados?.prepostagem_correios||null;}
+function parseCidadeUfColeta(v){const m=String(v||'').trim().match(/^(.*?)[\/-]\s*([A-Z]{2})\s*$/i);return m?{cidade:m[1].trim(),uf:m[2].toUpperCase()}:{cidade:String(v||'').trim(),uf:''};}
+async function abrirDocumentoPrepostagemColeta(id,modo){
+  const qs=new URLSearchParams({action:'documentos-correios',modo,idPrePostagem:id});
+  if(modo==='rotulo')qs.set('tipoRotulo','P');
+  window.open('/api/integracoes?'+qs.toString(),'_blank');
+}
+async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,silencioso=false}={}){
+  const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id)); if(!a)throw new Error('Coleta não encontrada.');
+  if(!coletaRegistroEhCorreios(a))return {ok:false,ignorado:true};
+  const existente=prepostagemCorreiosDaColeta(a);
+  if(existente?.idPrePostagem){
+    if(!silencioso)alert(`Esta coleta já possui pré-postagem.\n\nID: ${existente.idPrePostagem}${existente.codigoObjeto?`\nObjeto: ${existente.codigoObjeto}`:''}`);
+    if(perguntarDocumentos&&confirm('Deseja abrir a etiqueta oficial agora?'))await abrirDocumentoPrepostagemColeta(existente.idPrePostagem,'rotulo');
+    if(perguntarDocumentos&&confirm('Deseja abrir o formulário/declaração dos Correios agora?'))await abrirDocumentoPrepostagemColeta(existente.idPrePostagem,'declaracao');
+    return {ok:true,...existente,existente:true};
+  }
+  const d=a.dados||{}; let codigo=codigoServicoCorreiosDaColeta(a);
+  if(!codigo){
+    const informado=prompt('Não encontrei a modalidade escolhida na cotação. Informe o código CONTRATO AG:\n\n03298 = PAC\n03220 = SEDEX\n03158 = SEDEX 10\n03140 = SEDEX 12\n03204 = SEDEX HOJE\n04227 = MINI ENVIOS','03298');
+    if(informado===null)return {ok:false,cancelado:true}; codigo=String(informado).replace(/\D/g,'').slice(0,5);
+  }
+  const cu=parseCidadeUfColeta(d.cidade_destino||'');
+  const cliente=(emailClientes||[]).find(c=>String(c.id)===String(a.cliente_id))||(emailClientes||[]).find(c=>normalizarNomeEmail(c.nome||'')===normalizarNomeEmail(a.cliente_nome||''));
+  const destino={
+    nome:a.cliente_nome||d.razao_destino||cliente?.nome||'',cpfCnpj:d.cnpj_destino||cliente?.cpf_cnpj||'',telefone:cliente?.telefone||cliente?.celular||'',email:cliente?.email||'',
+    cep:d.cep_destino||cliente?.cep||'',logradouro:d.endereco_destino||cliente?.endereco||cliente?.logradouro||'',numero:d.numero_destino||cliente?.numero||'',complemento:d.complemento_destino||cliente?.complemento||'',bairro:d.bairro_destino||cliente?.bairro||'',cidade:cu.cidade||cliente?.cidade||'',uf:cu.uf||cliente?.uf||''
+  };
+  const faltam=[]; if(!destino.cep)faltam.push('CEP');if(!destino.logradouro)faltam.push('logradouro');if(!destino.numero)faltam.push('número');if(!destino.bairro)faltam.push('bairro');if(!destino.cidade)faltam.push('cidade');if(!destino.uf)faltam.push('UF');
+  if(faltam.length)throw new Error('Complete o cadastro/endereço do cliente antes de gerar a pré-postagem: '+faltam.join(', ')+'.');
+  const payload={codigoServico:codigo,pesoKg:a.peso||d.peso,medidas:d.medidas,numeroNf:a.numero_nf||d.numero_nf,chaveNFe:a.chave_nfe||d.chave_nfe||d.chave_nf,valorNf:d.valor_nf,mercadoria:d.mercadoria||'Cosméticos',destino};
+  if(!silencioso)mostrarBalaoSistema('Correios','Gerando pré-postagem oficial...');
+  const r=await fetch('/api/integracoes?action=criar-prepostagem-correios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const j=await r.json().catch(()=>({})); if(!r.ok||!j.ok)throw new Error(j.erro||`HTTP ${r.status}`);
+  const pre={idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico,servico:j.servico||'',gerada_em:new Date().toISOString()};
+  const novosDados={...d,codigo_servico_correios:codigo,prepostagem_correios:pre};
+  const patch={dados:novosDados,atualizado_em:new Date().toISOString()};
+  if(j.codigoObjeto)patch.protocolo_rastreio=j.codigoObjeto;
+  const up=await banco.from('coleta_agendamentos').update(patch).eq('id',id); if(up.error)console.warn('Pré-postagem criada, mas falhou ao gravar no agendamento:',up.error.message);
+  a.dados=novosDados;if(j.codigoObjeto)a.protocolo_rastreio=j.codigoObjeto;
+  mostrarBalaoSistema('Pré-postagem criada',`${j.servico||codigo}${j.codigoObjeto?' • '+j.codigoObjeto:''}`);
+  if(!silencioso)alert(`Pré-postagem dos Correios criada com sucesso.\n\nServiço: ${j.servico||codigo}\nID: ${j.idPrePostagem}${j.codigoObjeto?`\nRastreio: ${j.codigoObjeto}`:''}`);
+  if(perguntarDocumentos&&confirm('Deseja abrir a etiqueta oficial dos Correios agora?'))await abrirDocumentoPrepostagemColeta(j.idPrePostagem,'rotulo');
+  if(perguntarDocumentos&&confirm('Deseja abrir o formulário/declaração agora?'))await abrirDocumentoPrepostagemColeta(j.idPrePostagem,'declaracao');
+  return {ok:true,...pre};
+}
+
 async function alterarStatusManualColeta(id,novoStatus){
   const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
   if(!a)return;
@@ -1274,6 +1334,13 @@ async function alterarStatusManualColeta(id,novoStatus){
   if(obs===null)return;
   if(!confirm(`Confirmar alteração para "${rotulo}"?\n\nCliente: ${a.cliente_nome||"—"}\nTransportadora: ${a.frete_transportadoras?.nome||"—"}`))return;
   const anterior=statusColetaPainel(a);
+  let preCriada=null;
+  if(novoStatus==="coletado"&&coletaRegistroEhCorreios(a)&&!prepostagemCorreiosDaColeta(a)?.idPrePostagem){
+    if(confirm("Esta é uma coleta dos Correios e ainda não possui pré-postagem.\n\nDeseja gerar a pré-postagem agora para liberar a etiqueta e o formulário?")){
+      try{preCriada=await gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos:true});}
+      catch(e){if(!confirm("Não foi possível gerar a pré-postagem:\n\n"+e.message+"\n\nDeseja marcar como coletada mesmo assim?"))return;}
+    }
+  }
   const agora=new Date().toISOString();
   const payload={
     status:novoStatus,
