@@ -1,10 +1,11 @@
 {
   "name": "sofisticatto-financeiro",
-  "version": "15.0.0",
+  "version": "15.1.0",
   "private": true,
   "dependencies": {
     "nodemailer": "^6.9.16",
     "web-push": "^3.6.7",
-    "google-auth-library": "^9.15.1"
+    "google-auth-library": "^9.15.1",
+    "pdf-lib": "^1.17.1"
   }
 }
