@@ -8,6 +8,7 @@ let freteRespostasAtuais = [];
 let freteModuloCarregado = false;
 let freteAndamento = [];
 let freteTimerAndamento = null;
+let freteOpcoesCorreios = {};
 
 const FRETE_REMETENTE = {
   razao: "SOFISTICATTO COSMÉTICOS",
@@ -612,16 +613,69 @@ async function cotarAutomaticamenteCorreios(transportadoraId,tipoFrete){
       comprimento_cm:medidas.comprimento_cm||20,largura_cm:medidas.largura_cm||20,altura_cm:medidas.altura_cm||20
     })});
     const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);
-    const melhor=d.melhor;if(!melhor)throw new Error("Nenhum serviço dos Correios configurado retornou preço. Verifique as APIs liberadas e os códigos de serviço do contrato.");
-    freteCampo(`freteRespNumero_${chave}`).value=`Correios ${melhor.coProduto}`;
-    freteCampo(`freteRespValor_${chave}`).value=Number(melhor.valor||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
-    freteCampo(`freteRespPrazo_${chave}`).value=melhor.prazoDias?`${melhor.prazoDias} dias úteis`:"";
-    await registrarRespostaFrete(transportadoraId,tipoFrete);
-    const opcoes=(d.resultados||[]).filter(x=>!x.erro).map(x=>`${x.coProduto}: ${Number(x.valor||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}${x.prazoDias?` • ${x.prazoDias} dias`:""}`).join("\n");
-    mostrarBalaoSistema("Cotação Correios recebida",`${Number(melhor.valor||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}${melhor.prazoDias?` • ${melhor.prazoDias} dias`:""}`);
-    if(opcoes)alert(`Serviços Correios disponíveis:\n\n${opcoes}\n\nA opção de menor preço foi preenchida automaticamente.`);
+    const validas=(d.resultados||[]).filter(x=>!x.erro&&Number(x.valor||0)>0);
+    const melhor=d.melhor;if(!melhor||!validas.length)throw new Error("Nenhum serviço dos Correios configurado retornou preço. Verifique as APIs liberadas e os códigos de serviço do contrato.");
+    freteOpcoesCorreios[chave]=validas;
+    renderizarOpcoesCorreios(chave,validas,melhor.coProduto);
+    // Não preenche automaticamente: o usuário escolhe preço/prazo que deseja oferecer ao cliente.
+    freteCampo(`freteRespNumero_${chave}`).value="";
+    freteCampo(`freteRespValor_${chave}`).value="";
+    freteCampo(`freteRespPrazo_${chave}`).value="";
+    mostrarBalaoSistema("Cotação Correios recebida",`${validas.length} opção(ões) disponível(is). Escolha preço e prazo no cartão dos Correios.`);
   }catch(e){console.error("Cotação Correios:",e);alert("Não foi possível cotar nos Correios:\n\n"+(e.message||e));}
   finally{if(botao){botao.disabled=false;botao.textContent=original;}}
+}
+
+function renderizarOpcoesCorreios(chave,opcoes,melhorCodigo){
+  const box=document.getElementById(`freteOpcoesCorreios_${chave}`);
+  if(!box)return;
+  const lista=[...(opcoes||[])].sort((a,b)=>{
+    const pa=Number(a.prazoDias||9999),pb=Number(b.prazoDias||9999);
+    return pa-pb || Number(a.valor||0)-Number(b.valor||0);
+  });
+  const menorPrazo=Math.min(...lista.map(x=>Number(x.prazoDias||9999)));
+  box.innerHTML=`<div style="margin-top:12px;padding:12px;border:1px solid #d9d2f2;border-radius:14px;background:#fbfaff;">
+    <div style="font-weight:800;color:#493f92;margin-bottom:9px;">📮 Escolha o serviço dos Correios</div>
+    <div style="font-size:12px;color:#625d77;margin-bottom:10px;">Compare preço e prazo. O portal não escolhe automaticamente: clique na opção que deseja oferecer ao cliente.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px;">
+      ${lista.map((x,i)=>{
+        const preco=Number(x.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+        const prazo=x.prazoDias?`${x.prazoDias} dias úteis`:'Prazo não informado';
+        const servico=String(x.servico||'').trim();
+        const barato=String(x.coProduto)===String(melhorCodigo);
+        const rapido=Number(x.prazoDias||9999)===menorPrazo;
+        return `<div style="border:1px solid #dcd7ef;border-radius:12px;padding:11px;background:white;">
+          <div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;">
+            <div><strong>${escaparHtmlEmail(servico||`Correios ${x.coProduto}`)}</strong><br><small>Código ${escaparHtmlEmail(x.coProduto||'')}</small></div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
+              ${barato?'<span style="font-size:10px;background:#e8f7ed;color:#176b37;padding:3px 6px;border-radius:999px;font-weight:700;">MENOR PREÇO</span>':''}
+              ${rapido?'<span style="font-size:10px;background:#e9efff;color:#2949a8;padding:3px 6px;border-radius:999px;font-weight:700;">MAIS RÁPIDO</span>':''}
+            </div>
+          </div>
+          <div style="font-size:20px;font-weight:800;margin-top:8px;">${preco}</div>
+          <div style="margin:4px 0 10px;color:#514c66;">⏱ ${prazo}</div>
+          <button class="btn verde" style="width:100%;" onclick="selecionarOpcaoCorreios('${chave}',${i})">Selecionar esta opção</button>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+  // Guarda na mesma ordem exibida para o índice do botão ser estável.
+  freteOpcoesCorreios[chave]=lista;
+}
+
+async function selecionarOpcaoCorreios(chave,indice){
+  const op=(freteOpcoesCorreios[chave]||[])[Number(indice)];
+  if(!op)return alert('Não foi possível localizar esta opção dos Correios. Faça a cotação novamente.');
+  freteCampo(`freteRespNumero_${chave}`).value=`Correios ${op.coProduto}`;
+  freteCampo(`freteRespValor_${chave}`).value=Number(op.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  freteCampo(`freteRespPrazo_${chave}`).value=op.prazoDias?`${op.prazoDias} dias úteis`:'';
+  const box=document.getElementById(`freteOpcoesCorreios_${chave}`);
+  if(box){
+    box.querySelectorAll('button').forEach(b=>{b.textContent='Selecionar esta opção';b.disabled=false;});
+    const btn=box.querySelectorAll('button')[Number(indice)];
+    if(btn){btn.textContent='✓ Opção selecionada';btn.disabled=true;}
+  }
+  mostrarBalaoSistema('Serviço dos Correios selecionado',`${Number(op.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}${op.prazoDias?` • ${op.prazoDias} dias úteis`:''}`);
 }
 
 
@@ -713,6 +767,8 @@ function gerarCotacoesFrete(){
             💬 Registrar negociação
           </button>
         </div>
+
+        ${/(correios|coreios)/i.test(transportadora?.nome||"") ? `<div id="freteOpcoesCorreios_${chave}"></div>` : ""}
 
         <div class="email-acoes">
           <button class="btn roxo" onclick="autorizarRespostaFrete('${id}','${tipoResposta}')">✅ Marcar autorizada</button>
