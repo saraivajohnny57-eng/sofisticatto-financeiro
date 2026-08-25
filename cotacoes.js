@@ -617,6 +617,8 @@ async function cotarAutomaticamenteCorreios(transportadoraId,tipoFrete){
     const melhor=d.melhor;if(!melhor||!validas.length)throw new Error("Nenhum serviço dos Correios configurado retornou preço. Verifique as APIs liberadas e os códigos de serviço do contrato.");
     freteOpcoesCorreios[chave]=validas;
     renderizarOpcoesCorreios(chave,validas,melhor.coProduto);
+    // Atualiza a mensagem imediatamente com TODAS as opções (PAC, SEDEX etc.), antes da escolha final.
+    if(typeof atualizarMensagemVendedoraFrete==="function") atualizarMensagemVendedoraFrete();
     // Não preenche automaticamente: o usuário escolhe preço/prazo que deseja oferecer ao cliente.
     freteCampo(`freteRespNumero_${chave}`).value="";
     freteCampo(`freteRespValor_${chave}`).value="";
@@ -624,6 +626,47 @@ async function cotarAutomaticamenteCorreios(transportadoraId,tipoFrete){
     mostrarBalaoSistema("Cotação Correios recebida",`${validas.length} opção(ões) disponível(is). Escolha preço e prazo no cartão dos Correios.`);
   }catch(e){console.error("Cotação Correios:",e);alert("Não foi possível cotar nos Correios:\n\n"+(e.message||e));}
   finally{if(botao){botao.disabled=false;botao.textContent=original;}}
+}
+
+function nomeServicoCorreios(op){
+  const codigo=String(op?.coProduto||'').trim();
+  const retornado=String(op?.servico||'').trim();
+  const nomesPadrao={
+    '03298':'PAC',
+    '03220':'SEDEX',
+    '03158':'SEDEX 10',
+    '03140':'SEDEX 12',
+    '03204':'SEDEX HOJE',
+    '04227':'CORREIOS MINI ENVIOS'
+  };
+  // Quando a API Meu Contrato retorna uma descrição, damos preferência a ela.
+  // Os nomes padrão ajudam quando CORREIOS_SERVICOS foi configurado manualmente.
+  if(retornado){
+    const u=retornado.toUpperCase();
+    if(u.includes('SEDEX 10'))return 'SEDEX 10';
+    if(u.includes('SEDEX 12'))return 'SEDEX 12';
+    if(u.includes('SEDEX HOJE'))return 'SEDEX HOJE';
+    if(u.includes('SEDEX'))return 'SEDEX';
+    if(u.includes('PAC'))return 'PAC';
+    if(u.includes('MINI'))return 'CORREIOS MINI ENVIOS';
+    return retornado;
+  }
+  return nomesPadrao[codigo]||`Serviço Correios ${codigo}`;
+}
+
+function opcoesCorreiosDaCotacao(dados){
+  const tipos=tiposRespostaFrete(dados.tipo_frete);
+  const saida=[];
+  (dados.transportadoras_ids||[]).forEach(id=>{
+    const tr=freteTransportadoras.find(t=>String(t.id)===String(id));
+    if(!/(correios|coreios)/i.test(tr?.nome||''))return;
+    tipos.forEach(tipo=>{
+      const chave=chaveRespostaFrete(id,tipo);
+      const lista=freteOpcoesCorreios[chave]||[];
+      lista.forEach(op=>saida.push({...op,transportadora_id:id,transportadora_nome:tr?.nome||'Correios',tipo_frete:tipo,chave}));
+    });
+  });
+  return saida;
 }
 
 function renderizarOpcoesCorreios(chave,opcoes,melhorCodigo){
@@ -636,12 +679,12 @@ function renderizarOpcoesCorreios(chave,opcoes,melhorCodigo){
   const menorPrazo=Math.min(...lista.map(x=>Number(x.prazoDias||9999)));
   box.innerHTML=`<div style="margin-top:12px;padding:12px;border:1px solid #d9d2f2;border-radius:14px;background:#fbfaff;">
     <div style="font-weight:800;color:#493f92;margin-bottom:9px;">📮 Escolha o serviço dos Correios</div>
-    <div style="font-size:12px;color:#625d77;margin-bottom:10px;">Compare preço e prazo. O portal não escolhe automaticamente: clique na opção que deseja oferecer ao cliente.</div>
+    <div style="font-size:12px;color:#625d77;margin-bottom:10px;">Todas as opções abaixo entram automaticamente na mensagem de comparação. Depois que o cliente escolher, clique em <strong>Usar esta opção no pedido</strong>.</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px;">
       ${lista.map((x,i)=>{
         const preco=Number(x.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
         const prazo=x.prazoDias?`${x.prazoDias} dias úteis`:'Prazo não informado';
-        const servico=String(x.servico||'').trim();
+        const servico=nomeServicoCorreios(x);
         const barato=String(x.coProduto)===String(melhorCodigo);
         const rapido=Number(x.prazoDias||9999)===menorPrazo;
         return `<div style="border:1px solid #dcd7ef;border-radius:12px;padding:11px;background:white;">
@@ -654,7 +697,7 @@ function renderizarOpcoesCorreios(chave,opcoes,melhorCodigo){
           </div>
           <div style="font-size:20px;font-weight:800;margin-top:8px;">${preco}</div>
           <div style="margin:4px 0 10px;color:#514c66;">⏱ ${prazo}</div>
-          <button class="btn verde" style="width:100%;" onclick="selecionarOpcaoCorreios('${chave}',${i})">Selecionar esta opção</button>
+          <button class="btn verde" style="width:100%;" onclick="selecionarOpcaoCorreios('${chave}',${i})">Usar esta opção no pedido</button>
         </div>`;
       }).join('')}
     </div>
@@ -671,7 +714,7 @@ async function selecionarOpcaoCorreios(chave,indice){
   freteCampo(`freteRespPrazo_${chave}`).value=op.prazoDias?`${op.prazoDias} dias úteis`:'';
   const box=document.getElementById(`freteOpcoesCorreios_${chave}`);
   if(box){
-    box.querySelectorAll('button').forEach(b=>{b.textContent='Selecionar esta opção';b.disabled=false;});
+    box.querySelectorAll('button').forEach(b=>{b.textContent='Usar esta opção no pedido';b.disabled=false;});
     const btn=box.querySelectorAll('button')[Number(indice)];
     if(btn){btn.textContent='✓ Opção selecionada';btn.disabled=true;}
   }

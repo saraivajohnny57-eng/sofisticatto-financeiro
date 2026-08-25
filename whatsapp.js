@@ -73,9 +73,16 @@ function atualizarMensagemVendedoraFrete(){
 
   const dados = dadosFormularioFrete();
   const gnreGeral = Number(dados.gnre_valor || 0);
-  const respostas = freteRespostasAtuais.filter(
-    r => r.numero_cotacao || Number(r.valor_frete) > 0 || r.prazo || Number(r.gnre_valor) > 0
-  );
+  const opcoesCorreios = typeof opcoesCorreiosDaCotacao === 'function' ? opcoesCorreiosDaCotacao(dados) : [];
+  const chavesCorreios = new Set(opcoesCorreios.map(x=>x.chave));
+
+  // Para Correios com cotação automática, a mensagem usa TODAS as opções retornadas.
+  // A resposta selecionada nos campos continua servindo para registrar qual modalidade será realmente usada.
+  const respostas = freteRespostasAtuais.filter(r => {
+    const chave=chaveRespostaFrete(r.transportadora_id,r.tipo_frete||'CIF');
+    if(chavesCorreios.has(chave)) return false;
+    return r.numero_cotacao || Number(r.valor_frete) > 0 || r.prazo || Number(r.gnre_valor) > 0;
+  });
 
   const numeroCotacao = freteValor("freteCotacaoId")
     ? String(
@@ -86,31 +93,49 @@ function atualizarMensagemVendedoraFrete(){
   let texto = `*Cotação: ${numeroCotacao}*\n\n`;
   texto += `${(dados.cliente_nome || "CLIENTE").toUpperCase()}\n\n`;
 
-  respostas.forEach((resposta, indice) => {
+  const blocos=[];
+
+  // Agrupa as modalidades dos Correios no mesmo bloco, para o cliente comparar PAC x SEDEX.
+  if(opcoesCorreios.length){
+    const porTipo={};
+    opcoesCorreios.forEach(op=>{
+      const tipo=op.tipo_frete||'CIF';
+      (porTipo[tipo] ||= []).push(op);
+    });
+    Object.entries(porTipo).forEach(([tipo,ops])=>{
+      const lista=[...ops].sort((a,b)=>Number(a.prazoDias||9999)-Number(b.prazoDias||9999) || Number(a.valor||0)-Number(b.valor||0));
+      let b=`*CORREIOS 📮*\n\n`;
+      lista.forEach((op,i)=>{
+        const nome=typeof nomeServicoCorreios==='function'?nomeServicoCorreios(op):(`Correios ${op.coProduto||''}`);
+        b += `📦 *${nome}*${op.coProduto?` (${op.coProduto})`:''}\n`;
+        b += `💰 Frete (${tipo}): *${moedaFrete(op.valor)}*\n`;
+        b += `⏰ Prazo aproximado: *${op.prazoDias?`${op.prazoDias} dias úteis`:'A confirmar'}*\n`;
+        if(i<lista.length-1)b+='\n';
+      });
+      b += `\n✅ *Escolha a opção de frete que prefere.*`;
+      blocos.push(b);
+    });
+  }
+
+  respostas.forEach(resposta => {
     const tipo = resposta.tipo_frete || (dados.tipo_frete === "MISTO" ? "CIF" : dados.tipo_frete);
     const gnre = Number(resposta.gnre_valor || gnreGeral || 0);
-
-    texto += `*${String(resposta.transportadora_nome || "").toUpperCase()} 🚛*\n\n`;
-    texto += `🚚 Cotação: *${resposta.numero_cotacao || "-"}*\n`;
-    texto += `💰 Frete (${tipo}): *${moedaFrete(resposta.valor_frete)}*\n`;
-
-    if(gnre > 0){
-      texto += `🪙 GNRE: *${moedaFrete(gnre)}*\n`;
-    }
-
-    texto += `⏰ Prazo aproximado: *${resposta.prazo || "A confirmar"}*\n`;
-
-    if(indice < respostas.length - 1){
-      texto += "\n--------------------------------------------------\n\n";
-    }
+    let b=`*${String(resposta.transportadora_nome || "").toUpperCase()} 🚛*\n\n`;
+    b += `🚚 Cotação: *${resposta.numero_cotacao || "-"}*\n`;
+    b += `💰 Frete (${tipo}): *${moedaFrete(resposta.valor_frete)}*\n`;
+    if(gnre > 0)b += `🪙 GNRE: *${moedaFrete(gnre)}*\n`;
+    b += `⏰ Prazo aproximado: *${resposta.prazo || "A confirmar"}*`;
+    blocos.push(b);
   });
+
+  texto += blocos.join("\n\n--------------------------------------------------\n\n");
 
   const preview = freteCampo("freteWhatsappPreview");
   if(preview){
-    preview.textContent = respostas.length ? texto : "Nenhuma resposta cadastrada.";
+    preview.textContent = blocos.length ? texto : "Nenhuma resposta cadastrada.";
   }
 
-  return respostas.length ? texto : "";
+  return blocos.length ? texto : "";
 }
 
 async function copiarMensagemVendedoraFrete(){
