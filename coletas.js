@@ -586,11 +586,18 @@ async function chaveAdminColeta(forcarTroca=false){
     await validarChaveColetaNoServidor(chave);
     atualizarStatusChaveColeta("Chave salva e validada",true);
     return chave;
-  }catch{
-    localStorage.removeItem("integrations_admin_key");
-    sessionStorage.removeItem("integrations_admin_key");
-    atualizarStatusChaveColeta("Chave inválida");
-    return solicitarChaveColeta();
+  }catch(erro){
+    // V71: não apaga automaticamente a chave já salva. Uma falha de rede,
+    // deploy ou endpoint não deve ser tratada como troca de chave.
+    atualizarStatusChaveColeta("Não foi possível validar a chave salva");
+    const trocar=confirm(
+      "Não foi possível validar a chave administrativa salva.\n\n"+
+      (erro?.message||"Falha na validação.")+"\n\n"+
+      "Deseja informar outra chave agora?\n\n"+
+      "Cancelar mantém a chave atual salva neste computador."
+    );
+    if(trocar) return solicitarChaveColeta();
+    throw erro;
   }
 }
 

@@ -4,7 +4,7 @@
 let integracaoSeguraAtual=null;
 
 function chaveAdminIntegracoes(){
-  return sessionStorage.getItem("integrations_admin_key") || "";
+  return localStorage.getItem("integrations_admin_key") || sessionStorage.getItem("integrations_admin_key") || "";
 }
 
 function cabecalhosIntegracoes(){
@@ -93,10 +93,11 @@ async function validarChaveIntegracoes(){
 
   try{
     await requisicaoIntegracoes("/api/integracoes?action=validar-chave",{method:"POST",body:"{}"});
-    statusCampoIntegracao("integracaoAdminKeyStatus","Chave validada","ok");
+    localStorage.setItem("integrations_admin_key",chave);
+    statusCampoIntegracao("integracaoAdminKeyStatus","Chave validada e salva neste computador","ok");
     await carregarStatusCredenciaisIntegracao();
   }catch(erro){
-    sessionStorage.removeItem("integrations_admin_key");
+    // V71: não apaga uma chave anterior válida ao testar outro valor.
     statusCampoIntegracao("integracaoAdminKeyStatus",erro.message,"erro");
   }
 }
