@@ -1145,6 +1145,7 @@ async function carregarPainelRodonaves(){
         ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<button class="btn azul" onclick="informarNfPainelColeta('${a.id}')">Informar NF / rastrear</button>`:""}
         ${/rodonaves/i.test(a.frete_transportadoras?.nome||"")&&!codigoColetaPodeConsultar(a)?`<button class="btn roxo" onclick="abrirVinculoCodigoColeta('${a.id}')">Informar/vincular código</button>`:""}
         <button class="btn verde" onclick="editarAgendamentoColeta('${a.id}');mostrarPainelColeta('nova')">Abrir</button>
+        ${coletaRegistroEhCorreios(a)?`<button class="btn azul" onclick="editarEnderecoCepColetaCorreios('${a.id}')">Editar endereço/CEP</button>`:''}
         <button class="btn azul" onclick="abrirPedidosDaColeta('${a.id}')">Pedidos (${contagemPedidos[a.id]||1})</button>
         ${a.ajuste_carga_pendente?`<span class="coleta-ajuste-pendente">⚠ Ajuste de carga pendente</span>`:""}
         ${rascunho?`<button class="btn vermelho" onclick="excluirRascunhoColetaRodonaves('${a.id}')">Excluir</button>`:""}
@@ -1286,6 +1287,38 @@ async function abrirDocumentoPrepostagemColeta(id,modo){
   if(modo==='rotulo')qs.set('tipoRotulo','P');
   window.open('/api/integracoes?'+qs.toString(),'_blank');
 }
+
+async function editarEnderecoCepColetaCorreios(id){
+  const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));if(!a)return alert('Coleta não encontrada.');
+  const d={...(a.dados||{})};
+  const cliente=(emailClientes||[]).find(c=>String(c.id)===String(a.cliente_id))||(emailClientes||[]).find(c=>normalizarNomeEmail(c.nome||'')===normalizarNomeEmail(a.cliente_nome||''));
+  let cep=prompt('CEP do destino:',d.cep_destino||cliente?.cep||''); if(cep===null)return;
+  let logradouro=prompt('Logradouro (sem repetir o número):',d.endereco_destino||cliente?.endereco||cliente?.logradouro||''); if(logradouro===null)return;
+  let numero=prompt('Número:',d.numero_destino||cliente?.numero||''); if(numero===null)return;
+  let bairro=prompt('Bairro:',d.bairro_destino||cliente?.bairro||''); if(bairro===null)return;
+  let cidadeUf=prompt('Cidade/UF (ex.: CORIBE/BA):',d.cidade_destino||[cliente?.cidade,cliente?.uf].filter(Boolean).join('/')||''); if(cidadeUf===null)return;
+  const cu=parseCidadeUfColeta(cidadeUf);
+  if(confirm('Deseja tentar localizar automaticamente o CEP específico deste endereço nos Correios?')){
+    try{
+      const chave=await chaveAdminColeta(); if(!chave)return;
+      const rr=await fetch('/api/integracoes?action=buscar-cep-correios',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:JSON.stringify({uf:cu.uf,cidade:cu.cidade,bairro,logradouro,numero,endereco:[logradouro,numero].filter(Boolean).join(', ')})});
+      const j=await rr.json().catch(()=>({}));
+      if(!rr.ok||!j.ok)throw new Error(j.erro||`HTTP ${rr.status}`);
+      if(j.encontrado&&j.cep){
+        const formatado=String(j.cep).replace(/(\d{5})(\d{3})/,'$1-$2');
+        const candidatos=(j.candidatos||[]).map(x=>`${String(x.cep).replace(/(\d{5})(\d{3})/,'$1-$2')} — ${x.logradouro||''} — ${x.bairro||''}`).join('\n');
+        if(confirm(`CEP encontrado: ${formatado}\n\n${candidatos?`Melhores resultados:\n${candidatos}\n\n`:''}Usar este CEP na coleta?`))cep=formatado;
+      }else alert(j.motivo||'Os Correios não localizaram um CEP específico para esse endereço. Você ainda pode informar o CEP manualmente.');
+    }catch(e){alert('Não foi possível buscar o CEP automaticamente:\n'+(e.message||e));}
+  }
+  const novosDados={...d,cep_destino:String(cep||'').trim(),endereco_destino:String(logradouro||'').trim(),numero_destino:String(numero||'').trim(),bairro_destino:String(bairro||'').trim(),cidade_destino:`${cu.cidade}/${cu.uf}`};
+  const r=await banco.from('coleta_agendamentos').update({dados:novosDados,atualizado_em:new Date().toISOString()}).eq('id',id);
+  if(r.error)return alert(r.error.message);
+  a.dados=novosDados;
+  alert('Endereço/CEP da coleta atualizado. Agora tente gerar a pré-postagem novamente.');
+  await carregarPainelRodonaves();
+}
+
 async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,silencioso=false}={}){
   const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id)); if(!a)throw new Error('Coleta não encontrada.');
   if(!coletaRegistroEhCorreios(a))return {ok:false,ignorado:true};
