@@ -616,7 +616,7 @@ async function cotarAutomaticamenteCorreios(transportadoraId,tipoFrete){
     const validas=(d.resultados||[]).filter(x=>!x.erro&&Number(x.valor||0)>0);
     const melhor=d.melhor;if(!melhor||!validas.length)throw new Error("Nenhum serviço dos Correios configurado retornou preço. Verifique as APIs liberadas e os códigos de serviço do contrato.");
     freteOpcoesCorreios[chave]=validas;
-    renderizarOpcoesCorreios(chave,validas,melhor.coProduto);
+    renderizarOpcoesCorreios(chave,validas,melhor.coProduto,(d.resultados||[]));
     // Atualiza a mensagem imediatamente com TODAS as opções (PAC, SEDEX etc.), antes da escolha final.
     if(typeof atualizarMensagemVendedoraFrete==="function") atualizarMensagemVendedoraFrete();
     // Não preenche automaticamente: o usuário escolhe preço/prazo que deseja oferecer ao cliente.
@@ -669,7 +669,7 @@ function opcoesCorreiosDaCotacao(dados){
   return saida;
 }
 
-function renderizarOpcoesCorreios(chave,opcoes,melhorCodigo){
+function renderizarOpcoesCorreios(chave,opcoes,melhorCodigo,todosResultados=[]){
   const box=document.getElementById(`freteOpcoesCorreios_${chave}`);
   if(!box)return;
   const lista=[...(opcoes||[])].sort((a,b)=>{
@@ -699,6 +699,11 @@ function renderizarOpcoesCorreios(chave,opcoes,melhorCodigo){
           <div style="margin:4px 0 10px;color:#514c66;">⏱ ${prazo}</div>
           <button class="btn verde" style="width:100%;" onclick="selecionarOpcaoCorreios('${chave}',${i})">Usar esta opção no pedido</button>
         </div>`;
+      }).join('')}
+      ${['03298','03220'].filter(cod=>!(lista||[]).some(x=>String(x.coProduto)===cod)).map(cod=>{
+        const falha=(todosResultados||[]).find(x=>String(x.coProduto)===cod);
+        const nome=cod==='03298'?'PAC':'SEDEX';
+        return `<div style="border:1px dashed #e1b9b9;border-radius:12px;padding:11px;background:#fffafa;color:#8c3333;"><strong>${nome}</strong><br><small>Código ${cod}</small><div style="margin-top:7px;font-size:12px;">⚠ ${escaparHtmlEmail(falha?.erro||'Serviço não retornado pelos Correios para esta cotação.')}</div></div>`;
       }).join('')}
     </div>
   </div>`;
