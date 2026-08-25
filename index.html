@@ -812,8 +812,27 @@ SOFISTICATTO COSMÉTICOS</textarea>
               </div>
               <div><label class="relatorio-label">Data da postagem</label><input id="corData" type="date" onchange="atualizarCorreiosTudo()"></div>
               <div><label class="relatorio-label">Peso total (kg)</label><input id="corPeso" inputmode="decimal" placeholder="0,000" oninput="atualizarCorreiosTudo()"></div>
+              <div><label class="relatorio-label">Número da NF (opcional)</label><input id="corNumeroNF" placeholder="Ex.: 50694"></div>
               <div><label class="relatorio-label">Código de rastreio (opcional)</label><input id="corRastreio" placeholder="Ex.: QB123456789BR"></div>
 
+              <div class="campo-largo" style="border:2px solid #d9d2ff;background:#faf9ff;border-radius:14px;padding:14px;">
+                <h3 style="margin:0 0 6px;color:#4f459c;">📮 Documentos oficiais dos Correios</h3>
+                <p style="margin:0 0 12px;color:#6f6799;font-size:13px;line-height:1.45;">
+                  O portal pode localizar a pré-postagem no seu contrato e solicitar o rótulo e a Declaração de Conteúdo diretamente à API oficial dos Correios.
+                </p>
+                <div class="correios-grid" style="margin:0;">
+                  <div class="campo-largo">
+                    <label class="relatorio-label">ID da pré-postagem</label>
+                    <input id="corIdPrePostagem" placeholder="Pode deixar vazio e clicar em Localizar automaticamente">
+                  </div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                  <button type="button" class="btn azul" onclick="localizarPrePostagemCorreiosOficial()">🔎 Localizar pré-postagem</button>
+                  <button type="button" class="btn verde" onclick="abrirDocumentoCorreiosOficial('rotulo')">🏷️ Rótulo oficial</button>
+                  <button type="button" class="btn roxo" onclick="abrirDocumentoCorreiosOficial('declaracao')">📄 Declaração oficial</button>
+                </div>
+                <div id="corOficialStatus" style="margin-top:9px;font-size:12px;font-weight:700;color:#6259a8;"></div>
+              </div>
 
               <div class="cor-ajustes-box">
                 <h3 style="margin:0 0 10px;">Ajustes de tamanho das etiquetas dos Correios</h3>

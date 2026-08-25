@@ -6112,3 +6112,80 @@ document.addEventListener("DOMContentLoaded", async function(){
     mostrarBalaoSistema("Erro de conexão", "Não foi possível conectar agora. Verifique a internet e atualize a página.");
   }
 });
+
+/* V63 — Documentos oficiais Correios / Pré-Postagem */
+function statusCorreiosOficial(msg,ok=true){
+  const el=document.getElementById('corOficialStatus');
+  if(el){el.textContent=msg||'';el.style.color=ok?'#2e7d32':'#b3261e';}
+}
+function parametrosCorreiosOficiais(){
+  const d=dadosCorreios();
+  return {
+    idPrePostagem:valorCampoCorreios('corIdPrePostagem'),
+    codigoObjeto:valorCampoCorreios('corRastreio').toUpperCase(),
+    nf:valorCampoCorreios('corNumeroNF'),
+    nome:d.cliente,
+    cep:d.cep
+  };
+}
+async function localizarPrePostagemCorreiosOficial(silencioso=false){
+  const p=parametrosCorreiosOficiais();
+  if(p.idPrePostagem){
+    statusCorreiosOficial('Pré-postagem informada: '+p.idPrePostagem,true);
+    return {ok:true,id:p.idPrePostagem,codigoObjeto:p.codigoObjeto||''};
+  }
+  if(!silencioso)statusCorreiosOficial('Consultando as pré-postagens do seu contrato...',true);
+  try{
+    const qs=new URLSearchParams({action:'documentos-correios',modo:'localizar'});
+    Object.entries(p).forEach(([k,v])=>{if(v)qs.set(k,v)});
+    const r=await fetch('/api/integracoes?'+qs.toString(),{headers:{Accept:'application/json'}});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.ok)throw new Error(j.erro||'Pré-postagem não localizada.');
+    const id=j.id||j.idPrePostagem;
+    if(id)document.getElementById('corIdPrePostagem').value=id;
+    if(j.codigoObjeto && !valorCampoCorreios('corRastreio')) document.getElementById('corRastreio').value=j.codigoObjeto;
+    statusCorreiosOficial(`✅ Pré-postagem localizada${j.codigoObjeto?' • '+j.codigoObjeto:''}`,true);
+    return j;
+  }catch(e){
+    statusCorreiosOficial('⚠️ '+e.message,false);
+    if(!silencioso)alert('Não foi possível localizar a pré-postagem dos Correios.\n\n'+e.message);
+    return {ok:false,erro:e.message};
+  }
+}
+async function abrirDocumentoCorreiosOficial(tipo){
+  let p=parametrosCorreiosOficiais();
+  if(!p.idPrePostagem){
+    const loc=await localizarPrePostagemCorreiosOficial(true);
+    if(!loc.ok){
+      statusCorreiosOficial('⚠️ '+(loc.erro||'Pré-postagem não localizada.'),false);
+      alert('Antes de emitir o documento oficial, o portal precisa localizar uma pré-postagem válida dos Correios.\n\n'+(loc.erro||''));
+      return;
+    }
+    p=parametrosCorreiosOficiais();
+  }
+  const rotulo=tipo==='rotulo';
+  statusCorreiosOficial(rotulo?'Gerando rótulo oficial...':'Gerando declaração oficial...',true);
+  try{
+    const qs=new URLSearchParams({action:'documentos-correios',modo:tipo,idPrePostagem:p.idPrePostagem});
+    if(rotulo)qs.set('tipoRotulo','P');
+    const r=await fetch('/api/integracoes?'+qs.toString());
+    const ct=(r.headers.get('content-type')||'').toLowerCase();
+    if(!r.ok){
+      let msg='Erro ao emitir documento.';
+      if(ct.includes('json')){const j=await r.json().catch(()=>({}));msg=j.erro||msg;}
+      else msg=(await r.text())||msg;
+      throw new Error(msg);
+    }
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const janela=window.open(url,'_blank');
+    if(!janela){
+      const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.click();
+    }
+    setTimeout(()=>URL.revokeObjectURL(url),120000);
+    statusCorreiosOficial(rotulo?'✅ Rótulo oficial gerado pelos Correios.':'✅ Declaração oficial gerada pelos Correios.',true);
+  }catch(e){
+    statusCorreiosOficial('⚠️ '+e.message,false);
+    alert('Não foi possível emitir o documento oficial dos Correios.\n\n'+e.message+'\n\nVocê ainda pode usar a etiqueta/declaração local do portal.');
+  }
+}
