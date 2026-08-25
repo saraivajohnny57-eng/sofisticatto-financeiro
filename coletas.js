@@ -1149,7 +1149,13 @@ async function carregarPainelRodonaves(){
         <button class="btn azul" onclick="abrirPedidosDaColeta('${a.id}')">Pedidos (${contagemPedidos[a.id]||1})</button>
         ${a.ajuste_carga_pendente?`<span class="coleta-ajuste-pendente">⚠ Ajuste de carga pendente</span>`:""}
         ${rascunho?`<button class="btn vermelho" onclick="excluirRascunhoColetaRodonaves('${a.id}')">Excluir</button>`:""}
-        ${coletaRegistroEhCorreios(a)?`<button class="btn roxo" onclick="gerarPrePostagemCorreiosDaColeta('${a.id}')">${prepostagemCorreiosDaColeta(a)?.idPrePostagem?'Pré-postagem / documentos':'Gerar pré-postagem'}</button>`:""}
+        ${coletaRegistroEhCorreios(a)?(
+          prepostagemCorreiosDaColeta(a)?.idPrePostagem
+            ? `<button class="btn roxo" onclick="abrirModuloCorreiosDaColeta('${a.id}')">Pré-postagem / documentos</button>
+               <button class="btn verde" onclick="abrirRotuloPrepostagemDaColeta('${a.id}')">Rótulo</button>
+               <button class="btn roxo" onclick="abrirDeclaracaoPrepostagemDaColeta('${a.id}')">Declaração</button>`
+            : `<button class="btn roxo" onclick="gerarPrePostagemCorreiosDaColeta('${a.id}')">Gerar pré-postagem</button>`
+        ):""}
         ${podeAtualizarManual?`<button class="btn coleta-manual" onclick="alterarStatusManualColeta('${a.id}','coletado')">Marcar coletada</button>`:""}
         ${podeAtualizarManual?`<button class="btn coleta-alerta" onclick="alterarStatusManualColeta('${a.id}','nao_coletada')">Não coletada</button>`:""}
         ${podeAtualizarManual?`<button class="btn roxo" onclick="reagendarColetaManual('${a.id}')">Reagendar</button>`:""}
@@ -1288,6 +1294,57 @@ async function abrirDocumentoPrepostagemColeta(id,modo){
   window.open('/api/integracoes?'+qs.toString(),'_blank');
 }
 
+function prepostagemModuloCorreiosPayload(a,pre){
+  const d=a?.dados||{};
+  const cu=parseCidadeUfColeta(d.cidade_destino||'');
+  return {
+    idPrePostagem:pre?.idPrePostagem||'',
+    codigoObjeto:pre?.codigoObjeto||a?.protocolo_rastreio||'',
+    codigoServico:pre?.codigoServico||d.codigo_servico_correios||'',
+    servico:pre?.servico||'',
+    cliente:a?.cliente_nome||d.razao_destino||'',
+    endereco:d.endereco_destino||'',
+    numero:d.numero_destino||'',
+    complemento:d.complemento_destino||'',
+    bairro:d.bairro_destino||'',
+    cep:d.cep_destino||'',
+    cidade:cu.cidade||'',
+    uf:cu.uf||'',
+    documento:d.cnpj_destino||'',
+    nf:a?.numero_nf||d.numero_nf||'',
+    peso:a?.peso||d.peso||'',
+    origem:'painel_coletas',
+    salvoEm:new Date().toISOString()
+  };
+}
+function enviarPrepostagemParaModuloCorreios(a,pre){
+  const payload=prepostagemModuloCorreiosPayload(a,pre);
+  try{localStorage.setItem('sofisticatto_prepostagem_correios_atual',JSON.stringify(payload));}catch{}
+  if(typeof carregarPrePostagemNoModuloCorreios==='function'){
+    carregarPrePostagemNoModuloCorreios(payload);
+  }
+  if(typeof mostrarAbaEmail==='function') mostrarAbaEmail('correios');
+  return payload;
+}
+function abrirRotuloPrepostagemDaColeta(id){
+  const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
+  const pre=prepostagemCorreiosDaColeta(a);
+  if(!pre?.idPrePostagem)return alert('Esta coleta ainda não possui pré-postagem.');
+  abrirDocumentoPrepostagemColeta(pre.idPrePostagem,'rotulo');
+}
+function abrirDeclaracaoPrepostagemDaColeta(id){
+  const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
+  const pre=prepostagemCorreiosDaColeta(a);
+  if(!pre?.idPrePostagem)return alert('Esta coleta ainda não possui pré-postagem.');
+  abrirDocumentoPrepostagemColeta(pre.idPrePostagem,'declaracao');
+}
+function abrirModuloCorreiosDaColeta(id){
+  const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
+  const pre=prepostagemCorreiosDaColeta(a);
+  if(!pre?.idPrePostagem)return alert('Esta coleta ainda não possui pré-postagem.');
+  enviarPrepostagemParaModuloCorreios(a,pre);
+}
+
 async function editarEnderecoCepColetaCorreios(id){
   const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));if(!a)return alert('Coleta não encontrada.');
   const d={...(a.dados||{})};
@@ -1325,8 +1382,10 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   const existente=prepostagemCorreiosDaColeta(a);
   if(existente?.idPrePostagem){
     if(!silencioso)alert(`Esta coleta já possui pré-postagem.\n\nID: ${existente.idPrePostagem}${existente.codigoObjeto?`\nObjeto: ${existente.codigoObjeto}`:''}`);
-    if(perguntarDocumentos&&confirm('Deseja abrir a etiqueta oficial agora?'))await abrirDocumentoPrepostagemColeta(existente.idPrePostagem,'rotulo');
-    if(perguntarDocumentos&&confirm('Deseja abrir o formulário/declaração dos Correios agora?'))await abrirDocumentoPrepostagemColeta(existente.idPrePostagem,'declaracao');
+    if(perguntarDocumentos){
+      enviarPrepostagemParaModuloCorreios(a,existente);
+      mostrarBalaoSistema('Correios','Pré-postagem carregada. Use Rótulo oficial ou Declaração oficial.');
+    }
     return {ok:true,...existente,existente:true};
   }
   const d=a.dados||{}; let codigo=codigoServicoCorreiosDaColeta(a);
@@ -1358,8 +1417,11 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   a.dados=novosDados;if(j.codigoObjeto)a.protocolo_rastreio=j.codigoObjeto;
   mostrarBalaoSistema('Pré-postagem criada',`${j.servico||codigo}${j.codigoObjeto?' • '+j.codigoObjeto:''}`);
   if(!silencioso)alert(`Pré-postagem dos Correios criada com sucesso.\n\nServiço: ${j.servico||codigo}\nID: ${j.idPrePostagem}${j.codigoObjeto?`\nRastreio: ${j.codigoObjeto}`:''}`);
-  if(perguntarDocumentos&&confirm('Deseja abrir a etiqueta oficial dos Correios agora?'))await abrirDocumentoPrepostagemColeta(j.idPrePostagem,'rotulo');
-  if(perguntarDocumentos&&confirm('Deseja abrir o formulário/declaração agora?'))await abrirDocumentoPrepostagemColeta(j.idPrePostagem,'declaracao');
+  try{localStorage.setItem('sofisticatto_prepostagem_correios_atual',JSON.stringify(prepostagemModuloCorreiosPayload(a,pre)));}catch{}
+  if(perguntarDocumentos){
+    enviarPrepostagemParaModuloCorreios(a,pre);
+    mostrarBalaoSistema('Correios','Pré-postagem pronta. Escolha Rótulo oficial ou Declaração oficial.');
+  }
   return {ok:true,...pre};
 }
 

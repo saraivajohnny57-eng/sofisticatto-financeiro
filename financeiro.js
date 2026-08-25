@@ -1910,7 +1910,7 @@ async function carregarModuloEmail(){
 
 function mostrarAbaEmail(aba){
   if(!garantirFinanceiroEmail()) return;
-  if(usuarioEhComercialRastreio() && !["coletas","preparar","clientes","historico"].includes(aba)){
+  if(usuarioEhComercialRastreio() && !["coletas","preparar","clientes","historico","correios"].includes(aba)){
     aba="coletas";
   }
   ["Logistica","Preparar","Gerador","Etiquetas","Correios","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
@@ -2402,6 +2402,42 @@ function preencherCorreiosPeloCliente(){
   }
 }
 
+function carregarPrePostagemNoModuloCorreios(payload){
+  if(!payload)return false;
+  const set=(id,v)=>{const el=document.getElementById(id);if(el&&v!==undefined&&v!==null&&String(v)!=='')el.value=String(v);};
+  set('corIdPrePostagem',payload.idPrePostagem);
+  set('corRastreio',payload.codigoObjeto);
+  set('corNumeroNF',payload.nf);
+  set('corCliente',payload.cliente);
+  set('corEndereco',payload.endereco);
+  set('corNumero',payload.numero);
+  set('corComplemento',payload.complemento);
+  set('corBairro',payload.bairro);
+  set('corCep',payload.cep);
+  set('corCidade',payload.cidade);
+  set('corUf',payload.uf);
+  set('corDocumento',payload.documento);
+  set('corPeso',payload.peso);
+  const serv=String(payload.servico||payload.codigoServico||'').toUpperCase();
+  const sel=document.getElementById('corServico');
+  if(sel){
+    if(serv.includes('SEDEX')||['03220','03158','03140','03204'].includes(String(payload.codigoServico)))sel.value='SEDEX';
+    else if(serv.includes('PAC')||String(payload.codigoServico)==='03298')sel.value='PAC';
+  }
+  if(payload.idPrePostagem)statusCorreiosOficial('✅ Pré-postagem carregada do Painel de Coletas: '+payload.idPrePostagem,true);
+  if(typeof atualizarCorreiosTudo==='function')atualizarCorreiosTudo();
+  return true;
+}
+function consumirPrePostagemCorreiosSalva(){
+  try{
+    const raw=localStorage.getItem('sofisticatto_prepostagem_correios_atual');
+    if(!raw)return false;
+    const p=JSON.parse(raw);
+    if(!p?.idPrePostagem)return false;
+    return carregarPrePostagemNoModuloCorreios(p);
+  }catch{return false;}
+}
+
 function inicializarModuloCorreios(){
   preencherListaClientesCorreios();
   const data=document.getElementById("corData");
@@ -2409,6 +2445,7 @@ function inicializarModuloCorreios(){
   atualizarCorreiosValoresAjuste();
   atualizarCorreiosTudo();
   carregarHistoricoCorreios();
+  consumirPrePostagemCorreiosSalva();
 
   // A assinatura, a logo e a biblioteca do QR podem carregar depois da abertura.
   setTimeout(atualizarCorreiosTudo,600);
@@ -6128,11 +6165,41 @@ function parametrosCorreiosOficiais(){
     cep:d.cep
   };
 }
+async function localizarPrePostagemSalvaNoPortal(p){
+  try{
+    const r=await banco.from('coleta_agendamentos').select('id,cliente_nome,numero_nf,protocolo_rastreio,dados,created_at').order('created_at',{ascending:false}).limit(300);
+    if(r.error||!Array.isArray(r.data))return null;
+    const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+    const dig=v=>String(v||'').replace(/\D/g,'');
+    const alvoNome=norm(p.nome),alvoNf=dig(p.nf),alvoCep=dig(p.cep),alvoObj=String(p.codigoObjeto||'').toUpperCase().trim();
+    let melhor=null;
+    for(const row of r.data){
+      const d=row.dados||{},pre=d.prepostagem_correios||{};
+      if(!pre.idPrePostagem)continue;
+      let score=0;
+      if(alvoObj && String(pre.codigoObjeto||row.protocolo_rastreio||'').toUpperCase()===alvoObj)score+=900;
+      if(alvoNf && dig(row.numero_nf||d.numero_nf)===alvoNf)score+=300;
+      if(alvoCep && dig(d.cep_destino)===alvoCep)score+=100;
+      const n=norm(row.cliente_nome||d.razao_destino);
+      if(alvoNome&&n&&(n.includes(alvoNome)||alvoNome.includes(n)))score+=80;
+      if(!alvoNome&&!alvoNf&&!alvoCep&&!alvoObj)score=1;
+      if(score>0&&(!melhor||score>melhor.score))melhor={score,id:pre.idPrePostagem,codigoObjeto:pre.codigoObjeto||row.protocolo_rastreio||'',row,pre};
+    }
+    return melhor;
+  }catch(e){console.warn('Busca local de pré-postagem:',e);return null;}
+}
 async function localizarPrePostagemCorreiosOficial(silencioso=false){
   const p=parametrosCorreiosOficiais();
   if(p.idPrePostagem){
     statusCorreiosOficial('Pré-postagem informada: '+p.idPrePostagem,true);
     return {ok:true,id:p.idPrePostagem,codigoObjeto:p.codigoObjeto||''};
+  }
+  const local=await localizarPrePostagemSalvaNoPortal(p);
+  if(local?.id){
+    const campo=document.getElementById('corIdPrePostagem');if(campo)campo.value=local.id;
+    if(local.codigoObjeto&&!valorCampoCorreios('corRastreio'))document.getElementById('corRastreio').value=local.codigoObjeto;
+    statusCorreiosOficial('✅ Pré-postagem localizada no Painel de Coletas: '+local.id,true);
+    return {ok:true,id:local.id,idPrePostagem:local.id,codigoObjeto:local.codigoObjeto,origem:'portal'};
   }
   if(!silencioso)statusCorreiosOficial('Consultando as pré-postagens do seu contrato...',true);
   try{
