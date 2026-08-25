@@ -31,6 +31,7 @@ const cotarSSW = require("../lib/integracoes/cotar-ssw");
 const salvarRastreioLogistica = require("../lib/integracoes/salvar-rastreio-logistica");
 const atualizarRastreiosGeral = require("../lib/integracoes/atualizar-rastreios-geral");
 const documentosCorreios = require("../lib/integracoes/documentos-correios");
+const criarPrepostagemCorreios = require("../lib/integracoes/criar-prepostagem-correios");
 
 const ROTAS = Object.freeze({
   "validar-chave": validarChave,
@@ -59,6 +60,7 @@ const ROTAS = Object.freeze({
   "salvar-rastreio-logistica": salvarRastreioLogistica,
   "atualizar-rastreios-geral": atualizarRastreiosGeral,
   "documentos-correios": documentosCorreios,
+  "criar-prepostagem-correios": criarPrepostagemCorreios,
 });
 
 function responder(res, status, body) {
