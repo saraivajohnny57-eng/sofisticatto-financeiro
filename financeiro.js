@@ -2148,6 +2148,8 @@ function dadosCorreios(){
     data_postagem:valorCampoCorreios("corData"),
     peso:valorCampoCorreios("corPeso"),
     rastreio:valorCampoCorreios("corRastreio").toUpperCase(),
+    id_prepostagem:valorCampoCorreios("corIdPrePostagem"),
+    numero_nf:valorCampoCorreios("corNumeroNF"),
     itens:correiosItens.map(item=>({...item})),
     conteudo:correiosItens.map(item=>item.conteudo).filter(Boolean).join(", "),
     quantidade:correiosItens.reduce((total,item)=>total+Number(item.quantidade || 0),0),
@@ -2270,65 +2272,154 @@ function montarDeclaracaoCorreios(){
   const d=dadosCorreios();
   const box=document.getElementById("corDeclaracao");
   if(!box) return;
-  const data=dataExtensoCorreios(d.data_postagem);
+
+  const agora=new Date();
+  const dataHora=agora.toLocaleString("pt-BR");
+  const enderecoRem=String(d.remetente_endereco||"").trim();
   const enderecoDest=[d.endereco,d.numero,d.complemento].filter(Boolean).join(", ");
+  const total=totalCorreiosItens();
+  const chaveBarras=(d.rastreio || d.id_prepostagem || d.numero_nf || "SOFISTICATTO").replace(/\s+/g,"");
+  const conteudoQr=d.rastreio
+    ? `https://rastreamento.correios.com.br/app/index.php?objeto=${encodeURIComponent(d.rastreio)}`
+    : JSON.stringify({
+        tipo:"prepostagem",
+        id:d.id_prepostagem||"",
+        nf:d.numero_nf||"",
+        destinatario:d.cliente||"",
+        cep:String(d.cep||"").replace(/\D/g,"")
+      });
+
   box.innerHTML=`
-    <h1>DECLARAÇÃO DE CONTEÚDO</h1>
-    <div class="cor-dec-duplo">
-      <div class="cor-dec-box">
-        <div class="cor-dec-titulo">REMETENTE</div>
-        <div class="cor-dec-linha"><b>NOME:</b> ${escaparHtmlEmail(d.remetente_nome)}</div>
-        <div class="cor-dec-linha"><b>ENDEREÇO:</b> ${escaparHtmlEmail(d.remetente_endereco)}</div>
-        <div class="cor-dec-linha">${escaparHtmlEmail(d.remetente_bairro)}</div>
-        <div class="cor-dec-linha"><b>CIDADE:</b> ${escaparHtmlEmail(d.remetente_cidade)} &nbsp; <b>UF:</b> ${escaparHtmlEmail(d.remetente_uf)}</div>
-        <div class="cor-dec-linha"><b>CEP:</b> ${escaparHtmlEmail(d.remetente_cep)} &nbsp; <b>CPF/CNPJ:</b> ${escaparHtmlEmail(d.remetente_documento)}</div>
-      </div>
-      <div class="cor-dec-box">
-        <div class="cor-dec-titulo">DESTINATÁRIO</div>
-        <div class="cor-dec-linha"><b>NOME:</b> ${escaparHtmlEmail(d.cliente)}</div>
-        <div class="cor-dec-linha"><b>ENDEREÇO:</b> ${escaparHtmlEmail(enderecoDest)}</div>
-        <div class="cor-dec-linha">${escaparHtmlEmail(d.bairro)}</div>
-        <div class="cor-dec-linha"><b>CIDADE:</b> ${escaparHtmlEmail(d.cidade)} &nbsp; <b>UF:</b> ${escaparHtmlEmail(d.uf)}</div>
-        <div class="cor-dec-linha"><b>CEP:</b> ${escaparHtmlEmail(d.cep)} &nbsp; <b>CPF/CNPJ:</b> ${escaparHtmlEmail(d.documento)}</div>
-      </div>
-    </div>
-
-    <table class="cor-dec-bens">
-      <colgroup><col style="width:8%"><col style="width:50%"><col style="width:18%"><col style="width:24%"></colgroup>
-      <thead><tr><th>ITEM</th><th>CONTEÚDO</th><th>QTD.</th><th>VALOR (R$)</th></tr></thead>
-      <tbody>
-        ${d.itens.map((item,indice)=>`
-          <tr>
-            <td style="text-align:center;">${String(indice+1).padStart(2,"0")}</td>
-            <td>${escaparHtmlEmail(item.conteudo || "")}</td>
-            <td style="text-align:center;">${Number(item.quantidade || 0)}</td>
-            <td style="text-align:center;font-size:8.5px;">${item.valor ? "R$ "+numeroCorreios(item.valor).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}) : ""}</td>
-          </tr>`).join("")}
-        ${Array.from({length:Math.max(0,10-d.itens.length)},()=>'<tr><td></td><td></td><td></td><td></td></tr>').join("")}
-        <tr>
-          <td colspan="2" style="text-align:right;font-weight:700;">TOTAIS</td>
-          <td style="text-align:center;font-weight:700;">${d.quantidade}</td>
-          <td style="text-align:center;font-weight:700;font-size:8.5px;">R$ ${totalCorreiosItens().toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-        </tr>
-        <tr><td colspan="3" style="text-align:right;font-weight:700;">PESO TOTAL (kg)</td><td style="text-align:center;font-weight:700;">${escaparHtmlEmail(d.peso || "")}</td></tr>
-      </tbody>
-    </table>
-
-    <div class="cor-dec-declaracao">
-      <div style="text-align:center;font-weight:900;letter-spacing:4px;margin-bottom:9px;">DECLARAÇÃO</div>
-      Declaro que não me enquadro no conceito de contribuinte previsto no art. 4º da Lei Complementar nº 87/1996, uma vez que não realizo, com habitualidade ou em volume que caracterize intuito comercial, operações de circulação de mercadoria, ainda que se iniciem no exterior, ou estou dispensado da emissão da nota fiscal por força da legislação tributária vigente, responsabilizando-me, nos termos da lei e a quem de direito, por informações inverídicas.<br><br>
-      Declaro ainda que não estou postando conteúdo inflamável, explosivo, causador de combustão espontânea, tóxico, corrosivo, gás ou qualquer outro conteúdo que constitua perigo, conforme o art. 13 da Lei Postal nº 6.538/78.
-      <div class="cor-dec-assinatura">
-        <div class="cor-dec-data">
-          ${escaparHtmlEmail(d.remetente_cidade)}, ${data.dia} de ${escaparHtmlEmail(data.mes)} de ${data.ano}
+    <div class="cor-dace">
+      <div class="cor-dace-cabecalho">
+        <div class="cor-dace-titulo">
+          <b>DECLARAÇÃO AUXILIAR<br>DE CONTEÚDO</b>
+          <div class="cor-dace-id">ID PRÉ-POSTAGEM:<br><strong>${escaparHtmlEmail(d.id_prepostagem||"—")}</strong></div>
+          <div>NF: <strong>${escaparHtmlEmail(d.numero_nf||"—")}</strong></div>
         </div>
-        <div class="cor-dec-assinar">
-          <div class="cor-dec-linha-assinatura"></div>
-          <div class="cor-dec-texto-assinatura">Assinatura do Declarante/Remetente</div>
+        <div class="cor-dace-barra-topo">
+          <svg class="cor-dace-barcode"></svg>
+          <div class="cor-dace-chave">${escaparHtmlEmail(d.rastreio||d.id_prepostagem||"")}</div>
+          <div class="cor-dace-meta">
+            <span>Data emissão: <b>${escaparHtmlEmail(dataHora)}</b></span>
+            <span>Modalidade de Transporte: <b>TRANSPORTE PELOS CORREIOS</b></span>
+          </div>
         </div>
       </div>
-    </div>
-    <div style="border:2px solid #111;margin-top:6px;padding:8px;"><b>OBSERVAÇÃO:</b><br>Constitui crime contra a ordem tributária suprimir ou reduzir tributo, ou contribuição social e qualquer acessório (Lei 8.137/90 Art. 1º, V).</div>`;
+
+      <div class="cor-dace-secao">
+        <div class="cor-dace-secao-titulo">IDENTIFICAÇÃO DO REMETENTE</div>
+        <div class="cor-dace-grid2">
+          <div><b>CNPJ/CPF:</b> ${escaparHtmlEmail(d.remetente_documento||"")}</div>
+          <div><b>NOME:</b> ${escaparHtmlEmail(d.remetente_nome||"")}</div>
+          <div><b>CIDADE-UF:</b> ${escaparHtmlEmail([d.remetente_cidade,d.remetente_uf].filter(Boolean).join("-"))}</div>
+          <div><b>ENDEREÇO:</b> ${escaparHtmlEmail(enderecoRem)} &nbsp; <b>CEP:</b> ${escaparHtmlEmail(formatarCepEtiqueta(d.remetente_cep||""))}</div>
+          <div><b>BAIRRO:</b> ${escaparHtmlEmail(d.remetente_bairro||"")}</div>
+          <div><b>COMPLEMENTO:</b></div>
+        </div>
+      </div>
+
+      <div class="cor-dace-secao">
+        <div class="cor-dace-secao-titulo">IDENTIFICAÇÃO DO DESTINATÁRIO</div>
+        <div class="cor-dace-grid2">
+          <div><b>CNPJ/CPF:</b> ${escaparHtmlEmail(d.documento||"")}</div>
+          <div><b>NOME:</b> ${escaparHtmlEmail(d.cliente||"")}</div>
+          <div><b>CIDADE-UF:</b> ${escaparHtmlEmail([d.cidade,d.uf].filter(Boolean).join("-"))}</div>
+          <div><b>ENDEREÇO:</b> ${escaparHtmlEmail(enderecoDest)} &nbsp; <b>CEP:</b> ${escaparHtmlEmail(formatarCepEtiqueta(d.cep||""))}</div>
+          <div><b>BAIRRO:</b> ${escaparHtmlEmail(d.bairro||"")}</div>
+          <div><b>COMPLEMENTO:</b> ${escaparHtmlEmail(d.complemento||"")}</div>
+        </div>
+      </div>
+
+      <div class="cor-dace-secao">
+        <div class="cor-dace-secao-titulo">TRANSPORTADORA</div>
+        <div class="cor-dace-grid2">
+          <div><b>CNPJ:</b> 34.028.316/0001-03</div>
+          <div><b>NOME:</b> EMPRESA BRASILEIRA DE CORREIOS E TELÉGRAFOS</div>
+        </div>
+      </div>
+
+      <div class="cor-dace-secao">
+        <div class="cor-dace-secao-titulo">IDENTIFICAÇÃO DOS BENS OU MERCADORIAS</div>
+      </div>
+
+      <table class="cor-dace-itens">
+        <thead>
+          <tr><th>ITEM</th><th>DESCRIÇÃO</th><th>QTDE</th><th>VALOR R$</th></tr>
+        </thead>
+        <tbody>
+          ${d.itens.map((item,indice)=>`
+            <tr>
+              <td>${indice+1}</td>
+              <td>${escaparHtmlEmail(item.conteudo||"")}</td>
+              <td>${Number(item.quantidade||0)}</td>
+              <td>${numeroCorreios(item.valor||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+            </tr>`).join("")}
+          <tr class="cor-dace-total">
+            <td colspan="3">VALOR TOTAL R$</td>
+            <td>R$ ${total.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="cor-dace-adicionais">
+        <div class="cor-dace-secao-titulo">DADOS ADICIONAIS</div>
+        <div class="cor-dace-info">
+          <div><b>INFORMAÇÕES COMPLEMENTARES:</b></div>
+          <div><b>INFORMAÇÕES ADICIONAIS</b></div>
+        </div>
+        <div class="cor-dace-rodape">
+          <div class="cor-dace-qr-col">
+            <div class="cor-dace-mini-titulo">QR-CODE</div>
+            <div class="cor-dace-qr"></div>
+            <div class="cor-dace-qr-legenda">${d.rastreio ? "Rastreamento do objeto" : "Dados da pré-postagem"}</div>
+          </div>
+          <div class="cor-dace-obs">
+            <div class="cor-dace-mini-titulo">OBSERVAÇÕES</div>
+            <p>É contribuinte de ICMS qualquer pessoa física ou jurídica que realize, com habitualidade ou em volume que caracterize intuito comercial, operações de circulação de mercadoria ou prestações de serviços de transportes interestadual e intermunicipal e de comunicação, conforme a legislação aplicável.</p>
+            <p>Constitui crime contra a ordem tributária suprimir ou reduzir tributo ou contribuição social, inclusive quando houver obrigação de emissão de documento fiscal.</p>
+            <p><b>Serviço:</b> ${escaparHtmlEmail(d.servico||"")} &nbsp; <b>Peso:</b> ${escaparHtmlEmail(d.peso||"")} kg</p>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  const barcode=box.querySelector(".cor-dace-barcode");
+  if(barcode && window.JsBarcode){
+    try{
+      JsBarcode(barcode,chaveBarras,{
+        format:"CODE128",
+        displayValue:false,
+        margin:0,
+        height:54,
+        width:1.45,
+        lineColor:"#000000",
+        background:"#ffffff"
+      });
+      barcode.setAttribute("preserveAspectRatio","xMidYMid meet");
+    }catch(erro){
+      console.warn("Código de barras da declaração:",erro);
+    }
+  }
+
+  const qr=box.querySelector(".cor-dace-qr");
+  if(qr && window.QRCode){
+    try{
+      qr.innerHTML="";
+      new QRCode(qr,{
+        text:conteudoQr,
+        width:150,
+        height:150,
+        colorDark:"#000000",
+        colorLight:"#ffffff",
+        correctLevel:QRCode.CorrectLevel.M
+      });
+    }catch(erro){
+      console.warn("QR Code da declaração:",erro);
+      qr.innerHTML="<div style='padding:12px;text-align:center;'>QR Code indisponível</div>";
+    }
+  }
+
   aplicarAjustesCorreiosEtiqueta(box,"declaracao");
 }
 

@@ -2151,3 +2151,81 @@ html.modo-portal-publico .portal-conteudo{
 .motor-status-rodape{margin-top:12px;padding-top:10px;border-top:1px solid #eeeaf8;display:flex;flex-direction:column;gap:4px;font-size:11px;color:#6d6682}
 .motor-status-vazio{padding:18px;text-align:center;color:#766c91}
 @media(max-width:900px){.motor-status-cards{grid-template-columns:1fr}}
+
+
+/* =========================================================
+   V80 - DECLARAÇÃO A4 COM QR CODE (PADRÃO DACE VISUAL)
+   ========================================================= */
+.cor-dace{
+  width:100%;
+  box-sizing:border-box;
+  color:#111;
+  background:#fff;
+  font-family:Arial,Helvetica,sans-serif;
+  font-size:10px;
+}
+.cor-dace *{box-sizing:border-box}
+.cor-dace-cabecalho{
+  display:grid;
+  grid-template-columns:25% 75%;
+  border:1.5px solid #111;
+}
+.cor-dace-titulo{
+  min-height:125px;
+  border-right:1.5px solid #111;
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:8px;
+  padding:8px 5px;
+  font-size:11px;
+}
+.cor-dace-id{font-size:8.5px;overflow-wrap:anywhere}
+.cor-dace-barra-topo{min-height:125px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.cor-dace-barcode{width:78%;height:56px;margin-top:5px}
+.cor-dace-chave{font-size:11px;letter-spacing:1px;margin:3px 0 7px;font-weight:700;overflow-wrap:anywhere}
+.cor-dace-meta{
+  width:100%;
+  border-top:1px solid #111;
+  display:grid;
+  grid-template-columns:42% 58%;
+}
+.cor-dace-meta span{padding:6px;border-right:1px solid #111}
+.cor-dace-meta span:last-child{border-right:0}
+.cor-dace-secao{border:1.5px solid #111;border-top:0}
+.cor-dace-secao-titulo{text-align:center;font-weight:900;font-size:12px;padding:8px 4px}
+.cor-dace-grid2{display:grid;grid-template-columns:1fr 3fr;border-top:1px solid #111}
+.cor-dace-grid2>div{min-height:25px;padding:5px;border-right:1px solid #111;border-bottom:1px solid #111}
+.cor-dace-grid2>div:nth-child(even){border-right:0}
+.cor-dace-grid2>div:nth-last-child(-n+2){border-bottom:0}
+.cor-dace-itens{width:100%;border-collapse:collapse;margin-top:12px}
+.cor-dace-itens th,.cor-dace-itens td{border:1.5px solid #111;padding:7px;text-align:center}
+.cor-dace-itens th:nth-child(1),.cor-dace-itens td:nth-child(1){width:6%}
+.cor-dace-itens th:nth-child(2),.cor-dace-itens td:nth-child(2){width:60%}
+.cor-dace-itens th:nth-child(3),.cor-dace-itens td:nth-child(3){width:10%}
+.cor-dace-itens th:nth-child(4),.cor-dace-itens td:nth-child(4){width:24%}
+.cor-dace-total td{font-weight:700}
+.cor-dace-total td:first-child{text-align:right}
+.cor-dace-adicionais{border:1.5px solid #111;margin-top:8px}
+.cor-dace-info{display:grid;grid-template-columns:25% 75%;border-top:1px solid #111}
+.cor-dace-info>div{padding:7px;border-right:1px solid #111;min-height:42px}
+.cor-dace-info>div:last-child{border-right:0}
+.cor-dace-rodape{display:grid;grid-template-columns:25% 75%;border-top:1px solid #111;min-height:255px}
+.cor-dace-qr-col{border-right:1px solid #111;display:flex;flex-direction:column;align-items:center}
+.cor-dace-mini-titulo{width:100%;padding:7px;text-align:center;font-weight:900;border-bottom:1px solid #111}
+.cor-dace-qr{width:150px;height:150px;margin:20px auto 4px;display:flex;align-items:center;justify-content:center}
+.cor-dace-qr canvas,.cor-dace-qr img{width:150px!important;height:150px!important;display:block!important}
+.cor-dace-qr-legenda{text-align:center;font-size:8px;margin-top:4px}
+.cor-dace-obs{font-size:9.5px;line-height:1.25}
+.cor-dace-obs p{padding:0 8px;text-align:justify}
+@media print{
+  .cor-dace{font-size:9.5px}
+  .cor-dace-cabecalho,.cor-dace-secao,.cor-dace-adicionais,.cor-dace-itens th,.cor-dace-itens td{
+    break-inside:avoid;
+  }
+  .cor-dace-qr canvas,.cor-dace-qr img{
+    width:38mm!important;
+    height:38mm!important;
+  }
+}
