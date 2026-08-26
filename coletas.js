@@ -1057,7 +1057,7 @@ function mostrarResumoSeguroColetaRodonaves(){
 let coletaEventosRodonaves=[];
 function dataColetaPainel(a){return a.data_programada||a.solicitado_api_em||a.created_at}
 function statusColetaPainel(a){
-  const bruto=String(a.status_api||a.status||"rascunho")
+  const normalizar=v=>String(v||"")
     .toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
     .trim().replace(/[^a-z0-9]+/g,"_");
@@ -1065,9 +1065,26 @@ function statusColetaPainel(a){
     confirmada:"confirmado",
     coletada:"coletado",
     cancelada:"cancelado",
-    solicitada:"solicitado"
+    solicitada:"solicitado",
+    requested:"solicitado",
+    collected:"coletado",
+    confirmed:"confirmado",
+    canceled:"cancelado",
+    cancelled:"cancelado"
   };
-  return mapa[bruto]||bruto||"rascunho";
+
+  // V90: o status interno do Portal é a fonte da verdade para o fluxo da coleta.
+  // status_api pode conter uma descrição longa do rastreio SSW, como
+  // "SAÍDA DE UNIDADE...", e não deve substituir "coletado".
+  const interno=mapa[normalizar(a?.status)]||normalizar(a?.status);
+  const estadosInternos=new Set([
+    "rascunho","solicitado","confirmado","coletado","nao_coletada",
+    "reagendado","cancelamento_solicitado","cancelado","erro"
+  ]);
+  if(estadosInternos.has(interno))return interno;
+
+  const api=mapa[normalizar(a?.status_api)]||normalizar(a?.status_api);
+  return api||interno||"rascunho";
 }
 function coletaTemDadosReais(a){
   return Boolean(
