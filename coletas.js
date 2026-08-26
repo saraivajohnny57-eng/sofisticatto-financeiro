@@ -1851,7 +1851,7 @@ async function carregarRastreamentosLogistica(sentido){
     // O painel mostra TODAS as transportadoras cadastradas, mas prioriza no topo
     // aquilo que o sistema consegue rastrear automaticamente.
     rastreamentosLogistica=rastreamentosLogistica.filter(x=>
-      !["entregue","recebido"].includes(String(x.status||"").toLowerCase())
+      !["entregue","recebido","aguardando_postagem"].includes(String(x.status||"").toLowerCase())
     );
     const prioridade=x=>{
       const nome=x.frete_transportadoras?.nome||"";
@@ -1870,7 +1870,7 @@ async function carregarRastreamentosLogistica(sentido){
   const entreguesStatus=sentido==="entrada"?"recebido":"entregue";
   // Os KPIs usam a lista completa; a tabela de Saídas continua escondendo os entregues,
   // que aparecem na aba própria.
-  const emTransito=todosRastreiosDoSentido.filter(x=>!["entregue","recebido","cancelado"].includes(x.status)).length;
+  const emTransito=todosRastreiosDoSentido.filter(x=>!["entregue","recebido","cancelado","aguardando_postagem"].includes(x.status)).length;
   const entregues=todosRastreiosDoSentido.filter(x=>x.status===entreguesStatus).length;
   const atrasadas=todosRastreiosDoSentido.filter(x=>x.status==="atrasado"||(x.previsao_entrega&&new Date(x.previsao_entrega)<new Date()&&!["entregue","recebido"].includes(x.status))).length;
   if(sentido==="saida"){ce("rastSaidaTransito").textContent=emTransito;ce("rastSaidaEntregues").textContent=entregues;ce("rastSaidaAtrasadas").textContent=atrasadas}
@@ -2689,7 +2689,7 @@ function transportadoraEhSSW(nome){
 
 
 function statusLabelRastreamento(s){
-  const m={aguardando_coleta:"Aguardando coleta",em_transito:"Em trânsito",na_filial:"Na filial",saiu_entrega:"Saiu para entrega",entregue:"Entregue",recebido:"Recebido",atrasado:"Atrasado",ocorrencia:"Com ocorrência",cancelado:"Cancelado"};
+  const m={aguardando_coleta:"Aguardando coleta",aguardando_postagem:"Aguardando postagem",postado:"Postado / coletado",em_transito:"Em trânsito",na_filial:"Na filial",saiu_entrega:"Saiu para entrega",entregue:"Entregue",recebido:"Recebido",atrasado:"Atrasado",ocorrencia:"Com ocorrência",cancelado:"Cancelado"};
   return m[s]||String(s||"—").replace(/_/g," ");
 }
 function classeStatusRastreamento(s){
@@ -3182,7 +3182,12 @@ function extrairEventosTimelineGenericos(obj,fonte="API"){
   function visit(x){
     if(!x||typeof x!=="object")return;
     if(Array.isArray(x)){x.forEach(visit);return;}
-    const desc=primeiro(x,descKeys),dt=primeiro(x,dateKeys),local=primeiro(x,localKeys);
+    const desc=primeiro(x,descKeys),dt=primeiro(x,dateKeys);
+    let local=primeiro(x,localKeys);
+    if(local&&typeof local==="object"){
+      local=[local?.endereco?.cidade||local?.cidade||local?.nome||local?.sigla,local?.endereco?.uf||local?.uf].filter(Boolean).join(" / ");
+    }
+    if(local!=null&&typeof local!=="string"&&typeof local!=="number")local="";
     if(desc&&(dt||local||x.codigo||x.tipo)){
       const titulo=String(x.ocorrencia||x.evento||x.status||x.situacao||x.tipo||desc).trim();
       const detalhe=String(x.descricao||x.description||x.complemento||x.detalhe||"").trim();
@@ -3197,34 +3202,32 @@ function textoNormalizadoTimeline(v){return String(v||"").normalize("NFD").repla
 function indiceEtapaTimeline(eventos,statusAtual){
   let idx=0;
   const textos=eventos.map(e=>textoNormalizadoTimeline(`${e.titulo||""} ${e.descricao||""}`));
-  const reEntregue=/\bentregue\b|\bentregues\b|entrega realizada|mercadoria entregue|objeto entregue|ctrc entregue|baixa realizada|recebido pelo destinatario|entregue ao destinatario/;
+  const rePostado=/objeto postado|postado apos|postado\b|recebido pelos correios|coleta realizada|carregada no veiculo|mercadoria coletada|\bcoletad[ao]\b|recebid.*transport/;
+  const reTransfer=/objeto em transferencia|em transferencia|saida de unidade|transfer|em viagem|em transito|transporte entre unidades|encaminhad|deslocamento/;
+  const reUnidade=/chegada.*unidade|entrada.*unidade|na filial|unidade de destino|centro de distribuicao|em tratamento|unidade de tratamento|unidade de distribuicao/;
   const reSaiu=/saiu.*para.*entrega|saida.*para.*entrega|em rota de entrega|rota de entrega|veiculo em entrega|carteiro saiu/;
+  const reEntregue=/\bentregue\b|\bentregues\b|entrega realizada|mercadoria entregue|objeto entregue|ctrc entregue|baixa realizada|recebido pelo destinatario|entregue ao destinatario/;
 
   for(const t of textos){
-    if(/coleta realizada|carregada no veiculo|mercadoria coletada|\bcoletad[ao]\b|recebid.*transport|mercadoria recebida|objeto postado|\bpostado\b/.test(t))idx=Math.max(idx,1);
-    if(/saida de unidade|transfer|em viagem|em transito|transporte entre unidades|encaminhad|deslocamento/.test(t))idx=Math.max(idx,2);
-    if(/chegada.*unidade|entrada.*unidade|na filial|unidade de destino|centro de distribuicao|em tratamento/.test(t))idx=Math.max(idx,3);
+    // "Etiqueta emitida" e "aguardando postagem" mantêm a etapa em 0.
+    if(rePostado.test(t))idx=Math.max(idx,1);
+    if(reTransfer.test(t))idx=Math.max(idx,2);
+    if(reUnidade.test(t))idx=Math.max(idx,3);
     if(reSaiu.test(t))idx=Math.max(idx,4);
     if(reEntregue.test(t))idx=Math.max(idx,5);
   }
 
   const st=textoNormalizadoTimeline(statusAtual).replace(/\s+/g,"_");
-  const temEntregaReal=textos.some(t=>reEntregue.test(t));
-  const temSaidaReal=textos.some(t=>reSaiu.test(t));
-
-  // Se existem eventos detalhados, eles são a fonte da verdade. Isso corrige
-  // registros antigos que foram marcados "entregue" por causa de "previsão de entrega".
   if(!eventos.length){
     if(st==="entregue"||st==="recebido")idx=5;
-    else if(st==="saiu_entrega")idx=Math.max(idx,4);
-    else if(st==="na_filial")idx=Math.max(idx,3);
-    else if(st==="em_transito")idx=Math.max(idx,2);
-  }else{
-    if((st==="entregue"||st==="recebido")&&temEntregaReal)idx=5;
-    if(st==="saiu_entrega"&&temSaidaReal)idx=Math.max(idx,4);
-    if(st==="na_filial")idx=Math.max(idx,3);
-    if(st==="em_transito")idx=Math.max(idx,2);
+    else if(st==="saiu_entrega")idx=4;
+    else if(st==="na_filial")idx=3;
+    else if(st==="em_transito")idx=2;
+    else if(st==="postado")idx=1;
+    else idx=0;
   }
+  // Com eventos reais, eles são a fonte da verdade. Não usamos um status antigo
+  // "em_transito" para avançar uma etiqueta que ainda aguarda postagem.
   return idx;
 }
 function detectarAlertaTimeline(eventos){
