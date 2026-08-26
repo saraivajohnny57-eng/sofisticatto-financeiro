@@ -151,7 +151,7 @@ function selecionarClienteColeta(id){
 function dadosColeta(){return{solicitante:cv("coletaSolicitante"),telefone_origem:cv("coletaTelefoneOrigem"),tipo_frete:cv("coletaTipoFrete")==="FOB"?"DESTINO (FOB)":"REMETENTE (CIF)",cnpj_origem:cv("coletaCnpjOrigem"),razao_origem:cv("coletaRazaoOrigem"),cep_origem:cv("coletaCepOrigem"),endereco_origem:cv("coletaEnderecoOrigem"),cnpj_destino:cv("coletaCnpjDestino"),razao_destino:cv("coletaRazaoDestino"),cep_destino:cv("coletaCepDestino"),cidade_destino:cv("coletaCidadeDestino"),endereco_destino:cv("coletaEnderecoDestino"),numero_destino:cv("coletaNumeroDestino"),complemento_destino:cv("coletaComplementoDestino"),bairro_destino:cv("coletaBairroDestino"),volumes:cv("coletaVolumes"),peso:cv("coletaPeso"),valor_nf:coletaMoeda(cv("coletaValorNf")),numero_nf:cv("coletaNumeroNf"),medidas:cv("coletaMedidas"),natureza:cv("coletaNatureza"),mercadoria:cv("coletaMercadoria"),embalagem:cv("coletaEmbalagem"),horario_limite:cv("coletaHorarioLimite"),pausa:cv("coletaPausa"),referencia:cv("coletaReferencia"),localizacao:cv("coletaLocalizacao")}}
 function modeloAtualColeta(){return coletaModelos.find(m=>String(m.id)===cv("coletaModeloId"))||coletaModelos[0]}
 function renderizarModeloColeta(texto,d){return String(texto||"").replace(/\{\{([a-z0-9_]+)\}\}/gi,(_,k)=>d[k]||"-").replace(/\n{3,}/g,"\n\n").trim()}
-function atualizarPreviaColeta(){const m=modeloAtualColeta();ce("coletaPreviaMensagem").value=m?renderizarModeloColeta(m.texto,dadosColeta()):""}
+function atualizarPreviaColeta(){sincronizarHorarioLimiteApiColeta();const m=modeloAtualColeta();ce("coletaPreviaMensagem").value=m?renderizarModeloColeta(m.texto,dadosColeta()):""}
 function aplicarModeloDaTransportadoraColeta(){const tid=cv("coletaTransportadoraId");const m=coletaModelos.find(x=>String(x.transportadora_id||"")===tid);if(m)ce("coletaModeloId").value=m.id;atualizarPreviaColeta()}
 async function copiarMensagemColeta(){atualizarPreviaColeta();const t=cv("coletaPreviaMensagem");if(!t)return alert("Preencha os dados da coleta.");try{await navigator.clipboard.writeText(t);alert("Mensagem copiada para o WhatsApp.")}catch{ce("coletaPreviaMensagem").select();document.execCommand("copy")}}
 function whatsappTransportadoraColeta(){const t=coletaTransportadoras.find(x=>String(x.id)===cv("coletaTransportadoraId"));return String(t?.whatsapp||t?.telefone||"").replace(/\D/g,"")}
@@ -512,6 +512,7 @@ function atualizarAreaApiColeta(){
   }
   if(mostrar&&!cv("coletaDataApi"))ce("coletaDataApi").value=dataAmanhaColeta();
   if(mostrar){
+    sincronizarHorarioLimiteApiColeta();
     atualizarModoEnderecoColeta();
     carregarLocaisColeta();
     const salva=localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key");
@@ -534,9 +535,24 @@ function protocoloAtualParaColeta(){
     respostaAtualDaColeta()?.numero_cotacao ||
     "";
 }
+function extrairHorarioLimiteColeta(texto){
+  const valor=String(texto||"").trim();
+  // Aceita 17:30, 17h30, 17 h, 17 horas, "Hoje até as 17:30 h" etc.
+  const m=valor.match(/(?:até\s*(?:as)?\s*)?([01]?\d|2[0-3])(?:\s*[:hH]\s*([0-5]\d))?(?:\s*(?:h|horas?))?/i);
+  if(!m)return "";
+  const h=String(Number(m[1])).padStart(2,"0");
+  const min=String(m[2]||"00").padStart(2,"0");
+  return `${h}:${min}`;
+}
+function sincronizarHorarioLimiteApiColeta(){
+  const horaTexto=extrairHorarioLimiteColeta(cv("coletaHorarioLimite"));
+  const campo=ce("coletaHoraApi");
+  if(horaTexto&&campo)campo.value=horaTexto;
+  return horaTexto||cv("coletaHoraApi")||"17:30";
+}
 function formatarDataHoraApiColeta(){
   const data=cv("coletaDataApi");
-  const hora=cv("coletaHoraApi")||"09:00";
+  const hora=sincronizarHorarioLimiteApiColeta();
   if(!data)return "";
   return `${data}T${hora}:00`;
 }
