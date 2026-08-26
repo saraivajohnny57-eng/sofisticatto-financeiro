@@ -554,9 +554,24 @@ async function cotarAutomaticamenteAlfa(transportadoraId,tipoFrete){
   try{
     const adm=await obterChaveIntegracoesCotacao(); if(!adm)throw new Error("Cotação cancelada: chave administrativa não informada.");
     const salva=await salvarCotacaoFrete("rascunho"); if(!salva)throw new Error("Não foi possível salvar a cotação antes da consulta.");
+    const cnpjRemetente=String(FRETE_REMETENTE?.cnpj||"").replace(/\D/g,"");
+    const cepRemetente=String(FRETE_REMETENTE?.cep||"").replace(/\D/g,"");
+    if(cnpjRemetente.length!==14)throw new Error("O CNPJ do remetente/origem da Sofisticatto não está configurado corretamente.");
+    if(cepRemetente.length!==8)throw new Error("O CEP do remetente/origem da Sofisticatto não está configurado corretamente.");
+
     const r=await fetch("/api/integracoes?action=cotar-alfa",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":adm},body:JSON.stringify({
-      cotacao_id:salva.id,cliente_nome:dados.cliente_nome,cpf_cnpj_destino:documento,cep_destino:cep,
-      peso_total:dados.peso_total,valor_nf:dados.valor_nf,volumes:dados.volumes,medidas:dados.medidas,tipo_frete:tipoFrete
+      cotacao_id:salva.id,
+      cliente_nome:dados.cliente_nome,
+      cpf_cnpj_destino:documento,
+      cep_destino:cep,
+      cnpj_remetente:cnpjRemetente,
+      cep_remetente:cepRemetente,
+      razao_remetente:String(FRETE_REMETENTE?.razao||FRETE_REMETENTE?.nome||"SOFISTICATTO COSMÉTICOS"),
+      peso_total:dados.peso_total,
+      valor_nf:dados.valor_nf,
+      volumes:dados.volumes,
+      medidas:dados.medidas,
+      tipo_frete:tipoFrete
     })});
     const d=await r.json().catch(()=>({}));
     if(!r.ok){if(r.status===401)sessionStorage.removeItem("integrations_admin_key");throw new Error(d.erro||`HTTP ${r.status}`);}
