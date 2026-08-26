@@ -3156,15 +3156,34 @@ function textoNormalizadoTimeline(v){return String(v||"").normalize("NFD").repla
 function indiceEtapaTimeline(eventos,statusAtual){
   let idx=0;
   const textos=eventos.map(e=>textoNormalizadoTimeline(`${e.titulo||""} ${e.descricao||""}`));
+  const reEntregue=/\bentregue\b|\bentregues\b|entrega realizada|mercadoria entregue|objeto entregue|ctrc entregue|baixa realizada|recebido pelo destinatario|entregue ao destinatario/;
+  const reSaiu=/saiu.*para.*entrega|saida.*para.*entrega|em rota de entrega|rota de entrega|veiculo em entrega|carteiro saiu/;
+
   for(const t of textos){
-    if(/coletad|recebid.*transport|mercadoria recebida|postad|objeto postado/.test(t))idx=Math.max(idx,1);
-    if(/transfer|em viagem|em transito|transporte|encaminhad/.test(t))idx=Math.max(idx,2);
-    if(/chegada.*unidade|na filial|unidade destino|centro de distribuicao|tratamento/.test(t))idx=Math.max(idx,3);
-    if(/saiu.*entrega|rota de entrega|em rota|carteiro|entrega ao destinatario/.test(t))idx=Math.max(idx,4);
-    if(/entreg|baixa realizada|recebido pelo destinatario/.test(t))idx=Math.max(idx,5);
+    if(/coleta realizada|carregada no veiculo|mercadoria coletada|\bcoletad[ao]\b|recebid.*transport|mercadoria recebida|objeto postado|\bpostado\b/.test(t))idx=Math.max(idx,1);
+    if(/saida de unidade|transfer|em viagem|em transito|transporte entre unidades|encaminhad|deslocamento/.test(t))idx=Math.max(idx,2);
+    if(/chegada.*unidade|entrada.*unidade|na filial|unidade de destino|centro de distribuicao|em tratamento/.test(t))idx=Math.max(idx,3);
+    if(reSaiu.test(t))idx=Math.max(idx,4);
+    if(reEntregue.test(t))idx=Math.max(idx,5);
   }
-  const st=textoNormalizadoTimeline(statusAtual);
-  if(st.includes("entreg"))idx=5; else if(st.includes("saiu_entrega"))idx=Math.max(idx,4); else if(st.includes("na_filial"))idx=Math.max(idx,3); else if(st.includes("transito"))idx=Math.max(idx,2);
+
+  const st=textoNormalizadoTimeline(statusAtual).replace(/\s+/g,"_");
+  const temEntregaReal=textos.some(t=>reEntregue.test(t));
+  const temSaidaReal=textos.some(t=>reSaiu.test(t));
+
+  // Se existem eventos detalhados, eles são a fonte da verdade. Isso corrige
+  // registros antigos que foram marcados "entregue" por causa de "previsão de entrega".
+  if(!eventos.length){
+    if(st==="entregue"||st==="recebido")idx=5;
+    else if(st==="saiu_entrega")idx=Math.max(idx,4);
+    else if(st==="na_filial")idx=Math.max(idx,3);
+    else if(st==="em_transito")idx=Math.max(idx,2);
+  }else{
+    if((st==="entregue"||st==="recebido")&&temEntregaReal)idx=5;
+    if(st==="saiu_entrega"&&temSaidaReal)idx=Math.max(idx,4);
+    if(st==="na_filial")idx=Math.max(idx,3);
+    if(st==="em_transito")idx=Math.max(idx,2);
+  }
   return idx;
 }
 function detectarAlertaTimeline(eventos){
@@ -3212,7 +3231,23 @@ async function abrirLinhaTempoRastreio(id){
       const rr=await q;if(!rr.error)for(const o of (rr.data||[]))eventos.push({titulo:o.descricao||o.codigo_ocorrencia?String(o.descricao||`Ocorrência ${o.codigo_ocorrencia}`):"Ocorrência SSW",descricao:[o.descricao,o.complemento].filter(Boolean).join(" — "),data:o.data_hora_evento||o.processado_em||o.created_at,local:o.cidade||o.filial||null,fonte:"SSW — ocorrência recebida"});
     }
     if(rastro.ultima_ocorrencia)eventos.push({titulo:statusLabelRastreamento(rastro.status)||"Última ocorrência",descricao:rastro.ultima_ocorrencia,data:rastro.ultima_ocorrencia_em||rastro.atualizado_em,local:null,fonte:rastro.metodo_consulta||"Portal Sofisticatto"});
-    const map=new Map();for(const e of eventos){const k=[textoNormalizadoTimeline(e.titulo),textoNormalizadoTimeline(e.descricao),e.data||"",textoNormalizadoTimeline(e.local)].join("|");if(!map.has(k))map.set(k,e)}
+    const map=new Map();
+    for(const e of eventos){
+      const dt=dataEventoTimeline(e.data);
+      const minuto=dt?Math.floor(dt.getTime()/60000):String(e.data||"");
+      const titulo=textoNormalizadoTimeline(e.titulo).replace(/\s+/g," ").trim();
+      const desc=textoNormalizadoTimeline(e.descricao).replace(/\s+/g," ").trim();
+      const k=[titulo,desc,minuto].join("|");
+      const anterior=map.get(k);
+      if(!anterior){
+        map.set(k,e);
+      }else{
+        // Mantém a ocorrência mais rica, sem mostrar duas linhas porque uma fonte
+        // trouxe "GOIANIA / GO" e outra "GOIANIA / GO • GYN".
+        const score=x=>(String(x.local||"").length)+(String(x.descricao||"").length)+(String(x.fonte||"").includes("Tracking")?5:0);
+        if(score(e)>score(anterior))map.set(k,e);
+      }
+    }
     eventos=[...map.values()].sort((a,b)=>(dataEventoTimeline(b.data)?.getTime()||0)-(dataEventoTimeline(a.data)?.getTime()||0));
     const etapas=["Pedido/coleta","Coletada","Em transferência","Unidade de destino","Saiu para entrega","Entregue"];
     const atual=indiceEtapaTimeline(eventos,rastro.status);
