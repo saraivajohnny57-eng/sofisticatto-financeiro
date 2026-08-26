@@ -584,7 +584,7 @@ async function cotarAutomaticamenteSSW(transportadoraId,tipoFrete){
   const original=botao?.textContent||"⚡ Cotar SSW automaticamente";if(botao){botao.disabled=true;botao.textContent="Consultando SSW...";}
   try{
     const adm=await chaveAdminColeta();if(!adm)throw new Error("Informe a chave administrativa.");
-    const r=await fetch("/api/integracoes?action=cotar-ssw",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":adm},body:JSON.stringify({transportadora_id:transportadoraId,tipo_frete:tipoFrete,cnpj_pagador:cnpjPagador,cnpj_remetente:cnpjRem,cnpj_destinatario:cnpjDestino,cep_origem:String(FRETE_REMETENTE.cep||"").replace(/\D/g,""),cep_destino:cep,valor_nf:dados.valor_nf,quantidade:dados.volumes||1,peso:dados.peso_total||0,medidas:dados.medidas||"",coletar:dados.coleta||"Sim"})});
+    const r=await fetch("/api/integracoes?action=cotar-ssw",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":adm},body:JSON.stringify({transportadora_id:transportadoraId,tipo_frete:tipoFrete,cnpj_pagador:cnpjPagador,cnpj_remetente:cnpjRem,cnpj_destinatario:cnpjDestino,cep_origem:String(FRETE_REMETENTE.cep||"").replace(/\D/g,""),cep_destino:cep,valor_nf:dados.valor_nf,quantidade:dados.volumes||1,peso:dados.peso_total||0,medidas:dados.medidas||"",coletar:dados.coleta||"Sim",ent_dificil:"N",dest_contribuinte:"N"})});
     const d=await r.json().catch(()=>({}));
     if(!r.ok){
       const detalhe=Array.isArray(d.faltando)&&d.faltando.length?`\n\nCampos ausentes: ${d.faltando.join(', ')}`:'';
