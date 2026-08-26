@@ -1,8 +1,8 @@
-name: Sincronizar coletas V24
+name: Sincronizar coletas e rastreios V84
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
