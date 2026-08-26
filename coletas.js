@@ -1851,7 +1851,7 @@ async function carregarRastreamentosLogistica(sentido){
     // O painel mostra TODAS as transportadoras cadastradas, mas prioriza no topo
     // aquilo que o sistema consegue rastrear automaticamente.
     rastreamentosLogistica=rastreamentosLogistica.filter(x=>
-      !["entregue","recebido","aguardando_postagem"].includes(String(x.status||"").toLowerCase())
+      !["entregue","recebido"].includes(String(x.status||"").toLowerCase()) && !correiosAguardandoPostagem(x)
     );
     const prioridade=x=>{
       const nome=x.frete_transportadoras?.nome||"";
@@ -1870,7 +1870,7 @@ async function carregarRastreamentosLogistica(sentido){
   const entreguesStatus=sentido==="entrada"?"recebido":"entregue";
   // Os KPIs usam a lista completa; a tabela de Saídas continua escondendo os entregues,
   // que aparecem na aba própria.
-  const emTransito=todosRastreiosDoSentido.filter(x=>!["entregue","recebido","cancelado","aguardando_postagem"].includes(x.status)).length;
+  const emTransito=todosRastreiosDoSentido.filter(x=>!["entregue","recebido","cancelado"].includes(x.status)&&!correiosAguardandoPostagem(x)).length;
   const entregues=todosRastreiosDoSentido.filter(x=>x.status===entreguesStatus).length;
   const atrasadas=todosRastreiosDoSentido.filter(x=>x.status==="atrasado"||(x.previsao_entrega&&new Date(x.previsao_entrega)<new Date()&&!["entregue","recebido"].includes(x.status))).length;
   if(sentido==="saida"){ce("rastSaidaTransito").textContent=emTransito;ce("rastSaidaEntregues").textContent=entregues;ce("rastSaidaAtrasadas").textContent=atrasadas}
@@ -1886,7 +1886,7 @@ async function carregarRastreamentosLogistica(sentido){
     <td>${escaparHtmlEmail((/correios|coreios/i.test(x.frete_transportadoras?.nome||"")&&x.protocolo_rastreio)?x.protocolo_rastreio:(x.numero_cte||x.protocolo_rastreio||"—"))}</td>
     <td>${x.previsao_entrega?new Date(x.previsao_entrega+"T12:00:00").toLocaleDateString("pt-BR"):"—"}</td>
     <td>
-      <span class="coleta-status-painel ${classeStatusRastreamento(x.status)}">${statusLabelRastreamento(x.status)}</span>
+      <span class="coleta-status-painel ${classeStatusRastreamento(statusVisualRastreamento(x))}">${statusLabelRastreamento(statusVisualRastreamento(x))}</span>
       ${x.ultima_ocorrencia?`<div class="rastreio-ultima-ocorrencia">${escaparHtmlEmail(x.ultima_ocorrencia)}</div>`:""}
       ${x.sincronizacao_erro?`<div class="rastreio-ultima-ocorrencia" style="color:#a33;">⚠ ${escaparHtmlEmail(x.sincronizacao_erro)}</div>`:""}
       ${x.metodo_consulta?`<div class="rastreio-metodo">Localizado por: ${escaparHtmlEmail(x.metodo_consulta)}</div>`:""}
@@ -2688,6 +2688,27 @@ function transportadoraEhSSW(nome){
 }
 
 
+function textoStatusCorreiosRastreamento(x){
+  return String([x?.status_api,x?.ultima_ocorrencia].filter(Boolean).join(' '))
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+}
+function rastreioEhCorreios(x){return /correios|coreios/i.test(String(x?.frete_transportadoras?.nome||''));}
+function correiosAguardandoPostagem(x){
+  if(!rastreioEhCorreios(x))return false;
+  const t=textoStatusCorreiosRastreamento(x);
+  return /etiqueta emitida|aguardando postagem|pre[- ]?postagem|prepostad|pre[- ]?atendid/.test(t)
+    && !/objeto postado|postado apos|objeto em transferencia|em transferencia|encaminhad|saiu.*para.*entrega|objeto entregue/.test(t);
+}
+function statusVisualRastreamento(x){
+  if(!rastreioEhCorreios(x))return x?.status||'';
+  const t=textoStatusCorreiosRastreamento(x);
+  if(/objeto entregue|entrega realizada|recebido pelo destinatario/.test(t))return'entregue';
+  if(/saiu.*para.*entrega|carteiro saiu|em rota de entrega/.test(t))return'saiu_entrega';
+  if(/objeto em transferencia|em transferencia|encaminhad|transferencia/.test(t))return'em_transito';
+  if(/objeto postado|postado apos|\bpostado\b|recebido pelos correios/.test(t))return'postado';
+  if(correiosAguardandoPostagem(x))return'aguardando_postagem';
+  return x?.status||'';
+}
 function statusLabelRastreamento(s){
   const m={aguardando_coleta:"Aguardando coleta",aguardando_postagem:"Aguardando postagem",postado:"Postado / coletado",em_transito:"Em trânsito",na_filial:"Na filial",saiu_entrega:"Saiu para entrega",entregue:"Entregue",recebido:"Recebido",atrasado:"Atrasado",ocorrencia:"Com ocorrência",cancelado:"Cancelado"};
   return m[s]||String(s||"—").replace(/_/g," ");
