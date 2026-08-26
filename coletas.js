@@ -1767,11 +1767,41 @@ async function carregarRastreamentosLogistica(sentido){
       const chave=String(x.chave_nfe||'').replace(/\D/g,'');
       const cte=String(x.numero_cte||'').trim();
       const prot=String(x.protocolo_rastreio||'').trim();
+      const nomeTrans=String(x.frete_transportadoras?.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
       const idTrans=String(x.transportadora_id||x.frete_transportadoras?.nome||'').toLowerCase();
+      const correios=/correios|coreios/.test(nomeTrans);
+      const protNorm=prot.toUpperCase();
       const ident=prot||cte||chave||nf;
-      const key=ident?`${idTrans}|${nf}|${chave}|${cte}|${prot}`:`id:${x.id}`;
+      // V84: nos Correios o código de rastreio é globalmente único. Não importa se
+      // o cadastro está como "Correios", "CORREIOS PAC" ou "Correios 03298".
+      const key=(correios&&/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(protNorm))
+        ?`correios|${protNorm}`
+        :(ident?`${idTrans}|${nf}|${chave}|${cte}|${prot}`:`id:${x.id}`);
       const atual=unicos.get(key);
-      if(!atual || (!atual.coleta_agendamento_id&&x.coleta_agendamento_id) || new Date(x.updated_at||x.atualizado_em||x.created_at||0)>new Date(atual.updated_at||atual.atualizado_em||atual.created_at||0)) unicos.set(key,x);
+      if(!atual){
+        unicos.set(key,x);
+      }else{
+        const score=v=>
+          (v.coleta_agendamento_id?20:0)+
+          (v.numero_nfe?4:0)+(v.chave_nfe?4:0)+(v.numero_cte?3:0)+(v.protocolo_rastreio?5:0)+
+          (/correios/i.test(String(v.frete_transportadoras?.nome||''))?1:0);
+        const sx=score(x),sa=score(atual);
+        if(sx>sa || (sx===sa&&new Date(x.updated_at||x.atualizado_em||x.created_at||0)>new Date(atual.updated_at||atual.atualizado_em||atual.created_at||0))){
+          unicos.set(key,{...atual,...x,
+            numero_nfe:x.numero_nfe||atual.numero_nfe,
+            chave_nfe:x.chave_nfe||atual.chave_nfe,
+            numero_cte:x.numero_cte||atual.numero_cte,
+            coleta_agendamento_id:x.coleta_agendamento_id||atual.coleta_agendamento_id
+          });
+        }else{
+          unicos.set(key,{...x,...atual,
+            numero_nfe:atual.numero_nfe||x.numero_nfe,
+            chave_nfe:atual.chave_nfe||x.chave_nfe,
+            numero_cte:atual.numero_cte||x.numero_cte,
+            coleta_agendamento_id:atual.coleta_agendamento_id||x.coleta_agendamento_id
+          });
+        }
+      }
     }
     rastreamentosLogistica=[...unicos.values()];
   }
@@ -2700,7 +2730,7 @@ function limparBuscaRastreamento(sentido){const suf=sentido==="entrada"?"Entrada
 let intervaloSincronizacaoColetas=null;
 let sincronizacaoColetasEmAndamento=false;
 let ultimaSincronizacaoColetas=0;
-const INTERVALO_SINCRONIZACAO_COLETAS=5*60*1000;
+const INTERVALO_SINCRONIZACAO_COLETAS=2*60*1000;
 
 function painelColetasVisivel(){
   return ce("coletaPainelRodonaves")?.classList.contains("ativo");
@@ -2733,11 +2763,28 @@ async function sincronizarColetasAutomaticamente(forcar=false){
     const dados=await resposta.json().catch(()=>({}));
     if(!resposta.ok)throw new Error([dados.erro,dados.diagnostico?.mensagem,dados.detalhe].filter(Boolean).join(" — ")||`HTTP ${resposta.status}`);
 
+    // V84: além do endpoint de coletas (Rodonaves), consulta também Correios,
+    // SSW/Accert/TG, Alfa e demais integrações. Isso permite que uma ocorrência
+    // "COLETA REALIZADA" do SSW atualize o painel sem depender do botão manual.
+    let rastreiosGerais={};
+    try{
+      const rr=await fetch("/api/integracoes?action=atualizar-rastreios-geral",{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          "x-integrations-admin-key":chave
+        }
+      });
+      rastreiosGerais=await rr.json().catch(()=>({}));
+    }catch(e){
+      console.warn("V84: falha na sincronização geral de rastreios:",e);
+    }
+
     ultimaSincronizacaoColetas=Date.now();
     const hora=new Date().toLocaleTimeString("pt-BR");
     atualizarIndicadorSincronizacao(
-      dados.erros?"aviso":"sucesso",
-      `Última sincronização: ${hora} — coletas: ${dados.consultadas||0} consultada(s), ${dados.alteradas||0} alterada(s); rastreios: ${dados.rastreios?.consultados||0} consultado(s), ${dados.rastreios?.alterados||0} alterado(s)${dados.ignoradas?`; ${dados.ignoradas} coleta(s) aguardando código`:""}${dados.erros?`; ${dados.erros} erro(s)`:""}`
+      (dados.erros||rastreiosGerais.erros)?"aviso":"sucesso",
+      `Última sincronização: ${hora} — coletas: ${dados.consultadas||0} consultada(s), ${dados.alteradas||0} alterada(s); rastreios: ${(rastreiosGerais.consultados??dados.rastreios?.consultados)||0} consultado(s), ${(rastreiosGerais.atualizados??dados.rastreios?.alterados)||0} atualizado(s)${dados.ignoradas?`; ${dados.ignoradas} coleta(s) aguardando código`:""}${(dados.erros||rastreiosGerais.erros)?`; ${(dados.erros||0)+(rastreiosGerais.erros||0)} erro(s)`:""}`
     );
     await carregarPainelRodonaves();
   }catch(erro){
