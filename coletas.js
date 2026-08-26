@@ -366,7 +366,9 @@ async function abrirColetaComDadosCotacao(cotacao,resposta,transportadora,agenda
       resposta.numero_cotacao||
       "";
   }
-  if(ce("coletaDataApi")&&!ce("coletaDataApi").value)ce("coletaDataApi").value=dataAmanhaColeta();
+  if(ce("coletaDataApi")&&!ce("coletaDataApi").value){
+    ce("coletaDataApi").value=/accert/i.test(transportadora?.nome||"")?dataHojeColeta():dataAmanhaColeta();
+  }
   atualizarAreaApiColeta();
 
   if(transportadora?.modelo_coleta_id){
@@ -479,10 +481,16 @@ function coletaConviteSSW(){
   const nome=coletaTransportadoraAtual()?.nome||"";
   return coletaIntegracoesSSW.find(x=>String(x.transportadora_nome||"").toLowerCase()===String(nome).toLowerCase())?.convite_id||"";
 }
+function dataHojeColeta(){
+  const d=new Date();
+  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dia=String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${dia}`;
+}
 function dataAmanhaColeta(){
   const d=new Date();
   d.setDate(d.getDate()+1);
-  return d.toISOString().slice(0,10);
+  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dia=String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${dia}`;
 }
 function atualizarAreaApiColeta(){
   const bloco=ce("coletaApiRodonavesBloco");
@@ -490,7 +498,18 @@ function atualizarAreaApiColeta(){
   const mostrar=coletaEhRodonaves()&&cv("coletaTipoFrete")==="CIF";
   bloco.style.display=mostrar?"block":"none";
   const accert=ce("coletaApiAccertBloco");
-  if(accert){ accert.style.display=coletaEhSSW()?"block":"none"; const nome=coletaTransportadoraAtual()?.nome||"SSW"; const titulo=accert.querySelector("strong"); const btn=ce("btnAgendarAccertApi"); if(titulo)titulo.textContent=`🚚 Coleta automática ${nome} / SSW`; if(btn)btn.textContent=`Agendar na ${nome} / SSW`; }
+  if(accert){
+    accert.style.display=coletaEhSSW()?"block":"none";
+    const nome=coletaTransportadoraAtual()?.nome||"SSW";
+    const titulo=accert.querySelector("strong");
+    const btn=ce("btnAgendarAccertApi");
+    if(titulo)titulo.textContent=`🚚 Coleta automática ${nome} / SSW`;
+    if(btn)btn.textContent=`Agendar na ${nome} / SSW`;
+    if(coletaEhAccert()&&ce("coletaDataApi")){
+      const atual=cv("coletaDataApi");
+      if(!atual||atual===dataAmanhaColeta())ce("coletaDataApi").value=dataHojeColeta();
+    }
+  }
   if(mostrar&&!cv("coletaDataApi"))ce("coletaDataApi").value=dataAmanhaColeta();
   if(mostrar){
     atualizarModoEnderecoColeta();
