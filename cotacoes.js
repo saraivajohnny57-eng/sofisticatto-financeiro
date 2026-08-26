@@ -585,7 +585,11 @@ async function cotarAutomaticamenteSSW(transportadoraId,tipoFrete){
   try{
     const adm=await chaveAdminColeta();if(!adm)throw new Error("Informe a chave administrativa.");
     const r=await fetch("/api/integracoes?action=cotar-ssw",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":adm},body:JSON.stringify({transportadora_id:transportadoraId,tipo_frete:tipoFrete,cnpj_pagador:cnpjPagador,cnpj_remetente:cnpjRem,cnpj_destinatario:cnpjDestino,cep_origem:String(FRETE_REMETENTE.cep||"").replace(/\D/g,""),cep_destino:cep,valor_nf:dados.valor_nf,quantidade:dados.volumes||1,peso:dados.peso_total||0,medidas:dados.medidas||"",coletar:dados.coleta||"Sim"})});
-    const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){
+      const detalhe=Array.isArray(d.faltando)&&d.faltando.length?`\n\nCampos ausentes: ${d.faltando.join(', ')}`:'';
+      throw new Error((d.erro||`HTTP ${r.status}`)+detalhe);
+    }
     if(!Number(d.valor||0))throw new Error(d.mensagem||"O SSW não retornou valor de frete.");
     freteCampo(`freteRespNumero_${chave}`).value="SSW";
     freteCampo(`freteRespValor_${chave}`).value=Number(d.valor).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
