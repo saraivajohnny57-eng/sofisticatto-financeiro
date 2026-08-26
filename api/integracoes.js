@@ -97,7 +97,16 @@ module.exports = async function handler(req, res) {
         supabase_service_role_key: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
         cron_secret: Boolean(process.env.CRON_SECRET),
         alfa_api_key: Boolean(process.env.ALFA_API_KEY),
-        accert_ssw: Boolean(process.env.ACCERT_SSW_DOMINIO && process.env.ACCERT_SSW_LOGIN && process.env.ACCERT_SSW_SENHA),
+        accert_ssw: Boolean(
+          (process.env.ACCERT_SSW_DOMINIO||process.env.ACCERT_DOMINIO||'ACC') &&
+          (process.env.ACCERT_SSW_LOGIN||process.env.ACCERT_LOGIN||process.env.SSW_ACCERT_LOGIN) &&
+          (process.env.ACCERT_SSW_SENHA||process.env.ACCERT_SENHA||process.env.SSW_ACCERT_SENHA)
+        ),
+        tg_ssw: Boolean(
+          (process.env.TG_SSW_DOMINIO||process.env.TGT_SSW_DOMINIO||process.env.TG_DOMINIO||process.env.TGT_DOMINIO||'TGT') &&
+          (process.env.TG_SSW_LOGIN||process.env.TGT_SSW_LOGIN||process.env.TG_LOGIN||process.env.TGT_LOGIN) &&
+          (process.env.TG_SSW_SENHA||process.env.TGT_SSW_SENHA||process.env.TG_SENHA||process.env.TGT_SENHA)
+        ),
         correios: Boolean(process.env.CORREIOS_USUARIO && process.env.CORREIOS_CODIGO_ACESSO)
       },
       data: new Date().toISOString()
