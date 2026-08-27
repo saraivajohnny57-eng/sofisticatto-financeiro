@@ -6849,20 +6849,25 @@ async function abrirEmissaoBoletoRelatorio(relatorioId){
   document.getElementById("bolBanco").value=nomeBancoCobranca(item.banco);
   document.getElementById("bolBancoCodigo").value=codigoBancoCobranca(item.banco);
   document.getElementById("bolValor").value=valorParaInput(boletoCobrancaAtual?.valor??item.valor??0);
-  document.getElementById("bolVencimento").value=boletoCobrancaAtual?.vencimento||"";
   document.getElementById("bolNumeroNf").value=boletoCobrancaAtual?.numero_nf||"";
   document.getElementById("bolDescricao").value=boletoCobrancaAtual?.descricao||`Cobrança ${item.nome||""}`;
   document.getElementById("bolMulta").value=String(boletoCobrancaAtual?.multa_percentual??0).replace(".",",");
   document.getElementById("bolJuros").value=String(boletoCobrancaAtual?.juros_percentual??0).replace(".",",");
 
   const hoje=new Date();
-  document.getElementById("bolDataBase").value=
-    boletoCobrancaAtual?.data_base||
-    `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,"0")}-${String(hoje.getDate()).padStart(2,"0")}`;
+  const bolDataBaseEl=document.getElementById("bolDataBase");
+  if(bolDataBaseEl){
+    bolDataBaseEl.value=
+      boletoCobrancaAtual?.data_base||
+      `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,"0")}-${String(hoje.getDate()).padStart(2,"0")}`;
+  }
 
-  document.getElementById("bolCondicaoPagamento").value=boletoCobrancaAtual?.condicao_pagamento||"";
-  document.getElementById("bolCondicaoPersonalizada").value="";
-  document.getElementById("bolCondicaoPersonalizadaBox").style.display="none";
+  const bolCondicaoEl=document.getElementById("bolCondicaoPagamento");
+  const bolCondicaoPersonalizadaEl=document.getElementById("bolCondicaoPersonalizada");
+  const bolCondicaoBoxEl=document.getElementById("bolCondicaoPersonalizadaBox");
+  if(bolCondicaoEl)bolCondicaoEl.value=boletoCobrancaAtual?.condicao_pagamento||"";
+  if(bolCondicaoPersonalizadaEl)bolCondicaoPersonalizadaEl.value="";
+  if(bolCondicaoBoxEl)bolCondicaoBoxEl.style.display="none";
 
   preencherClienteModalBoleto(boletoClienteAtual);
   montarSugestoesClienteBoleto(candidatos);
@@ -6996,10 +7001,6 @@ async function salvarDadosClienteDoBoleto(){
   boletoClienteAtual=r.data;
   mostrarBalaoSistema?.("Cadastro atualizado","Os dados serão usados nas próximas cobranças.");
   atualizarAvisosBoleto();
-}
-function aplicarPrazoBoleto(dias){
-  const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+Number(dias||0));
-  document.getElementById("bolVencimento").value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
 function abrirCondicaoPersonalizadaBoleto(){
