@@ -2995,5 +2995,63 @@ SOFISTICATTO COSMÉTICOS</textarea>
   </div>
 </div>
 
+
+<div id="modalEmissaoBoletoRelatorio" class="bol-modal" style="display:none">
+  <div class="bol-modal-card">
+    <div class="bol-modal-head">
+      <div><h2>💳 Emitir boleto</h2><p>Dados carregados automaticamente do relatório e do cadastro do cliente.</p></div>
+      <button type="button" class="bol-fechar" onclick="fecharEmissaoBoletoRelatorio()">×</button>
+    </div>
+    <input type="hidden" id="bolRelatorioId"><input type="hidden" id="bolClienteId"><input type="hidden" id="bolBancoCodigo">
+
+    <div class="bol-destaque-banco">
+      <div><small>Banco liberado pelo usuário Banco</small><input id="bolBanco" readonly></div>
+      <div><small>Valor do relatório</small><input id="bolValor" inputmode="decimal" oninput="mascaraValor(this)"></div>
+    </div>
+
+    <div class="bol-section">
+      <div class="bol-section-title"><h3>Pagador / Cliente</h3><button type="button" class="btn azul" onclick="salvarDadosClienteDoBoleto()">Salvar dados no cadastro</button></div>
+      <div class="bol-pesquisa"><input id="bolPesquisaCliente" placeholder="Pesquisar outro cadastro por nome/CNPJ" oninput="pesquisarClienteBoleto()"></div>
+      <div id="bolClientesPossiveis"></div>
+      <div id="bolDadosAviso" class="bol-aviso"></div>
+
+      <div class="bol-grid">
+        <div class="span2"><label>Nome / Razão social *</label><input id="bolClienteNome" oninput="atualizarAvisosBoleto()"></div>
+        <div><label>CPF / CNPJ *</label><input id="bolCpfCnpj" oninput="atualizarAvisosBoleto()"></div>
+        <div><label>E-mail</label><input id="bolEmail"></div>
+        <div><label>Telefone</label><input id="bolTelefone"></div>
+        <div class="span2"><label>Endereço *</label><input id="bolEndereco" oninput="atualizarAvisosBoleto()"></div>
+        <div><label>Número *</label><input id="bolNumero" oninput="atualizarAvisosBoleto()"></div>
+        <div><label>Complemento</label><input id="bolComplemento"></div>
+        <div><label>Bairro *</label><input id="bolBairro" oninput="atualizarAvisosBoleto()"></div>
+        <div><label>CEP *</label><input id="bolCep" oninput="atualizarAvisosBoleto()"></div>
+        <div><label>Cidade *</label><input id="bolCidade" oninput="atualizarAvisosBoleto()"></div>
+        <div><label>UF *</label><input id="bolUf" maxlength="2" oninput="atualizarAvisosBoleto()"></div>
+      </div>
+      <label class="bol-check"><input type="checkbox" id="bolSalvarCadastro" checked> Salvar alterações também no cadastro do cliente</label>
+    </div>
+
+    <div class="bol-section">
+      <h3>Dados da cobrança</h3>
+      <div class="bol-grid">
+        <div><label>Vencimento *</label><input id="bolVencimento" type="date"></div>
+        <div class="span2 bol-prazos"><label>Prazo rápido</label>
+          <div><button type="button" onclick="aplicarPrazoBoleto(7)">7 dias</button><button type="button" onclick="aplicarPrazoBoleto(14)">14 dias</button><button type="button" onclick="aplicarPrazoBoleto(21)">21 dias</button><button type="button" onclick="aplicarPrazoBoleto(28)">28 dias</button><button type="button" onclick="aplicarPrazoBoleto(30)">30 dias</button><button type="button" onclick="aplicarPrazoBoleto(45)">45 dias</button><button type="button" onclick="aplicarPrazoBoleto(60)">60 dias</button></div>
+        </div>
+        <div><label>Nº NF / documento</label><input id="bolNumeroNf"></div>
+        <div><label>Multa (%)</label><input id="bolMulta" value="0"></div>
+        <div><label>Juros ao mês (%)</label><input id="bolJuros" value="0"></div>
+        <div class="span2"><label>Descrição</label><textarea id="bolDescricao" rows="2"></textarea></div>
+      </div>
+    </div>
+
+    <div id="bolModalStatus" class="bol-modal-status"></div>
+    <div class="bol-modal-actions">
+      <button type="button" class="btn vermelho" onclick="fecharEmissaoBoletoRelatorio()">Cancelar</button>
+      <button type="button" class="btn verde" onclick="salvarPreparacaoBoletoRelatorio()">💳 Preparar / emitir boleto</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

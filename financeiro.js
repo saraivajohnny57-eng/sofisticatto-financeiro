@@ -362,7 +362,12 @@ function montarTabela(){
       nomeCampo = `<input id="edit_nome_${item.id}" value="${item.nome || ""}" oninput="marcarEdicaoRelatorio()">`;
       valorCampo = `<input type="text" id="edit_valor_${item.id}" value="${valorParaInput(item.valor || 0)}" inputmode="decimal" oninput="mascaraValor(this);marcarEdicaoRelatorio()">`;
       botoes += `<button class="btn azul" onclick="editarRelatorio('${item.id}')">Editar</button>`;
-      if(item.banco){ botoes += `<button class="btn roxo" onclick="finalizar('${item.id}')">Finalizar</button>`; }
+      if(item.banco){
+        if(bancoSuportaCobrancaIntegrada(item.banco)){
+          botoes += `<button class="btn verde" onclick="abrirEmissaoBoletoRelatorio('${item.id}')">💳 Emitir boleto</button>`;
+        }
+        botoes += `<button class="btn roxo" onclick="finalizar('${item.id}')">Finalizar</button>`;
+      }
       botoes += `<button class="btn vermelho" onclick="excluir('${item.id}')">Excluir</button>`;
     }
 
@@ -378,7 +383,12 @@ function montarTabela(){
       bancoCampo = montarSelectBanco(item.id, item.banco || "");
       observacaoCampo = `<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação" oninput="marcarBancoRelatorioAlterado('${item.id}')">`;
       botoes += `<button class="btn azul" onclick="editarRelatorio('${item.id}')">Editar</button>`;
-      if(item.banco){ botoes += `<button class="btn roxo" onclick="finalizar('${item.id}')">Finalizar</button>`; }
+      if(item.banco){
+        if(bancoSuportaCobrancaIntegrada(item.banco)){
+          botoes += `<button class="btn verde" onclick="abrirEmissaoBoletoRelatorio('${item.id}')">💳 Emitir boleto</button>`;
+        }
+        botoes += `<button class="btn roxo" onclick="finalizar('${item.id}')">Finalizar</button>`;
+      }
       botoes += `<button class="btn vermelho" onclick="excluir('${item.id}')">Excluir</button>`;
     }
 
@@ -6745,3 +6755,289 @@ async function cancelarCobrancaBancaria(id){
   if(!confirm('Cancelar esta cobrança no Portal?'))return;
   const r=await banco.from('cobrancas_bancarias').update({status:'cancelado',atualizado_em:new Date().toISOString()}).eq('id',id); if(r.error)return alert(r.error.message); carregarCobrancasBancarias();
 }
+
+
+
+// ============================================================
+// V98 — EMISSÃO DE BOLETO DIRETO DO RELATÓRIO
+// Financeiro lança -> Banco escolhe banco -> Financeiro emite
+// ============================================================
+let boletoRelatorioAtual=null;
+let boletoClienteAtual=null;
+let boletoCobrancaAtual=null;
+
+function normalizarBoleto(v){
+  return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim();
+}
+function soDigitosBoleto(v){return String(v||"").replace(/\D/g,"");}
+function bancoSuportaCobrancaIntegrada(nome){
+  const n=normalizarBoleto(nome);
+  return /\bbanco do brasil\b|\bbb\b|bradesco/.test(n);
+}
+function codigoBancoCobranca(nome){
+  const n=normalizarBoleto(nome);
+  if(/bradesco/.test(n))return "bradesco";
+  if(/\bbanco do brasil\b|\bbb\b/.test(n))return "bb";
+  return "";
+}
+function nomeBancoCobranca(nome){
+  const c=codigoBancoCobranca(nome);
+  return c==="bb"?"Banco do Brasil":c==="bradesco"?"Bradesco":String(nome||"");
+}
+function valorBoletoModal(id){
+  const el=document.getElementById(id);
+  return typeof numeroCobranca==="function"?numeroCobranca(el?.value):valorParaNumero(el?.value||0);
+}
+function formatarCpfCnpjBoleto(v){
+  const d=soDigitosBoleto(v);
+  if(d.length===14)return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,"$1.$2.$3/$4-$5");
+  if(d.length===11)return d.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/,"$1.$2.$3-$4");
+  return v||"";
+}
+function camposClienteBoleto(c){
+  return {
+    nome:c?.nome||c?.razao_social||"",
+    cpf_cnpj:c?.cpf_cnpj||c?.cnpj||c?.cpf||"",
+    email:Array.isArray(c?.emails)?c.emails[0]||"":c?.email||c?.emails||"",
+    telefone:c?.telefone||c?.whatsapp||"",
+    endereco:c?.endereco||c?.logradouro||"",
+    numero:c?.numero||"",
+    complemento:c?.complemento||"",
+    bairro:c?.bairro||"",
+    cep:c?.cep||"",
+    cidade:c?.cidade||"",
+    uf:c?.uf||""
+  };
+}
+function localizarClientesDoRelatorio(nome){
+  const alvo=normalizarBoleto(nome);
+  if(!alvo)return [];
+  return (emailClientes||[]).map(c=>{
+    const n=normalizarBoleto(c.nome||c.razao_social||"");
+    let score=0;
+    if(n===alvo)score=100;
+    else if(n&&alvo&&(n.includes(alvo)||alvo.includes(n)))score=70;
+    else{
+      const palavras=alvo.split(" ").filter(x=>x.length>=3);
+      score=palavras.filter(x=>n.includes(x)).length*8;
+    }
+    return {c,score};
+  }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score).map(x=>x.c);
+}
+async function procurarCobrancaDoRelatorio(relatorioId){
+  try{
+    const r=await banco.from("cobrancas_bancarias").select("*").eq("relatorio_id",relatorioId).order("created_at",{ascending:false}).limit(1);
+    return r.error?null:r.data?.[0]||null;
+  }catch{return null;}
+}
+async function abrirEmissaoBoletoRelatorio(relatorioId){
+  const item=(todosBoletos||[]).find(x=>String(x.id)===String(relatorioId));
+  if(!item)return alert("Relatório não encontrado.");
+  if(!item.banco)return alert("O usuário Banco ainda não selecionou o banco deste lançamento.");
+  if(!bancoSuportaCobrancaIntegrada(item.banco)){
+    return alert(`O banco "${item.banco}" ainda não possui integração de cobrança configurada.`);
+  }
+
+  boletoRelatorioAtual=item;
+  boletoCobrancaAtual=await procurarCobrancaDoRelatorio(item.id);
+
+  const candidatos=localizarClientesDoRelatorio(item.nome);
+  boletoClienteAtual=candidatos[0]||null;
+
+  document.getElementById("bolRelatorioId").value=item.id;
+  document.getElementById("bolBanco").value=nomeBancoCobranca(item.banco);
+  document.getElementById("bolBancoCodigo").value=codigoBancoCobranca(item.banco);
+  document.getElementById("bolValor").value=valorParaInput(boletoCobrancaAtual?.valor??item.valor??0);
+  document.getElementById("bolVencimento").value=boletoCobrancaAtual?.vencimento||"";
+  document.getElementById("bolNumeroNf").value=boletoCobrancaAtual?.numero_nf||"";
+  document.getElementById("bolDescricao").value=boletoCobrancaAtual?.descricao||`Cobrança ${item.nome||""}`;
+  document.getElementById("bolMulta").value=String(boletoCobrancaAtual?.multa_percentual??0).replace(".",",");
+  document.getElementById("bolJuros").value=String(boletoCobrancaAtual?.juros_percentual??0).replace(".",",");
+
+  preencherClienteModalBoleto(boletoClienteAtual);
+  montarSugestoesClienteBoleto(candidatos);
+  atualizarAvisosBoleto();
+
+  const modal=document.getElementById("modalEmissaoBoletoRelatorio");
+  modal.style.display="flex";
+}
+function fecharEmissaoBoletoRelatorio(){
+  document.getElementById("modalEmissaoBoletoRelatorio").style.display="none";
+  boletoRelatorioAtual=null;boletoClienteAtual=null;boletoCobrancaAtual=null;
+}
+function preencherClienteModalBoleto(c){
+  const d=camposClienteBoleto(c);
+  document.getElementById("bolClienteId").value=c?.id||"";
+  document.getElementById("bolClienteNome").value=d.nome||boletoRelatorioAtual?.nome||"";
+  document.getElementById("bolCpfCnpj").value=formatarCpfCnpjBoleto(d.cpf_cnpj);
+  document.getElementById("bolEmail").value=d.email;
+  document.getElementById("bolTelefone").value=d.telefone;
+  document.getElementById("bolEndereco").value=d.endereco;
+  document.getElementById("bolNumero").value=d.numero;
+  document.getElementById("bolComplemento").value=d.complemento;
+  document.getElementById("bolBairro").value=d.bairro;
+  document.getElementById("bolCep").value=d.cep;
+  document.getElementById("bolCidade").value=d.cidade;
+  document.getElementById("bolUf").value=d.uf;
+  atualizarAvisosBoleto();
+}
+function montarSugestoesClienteBoleto(lista){
+  const box=document.getElementById("bolClientesPossiveis");
+  if(!box)return;
+  if(!lista?.length){
+    box.innerHTML=`<div class="bol-aviso amarelo">⚠ Cliente não localizado automaticamente. Pesquise abaixo ou complete os dados manualmente.</div>`;
+    return;
+  }
+  if(lista.length===1){
+    box.innerHTML=`<div class="bol-aviso verde">✓ Cliente localizado no cadastro: <b>${escaparHtmlEmail(lista[0].nome||"")}</b></div>`;
+    return;
+  }
+  box.innerHTML=`<div class="bol-aviso amarelo">Encontramos mais de um cadastro parecido. Confirme o cliente:</div>`+
+    lista.slice(0,5).map(c=>`<button type="button" class="bol-cliente-opcao" onclick="selecionarClienteBoletoPorId('${c.id}')"><b>${escaparHtmlEmail(c.nome||"")}</b><span>${escaparHtmlEmail(c.cpf_cnpj||"")}</span></button>`).join("");
+}
+function pesquisarClienteBoleto(){
+  const q=normalizarBoleto(document.getElementById("bolPesquisaCliente").value);
+  const doc=soDigitosBoleto(document.getElementById("bolPesquisaCliente").value);
+  const lista=(emailClientes||[]).filter(c=>{
+    const d=camposClienteBoleto(c);
+    return normalizarBoleto(d.nome).includes(q)||(doc&&soDigitosBoleto(d.cpf_cnpj).includes(doc));
+  }).slice(0,8);
+  montarSugestoesClienteBoleto(lista);
+}
+function selecionarClienteBoletoPorId(id){
+  const c=(emailClientes||[]).find(x=>String(x.id)===String(id));
+  if(!c)return;
+  boletoClienteAtual=c;
+  preencherClienteModalBoleto(c);
+  montarSugestoesClienteBoleto([c]);
+}
+function dadosClienteModalBoleto(){
+  return {
+    id:document.getElementById("bolClienteId").value||null,
+    nome:document.getElementById("bolClienteNome").value.trim(),
+    cpf_cnpj:document.getElementById("bolCpfCnpj").value.trim(),
+    email:document.getElementById("bolEmail").value.trim(),
+    telefone:document.getElementById("bolTelefone").value.trim(),
+    endereco:document.getElementById("bolEndereco").value.trim(),
+    numero:document.getElementById("bolNumero").value.trim(),
+    complemento:document.getElementById("bolComplemento").value.trim(),
+    bairro:document.getElementById("bolBairro").value.trim(),
+    cep:document.getElementById("bolCep").value.trim(),
+    cidade:document.getElementById("bolCidade").value.trim(),
+    uf:document.getElementById("bolUf").value.trim().toUpperCase()
+  };
+}
+function camposObrigatoriosBoleto(){
+  const d=dadosClienteModalBoleto();
+  const faltando=[];
+  if(!d.nome)faltando.push("Nome/Razão social");
+  if(![11,14].includes(soDigitosBoleto(d.cpf_cnpj).length))faltando.push("CPF/CNPJ");
+  if(!d.endereco)faltando.push("Endereço");
+  if(!d.numero)faltando.push("Número");
+  if(!d.bairro)faltando.push("Bairro");
+  if(soDigitosBoleto(d.cep).length!==8)faltando.push("CEP");
+  if(!d.cidade)faltando.push("Cidade");
+  if(d.uf.length!==2)faltando.push("UF");
+  return faltando;
+}
+function atualizarAvisosBoleto(){
+  const faltando=camposObrigatoriosBoleto();
+  const box=document.getElementById("bolDadosAviso");if(!box)return;
+  box.className="bol-aviso "+(faltando.length?"vermelho":"verde");
+  box.innerHTML=faltando.length
+    ?`⚠ <b>Cadastro incompleto para emissão.</b><br>Preencha: ${faltando.join(", ")}.`
+    :"✓ Dados obrigatórios do pagador completos.";
+}
+async function salvarDadosClienteDoBoleto(){
+  const d=dadosClienteModalBoleto();
+  if(!d.id)return alert("Selecione primeiro um cliente cadastrado.");
+  const payload={
+    nome:d.nome,
+    cpf_cnpj:d.cpf_cnpj,
+    email:d.email||null,
+    telefone:d.telefone||null,
+    endereco:d.endereco||null,
+    numero:d.numero||null,
+    complemento:d.complemento||null,
+    bairro:d.bairro||null,
+    cep:d.cep||null,
+    cidade:d.cidade||null,
+    uf:d.uf||null,
+    atualizado_em:new Date().toISOString()
+  };
+  // Faz fallback caso algumas colunas não existam no cadastro antigo.
+  let r=await banco.from("email_clientes").update(payload).eq("id",d.id).select().single();
+  if(r.error){
+    const minimo={nome:d.nome,cpf_cnpj:d.cpf_cnpj,endereco:d.endereco,numero:d.numero,complemento:d.complemento,bairro:d.bairro,cep:d.cep,cidade:d.cidade,uf:d.uf,atualizado_em:new Date().toISOString()};
+    r=await banco.from("email_clientes").update(minimo).eq("id",d.id).select().single();
+  }
+  if(r.error)return alert("Não foi possível atualizar o cadastro: "+r.error.message);
+  const pos=(emailClientes||[]).findIndex(x=>String(x.id)===String(d.id));
+  if(pos>=0)emailClientes[pos]=r.data;
+  boletoClienteAtual=r.data;
+  mostrarBalaoSistema?.("Cadastro atualizado","Os dados serão usados nas próximas cobranças.");
+  atualizarAvisosBoleto();
+}
+function aplicarPrazoBoleto(dias){
+  const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+Number(dias||0));
+  document.getElementById("bolVencimento").value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+async function salvarPreparacaoBoletoRelatorio(){
+  if(!boletoRelatorioAtual)return;
+  const faltando=camposObrigatoriosBoleto();
+  if(faltando.length)return alert("Complete os dados obrigatórios antes de continuar:\n\n• "+faltando.join("\n• "));
+  const cli=dadosClienteModalBoleto();
+  const valor=valorBoletoModal("bolValor");
+  const vencimento=document.getElementById("bolVencimento").value;
+  if(!(valor>0))return alert("Informe um valor válido.");
+  if(!vencimento)return alert("Informe o vencimento.");
+
+  if(document.getElementById("bolSalvarCadastro").checked && cli.id){
+    await salvarDadosClienteDoBoleto();
+  }
+
+  const payload={
+    relatorio_id:boletoRelatorioAtual.id,
+    cliente_id:cli.id,
+    cliente_nome:cli.nome,
+    cpf_cnpj:cli.cpf_cnpj,
+    endereco:cli.endereco,
+    numero:cli.numero,
+    complemento:cli.complemento,
+    bairro:cli.bairro,
+    cep:cli.cep,
+    cidade:cli.cidade,
+    uf:cli.uf,
+    email:cli.email,
+    banco:codigoBancoCobranca(boletoRelatorioAtual.banco),
+    banco_nome:boletoRelatorioAtual.banco,
+    tipo:"boleto_pix",
+    valor,
+    vencimento,
+    numero_nf:document.getElementById("bolNumeroNf").value.trim()||null,
+    referencia:`REL-${boletoRelatorioAtual.id}`,
+    descricao:document.getElementById("bolDescricao").value.trim()||null,
+    multa_percentual:valorBoletoModal("bolMulta"),
+    juros_percentual:valorBoletoModal("bolJuros"),
+    status:"pendente_integracao",
+    origem:"relatorio_financeiro",
+    criado_por:usuarioLogado?.login||null,
+    atualizado_em:new Date().toISOString()
+  };
+
+  let r;
+  if(boletoCobrancaAtual?.id){
+    r=await banco.from("cobrancas_bancarias").update(payload).eq("id",boletoCobrancaAtual.id).select().single();
+  }else{
+    r=await banco.from("cobrancas_bancarias").insert([payload]).select().single();
+  }
+  if(r.error)return alert("Não foi possível preparar o boleto: "+r.error.message);
+  boletoCobrancaAtual=r.data;
+
+  document.getElementById("bolModalStatus").innerHTML=
+    `✅ Cobrança preparada para <b>${nomeBancoCobranca(boletoRelatorioAtual.banco)}</b>. `+
+    `A emissão real será liberada quando as credenciais da API bancária estiverem configuradas.`;
+  mostrarBalaoSistema?.("Boleto preparado",`${cli.nome} • ${formatarMoeda(valor)}`);
+  if(typeof carregarCobrancasBancarias==="function")carregarCobrancasBancarias();
+}
+
