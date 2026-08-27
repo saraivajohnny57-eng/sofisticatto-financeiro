@@ -5472,6 +5472,240 @@ function decodificarEntidadesXml(valor){
     .trim();
 }
 
+
+function normalizarTextoColetaEtiqueta(v){
+  return String(v||"")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+}
+function somenteDigitosColetaEtiqueta(v){return String(v||"").replace(/\D/g,"");}
+
+async function localizarColetaPeloXmlEtiqueta({chave,numeroNf,cnpjDestino,cliente}){
+  try{
+    const r=await banco.from("coleta_agendamentos")
+      .select("id,numero_nf,chave_nfe,cliente_nome,transportadora_id,status,dados,created_at")
+      .order("created_at",{ascending:false})
+      .limit(700);
+    if(r.error)throw r.error;
+
+    const chaveAlvo=somenteDigitosColetaEtiqueta(chave);
+    const nfAlvo=String(numeroNf||"").trim();
+    const cnpjAlvo=somenteDigitosColetaEtiqueta(cnpjDestino);
+    const nomeAlvo=normalizarTextoColetaEtiqueta(cliente);
+
+    let melhor=null,melhorScore=0;
+    for(const a of (r.data||[])){
+      const d=a.dados||{};
+      const chaveLinha=somenteDigitosColetaEtiqueta(a.chave_nfe||d.chave_nfe||d.chave_nf);
+      const nfLinha=String(a.numero_nf||d.numero_nf||d.numero_nfe||"").trim();
+      const cnpjLinha=somenteDigitosColetaEtiqueta(d.cnpj_destino||d.cpf_cnpj_destino);
+      const nomeLinha=normalizarTextoColetaEtiqueta(a.cliente_nome||d.razao_destino);
+
+      let score=0;
+      if(chaveAlvo.length===44 && chaveLinha===chaveAlvo)score+=1000;
+      if(nfAlvo && nfLinha===nfAlvo)score+=250;
+      if(cnpjAlvo && cnpjLinha===cnpjAlvo)score+=300;
+      if(nomeAlvo && nomeLinha && (nomeLinha===nomeAlvo||nomeLinha.includes(nomeAlvo)||nomeAlvo.includes(nomeLinha)))score+=60;
+
+      if(score>melhorScore){melhor=a;melhorScore=score;}
+    }
+
+    // Chave é suficiente; ou NF + CNPJ; como último recurso NF + nome.
+    const confirmado=melhor && (
+      melhorScore>=1000 ||
+      melhorScore>=550 ||
+      (melhorScore>=310 && nfAlvo)
+    );
+    return confirmado?melhor:null;
+  }catch(e){
+    console.warn("V94: não foi possível verificar coleta pelo XML:",e);
+    return null;
+  }
+}
+
+function escolherCanalColetaEtiqueta(){
+  const opcoes=[
+    ["portal_transportadora","Portal/site da transportadora"],
+    ["whatsapp","WhatsApp"],
+    ["telefone","Telefone"],
+    ["email","E-mail"],
+    ["comercial_vendedora","Comercial / vendedora"],
+    ["portal_sofisticatto","Portal Sofisticatto"],
+    ["outro","Outro"]
+  ];
+  const texto=opcoes.map((x,i)=>`${i+1} - ${x[1]}`).join("\n");
+  const resp=prompt(
+    "Onde esta coleta foi marcada?\n\n"+texto+
+    "\n\nDigite o número da opção:"
+  );
+  if(resp===null)return null;
+  const n=Number(String(resp).trim());
+  if(n>=1&&n<=opcoes.length)return {codigo:opcoes[n-1][0],label:opcoes[n-1][1]};
+  alert("Opção inválida. A coleta não será registrada.");
+  return null;
+}
+
+async function localizarTransportadoraEtiqueta(nomeXml){
+  const r=await banco.from("frete_transportadoras").select("id,nome,ativa").order("nome");
+  if(r.error)throw r.error;
+  const lista=(r.data||[]).filter(t=>t.ativa!==false);
+  if(!lista.length)return null;
+
+  const alvo=normalizarTextoColetaEtiqueta(nomeXml);
+  if(alvo){
+    const palavras=alvo.split(" ").filter(w=>w.length>=2);
+    const exata=lista.find(t=>normalizarTextoColetaEtiqueta(t.nome)===alvo);
+    if(exata)return exata;
+    const parcial=lista.find(t=>{
+      const n=normalizarTextoColetaEtiqueta(t.nome);
+      return n.includes(alvo)||alvo.includes(n)||palavras.some(w=>n.split(" ").includes(w));
+    });
+    if(parcial)return parcial;
+  }
+
+  const opcoes=lista.map((t,i)=>`${i+1} - ${t.nome}`).join("\n");
+  const resp=prompt(
+    "Qual transportadora foi usada nesta coleta?\n\n"+
+    opcoes+"\n\nDigite o número da opção:"
+  );
+  if(resp===null)return null;
+  const n=Number(String(resp).trim());
+  return n>=1&&n<=lista.length?lista[n-1]:null;
+}
+
+async function localizarClienteEtiquetaParaColeta({cnpjDestino,cliente}){
+  try{
+    const cnpj=somenteDigitosColetaEtiqueta(cnpjDestino);
+    if(cnpj){
+      const r=await banco.from("email_clientes").select("id,nome,cpf_cnpj").limit(5000);
+      if(!r.error){
+        const achou=(r.data||[]).find(x=>somenteDigitosColetaEtiqueta(x.cpf_cnpj)===cnpj);
+        if(achou)return achou;
+      }
+    }
+    const nome=normalizarTextoColetaEtiqueta(cliente);
+    return (emailClientes||[]).find(x=>normalizarTextoColetaEtiqueta(x.nome)===nome)||null;
+  }catch{return null;}
+}
+
+async function registrarColetaExternaPeloXmlEtiqueta(info){
+  const canal=escolherCanalColetaEtiqueta();
+  if(!canal)return null;
+
+  const transportadora=await localizarTransportadoraEtiqueta(info.transportadoraCompleta||info.transportadoraPrimeiroNome);
+  if(!transportadora){
+    alert("Transportadora não selecionada. A etiqueta continuará normalmente, mas a coleta não foi registrada.");
+    return null;
+  }
+
+  const clienteCadastro=await localizarClienteEtiquetaParaColeta(info);
+  const agora=new Date().toISOString();
+
+  const dados={
+    solicitante:usuarioLogado?.login||"Etiqueta XML",
+    telefone_origem:"(62) 3293-0035",
+    tipo_frete:"REMETENTE (CIF)",
+    cnpj_origem:"05.451.985/0001-95",
+    razao_origem:"SOFISTICATTO COSMÉTICOS",
+    cep_origem:"74550-470",
+    endereco_origem:"Rua 03, Qd.35, Lt.14E, Nº217, Vila Abajá - Goiânia/GO",
+    cnpj_destino:info.cnpjDestino||"",
+    razao_destino:info.cliente||"",
+    cep_destino:info.cep||"",
+    cidade_destino:[info.cidade,info.uf].filter(Boolean).join("/"),
+    endereco_destino:info.logradouro||"",
+    numero_destino:info.numeroEndereco||"",
+    complemento_destino:info.complemento||"",
+    bairro_destino:info.bairro||"",
+    volumes:Number(info.quantidadeVolumes||0)||null,
+    peso:Number(info.pesoTotal||0)||null,
+    valor_nf:Number(info.valorNf||0)||null,
+    numero_nf:info.numeroNf||"",
+    numero_nfe:info.numeroNf||"",
+    chave_nfe:somenteDigitosColetaEtiqueta(info.chave).slice(0,44),
+    transportadora_nome:transportadora.nome,
+    origem_externa:true,
+    origem_etiqueta_xml:true,
+    canal_solicitacao:canal.codigo,
+    canal_solicitacao_label:canal.label,
+    xml_importado_em:agora
+  };
+
+  const payload={
+    cotacao_id:null,
+    resposta_cotacao_id:null,
+    cliente_id:clienteCadastro?.id||null,
+    cliente_nome:info.cliente||clienteCadastro?.nome||"Cliente do XML",
+    transportadora_id:transportadora.id,
+    modelo_id:null,
+    tipo_frete:"CIF",
+    dados,
+    mensagem:`Coleta registrada pela aba Etiqueta. Marcada via ${canal.label}.`,
+    volumes:Number(info.quantidadeVolumes||0)||null,
+    peso:Number(info.pesoTotal||0)||null,
+    numero_nf:info.numeroNf||null,
+    chave_nfe:somenteDigitosColetaEtiqueta(info.chave).slice(0,44)||null,
+    protocolo_cotacao:null,
+    data_programada:null,
+    origem:"etiqueta_xml_externo",
+    observacao:`Coleta já havia sido marcada fora do fluxo automático. Canal: ${canal.label}. Registro criado ao importar XML na aba Etiqueta.`,
+    status:"solicitado",
+    criado_por:usuarioLogado?.login||null,
+    atualizado_em:agora
+  };
+
+  const r=await banco.from("coleta_agendamentos").insert([payload]).select("id,cliente_nome,status").single();
+  if(r.error)throw r.error;
+
+  try{
+    await banco.from("coleta_status_eventos").insert([{
+      agendamento_id:r.data.id,
+      status_anterior:null,
+      status_novo:"solicitado",
+      origem:"etiqueta_xml_registro_externo",
+      detalhes:{
+        canal:canal.codigo,
+        canal_label:canal.label,
+        numero_nf:info.numeroNf||null,
+        chave_nfe:somenteDigitosColetaEtiqueta(info.chave).slice(0,44)||null,
+        transportadora:transportadora.nome
+      },
+      usuario:usuarioLogado?.login||"sistema"
+    }]);
+  }catch(e){console.warn("V94 evento da coleta externa:",e);}
+
+  if(typeof mostrarBalaoSistema==="function"){
+    mostrarBalaoSistema("Coleta registrada",`${transportadora.nome} • ${canal.label}`);
+  }
+  return {agendamento:r.data,transportadora,canal};
+}
+
+async function verificarERegistrarColetaDoXmlEtiqueta(info){
+  if(!info?.numeroNf && somenteDigitosColetaEtiqueta(info?.chave).length!==44)return null;
+
+  const existente=await localizarColetaPeloXmlEtiqueta(info);
+  if(existente){
+    if(typeof mostrarBalaoSistema==="function"){
+      mostrarBalaoSistema("Coleta já localizada",`NF ${info.numeroNf||"—"} já está no Painel de Coletas.`);
+    }
+    return {existente:true,agendamento:existente};
+  }
+
+  const quer=confirm(
+    `A NF ${info.numeroNf||"—"}${info.cliente?` de ${info.cliente}`:""} não foi localizada no Painel de Coletas.\n\n`+
+    "Deseja registrar esta coleta agora?"
+  );
+  if(!quer)return null;
+
+  try{
+    return await registrarColetaExternaPeloXmlEtiqueta(info);
+  }catch(e){
+    console.error("V94 registrar coleta pelo XML:",e);
+    alert("Não foi possível registrar a coleta: "+(e.message||e));
+    return null;
+  }
+}
+
 async function lerXmlEtiqueta(evento){
   const arquivo=evento.target.files?.[0];
   if(!arquivo) return;
@@ -5494,6 +5728,11 @@ async function lerXmlEtiqueta(evento){
     const chave=textoNo(["protNFe infProt chNFe","infNFe"]).replace(/^NFe/,"");
     const numeroNf=textoNo(["ide nNF"]);
     const cliente=decodificarEntidadesXml(textoNo(["dest xNome"]));
+    const cnpjDestino=textoNo(["dest CNPJ","dest CPF"]);
+    const valorNf=textoNo(["total ICMSTot vNF"]);
+    const pesoBrutoTexto=textoNo(["transp vol pesoB","vol pesoB"]);
+    const pesoLiquidoTexto=textoNo(["transp vol pesoL","vol pesoL"]);
+    const pesoTotal=parseFloat(String(pesoBrutoTexto||pesoLiquidoTexto||"0").replace(",", "."))||0;
     const logradouro=textoNo(["dest enderDest xLgr"]);
     const numeroEndereco=textoNo(["dest enderDest nro"]);
     const complemento=textoNo(["dest enderDest xCpl"]);
@@ -5556,6 +5795,28 @@ async function lerXmlEtiqueta(evento){
     }
 
     atualizarPreviewEtiqueta();
+
+    // V94: ao importar o XML, verifica automaticamente se a NF já está no
+    // Painel de Coletas. Se não estiver, permite registrar uma coleta externa
+    // sem disparar nova solicitação para a transportadora.
+    await verificarERegistrarColetaDoXmlEtiqueta({
+      chave,
+      numeroNf,
+      cliente,
+      cnpjDestino,
+      logradouro,
+      numeroEndereco,
+      complemento,
+      bairro,
+      cep,
+      cidade,
+      uf,
+      quantidadeVolumes,
+      pesoTotal,
+      valorNf:parseFloat(String(valorNf||"0").replace(",","."))||0,
+      transportadoraCompleta,
+      transportadoraPrimeiroNome
+    });
 
     if(cliente){
       const cadastro=clienteEtiquetaJaCadastrado(cliente);
