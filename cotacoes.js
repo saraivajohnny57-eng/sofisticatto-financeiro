@@ -603,7 +603,9 @@ async function cotarAutomaticamenteSSW(transportadoraId,tipoFrete){
     const d=await r.json().catch(()=>({}));
     if(!r.ok){
       const detalhe=Array.isArray(d.faltando)&&d.faltando.length?`\n\nCampos ausentes: ${d.faltando.join(', ')}`:'';
-      throw new Error((d.erro||`HTTP ${r.status}`)+detalhe);
+      let msg=d.erro||`HTTP ${r.status}`;
+      if(/tabela de frete negociada|cotacao.*nao permitida|cotação.*não permitida/i.test(msg)) msg='A ACCERT/SSW recusou esta cotação porque o cliente possui tabela de frete negociada e esta modalidade de cotação não é permitida. Consulte a ACCERT para usar/liberar a tabela negociada deste cliente.';
+      throw new Error(msg+detalhe);
     }
     if(!Number(d.valor||0))throw new Error(d.mensagem||"O SSW não retornou valor de frete.");
     freteCampo(`freteRespNumero_${chave}`).value="SSW";
@@ -763,6 +765,7 @@ async function selecionarOpcaoCorreios(chave,indice){
 
 
 function gerarCotacoesFrete(){
+  if(typeof validarCoberturaSelecionada==='function' && !validarCoberturaSelecionada()) return;
   const dados = dadosFormularioFrete();
 
   if(!dados.cliente_nome || !dados.cep_destino || !dados.valor_nf){
@@ -1623,3 +1626,7 @@ async function excluirCotacaoFrete(id){
   if(resposta.error) alert(resposta.error.message);
   else carregarHistoricoFrete();
 }
+
+// V95: atualiza sugestões ao alterar o destino
+document.addEventListener('input',e=>{if(['freteCidade','freteUf','freteCep'].includes(e.target?.id)&&typeof atualizarSugestoesTransportadoras==='function') atualizarSugestoesTransportadoras();});
+document.addEventListener('change',e=>{if(['freteCidade','freteUf','freteCep'].includes(e.target?.id)&&typeof atualizarSugestoesTransportadoras==='function') atualizarSugestoesTransportadoras();});

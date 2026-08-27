@@ -2229,3 +2229,5 @@ html.modo-portal-publico .portal-conteudo{
     height:38mm!important;
   }
 }
+/* V95 — sugestões de cobertura */
+.frete-sugestao-cobertura{margin:0 0 10px;padding:10px 12px;border-radius:12px;background:#f5f2ff;color:#51478f;font-size:13px}.frete-cobertura-badge{display:inline-block;margin-left:6px;padding:3px 7px;border-radius:999px;font-size:10px;font-style:normal;font-weight:800}.frete-cobertura-badge.atende{background:#dff7e8;color:#08783b}.frete-cobertura-badge.nao_atende{background:#ffe5e1;color:#b42318}.frete-cobertura-badge.nao_confirmado{background:#fff4d6;color:#8a5a00}.frete-cobertura-nao_atende{opacity:.72}.frete-cobertura-atende{border-color:#35b56f!important;box-shadow:0 0 0 1px rgba(53,181,111,.12)}
