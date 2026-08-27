@@ -165,6 +165,7 @@
       <button id="emailAbaGerador" onclick="mostrarAbaEmail('gerador')">Gerar Relatório</button>
       <button id="emailAbaEtiquetas" onclick="mostrarAbaEmail('etiquetas')">Etiquetas</button>
       <button id="emailAbaCorreios" onclick="mostrarAbaEmail('correios')">Correios</button>
+<button type="button" id="emailAbaCobrancaBancaria" class="email-subnav-btn" onclick="mostrarAbaEmail('cobranca-bancaria')">💳 Cobrança Bancária</button>
       <button id="emailAbaCotacoes" onclick="mostrarAbaEmail('cotacoes')">Cotação de Fretes</button>
       <button id="emailAbaColetas" onclick="mostrarAbaEmail('coletas')">Agendamento de Coleta</button>
       <button id="emailAbaIntegracoes" onclick="mostrarAbaEmail('integracoes')">Central de Integrações</button>
@@ -2948,7 +2949,28 @@ SOFISTICATTO COSMÉTICOS</textarea>
         </div>
       </div>
     </section>
-  </main>
+  
+<section id="emailSubCobrancaBancaria" class="email-subaba">
+<div class="cobranca-wrap">
+  <div class="cobranca-head"><div><h2>💳 Cobrança Bancária</h2><p>Banco do Brasil e Bradesco • boleto, Pix e acompanhamento.</p></div><div class="cobranca-status-integracoes"><span class="cobranca-bank-status pendente">Banco do Brasil • Configuração pendente</span><span class="cobranca-bank-status pendente">Bradesco • Configuração pendente</span></div></div>
+  <div class="cobranca-grid">
+    <div class="cobranca-card"><h3>Nova cobrança</h3>
+      <label>Cliente</label><div class="cobranca-busca-wrap"><input id="cobClienteBusca" placeholder="Nome, CNPJ ou CPF" oninput="buscarClienteCobranca()"><div id="cobClienteResultados" class="cobranca-resultados"></div></div><input type="hidden" id="cobClienteId">
+      <div id="cobClienteResumo" class="cobranca-cliente-resumo">Selecione um cliente para carregar os dados automaticamente.</div>
+      <div class="cobranca-linha"><div><label>Banco</label><select id="cobBanco"><option value="bb">Banco do Brasil</option><option value="bradesco">Bradesco</option></select></div><div><label>Tipo</label><select id="cobTipo"><option value="boleto_pix">Boleto + Pix</option><option value="boleto">Boleto</option></select></div></div>
+      <div class="cobranca-linha"><div><label>Valor</label><input id="cobValor" inputmode="decimal" placeholder="0,00"></div><div><label>Vencimento</label><input id="cobVencimento" type="date"></div></div>
+      <div class="cobranca-linha"><div><label>Nº NF</label><input id="cobNumeroNf"></div><div><label>Referência</label><input id="cobReferencia" placeholder="Automática se vazio"></div></div>
+      <div class="cobranca-linha"><div><label>Multa (%)</label><input id="cobMulta" value="0"></div><div><label>Juros ao mês (%)</label><input id="cobJuros" value="0"></div></div>
+      <label>Descrição</label><textarea id="cobDescricao" rows="3"></textarea>
+      <div class="cobranca-acoes"><button class="btn azul" onclick="previsualizarCobranca()">👁 Conferir</button><button class="btn verde" onclick="emitirCobrancaBancaria()">💳 Preparar cobrança</button></div><div id="cobStatus" class="cobranca-status-msg"></div>
+    </div>
+    <div class="cobranca-card"><h3>Prévia</h3><div id="cobPreview" class="cobranca-preview"><div class="cobranca-preview-vazio">Preencha os dados para visualizar a cobrança.</div></div></div>
+  </div>
+  <div class="cobranca-card cobranca-historico-card"><div class="cobranca-historico-topo"><h3>Histórico</h3><div class="cobranca-filtros"><input id="cobBuscaHistorico" placeholder="Cliente, CNPJ, NF..." oninput="renderHistoricoCobrancas()"><select id="cobFiltroStatus" onchange="renderHistoricoCobrancas()"><option value="">Todos</option><option value="pendente_integracao">Pendente integração</option><option value="aberto">Aberto</option><option value="pago">Pago</option><option value="vencido">Vencido</option><option value="cancelado">Cancelado</option></select><button class="btn azul" onclick="carregarCobrancasBancarias()">Atualizar</button></div></div>
+  <div class="cobranca-kpis"><div><strong id="cobKpiAbertos">0</strong><span>Em aberto</span></div><div><strong id="cobKpiPagos">0</strong><span>Pagos</span></div><div><strong id="cobKpiVencidos">0</strong><span>Vencidos</span></div><div><strong id="cobKpiTotal">R$ 0,00</strong><span>Total</span></div></div>
+  <div class="cobranca-table-wrap"><table class="cobranca-table"><thead><tr><th>Cliente</th><th>NF</th><th>Banco</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Ações</th></tr></thead><tbody id="cobHistoricoTabela"><tr><td colspan="7">Nenhuma cobrança cadastrada.</td></tr></tbody></table></div></div>
+</div></section>
+</main>
 
   <footer class="portal-rodape">
     Sofisticatto Cosméticos • Portal seguro para integração de parceiros logísticos

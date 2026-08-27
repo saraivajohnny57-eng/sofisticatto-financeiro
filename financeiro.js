@@ -222,7 +222,7 @@ function configurarInterfacePorPerfil(){
   if(btnDoc) btnDoc.style.display=(usuarioLogado?.tipo==="financeiro"||comercial)?"block":"none";
   if(!comercial) return;
   const permitidas=new Set(["Coletas","Preparar","Clientes","Historico"]);
-  ["Logistica","Preparar","Gerador","Etiquetas","Correios","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(n=>{
+  ["Logistica","Preparar","Gerador","Etiquetas","Correios","CobrancaBancaria","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(n=>{
     const b=document.getElementById("emailAba"+n); if(b)b.style.display=permitidas.has(n)?"inline-flex":"none";
   });
   ["Nova","Historico","Entradas","Transportadoras","Modelos"].forEach(n=>{const b=document.getElementById("coletaTab"+n);if(b)b.style.display="none"});
@@ -1917,7 +1917,7 @@ function mostrarAbaEmail(aba){
     document.getElementById("emailSub" + nome).classList.remove("ativa");
     document.getElementById("emailAba" + nome).classList.remove("ativo");
   });
-  const mapa = {logistica:"Logistica",preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",correios:"Correios",cotacoes:"Cotacoes",coletas:"Coletas",integracoes:"Integracoes",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
+  const mapa = {logistica:"Logistica",preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",correios:"Correios","cobranca-bancaria":"CobrancaBancaria",cotacoes:"Cotacoes",coletas:"Coletas",integracoes:"Integracoes",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
   const nome = mapa[aba];
   document.getElementById("emailSub" + nome).classList.add("ativa");
   document.getElementById("emailAba" + nome).classList.add("ativo");
@@ -1933,6 +1933,9 @@ function mostrarAbaEmail(aba){
   }
   if(aba === "correios"){
     inicializarModuloCorreios();
+  }
+  if(aba === "cobranca-bancaria"){
+    carregarCobrancasBancarias();
   }
   if(aba === "cotacoes" && typeof inicializarModuloFretes === "function"){
     inicializarModuloFretes();
@@ -6639,4 +6642,106 @@ async function abrirDocumentoCorreiosOficial(tipo){
       '\n\nSe for a DACE, confirme que a pré-postagem possui DC-e eletrônica emitida.'
     );
   }
+}
+
+// V97 COBRANCA BANCARIA
+let cobrancasBancarias = [];
+let cobClienteSelecionado = null;
+
+function cobNum(v){
+  if(typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  let s = String(v || '').trim();
+  if(!s) return 0;
+  if(s.includes(',')) s = s.replace(/\./g,'').replace(',','.');
+  return Number(s) || 0;
+}
+function cobMoeda(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+function cobNorm(v){ return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
+
+function buscarClienteCobranca(){
+  const el=document.getElementById('cobClienteBusca'), box=document.getElementById('cobClienteResultados');
+  if(!el||!box)return;
+  const q=cobNorm(el.value), dig=el.value.replace(/\D/g,'');
+  if(q.length<2){box.classList.remove('ativo');return;}
+  const lista=(emailClientes||[]).filter(c=>cobNorm(c.nome||'').includes(q)||(dig&&String(c.cpf_cnpj||'').replace(/\D/g,'').includes(dig))).slice(0,12);
+  box.innerHTML=lista.length?lista.map(c=>`<button type="button" onclick="selecionarClienteCobranca('${c.id}')"><strong>${escaparHtmlEmail(c.nome||'')}</strong><span>${escaparHtmlEmail([c.cpf_cnpj,c.cidade,c.uf].filter(Boolean).join(' • '))}</span></button>`).join(''):'<div class="cobranca-sem-resultado">Nenhum cliente encontrado.</div>';
+  box.classList.add('ativo');
+}
+
+function selecionarClienteCobranca(id){
+  cobClienteSelecionado=(emailClientes||[]).find(c=>String(c.id)===String(id))||null;
+  if(!cobClienteSelecionado)return;
+  document.getElementById('cobClienteId').value=id;
+  document.getElementById('cobClienteBusca').value=cobClienteSelecionado.nome||'';
+  document.getElementById('cobClienteResultados').classList.remove('ativo');
+  const falt=[];
+  if(!cobClienteSelecionado.cpf_cnpj)falt.push('CNPJ/CPF');
+  if(!cobClienteSelecionado.cep)falt.push('CEP');
+  if(!(cobClienteSelecionado.endereco||cobClienteSelecionado.logradouro))falt.push('endereço');
+  if(!cobClienteSelecionado.numero)falt.push('número');
+  document.getElementById('cobClienteResumo').innerHTML=`<strong>${escaparHtmlEmail(cobClienteSelecionado.nome||'')}</strong><span>${escaparHtmlEmail(cobClienteSelecionado.cpf_cnpj||'Documento não informado')}</span><span>${escaparHtmlEmail([cobClienteSelecionado.endereco||cobClienteSelecionado.logradouro,cobClienteSelecionado.numero,cobClienteSelecionado.bairro,cobClienteSelecionado.cidade,cobClienteSelecionado.uf,cobClienteSelecionado.cep].filter(Boolean).join(' • '))}</span>${falt.length?`<div class="cobranca-alerta">⚠ Dados faltando: ${falt.join(', ')}</div>`:''}`;
+  previsualizarCobranca();
+}
+
+function dadosNovaCobranca(){
+  return {
+    cliente_id:document.getElementById('cobClienteId')?.value||null,
+    cliente_nome:cobClienteSelecionado?.nome||document.getElementById('cobClienteBusca')?.value||'',
+    cpf_cnpj:cobClienteSelecionado?.cpf_cnpj||'',
+    endereco:cobClienteSelecionado?.endereco||cobClienteSelecionado?.logradouro||'',
+    numero:cobClienteSelecionado?.numero||'', complemento:cobClienteSelecionado?.complemento||'', bairro:cobClienteSelecionado?.bairro||'',
+    cep:cobClienteSelecionado?.cep||'', cidade:cobClienteSelecionado?.cidade||'', uf:cobClienteSelecionado?.uf||'', email:cobClienteSelecionado?.email||'',
+    banco:document.getElementById('cobBanco')?.value||'bb', tipo:document.getElementById('cobTipo')?.value||'boleto_pix',
+    valor:cobNum(document.getElementById('cobValor')?.value), vencimento:document.getElementById('cobVencimento')?.value||'',
+    numero_nf:document.getElementById('cobNumeroNf')?.value||'', referencia:document.getElementById('cobReferencia')?.value||'',
+    multa_percentual:cobNum(document.getElementById('cobMulta')?.value), juros_percentual:cobNum(document.getElementById('cobJuros')?.value),
+    descricao:document.getElementById('cobDescricao')?.value||''
+  };
+}
+
+function previsualizarCobranca(){
+  const d=dadosNovaCobranca(), b=document.getElementById('cobPreview'); if(!b)return;
+  b.innerHTML=`<div class="cobranca-preview-doc"><div class="cobranca-preview-bank">${d.banco==='bb'?'BANCO DO BRASIL':'BRADESCO'}</div><div class="cobranca-preview-valor">${cobMoeda(d.valor)}</div><div><b>Pagador:</b> ${escaparHtmlEmail(d.cliente_nome||'—')}</div><div><b>Documento:</b> ${escaparHtmlEmail(d.cpf_cnpj||'—')}</div><div><b>Vencimento:</b> ${d.vencimento?new Date(d.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</div><div><b>NF:</b> ${escaparHtmlEmail(d.numero_nf||'—')}</div><div><b>Tipo:</b> ${d.tipo==='boleto_pix'?'Boleto + Pix':'Boleto'}</div><div><b>Multa:</b> ${d.multa_percentual}% • <b>Juros:</b> ${d.juros_percentual}% a.m.</div></div>`;
+}
+
+async function emitirCobrancaBancaria(){
+  const d=dadosNovaCobranca(), st=document.getElementById('cobStatus');
+  if(!d.cliente_id)return alert('Selecione um cliente cadastrado.');
+  if(!d.cpf_cnpj)return alert('O cliente precisa ter CPF/CNPJ.');
+  if(!d.cep)return alert('O cliente precisa ter CEP.');
+  if(!(d.endereco&&d.numero))return alert('O cliente precisa ter endereço e número.');
+  if(!(d.valor>0))return alert('Informe um valor válido.');
+  if(!d.vencimento)return alert('Informe o vencimento.');
+  const payload={...d,referencia:d.referencia||`SOF-${Date.now()}`,status:'pendente_integracao',criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
+  try{
+    const r=await banco.from('cobrancas_bancarias').insert([payload]).select().single(); if(r.error)throw r.error;
+    if(st)st.innerHTML='✅ Cobrança preparada no Portal. <b>Nenhuma cobrança real foi emitida no banco ainda.</b>';
+    await carregarCobrancasBancarias();
+  }catch(e){ if(st)st.textContent='⚠ '+e.message; alert('Não foi possível salvar: '+e.message); }
+}
+
+async function carregarCobrancasBancarias(){
+  const r=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(1000);
+  cobrancasBancarias=r.error?[]:(r.data||[]); renderHistoricoCobrancas();
+}
+function cobStatus(s){return {pendente_integracao:'Pendente integração',aberto:'Aberto',pago:'Pago',vencido:'Vencido',cancelado:'Cancelado'}[s]||s||'—';}
+function renderHistoricoCobrancas(){
+  const tb=document.getElementById('cobHistoricoTabela'); if(!tb)return;
+  const q=cobNorm(document.getElementById('cobBuscaHistorico')?.value||''), f=document.getElementById('cobFiltroStatus')?.value||'';
+  const lista=(cobrancasBancarias||[]).filter(x=>(!q||cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia].join(' ')).includes(q))&&(!f||x.status===f));
+  document.getElementById('cobKpiAbertos').textContent=cobrancasBancarias.filter(x=>['aberto','pendente_integracao'].includes(x.status)).length;
+  document.getElementById('cobKpiPagos').textContent=cobrancasBancarias.filter(x=>x.status==='pago').length;
+  document.getElementById('cobKpiVencidos').textContent=cobrancasBancarias.filter(x=>x.status==='vencido').length;
+  document.getElementById('cobKpiTotal').textContent=cobMoeda(cobrancasBancarias.filter(x=>['aberto','pendente_integracao','vencido'].includes(x.status)).reduce((a,b)=>a+Number(b.valor||0),0));
+  tb.innerHTML=lista.length?lista.map(x=>`<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span></td><td><button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button></td></tr>`).join(''):'<tr><td colspan="7">Nenhuma cobrança encontrada.</td></tr>';
+}
+async function editarCobrancaBancaria(id){
+  const x=cobrancasBancarias.find(a=>String(a.id)===String(id)); if(!x)return;
+  const v=prompt('Novo valor:',String(x.valor||'')); if(v===null)return;
+  const dt=prompt('Novo vencimento (AAAA-MM-DD):',x.vencimento||''); if(dt===null)return;
+  const r=await banco.from('cobrancas_bancarias').update({valor:cobNum(v),vencimento:dt,atualizado_em:new Date().toISOString()}).eq('id',id); if(r.error)return alert(r.error.message); carregarCobrancasBancarias();
+}
+async function cancelarCobrancaBancaria(id){
+  if(!confirm('Cancelar esta cobrança no Portal?'))return;
+  const r=await banco.from('cobrancas_bancarias').update({status:'cancelado',atualizado_em:new Date().toISOString()}).eq('id',id); if(r.error)return alert(r.error.message); carregarCobrancasBancarias();
 }
