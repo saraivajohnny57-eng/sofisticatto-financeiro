@@ -33,6 +33,7 @@ const atualizarRastreiosGeral = require("../lib/integracoes/atualizar-rastreios-
 const documentosCorreios = require("../lib/integracoes/documentos-correios");
 const criarPrepostagemCorreios = require("../lib/integracoes/criar-prepostagem-correios");
 const buscarCepCorreios = require("../lib/integracoes/buscar-cep-correios");
+const verificarCobertura = require("../lib/integracoes/verificar-cobertura");
 
 const ROTAS = Object.freeze({
   "validar-chave": validarChave,
@@ -63,6 +64,7 @@ const ROTAS = Object.freeze({
   "documentos-correios": documentosCorreios,
   "criar-prepostagem-correios": criarPrepostagemCorreios,
   "buscar-cep-correios": buscarCepCorreios,
+  "verificar-cobertura": verificarCobertura,
 });
 
 function responder(res, status, body) {
