@@ -2257,3 +2257,16 @@ html.modo-portal-publico .portal-conteudo{
 .bol-prazos{grid-column:span 2}.bol-prazos>div{display:flex;gap:5px;flex-wrap:wrap}.bol-prazos button{border:1px solid #d8d2ee;background:#faf9ff;border-radius:8px;padding:7px 9px;cursor:pointer}
 .bol-modal-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}.bol-modal-status{margin-top:12px;padding:10px;border-radius:9px;background:#f7f7fb;font-size:12px}
 @media(max-width:760px){.bol-grid{grid-template-columns:1fr}.bol-grid .span2,.bol-prazos{grid-column:span 1}.bol-destaque-banco{grid-template-columns:1fr}.bol-section-title{align-items:flex-start;flex-direction:column}}
+
+/* V99 — condições e parcelas de boleto */
+.bol-condicao-row{display:flex;gap:8px;align-items:center}
+.bol-condicao-row select{flex:1}
+.bol-condicao-custom{margin-top:8px}
+.bol-parcelas-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px}
+.bol-parcelas-head h4{margin:0 0 3px}.bol-parcelas-head small{color:#777}
+.bol-parcelas-table-wrap{overflow:auto;margin-top:9px}
+.bol-parcelas-table{width:100%;border-collapse:collapse}
+.bol-parcelas-table th,.bol-parcelas-table td{padding:8px;border-bottom:1px solid #eee;text-align:left;white-space:nowrap}
+.bol-parcelas-table input{min-width:120px;padding:8px;border:1px solid #ddd;border-radius:8px}
+.bol-remover-parcela{border:0;background:#f8d7da;color:#842029;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:18px}
+@media(max-width:760px){.bol-condicao-row,.bol-parcelas-head{flex-direction:column;align-items:stretch}}

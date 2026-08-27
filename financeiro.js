@@ -6765,6 +6765,7 @@ async function cancelarCobrancaBancaria(id){
 let boletoRelatorioAtual=null;
 let boletoClienteAtual=null;
 let boletoCobrancaAtual=null;
+let boletoParcelasAtuais=[];
 
 function normalizarBoleto(v){
   return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim();
@@ -6854,16 +6855,34 @@ async function abrirEmissaoBoletoRelatorio(relatorioId){
   document.getElementById("bolMulta").value=String(boletoCobrancaAtual?.multa_percentual??0).replace(".",",");
   document.getElementById("bolJuros").value=String(boletoCobrancaAtual?.juros_percentual??0).replace(".",",");
 
+  const hoje=new Date();
+  document.getElementById("bolDataBase").value=
+    boletoCobrancaAtual?.data_base||
+    `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,"0")}-${String(hoje.getDate()).padStart(2,"0")}`;
+
+  document.getElementById("bolCondicaoPagamento").value=boletoCobrancaAtual?.condicao_pagamento||"";
+  document.getElementById("bolCondicaoPersonalizada").value="";
+  document.getElementById("bolCondicaoPersonalizadaBox").style.display="none";
+
   preencherClienteModalBoleto(boletoClienteAtual);
   montarSugestoesClienteBoleto(candidatos);
   atualizarAvisosBoleto();
+
+  if(boletoCobrancaAtual?.grupo_id){
+    await carregarParcelasExistentesBoleto(boletoCobrancaAtual.grupo_id);
+  }else if(boletoCobrancaAtual?.condicao_pagamento){
+    gerarParcelasBoleto();
+  }else{
+    boletoParcelasAtuais=[];
+    renderParcelasBoleto();
+  }
 
   const modal=document.getElementById("modalEmissaoBoletoRelatorio");
   modal.style.display="flex";
 }
 function fecharEmissaoBoletoRelatorio(){
   document.getElementById("modalEmissaoBoletoRelatorio").style.display="none";
-  boletoRelatorioAtual=null;boletoClienteAtual=null;boletoCobrancaAtual=null;
+  boletoRelatorioAtual=null;boletoClienteAtual=null;boletoCobrancaAtual=null;boletoParcelasAtuais=[];
 }
 function preencherClienteModalBoleto(c){
   const d=camposClienteBoleto(c);
@@ -6982,22 +7001,177 @@ function aplicarPrazoBoleto(dias){
   const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+Number(dias||0));
   document.getElementById("bolVencimento").value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
+
+function abrirCondicaoPersonalizadaBoleto(){
+  const sel=document.getElementById("bolCondicaoPagamento");
+  sel.value="personalizado";
+  document.getElementById("bolCondicaoPersonalizadaBox").style.display="block";
+  document.getElementById("bolCondicaoPersonalizada").focus();
+  gerarParcelasBoleto();
+}
+function condicaoAtualBoleto(){
+  const sel=document.getElementById("bolCondicaoPagamento")?.value||"";
+  if(sel==="personalizado")return document.getElementById("bolCondicaoPersonalizada")?.value.trim()||"";
+  return sel;
+}
+function prazosCondicaoBoleto(){
+  return condicaoAtualBoleto()
+    .split("/")
+    .map(x=>Number(String(x).replace(/\D/g,"")))
+    .filter(x=>Number.isFinite(x)&&x>=0);
+}
+function dataSomadaBoleto(dataBase,dias){
+  const d=new Date(`${dataBase}T12:00:00`);
+  if(Number.isNaN(d.getTime()))return "";
+  d.setDate(d.getDate()+Number(dias||0));
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function dividirValorParcelasBoleto(total,quantidade){
+  const centavos=Math.round(Number(total||0)*100);
+  const base=Math.floor(centavos/quantidade);
+  const resto=centavos-(base*quantidade);
+
+  // Regra Sofisticatto: quando houver diferença, a PRIMEIRA parcela recebe o excedente.
+  return Array.from({length:quantidade},(_,i)=>{
+    const valorCentavos=base+(i===0?resto:0);
+    return valorCentavos/100;
+  });
+}
+function gerarParcelasBoleto(){
+  const prazos=prazosCondicaoBoleto();
+  const dataBase=document.getElementById("bolDataBase")?.value||"";
+  const total=valorBoletoModal("bolValor");
+
+  if(!prazos.length||!dataBase||!(total>0)){
+    boletoParcelasAtuais=[];
+    renderParcelasBoleto();
+    return;
+  }
+
+  const valores=dividirValorParcelasBoleto(total,prazos.length);
+  boletoParcelasAtuais=prazos.map((prazo,i)=>({
+    numero:i+1,
+    total:prazos.length,
+    prazo,
+    vencimento:dataSomadaBoleto(dataBase,prazo),
+    valor:valores[i]
+  }));
+  renderParcelasBoleto();
+}
+function redistribuirParcelasBoleto(){
+  gerarParcelasBoleto();
+}
+function renderParcelasBoleto(){
+  const tb=document.getElementById("bolParcelasTabela");
+  const totalEl=document.getElementById("bolParcelasTotal");
+  const aviso=document.getElementById("bolParcelasAviso");
+  if(!tb||!totalEl||!aviso)return;
+
+  if(!boletoParcelasAtuais.length){
+    tb.innerHTML='<tr><td colspan="5">Selecione uma condição de pagamento.</td></tr>';
+    totalEl.textContent=formatarMoeda(0);
+    aviso.className="bol-aviso amarelo";
+    aviso.textContent="Selecione uma condição para gerar as parcelas.";
+    return;
+  }
+
+  tb.innerHTML=boletoParcelasAtuais.map((p,i)=>`
+    <tr>
+      <td><b>${p.numero}/${p.total}</b></td>
+      <td>${p.prazo} dias</td>
+      <td><input type="date" value="${p.vencimento||""}" onchange="alterarVencimentoParcelaBoleto(${i},this.value)"></td>
+      <td><input type="text" inputmode="decimal" value="${valorParaInput(p.valor)}" oninput="mascaraValor(this);alterarValorParcelaBoleto(${i},this.value)"></td>
+      <td><button type="button" class="bol-remover-parcela" onclick="removerParcelaBoleto(${i})" title="Remover parcela">×</button></td>
+    </tr>`).join("");
+
+  validarTotalParcelasBoleto();
+}
+function alterarVencimentoParcelaBoleto(i,v){
+  if(!boletoParcelasAtuais[i])return;
+  boletoParcelasAtuais[i].vencimento=v;
+}
+function alterarValorParcelaBoleto(i,v){
+  if(!boletoParcelasAtuais[i])return;
+  boletoParcelasAtuais[i].valor=valorParaNumero(v);
+  validarTotalParcelasBoleto();
+}
+function removerParcelaBoleto(i){
+  if(boletoParcelasAtuais.length<=1)return alert("A cobrança precisa ter pelo menos uma parcela.");
+  boletoParcelasAtuais.splice(i,1);
+  boletoParcelasAtuais=boletoParcelasAtuais.map((p,idx)=>({...p,numero:idx+1,total:boletoParcelasAtuais.length}));
+  renderParcelasBoleto();
+}
+function validarTotalParcelasBoleto(){
+  const totalAlvo=valorBoletoModal("bolValor");
+  const totalParcelas=boletoParcelasAtuais.reduce((s,p)=>s+Number(p.valor||0),0);
+  const totalEl=document.getElementById("bolParcelasTotal");
+  const aviso=document.getElementById("bolParcelasAviso");
+  if(totalEl)totalEl.textContent=formatarMoeda(totalParcelas);
+
+  const dif=Math.round((totalParcelas-totalAlvo)*100)/100;
+  if(Math.abs(dif)<0.005){
+    aviso.className="bol-aviso verde";
+    aviso.innerHTML=`✓ Parcelas fecham com o valor total de <b>${formatarMoeda(totalAlvo)}</b>.`;
+    return true;
+  }
+  aviso.className="bol-aviso vermelho";
+  aviso.innerHTML=dif<0
+    ?`⚠ Faltam <b>${formatarMoeda(Math.abs(dif))}</b> para fechar o valor total.`
+    :`⚠ As parcelas excedem o total em <b>${formatarMoeda(dif)}</b>.`;
+  return false;
+}
+async function carregarParcelasExistentesBoleto(grupoId){
+  try{
+    const r=await banco.from("cobrancas_bancarias")
+      .select("*")
+      .eq("grupo_id",grupoId)
+      .order("parcela_numero",{ascending:true});
+    if(r.error||!r.data?.length){gerarParcelasBoleto();return;}
+    const rows=r.data;
+    document.getElementById("bolCondicaoPagamento").value=rows[0].condicao_pagamento||"personalizado";
+    if(![...document.getElementById("bolCondicaoPagamento").options].some(o=>o.value===rows[0].condicao_pagamento)){
+      document.getElementById("bolCondicaoPagamento").value="personalizado";
+      document.getElementById("bolCondicaoPersonalizadaBox").style.display="block";
+      document.getElementById("bolCondicaoPersonalizada").value=rows[0].condicao_pagamento||"";
+    }
+    document.getElementById("bolDataBase").value=rows[0].data_base||document.getElementById("bolDataBase").value;
+    boletoParcelasAtuais=rows.map((x,i)=>({
+      id:x.id,numero:x.parcela_numero||i+1,total:x.parcela_total||rows.length,
+      prazo:x.prazo_dias??0,vencimento:x.vencimento,valor:Number(x.valor||0)
+    }));
+    renderParcelasBoleto();
+  }catch(e){
+    console.warn("Parcelas existentes:",e);
+    gerarParcelasBoleto();
+  }
+}
 async function salvarPreparacaoBoletoRelatorio(){
   if(!boletoRelatorioAtual)return;
   const faltando=camposObrigatoriosBoleto();
   if(faltando.length)return alert("Complete os dados obrigatórios antes de continuar:\n\n• "+faltando.join("\n• "));
+
   const cli=dadosClienteModalBoleto();
-  const valor=valorBoletoModal("bolValor");
-  const vencimento=document.getElementById("bolVencimento").value;
-  if(!(valor>0))return alert("Informe um valor válido.");
-  if(!vencimento)return alert("Informe o vencimento.");
+  const valorTotal=valorBoletoModal("bolValor");
+  const dataBase=document.getElementById("bolDataBase").value;
+  const condicao=condicaoAtualBoleto();
+
+  if(!(valorTotal>0))return alert("Informe um valor válido.");
+  if(!dataBase)return alert("Informe a data base.");
+  if(!condicao)return alert("Selecione uma condição de pagamento.");
+  if(!boletoParcelasAtuais.length)return alert("Gere as parcelas antes de continuar.");
+  if(!validarTotalParcelasBoleto())return alert("A soma das parcelas precisa ser igual ao valor total antes de emitir.");
+
+  const invalidas=boletoParcelasAtuais.filter(p=>!p.vencimento||!(Number(p.valor)>0));
+  if(invalidas.length)return alert("Todas as parcelas precisam ter vencimento e valor maior que zero.");
 
   if(document.getElementById("bolSalvarCadastro").checked && cli.id){
     await salvarDadosClienteDoBoleto();
   }
 
-  const payload={
+  const grupoId=boletoCobrancaAtual?.grupo_id||crypto.randomUUID();
+  const comuns={
     relatorio_id:boletoRelatorioAtual.id,
+    grupo_id:grupoId,
     cliente_id:cli.id,
     cliente_nome:cli.nome,
     cpf_cnpj:cli.cpf_cnpj,
@@ -7012,32 +7186,49 @@ async function salvarPreparacaoBoletoRelatorio(){
     banco:codigoBancoCobranca(boletoRelatorioAtual.banco),
     banco_nome:boletoRelatorioAtual.banco,
     tipo:"boleto_pix",
-    valor,
-    vencimento,
     numero_nf:document.getElementById("bolNumeroNf").value.trim()||null,
     referencia:`REL-${boletoRelatorioAtual.id}`,
     descricao:document.getElementById("bolDescricao").value.trim()||null,
     multa_percentual:valorBoletoModal("bolMulta"),
     juros_percentual:valorBoletoModal("bolJuros"),
+    condicao_pagamento:condicao,
+    data_base:dataBase,
+    valor_total_grupo:valorTotal,
     status:"pendente_integracao",
     origem:"relatorio_financeiro",
     criado_por:usuarioLogado?.login||null,
     atualizado_em:new Date().toISOString()
   };
 
-  let r;
-  if(boletoCobrancaAtual?.id){
-    r=await banco.from("cobrancas_bancarias").update(payload).eq("id",boletoCobrancaAtual.id).select().single();
-  }else{
-    r=await banco.from("cobrancas_bancarias").insert([payload]).select().single();
-  }
-  if(r.error)return alert("Não foi possível preparar o boleto: "+r.error.message);
-  boletoCobrancaAtual=r.data;
+  // Se já existia preparação do mesmo grupo, substitui as parcelas ainda não emitidas.
+  try{
+    await banco.from("cobrancas_bancarias")
+      .delete()
+      .eq("grupo_id",grupoId)
+      .eq("status","pendente_integracao");
+  }catch{}
+
+  const linhas=boletoParcelasAtuais.map((p,i)=>({
+    ...comuns,
+    valor:Number(p.valor),
+    vencimento:p.vencimento,
+    parcela_numero:i+1,
+    parcela_total:boletoParcelasAtuais.length,
+    prazo_dias:Number(p.prazo||0),
+    referencia:`REL-${boletoRelatorioAtual.id}-${i+1}DE${boletoParcelasAtuais.length}`
+  }));
+
+  const r=await banco.from("cobrancas_bancarias").insert(linhas).select();
+  if(r.error)return alert("Não foi possível preparar os boletos: "+r.error.message);
+
+  boletoCobrancaAtual=r.data?.[0]||null;
 
   document.getElementById("bolModalStatus").innerHTML=
-    `✅ Cobrança preparada para <b>${nomeBancoCobranca(boletoRelatorioAtual.banco)}</b>. `+
+    `✅ <b>${linhas.length} boleto(s)</b> preparado(s) para <b>${nomeBancoCobranca(boletoRelatorioAtual.banco)}</b> `+
+    `na condição <b>${escaparHtmlEmail(condicao)}</b>. `+
     `A emissão real será liberada quando as credenciais da API bancária estiverem configuradas.`;
-  mostrarBalaoSistema?.("Boleto preparado",`${cli.nome} • ${formatarMoeda(valor)}`);
+
+  mostrarBalaoSistema?.("Boletos preparados",`${cli.nome} • ${linhas.length} parcela(s) • ${formatarMoeda(valorTotal)}`);
   if(typeof carregarCobrancasBancarias==="function")carregarCobrancasBancarias();
 }
 

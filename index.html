@@ -3006,7 +3006,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
     <div class="bol-destaque-banco">
       <div><small>Banco liberado pelo usuário Banco</small><input id="bolBanco" readonly></div>
-      <div><small>Valor do relatório</small><input id="bolValor" inputmode="decimal" oninput="mascaraValor(this)"></div>
+      <div><small>Valor do relatório</small><input id="bolValor" inputmode="decimal" oninput="mascaraValor(this);gerarParcelasBoleto()"></div>
     </div>
 
     <div class="bol-section">
@@ -3031,19 +3031,78 @@ SOFISTICATTO COSMÉTICOS</textarea>
       <label class="bol-check"><input type="checkbox" id="bolSalvarCadastro" checked> Salvar alterações também no cadastro do cliente</label>
     </div>
 
-    <div class="bol-section">
-      <h3>Dados da cobrança</h3>
-      <div class="bol-grid">
-        <div><label>Vencimento *</label><input id="bolVencimento" type="date"></div>
-        <div class="span2 bol-prazos"><label>Prazo rápido</label>
-          <div><button type="button" onclick="aplicarPrazoBoleto(7)">7 dias</button><button type="button" onclick="aplicarPrazoBoleto(14)">14 dias</button><button type="button" onclick="aplicarPrazoBoleto(21)">21 dias</button><button type="button" onclick="aplicarPrazoBoleto(28)">28 dias</button><button type="button" onclick="aplicarPrazoBoleto(30)">30 dias</button><button type="button" onclick="aplicarPrazoBoleto(45)">45 dias</button><button type="button" onclick="aplicarPrazoBoleto(60)">60 dias</button></div>
-        </div>
-        <div><label>Nº NF / documento</label><input id="bolNumeroNf"></div>
-        <div><label>Multa (%)</label><input id="bolMulta" value="0"></div>
-        <div><label>Juros ao mês (%)</label><input id="bolJuros" value="0"></div>
-        <div class="span2"><label>Descrição</label><textarea id="bolDescricao" rows="2"></textarea></div>
+    
+<div class="bol-section">
+  <h3>Dados da cobrança</h3>
+  <div class="bol-grid">
+    <div>
+      <label>Data base *</label>
+      <input id="bolDataBase" type="date" onchange="gerarParcelasBoleto()">
+    </div>
+
+    <div class="span2">
+      <label>Condição de pagamento *</label>
+      <div class="bol-condicao-row">
+        <select id="bolCondicaoPagamento" onchange="gerarParcelasBoleto()">
+          <option value="">Selecione...</option>
+          <option value="7">7 dias</option>
+          <option value="10">10 dias</option>
+          <option value="14">14 dias</option>
+          <option value="15">15 dias</option>
+          <option value="30">30 dias</option>
+          <option value="45">45 dias</option>
+          <option value="30/45">30/45</option>
+          <option value="30/45/60">30/45/60</option>
+          <option value="30/45/60/75/90/105/120">30/45/60/75/90/105/120</option>
+          <option value="30/40/50/60/70/80/90/100">30/40/50/60/70/80/90/100</option>
+          <option value="personalizado">Personalizado</option>
+        </select>
+        <button type="button" class="btn azul" onclick="abrirCondicaoPersonalizadaBoleto()">+ Nova condição</button>
+      </div>
+      <div id="bolCondicaoPersonalizadaBox" class="bol-condicao-custom" style="display:none;">
+        <input id="bolCondicaoPersonalizada" placeholder="Ex.: 20/40/60" oninput="gerarParcelasBoleto()">
       </div>
     </div>
+
+    <div><label>Nº NF / documento</label><input id="bolNumeroNf"></div>
+    <div><label>Multa (%)</label><input id="bolMulta" value="0"></div>
+    <div><label>Juros ao mês (%)</label><input id="bolJuros" value="0"></div>
+    <div class="span2"><label>Descrição</label><textarea id="bolDescricao" rows="2"></textarea></div>
+  </div>
+
+  <div class="bol-parcelas-head">
+    <div>
+      <h4>Parcelas</h4>
+      <small>Datas e valores podem ser alterados antes da emissão.</small>
+    </div>
+    <button type="button" class="btn roxo" onclick="redistribuirParcelasBoleto()">↻ Redistribuir parcelas</button>
+  </div>
+
+  <div class="bol-parcelas-table-wrap">
+    <table class="bol-parcelas-table">
+      <thead>
+        <tr>
+          <th>Parcela</th>
+          <th>Prazo</th>
+          <th>Vencimento</th>
+          <th>Valor</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="bolParcelasTabela">
+        <tr><td colspan="5">Selecione uma condição de pagamento.</td></tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3"><strong>Total das parcelas</strong></td>
+          <td><strong id="bolParcelasTotal">R$ 0,00</strong></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <div id="bolParcelasAviso" class="bol-aviso amarelo">Selecione uma condição para gerar as parcelas.</div>
+</div>
 
     <div id="bolModalStatus" class="bol-modal-status"></div>
     <div class="bol-modal-actions">
