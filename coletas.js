@@ -2277,7 +2277,9 @@ async function atualizarRastreioIntegrado(id,botao=null){
     const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Consultando Correios...";}
     try{const {dados}=await consultarRastreioCorreiosRegistro(id);
       if(dados.semEventos){
-        alert(`Consulta feita nos Correios, mas a API Rastro não devolveu nenhuma ocorrência para este objeto.\n\nO portal NÃO alterou o status anterior.\n\nCódigo: ${dados.codigoObjeto||rastro.protocolo_rastreio||'—'}\nStatus mantido: ${dados.statusBruto||statusLabelRastreamento(dados.status)}\n\nIsso pode acontecer quando a API Rastro não libera o histórico para o token/contrato usado, mesmo que o site dos Correios mostre o objeto.`);
+        const dg=dados.diagnosticoRastro||{};
+        const tent=(dg.tentativas||[]).map(x=>`${x.escopo||'?'} / ${x.variante||'?'}: ${x.ok?`HTTP ${x.httpStatus||200}, eventos ${x.totalEventos??0}, quantidade ${x.quantidade??'—'}`:`ERRO ${x.httpStatus||''} ${x.erro||''}`}`).join('\n');
+        alert(`Consulta feita nos Correios, mas a API Rastro não devolveu nenhuma ocorrência para este objeto.\n\nO portal NÃO alterou o status anterior.\n\nCódigo: ${dados.codigoObjeto||rastro.protocolo_rastreio||'—'}\nStatus mantido: ${dados.statusBruto||statusLabelRastreamento(dados.status)}\n\nDIAGNÓSTICO V106 (sem senha/token):\n${tent||'Nenhuma tentativa registrada.'}\n\nResultado: ${dg.resultado||'sem diagnóstico'}\n\nEsse diagnóstico pode ser enviado para análise sem expor suas credenciais.`);
       }else{
         alert(`Rastreio Correios atualizado.\n\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${Array.isArray(dados.eventos)?`\nEventos recebidos: ${dados.eventos.length}`:''}`);
       }
