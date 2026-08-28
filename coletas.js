@@ -2107,9 +2107,17 @@ async function consultarRastreioAlfaRegistro(id,{silencioso=false,chave=null}={}
   const rastro=await obterRastreamentoPorId(id);
   if(!rastro)throw new Error("Rastreio não encontrado no banco de dados.");
   if(!/(^|\s)alfa(\s|$)|alfa transportes/i.test(rastro.frete_transportadoras?.nome||""))throw new Error("Este registro não pertence à Alfa Transportes.");
-  if(!rastro.numero_nfe)throw new Error("A Alfa exige o número da NF para consultar o rastreamento.");
+  let numeroNfe=String(rastro.numero_nfe||"").trim();
+  // V101: alguns registros antigos exibem a NF pela coleta vinculada, mas a coluna
+  // numero_nfe do rastreio ficou vazia. Recupera a NF antes de acusar erro.
+  if(!numeroNfe && rastro.coleta_agendamento_id){
+    const cr=await banco.from("coleta_agendamentos").select("numero_nf,dados").eq("id",rastro.coleta_agendamento_id).maybeSingle();
+    numeroNfe=String(cr.data?.numero_nf||cr.data?.dados?.numero_nf||cr.data?.dados?.numero_nfe||"").trim();
+    if(numeroNfe)await banco.from("logistica_rastreamentos").update({numero_nfe:numeroNfe,sincronizacao_erro:null,atualizado_em:new Date().toISOString()}).eq("id",id);
+  }
+  if(!numeroNfe)throw new Error("A Alfa exige o número da NF para consultar o rastreamento.");
   const chaveUsar=chave||await chaveAdminColeta(); if(!chaveUsar)throw new Error("Informe a chave administrativa.");
-  const params=new URLSearchParams({action:"consultar-rastreio-alfa",registro_id:String(id),nfe:String(rastro.numero_nfe),cnpj:"05451985000195"});
+  const params=new URLSearchParams({action:"consultar-rastreio-alfa",registro_id:String(id),nfe:numeroNfe,cnpj:"05451985000195"});
   const resposta=await fetch(`/api/integracoes?${params.toString()}`,{headers:{"x-integrations-admin-key":chaveUsar}});
   const dados=await resposta.json().catch(()=>({})); if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
   return {rastro,dados};
