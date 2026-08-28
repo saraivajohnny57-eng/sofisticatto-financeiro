@@ -2275,7 +2275,13 @@ async function atualizarRastreioIntegrado(id,botao=null){
   }
   if(/correios|coreios/i.test(nome)){
     const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Consultando Correios...";}
-    try{const {dados}=await consultarRastreioCorreiosRegistro(id);alert(`Rastreio Correios atualizado.\n\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}`);await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();}
+    try{const {dados}=await consultarRastreioCorreiosRegistro(id);
+      if(dados.semEventos){
+        alert(`Consulta feita nos Correios, mas a API Rastro não devolveu nenhuma ocorrência para este objeto.\n\nO portal NÃO alterou o status anterior.\n\nCódigo: ${dados.codigoObjeto||rastro.protocolo_rastreio||'—'}\nStatus mantido: ${dados.statusBruto||statusLabelRastreamento(dados.status)}\n\nIsso pode acontecer quando a API Rastro não libera o histórico para o token/contrato usado, mesmo que o site dos Correios mostre o objeto.`);
+      }else{
+        alert(`Rastreio Correios atualizado.\n\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${Array.isArray(dados.eventos)?`\nEventos recebidos: ${dados.eventos.length}`:''}`);
+      }
+      await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();}
     catch(e){alert("Não foi possível atualizar o rastreio dos Correios: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
     return;
   }
