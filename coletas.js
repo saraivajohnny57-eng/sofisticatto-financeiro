@@ -1417,6 +1417,27 @@ async function editarEnderecoCepColetaCorreios(id){
   await carregarPainelRodonaves();
 }
 
+function perguntarRestricaoAereaCorreios(){
+  return new Promise(resolve=>{
+    const antigo=document.getElementById('modalRestricaoAereaCorreios'); if(antigo)antigo.remove();
+    const wrap=document.createElement('div'); wrap.id='modalRestricaoAereaCorreios';
+    wrap.style.cssText='position:fixed;inset:0;background:rgba(25,20,55,.48);z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px';
+    wrap.innerHTML=`<div style="background:#fff;max-width:560px;width:100%;border-radius:18px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:inherit">
+      <div style="font-size:21px;font-weight:800;color:#332d69;margin-bottom:8px">✈️ Transporte aéreo — Correios</div>
+      <div style="color:#555;line-height:1.45;margin-bottom:16px">Informe como este volume deve ser declarado na pré-postagem. Para envios comuns, mantenha <b>Pode ser transportado por avião</b>.</div>
+      <label style="display:block;border:2px solid #ddd8f5;border-radius:12px;padding:13px;margin:9px 0;cursor:pointer"><input type="radio" name="correiosAereo" value="pode" checked style="margin-right:9px"> <b>Pode ser transportado por avião</b><br><span style="margin-left:25px;color:#666;font-size:13px">Não envia o serviço adicional 095.</span></label>
+      <label style="display:block;border:2px solid #f1d1d1;border-radius:12px;padding:13px;margin:9px 0;cursor:pointer"><input type="radio" name="correiosAereo" value="nao" style="margin-right:9px"> <b>Não pode ser transportado por avião / Artigo Perigoso ANAC</b><br><span style="margin-left:25px;color:#666;font-size:13px">Envia o serviço adicional 095 e o rótulo oficial poderá exibir a restrição aérea.</span></label>
+      <div style="background:#fff7df;border:1px solid #f1dda0;border-radius:10px;padding:10px 12px;color:#725b18;font-size:13px;margin-top:13px">Marque a segunda opção somente quando o conteúdo realmente estiver sujeito às regras de artigos perigosos da ANAC.</div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px"><button type="button" id="corAereoCancelar" class="btn">Cancelar</button><button type="button" id="corAereoContinuar" class="btn azul">Continuar pré-postagem</button></div>
+    </div>`;
+    document.body.appendChild(wrap);
+    const fechar=v=>{wrap.remove();resolve(v)};
+    wrap.querySelector('#corAereoCancelar').onclick=()=>fechar(null);
+    wrap.querySelector('#corAereoContinuar').onclick=()=>fechar(wrap.querySelector('input[name="correiosAereo"]:checked')?.value==='nao');
+    wrap.addEventListener('click',e=>{if(e.target===wrap)fechar(null)});
+  });
+}
+
 async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,silencioso=false}={}){
   const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id)); if(!a)throw new Error('Coleta não encontrada.');
   if(!coletaRegistroEhCorreios(a))return {ok:false,ignorado:true};
@@ -1442,8 +1463,18 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   };
   const faltam=[]; if(!destino.cep)faltam.push('CEP');if(!destino.logradouro)faltam.push('logradouro');if(!destino.numero)faltam.push('número');if(!destino.bairro)faltam.push('bairro');if(!destino.cidade)faltam.push('cidade');if(!destino.uf)faltam.push('UF');
   if(faltam.length)throw new Error('Complete o cadastro/endereço do cliente antes de gerar a pré-postagem: '+faltam.join(', ')+'.');
-  const payload={codigoServico:codigo,pesoKg:a.peso||d.peso,medidas:d.medidas,numeroNf:a.numero_nf||d.numero_nf,chaveNFe:a.chave_nfe||d.chave_nfe||d.chave_nf,valorNf:d.valor_nf,mercadoria:d.mercadoria||'Cosméticos',destino};
-  if(!silencioso)mostrarBalaoSistema('Correios','Gerando pré-postagem oficial...');
+  let restricaoAerea=false;
+  if(!silencioso){
+    const escolha=await perguntarRestricaoAereaCorreios();
+    if(escolha===null)return {ok:false,cancelado:true};
+    restricaoAerea=escolha;
+  }else{
+    // Rotinas silenciosas nunca presumem artigo perigoso: 095 só pode ser enviado por escolha explícita do usuário.
+    restricaoAerea=false;
+  }
+  const payload={codigoServico:codigo,pesoKg:a.peso||d.peso,medidas:d.medidas,numeroNf:a.numero_nf||d.numero_nf,chaveNFe:a.chave_nfe||d.chave_nfe||d.chave_nf,valorNf:d.valor_nf,mercadoria:d.mercadoria||'Cosméticos',destino,restricaoAereaConfirmada:restricaoAerea};
+  if(restricaoAerea)payload.listaServicoAdicional=[{codigoServicoAdicional:'095'}];
+  if(!silencioso)mostrarBalaoSistema('Correios',restricaoAerea?'Gerando pré-postagem com restrição aérea (095)...':'Gerando pré-postagem liberada para transporte aéreo...');
   const r=await fetch('/api/integracoes?action=criar-prepostagem-correios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   const j=await r.json().catch(()=>({})); if(!r.ok||!j.ok)throw new Error(j.erro||`HTTP ${r.status}`);
   const pre={idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico,servico:j.servico||'',gerada_em:new Date().toISOString()};
