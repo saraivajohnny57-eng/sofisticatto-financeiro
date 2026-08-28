@@ -3210,7 +3210,7 @@ function garantirModalLinhaTempoRastreio(){
     .rast-evento-data{font-size:12px;color:#77718d;margin-bottom:6px}
     .rast-evento-desc{font-size:14px;color:#4d4960;line-height:1.45;white-space:pre-wrap}
     .rast-evento-local{font-size:12px;color:#5c4ec2;font-weight:700;margin-top:6px}
-    .rast-evento-fonte{font-size:11px;color:#8b849d;margin-top:5px}
+    .rast-evento-fonte{font-size:11px;color:#8b849d;margin-top:5px}\n    .rast-evento-detalhes{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}\n    .rast-evento-detalhe{font-size:11px;color:#5f5875;background:#f6f4fc;border:1px solid #ebe7f7;border-radius:8px;padding:5px 7px}\n    .rast-resumo-api{display:flex;gap:8px;flex-wrap:wrap;margin:-8px 0 18px}\n    .rast-resumo-api span{font-size:11px;color:#51496d;background:#f7f5fc;border:1px solid #e8e4f4;border-radius:9px;padding:6px 9px}
     .rast-timeline-aviso{margin:0 0 18px;padding:12px 14px;border-radius:12px;background:#fff4df;color:#8a5a00;font-size:13px;line-height:1.45}
     .rast-timeline-alerta-critico{background:#fff0f0;color:#a12222;border:1px solid #ffd1d1}
     .rast-timeline-alerta-parado{background:#fff8e8;color:#8a5a00;border:1px solid #ffe0a3}
@@ -3333,16 +3333,16 @@ async function abrirLinhaTempoRastreio(id){
     let eventos=[];let avisoAoVivo="";
     const vivo=await atualizarTimelineAoAbrir(rastro,nome);
     if(vivo?.erroTimeline)avisoAoVivo=vivo.erroTimeline;
-    if(Array.isArray(vivo?.eventos))for(const e of vivo.eventos)eventos.push({...e,fonte:vivo.metodoConsulta||rastro.metodo_consulta||"API da transportadora"});
-    if(vivo?.dados)eventos.push(...extrairEventosTimelineGenericos(vivo.dados,vivo.metodoConsulta||rastro.metodo_consulta||"API da transportadora"));
+    if(Array.isArray(vivo?.eventos))for(const e of vivo.eventos)eventos.push({...e,fonte:vivo.metodoConsulta||rastro.metodo_consulta||"API da transportadora",oficial:/correios/i.test(nome)});
+    if(vivo?.dados && !(/correios|coreios/i.test(nome)&&Array.isArray(vivo?.eventos)&&vivo.eventos.length))eventos.push(...extrairEventosTimelineGenericos(vivo.dados,vivo.metodoConsulta||rastro.metodo_consulta||"API da transportadora"));
     rastro=await obterRastreamentoPorId(id)||rastro;
-    if(rastro.consulta_api)eventos.push(...extrairEventosTimelineGenericos(rastro.consulta_api,rastro.metodo_consulta||"API da transportadora"));
+    if(rastro.consulta_api && !(/correios|coreios/i.test(nome)&&eventos.some(e=>e.oficial)))eventos.push(...extrairEventosTimelineGenericos(rastro.consulta_api,rastro.metodo_consulta||"API da transportadora"));
     if(transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome)){
       let q=banco.from("ssw_ocorrencias_recebidas").select("*").order("data_hora_evento",{ascending:false,nullsFirst:false}).limit(150);
       if(rastro.chave_nfe)q=q.eq("chave_nfe",String(rastro.chave_nfe).replace(/\D/g,""));else if(rastro.numero_nfe)q=q.eq("numero_nfe",String(rastro.numero_nfe));
       const rr=await q;if(!rr.error)for(const o of (rr.data||[]))eventos.push({titulo:o.descricao||o.codigo_ocorrencia?String(o.descricao||`Ocorrência ${o.codigo_ocorrencia}`):"Ocorrência SSW",descricao:[o.descricao,o.complemento].filter(Boolean).join(" — "),data:o.data_hora_evento||o.processado_em||o.created_at,local:o.cidade||o.filial||null,fonte:"SSW — ocorrência recebida"});
     }
-    if(rastro.ultima_ocorrencia)eventos.push({titulo:statusLabelRastreamento(rastro.status)||"Última ocorrência",descricao:rastro.ultima_ocorrencia,data:rastro.ultima_ocorrencia_em||rastro.atualizado_em,local:null,fonte:rastro.metodo_consulta||"Portal Sofisticatto"});
+    if(rastro.ultima_ocorrencia && !(/correios|coreios/i.test(nome)&&eventos.some(e=>e.oficial)))eventos.push({titulo:statusLabelRastreamento(rastro.status)||"Última ocorrência",descricao:rastro.ultima_ocorrencia,data:rastro.ultima_ocorrencia_em||rastro.atualizado_em,local:null,fonte:rastro.metodo_consulta||"Portal Sofisticatto"});
     const map=new Map();
     for(const e of eventos){
       const dt=dataEventoTimeline(e.data);
@@ -3360,7 +3360,7 @@ async function abrirLinhaTempoRastreio(id){
         if(score(e)>score(anterior))map.set(k,e);
       }
     }
-    eventos=[...map.values()].sort((a,b)=>(dataEventoTimeline(b.data)?.getTime()||0)-(dataEventoTimeline(a.data)?.getTime()||0));
+    eventos=[...map.values()].filter(e=>!(/^\d{1,4}$/.test(String(e.titulo||"").trim()) && String(e.descricao||"").trim())).sort((a,b)=>(dataEventoTimeline(b.data)?.getTime()||0)-(dataEventoTimeline(a.data)?.getTime()||0));
     const etapas=["Pedido/coleta","Coletada","Em transferência","Unidade de destino","Saiu para entrega","Entregue"];
     const atual=indiceEtapaTimeline(eventos,rastro.status);
     const locais=eventosLocaisTimeline(eventos);
@@ -3373,6 +3373,8 @@ async function abrirLinhaTempoRastreio(id){
     if(avisoAoVivo&&!eventos.length)alertas+=`<div class="rast-timeline-aviso">⚠ Consulta ao vivo: ${escaparHtmlEmail(avisoAoVivo)}</div>`;
     const etapasHtml=`<div class="rast-etapas-box"><div class="rast-etapas-titulo">Etapas da entrega <small style="font-weight:500;color:#77718d">(progressão estimada com base nas ocorrências reais)</small></div><div class="rast-etapas">${etapas.map((x,i)=>`<div class="rast-etapa ${i<atual?'concluida':i===atual?'atual':''}"><div class="rast-etapa-dot">${i<atual?'✓':i===atual?'●':i+1}</div><div>${x}</div></div>`).join("")}</div>${locais.length?`<div class="rast-rota-locais"><b style="font-size:11px;color:#655f77">Locais registrados:</b>${locais.map(l=>`<span class="rast-rota-chip">📍 ${escaparHtmlEmail(l)}</span>`).join("")}</div>`:""}</div>`;
     if(!eventos.length){body.innerHTML=alertas+etapasHtml+'<div class="rast-timeline-vazio">Ainda não há ocorrências detalhadas disponíveis para este pedido.</div>';return;}
-    body.innerHTML=alertas+etapasHtml+`<div class="rast-historico-titulo">Histórico completo das ocorrências (${eventos.length})</div><div class="rast-timeline">${eventos.map((e,i)=>`<div class="rast-evento ${i===0?'atual':''}"><div class="rast-evento-titulo">${escaparHtmlEmail(e.titulo||"Ocorrência")}</div><div class="rast-evento-data">${e.data&&dataEventoTimeline(e.data)?dataEventoTimeline(e.data).toLocaleString("pt-BR"):"Data não informada"}</div>${e.descricao?`<div class="rast-evento-desc">${escaparHtmlEmail(e.descricao)}</div>`:""}${e.local?`<div class="rast-evento-local">📍 ${escaparHtmlEmail(e.local)}</div>`:""}<div class="rast-evento-fonte">Fonte: ${escaparHtmlEmail(e.fonte||"Portal")}</div></div>`).join("")}</div>`;
+    const oficiais=eventos.filter(e=>e.oficial).length;
+    const resumo=/correios|coreios/i.test(nome)?`<div class="rast-resumo-api"><span>📦 ${oficiais||eventos.length} ocorrência(s) detalhada(s)</span>${rastro.previsao_entrega?`<span>📅 Previsão: ${escaparHtmlEmail(formatarDataBR(rastro.previsao_entrega))}</span>`:""}<span>🔄 Atualizado: ${new Date().toLocaleString("pt-BR")}</span></div>`:"";
+    body.innerHTML=alertas+etapasHtml+resumo+`<div class="rast-historico-titulo">Histórico completo das ocorrências (${eventos.length})</div><div class="rast-timeline">${eventos.map((e,i)=>{const detalhes=[];if(e.unidade)detalhes.push(`🏤 Unidade: ${escaparHtmlEmail(e.unidade)}`);if(e.destino)detalhes.push(`➡ Destino: ${escaparHtmlEmail(e.destino)}`);if(e.codigo)detalhes.push(`Código: ${escaparHtmlEmail(e.codigo)}`);return `<div class="rast-evento ${i===0?'atual':''}"><div class="rast-evento-titulo">${escaparHtmlEmail(e.titulo||"Ocorrência")}</div><div class="rast-evento-data">${e.data&&dataEventoTimeline(e.data)?dataEventoTimeline(e.data).toLocaleString("pt-BR"):"Data não informada"}</div>${e.descricao&&textoNormalizadoTimeline(e.descricao)!==textoNormalizadoTimeline(e.titulo)?`<div class="rast-evento-desc">${escaparHtmlEmail(e.descricao)}</div>`:""}${e.local?`<div class="rast-evento-local">📍 ${escaparHtmlEmail(e.local)}</div>`:""}${detalhes.length?`<div class="rast-evento-detalhes">${detalhes.map(x=>`<span class="rast-evento-detalhe">${x}</span>`).join("")}</div>`:""}<div class="rast-evento-fonte">Fonte: ${escaparHtmlEmail(e.fonte||"Portal")}</div></div>`}).join("")}</div>`;
   }catch(e){body.innerHTML=`<div class="rast-timeline-vazio">Não foi possível carregar a linha do tempo: ${escaparHtmlEmail(e.message)}</div>`;}
 }
