@@ -2489,6 +2489,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <div class="corridas-campo"><label>Telefone</label><input id="corridaTelefone" readonly placeholder="Preenchimento automático"></div>
           <div class="corridas-campo span2"><label>Local de retirada *</label><input id="corridaRetirada" placeholder="Onde a mercadoria foi retirada"></div>
           <div class="corridas-campo span2"><label>Destino *</label><input id="corridaDestino" placeholder="Local de destino da mercadoria"></div>
+          <div class="corridas-campo"><label>Volume</label><input id="corridaVolume" type="number" min="1" step="1" placeholder="Opcional"></div>
+          <div class="corridas-campo"><label>Tipo de mercadoria</label><input id="corridaTipoMercadoria" list="tiposMercadoriaCorrida" placeholder="Caixa, palete, fardo... (opcional)"><datalist id="tiposMercadoriaCorrida"><option value="Caixa"><option value="Palete"><option value="Fardo"><option value="Saco"><option value="Envelope"><option value="Pacote"><option value="Tambor"><option value="Bombona"><option value="Outro"></datalist></div>
           <div class="corridas-campo span2"><label>Observação</label><textarea id="corridaObservacao" rows="2" placeholder="Referência, nº do pedido, instruções..."></textarea></div>
           <div class="corridas-campo"><label>Valor da corrida *</label><input id="corridaValor" inputmode="decimal" placeholder="R$ 0,00" oninput="mascaraValor(this)"></div>
           <div class="corridas-campo"><label>Data *</label><input id="corridaData" type="date"></div>
@@ -2508,7 +2510,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <div class="corridas-campo"><label>Data inicial</label><input id="filtroCorridasInicio" type="date" onchange="montarTabelaCorridas()"></div>
           <div class="corridas-campo"><label>Data final</label><input id="filtroCorridasFim" type="date" onchange="montarTabelaCorridas()"></div>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Data</th><th>Entregador</th><th>Categoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th><th>Status</th></tr></thead><tbody id="tabelaCorridas"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Data</th><th>Entregador</th><th>Categoria</th><th>Volume</th><th>Mercadoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th><th>Status</th></tr></thead><tbody id="tabelaCorridas"></tbody></table></div>
       </div>
       <div class="card">
         <h2>Novo Fechamento</h2>
@@ -2528,7 +2530,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <div id="corridasAba_minhas" class="corridas-subsecao corridas-driver-only" style="display:none;">
       <div class="card">
         <h2>Minhas Corridas</h2><p>Você visualiza somente suas próprias corridas e valores.</p>
-        <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Data</th><th>Categoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th><th>Status</th></tr></thead><tbody id="tabelaCorridasDriver"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Data</th><th>Categoria</th><th>Volume</th><th>Mercadoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th><th>Status</th></tr></thead><tbody id="tabelaCorridasDriver"></tbody></table></div>
       </div>
     </div>
 
@@ -2619,7 +2621,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <div id="modalFechamentoCorridas" class="corridas-modal" onclick="if(event.target===this)fecharModalFechamentoCorridas()">
   <div class="corridas-modal-card">
     <div class="top"><div><h2 id="modalFechamentoTitulo">Fechamento</h2><p id="modalFechamentoResumo"></p></div><button class="btn vermelho" onclick="fecharModalFechamentoCorridas()">Fechar</button></div>
-    <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Data</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th></tr></thead><tbody id="modalFechamentoTabela"></tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Data</th><th>Volume</th><th>Mercadoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th></tr></thead><tbody id="modalFechamentoTabela"></tbody></table></div>
     <div class="corridas-actions"><button class="btn roxo" onclick="imprimirFechamentoModal()">🖨️ Imprimir fechamento A4</button></div>
   </div>
 </div>
