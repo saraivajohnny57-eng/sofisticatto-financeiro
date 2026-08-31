@@ -289,9 +289,7 @@ As ${arr.length} corrida(s) deste fechamento NÃO serão apagadas. Elas voltarã
   if(r.error){
     // Compatibilidade caso o SQL V110 ainda não tenha sido executado.
     const reabrir=await banco.from('corridas').update({fechamento_id:null,status:'aberta'}).eq('fechamento_id',id);
-    if(reabrir.error)return alert('Erro ao reabrir as corridas: '+reabrir.error.message+'
-
-Execute o SQL V110 no Supabase.');
+    if(reabrir.error)return alert(`Erro ao reabrir as corridas: ${reabrir.error.message}\n\nExecute o SQL V110 no Supabase.`);
     r=await banco.from('corridas_fechamentos').delete().eq('id',id);
     if(r.error)return alert('Erro ao excluir fechamento: '+r.error.message);
   }
