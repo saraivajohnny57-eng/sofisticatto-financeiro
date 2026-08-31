@@ -156,6 +156,39 @@ function montarTabelaEntregadores(){
   }).join(''):'<tr><td colspan="7">Nenhum entregador cadastrado.</td></tr>';
 }
 
+
+async function editarCorridaLancada(id){
+  if(!usuarioPodeAdministrarCorridas()) return alert('Seu usuário não pode editar corridas.');
+  const x=corridasAbertasCache.find(c=>String(c.id)===String(id));
+  if(!x) return alert('Corrida não encontrada.');
+  if(x.status!=='aberta'||x.fechamento_id) return alert('Somente corridas em aberto podem ser editadas. Para uma corrida já fechada, primeiro exclua o fechamento para devolvê-la às corridas em aberto.');
+  const retirada=prompt('Local de retirada:',x.retirada||''); if(retirada===null)return;
+  const destino=prompt('Local de destino:',x.destino||''); if(destino===null)return;
+  const observacao=prompt('Observação (opcional):',x.observacao||''); if(observacao===null)return;
+  const volumeTxt=prompt('Volume (opcional):',x.volume??''); if(volumeTxt===null)return;
+  const tipo=prompt('Tipo de mercadoria (opcional):',x.tipo_mercadoria||''); if(tipo===null)return;
+  const valorTxt=prompt('Valor da corrida:',Number(x.valor||0).toFixed(2).replace('.',',')); if(valorTxt===null)return;
+  const data=prompt('Data da corrida (AAAA-MM-DD):',x.data_corrida||''); if(data===null)return;
+  const valor=valorNumeroCorridas(valorTxt);
+  if(!retirada.trim()||!destino.trim()||!data.trim()||valor<=0)return alert('Retirada, destino, valor e data são obrigatórios.');
+  const volume=String(volumeTxt).trim()?Math.max(1,parseInt(volumeTxt,10)||1):null;
+  const r=await banco.from('corridas').update({retirada:retirada.trim(),destino:destino.trim(),observacao:observacao.trim()||null,volume,tipo_mercadoria:tipo.trim()||null,valor,data_corrida:data.trim()}).eq('id',id).eq('status','aberta').is('fechamento_id',null);
+  if(r.error)return alert('Erro ao editar corrida: '+r.error.message);
+  alert(`${codigoCorrida(x.numero_corrida)} atualizada com sucesso.`);
+  await carregarCorridas(); await avaliarAlertasCorridas(); atualizarDashboardCorridas();
+}
+async function excluirCorridaLancada(id){
+  if(!usuarioPodeAdministrarCorridas()) return alert('Seu usuário não pode excluir corridas.');
+  const x=corridasAbertasCache.find(c=>String(c.id)===String(id));
+  if(!x)return alert('Corrida não encontrada.');
+  if(x.status!=='aberta'||x.fechamento_id)return alert('Somente corridas em aberto podem ser excluídas. Corridas de um fechamento ficam protegidas.');
+  if(!confirm(`Excluir definitivamente a ${codigoCorrida(x.numero_corrida)}?\n\nEssa ação não poderá ser desfeita.`))return;
+  const r=await banco.from('corridas').delete().eq('id',id).eq('status','aberta').is('fechamento_id',null);
+  if(r.error)return alert('Erro ao excluir corrida: '+r.error.message);
+  alert(`${codigoCorrida(x.numero_corrida)} excluída.`);
+  await carregarCorridas(); await avaliarAlertasCorridas(); atualizarDashboardCorridas();
+}
+
 function montarResumoCorridas(){
   const base=usuarioEhEntregador()?corridasAbertasCache:corridasAbertasCache;
   const abertas=base.filter(x=>x.status==='aberta'&&!x.fechamento_id);
@@ -170,7 +203,7 @@ function montarTabelaCorridas(){
   const eid=document.getElementById('filtroCorridasEntregador')?.value||'';
   const ini=document.getElementById('filtroCorridasInicio')?.value||''; const fim=document.getElementById('filtroCorridasFim')?.value||'';
   const arr=corridasAbertasCache.filter(x=>(!busca||[x.entregador_nome,x.retirada,x.destino,x.tipo_mercadoria,codigoCorrida(x.numero_corrida)].join(' ').toLowerCase().includes(busca))&&(!st||x.status===st)&&(!eid||String(x.entregador_id)===String(eid))&&(!ini||x.data_corrida>=ini)&&(!fim||x.data_corrida<=fim));
-  tb.innerHTML=arr.length?arr.map(x=>`<tr><td><b>${codigoCorrida(x.numero_corrida)}</b></td><td>${fmtDataCorridas(x.data_corrida)}</td><td>${escCorridas(x.entregador_nome)}</td><td>${escCorridas(x.categoria||'—')}</td><td>${x.volume?escCorridas(x.volume):'—'}</td><td>${escCorridas(x.tipo_mercadoria||'—')}</td><td>${escCorridas(x.retirada)}</td><td>${escCorridas(x.destino)}</td><td>${escCorridas(x.observacao||'—')}</td><td><b>${fmtMoedaCorridas(x.valor)}</b></td><td><span class="corridas-status ${x.status==='fechada'?'fechado':x.status==='aberta'?'ok':''}">${escCorridas(x.status)}</span></td></tr>`).join(''):'<tr><td colspan="11">Nenhuma corrida encontrada.</td></tr>';
+  tb.innerHTML=arr.length?arr.map(x=>`<tr><td><b>${codigoCorrida(x.numero_corrida)}</b></td><td class="corridas-acoes">${usuarioPodeAdministrarCorridas()&&x.status==='aberta'&&!x.fechamento_id?`<button class="btn azul" onclick="editarCorridaLancada('${x.id}')">✏️ Editar</button> <button class="btn vermelho" onclick="excluirCorridaLancada('${x.id}')">🗑️ Excluir</button>`:'—'}</td><td>${fmtDataCorridas(x.data_corrida)}</td><td>${escCorridas(x.entregador_nome)}</td><td>${escCorridas(x.categoria||'—')}</td><td>${x.volume?escCorridas(x.volume):'—'}</td><td>${escCorridas(x.tipo_mercadoria||'—')}</td><td>${escCorridas(x.retirada)}</td><td>${escCorridas(x.destino)}</td><td>${escCorridas(x.observacao||'—')}</td><td><b>${fmtMoedaCorridas(x.valor)}</b></td><td><span class="corridas-status ${x.status==='fechada'?'fechado':x.status==='aberta'?'ok':''}">${escCorridas(x.status)}</span></td></tr>`).join(''):'<tr><td colspan="12">Nenhuma corrida encontrada.</td></tr>';
   const tbd=document.getElementById('tabelaCorridasDriver');
   if(tbd){
     const arrDriver=corridasAbertasCache;
@@ -209,7 +242,7 @@ async function fecharCorridasSelecionadas(){
 }
 function montarTabelaFechamentos(){
   const tb=document.getElementById('tabelaFechamentosCorridas');if(!tb)return;
-  tb.innerHTML=corridasFechamentosCache.length?corridasFechamentosCache.map(x=>`<tr><td><b>${codigoFechamento(x.numero_fechamento)}</b></td><td>${fmtDataCorridas(x.data_fechamento)}</td><td>${escCorridas(x.entregador_nome)}</td><td>${fmtDataCorridas(x.periodo_inicio)} a ${fmtDataCorridas(x.periodo_fim)}</td><td>${x.qtd_corridas||0}</td><td><b>${fmtMoedaCorridas(x.valor_total)}</b></td><td><span class="corridas-status ${x.status_pagamento==='pago'?'ok':'fechado'}">${x.status_pagamento==='pago'?'Pago':'Fechado'}</span></td><td><button class="btn azul" onclick="abrirFechamentoCorridas('${x.id}')">Ver corridas</button> <button class="btn roxo" onclick="imprimirFechamentoCorridas('${x.id}')">🖨️ Imprimir</button>${usuarioPodeAdministrarCorridas()&&x.status_pagamento!=='pago'?` <button class="btn verde" onclick="marcarFechamentoPago('${x.id}')">Marcar pago</button>`:''}</td></tr>`).join(''):'<tr><td colspan="8">Nenhum fechamento realizado.</td></tr>';
+  tb.innerHTML=corridasFechamentosCache.length?corridasFechamentosCache.map(x=>`<tr><td><b>${codigoFechamento(x.numero_fechamento)}</b></td><td>${fmtDataCorridas(x.data_fechamento)}</td><td>${escCorridas(x.entregador_nome)}</td><td>${fmtDataCorridas(x.periodo_inicio)} a ${fmtDataCorridas(x.periodo_fim)}</td><td>${x.qtd_corridas||0}</td><td><b>${fmtMoedaCorridas(x.valor_total)}</b></td><td><span class="corridas-status ${x.status_pagamento==='pago'?'ok':'fechado'}">${x.status_pagamento==='pago'?'Pago':'Fechado'}</span></td><td><button class="btn azul" onclick="abrirFechamentoCorridas('${x.id}')">Ver corridas</button> <button class="btn roxo" onclick="imprimirFechamentoCorridas('${x.id}')">🖨️ Imprimir</button>${usuarioPodeAdministrarCorridas()?` <button class="btn azul" onclick="editarFechamentoCorridas('${x.id}')">✏️ Editar</button> <button class="btn vermelho" onclick="excluirFechamentoCorridas('${x.id}')">🗑️ Excluir</button>`:''}${usuarioPodeAdministrarCorridas()&&x.status_pagamento!=='pago'?` <button class="btn verde" onclick="marcarFechamentoPago('${x.id}')">Marcar pago</button>`:''}</td></tr>`).join(''):'<tr><td colspan="8">Nenhum fechamento realizado.</td></tr>';
 }
 async function buscarCorridasFechamento(id){
   const r=await banco.from('corridas').select('*').eq('fechamento_id',id).order('data_corrida',{ascending:true}).order('numero_corrida',{ascending:true});
@@ -227,6 +260,44 @@ function fecharModalFechamentoCorridas(){document.getElementById('modalFechament
 async function marcarFechamentoPago(id){
   if(!confirm('Marcar este fechamento como pago?'))return;
   const r=await banco.from('corridas_fechamentos').update({status_pagamento:'pago',pago_em:new Date().toISOString()}).eq('id',id);if(r.error)return alert(r.error.message);await carregarFechamentosCorridas();
+}
+
+async function editarFechamentoCorridas(id){
+  if(!usuarioPodeAdministrarCorridas())return;
+  const f=corridasFechamentosCache.find(x=>String(x.id)===String(id)); if(!f)return;
+  const obs=prompt(`Editar observação do ${codigoFechamento(f.numero_fechamento)}:`,f.observacao||'');
+  if(obs===null)return;
+  const atual=f.status_pagamento==='pago'?'pago':'fechado';
+  const sit=prompt('Situação do fechamento: digite PAGO ou FECHADO',atual.toUpperCase());
+  if(sit===null)return;
+  const status=String(sit).trim().toLowerCase();
+  if(!['pago','fechado'].includes(status))return alert('Situação inválida. Use PAGO ou FECHADO.');
+  const payload={observacao:obs.trim()||null,status_pagamento:status,pago_em:status==='pago'?(f.pago_em||new Date().toISOString()):null};
+  const r=await banco.from('corridas_fechamentos').update(payload).eq('id',id);
+  if(r.error)return alert('Erro ao editar fechamento: '+r.error.message);
+  await carregarFechamentosCorridas();
+  alert(`${codigoFechamento(f.numero_fechamento)} atualizado com sucesso.`);
+}
+async function excluirFechamentoCorridas(id){
+  if(!usuarioPodeAdministrarCorridas())return;
+  const f=corridasFechamentosCache.find(x=>String(x.id)===String(id)); if(!f)return;
+  const arr=await buscarCorridasFechamento(id);
+  if(!confirm(`Excluir ${codigoFechamento(f.numero_fechamento)}?
+
+As ${arr.length} corrida(s) deste fechamento NÃO serão apagadas. Elas voltarão para Corridas em aberto e poderão entrar em um novo fechamento.`))return;
+  let r=await banco.rpc('excluir_fechamento_corridas',{p_fechamento_id:id});
+  if(r.error){
+    // Compatibilidade caso o SQL V110 ainda não tenha sido executado.
+    const reabrir=await banco.from('corridas').update({fechamento_id:null,status:'aberta'}).eq('fechamento_id',id);
+    if(reabrir.error)return alert('Erro ao reabrir as corridas: '+reabrir.error.message+'
+
+Execute o SQL V110 no Supabase.');
+    r=await banco.from('corridas_fechamentos').delete().eq('id',id);
+    if(r.error)return alert('Erro ao excluir fechamento: '+r.error.message);
+  }
+  await Promise.all([carregarCorridas(),carregarFechamentosCorridas()]);
+  atualizarPreviaFechamento(); await avaliarAlertasCorridas(); atualizarDashboardCorridas();
+  alert(`${codigoFechamento(f.numero_fechamento)} excluído. As corridas voltaram para a lista em aberto.`);
 }
 async function imprimirFechamentoCorridas(id){
   const f=corridasFechamentosCache.find(x=>String(x.id)===String(id));if(!f)return;const arr=await buscarCorridasFechamento(id);imprimirDocumentoCorridas(f,arr);
