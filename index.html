@@ -2502,7 +2502,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
     <div id="corridasAba_corridas" class="corridas-subsecao corridas-admin-only" style="display:none;">
       <div class="card">
-        <div class="top"><div><h2>Corridas</h2><p>Consulte e imprima as corridas detalhadas.</p></div><button class="buscar" onclick="imprimirCorridasFiltradas()">🖨️ Imprimir A4</button></div>
+        <div class="top"><div><h2>Corridas</h2><p>Consulte e imprima as corridas detalhadas.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="buscar" onclick="imprimirCorridasFiltradas()">🖨️ Imprimir A4</button><button class="buscar" onclick="abrirImpressaoDoisEntregadores()">👥 Imprimir 2 entregadores</button></div></div>
         <div class="corridas-grid" style="margin-bottom:12px;">
           <div class="corridas-campo"><label>Busca</label><input id="filtroCorridasBusca" placeholder="Corrida, entregador, retirada ou destino" oninput="montarTabelaCorridas()"></div>
           <div class="corridas-campo"><label>Entregador</label><select id="filtroCorridasEntregador" onchange="montarTabelaCorridas()"><option value="">Todos os entregadores</option></select></div>

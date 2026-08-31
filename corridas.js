@@ -325,6 +325,67 @@ async function imprimirCorridasFiltradas(){
   const w=window.open('','_blank');w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Relatório de Corridas</title><style>@page{size:A4 landscape;margin:10mm}body{font:10px Arial;color:#222}h1{color:#5a4fa3;margin:0}p{margin:4px 0 12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:5px}th{background:#f1eef9}thead{display:table-header-group}tr{page-break-inside:avoid}.pagamento{margin-top:18px;border-top:2px solid #777;padding-top:10px;page-break-inside:avoid}.pag-grid{display:grid;grid-template-columns:1.15fr 1.5fr 1.15fr 1.4fr;gap:14px;margin-top:7px}</style></head><body><h1>Sofisticatto Cosméticos</h1><p>Relatório detalhado de corridas — ${new Date().toLocaleString('pt-BR')}</p><table><thead><tr><th>Corrida</th><th>Data</th><th>Entregador</th><th>Categoria</th><th>Volume</th><th>Mercadoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="9"><b>${arr.length} corrida(s)</b></td><td><b>${fmtMoedaCorridas(total)}</b></td></tr></tfoot></table>${rodape}<script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
 }
 
+
+function abrirImpressaoDoisEntregadores(){
+  if(!usuarioPodeAdministrarCorridas())return alert('Seu usuário não pode imprimir relatórios administrativos.');
+  const ativos=corridasEntregadoresCache.filter(e=>e.ativo!==false);
+  if(ativos.length<2)return alert('Cadastre pelo menos dois entregadores ativos para usar esta impressão.');
+  let modal=document.getElementById('modalImpressaoDoisEntregadores');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='modalImpressaoDoisEntregadores';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(28,24,46,.58);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px';
+    modal.innerHTML=`<div style="width:min(620px,96vw);background:#fff;border-radius:18px;padding:24px;box-shadow:0 18px 50px rgba(0,0,0,.25)">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><h2 style="margin:0;color:#3c326e">Imprimir dois entregadores na mesma A4</h2><p style="color:#6f6783;margin:7px 0 18px">As corridas serão separadas pelo nome do entregador e nunca serão misturadas.</p></div><button class="btn" onclick="fecharImpressaoDoisEntregadores()">Fechar</button></div>
+      <div class="corridas-grid" style="grid-template-columns:1fr 1fr">
+        <div class="corridas-campo"><label>1º entregador *</label><select id="impDoisEnt1"></select></div>
+        <div class="corridas-campo"><label>2º entregador *</label><select id="impDoisEnt2"></select></div>
+      </div>
+      <div style="background:#f6f4fb;border:1px solid #e2ddf3;border-radius:10px;padding:12px;margin-top:14px;color:#574f72;font-size:13px">Serão respeitados os filtros atuais de <b>busca, status e período</b>. O filtro de entregador da tela é ignorado porque você escolherá os dois nomes aqui.</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px"><button class="btn" onclick="fecharImpressaoDoisEntregadores()">Cancelar</button><button class="buscar" onclick="imprimirDoisEntregadoresMesmaFolha()">🖨️ Verificar e imprimir</button></div>
+    </div>`;
+    document.body.appendChild(modal);
+  }
+  const opts='<option value="">Selecione...</option>'+ativos.map(e=>`<option value="${e.id}">${escCorridas(e.nome)} — ${escCorridas(e.categoria||'')}</option>`).join('');
+  modal.querySelector('#impDoisEnt1').innerHTML=opts;
+  modal.querySelector('#impDoisEnt2').innerHTML=opts;
+  modal.style.display='flex';
+}
+function fecharImpressaoDoisEntregadores(){const m=document.getElementById('modalImpressaoDoisEntregadores');if(m)m.style.display='none';}
+function corridasParaImpressaoDoisEntregadores(entregadorId){
+  const busca=(document.getElementById('filtroCorridasBusca')?.value||'').toLowerCase();
+  const st=document.getElementById('filtroCorridasStatus')?.value||'';
+  const ini=document.getElementById('filtroCorridasInicio')?.value||'';
+  const fim=document.getElementById('filtroCorridasFim')?.value||'';
+  return corridasAbertasCache.filter(x=>String(x.entregador_id)===String(entregadorId)&&(!busca||[x.entregador_nome,x.retirada,x.destino,x.tipo_mercadoria,codigoCorrida(x.numero_corrida)].join(' ').toLowerCase().includes(busca))&&(!st||x.status===st)&&(!ini||x.data_corrida>=ini)&&(!fim||x.data_corrida<=fim));
+}
+function htmlBlocoEntregadorA4(ent,arr){
+  const total=arr.reduce((s,x)=>s+Number(x.valor||0),0);
+  const rows=arr.map(x=>`<tr><td>${codigoCorrida(x.numero_corrida)}</td><td>${fmtDataCorridas(x.data_corrida)}</td><td>${x.volume?escCorridas(x.volume):'—'}</td><td>${escCorridas(x.tipo_mercadoria||'—')}</td><td>${escCorridas(x.retirada)}</td><td>${escCorridas(x.destino)}</td><td>${escCorridas(x.observacao||'—')}</td><td>${fmtMoedaCorridas(x.valor)}</td></tr>`).join('');
+  return `<section class="entregador-bloco"><div class="entregador-titulo"><div><b>${escCorridas(ent.nome)}</b> <span>(${escCorridas(ent.categoria||'—')})</span></div><div><b>${arr.length} corrida(s) • ${fmtMoedaCorridas(total)}</b></div></div><table><thead><tr><th>Corrida</th><th>Data</th><th>Vol.</th><th>Mercadoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="7"><b>TOTAL — ${escCorridas(ent.nome)}</b></td><td><b>${fmtMoedaCorridas(total)}</b></td></tr></tfoot></table><div class="pagamento-compacto"><div><b>NOME:</b> ${escCorridas(ent.nome_pagamento||ent.nome||'—')}</div><div><b>CHAVE PIX:</b> ${escCorridas(ent.chave_pix||'—')}</div><div><b>BANCO:</b> ${escCorridas(ent.banco_pagamento||'—')}</div><div><b>DATA PREVISTA:</b> ____ / ____ / ________</div></div></section>`;
+}
+async function imprimirDoisEntregadoresMesmaFolha(){
+  const id1=document.getElementById('impDoisEnt1')?.value||'',id2=document.getElementById('impDoisEnt2')?.value||'';
+  if(!id1||!id2)return alert('Selecione os dois entregadores.');
+  if(String(id1)===String(id2))return alert('Selecione dois entregadores diferentes.');
+  const e1=corridasEntregadoresCache.find(e=>String(e.id)===String(id1)),e2=corridasEntregadoresCache.find(e=>String(e.id)===String(id2));
+  if(!e1||!e2)return alert('Não foi possível localizar os entregadores selecionados.');
+  const a1=corridasParaImpressaoDoisEntregadores(id1),a2=corridasParaImpressaoDoisEntregadores(id2);
+  if(!a1.length||!a2.length){const sem=[];if(!a1.length)sem.push(e1.nome);if(!a2.length)sem.push(e2.nome);return alert(`Não há corridas para imprimir, com os filtros atuais, para: ${sem.join(' e ')}.`);}
+  const blocos=htmlBlocoEntregadorA4(e1,a1)+htmlBlocoEntregadorA4(e2,a2);
+  const css=`body{font:9px Arial;color:#222;margin:0}h1{color:#5a4fa3;margin:0;font-size:20px}.sub{margin:2px 0 8px;color:#666}.entregador-bloco{margin-top:8px;page-break-inside:avoid}.entregador-bloco+ .entregador-bloco{border-top:2px solid #5a4fa3;padding-top:8px;margin-top:10px}.entregador-titulo{display:flex;justify-content:space-between;align-items:center;background:#f1eef9;padding:5px 7px;font-size:10px}.entregador-titulo span{font-weight:normal;color:#666}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #bbb;padding:3px 4px;vertical-align:top;word-wrap:break-word}th{background:#faf9fd}th:nth-child(1){width:8%}th:nth-child(2){width:9%}th:nth-child(3){width:5%}th:nth-child(4){width:11%}th:nth-child(5),th:nth-child(6){width:18%}th:nth-child(7){width:20%}th:nth-child(8){width:11%}.pagamento-compacto{display:grid;grid-template-columns:1.05fr 1.45fr 1fr 1.3fr;gap:8px;border:1px solid #bbb;border-top:0;padding:5px 6px;font-size:8.5px}.pagamento-compacto>div{overflow-wrap:anywhere}`;
+  // Medição conservadora usando as mesmas dimensões aproximadas da área útil de uma A4 paisagem com margens de 10 mm.
+  const med=document.createElement('div');med.style.cssText='position:fixed;left:-20000px;top:0;width:1046px;background:white;visibility:hidden;';med.innerHTML=`<style>${css}</style><h1>Sofisticatto Cosméticos</h1><div class="sub">Relatório de corridas — dois entregadores</div>${blocos}`;document.body.appendChild(med);
+  const altura=med.scrollHeight;med.remove();
+  const limite=680; // margem de segurança para diferenças entre navegador/impressora
+  if(altura>limite){
+    return alert(`Não cabe com segurança em uma única folha A4.\n\n${e1.nome}: ${a1.length} corrida(s)\n${e2.nome}: ${a2.length} corrida(s)\n\nReduza o período/filtros ou imprima os entregadores separadamente.`);
+  }
+  fecharImpressaoDoisEntregadores();
+  const w=window.open('','_blank');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Corridas — ${escCorridas(e1.nome)} e ${escCorridas(e2.nome)}</title><style>@page{size:A4 landscape;margin:10mm}${css}</style></head><body><h1>Sofisticatto Cosméticos</h1><div class="sub">Corridas separadas por entregador • ${new Date().toLocaleString('pt-BR')}</div>${blocos}<script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
+}
+
 let feriadosCorridasCache=[];
 async function carregarFeriadosCorridas(){const r=await banco.from('corridas_feriados').select('*').order('data',{ascending:true});if(!r.error){feriadosCorridasCache=r.data||[];montarFeriadosCorridas();}}
 async function adicionarFeriadoCorridas(){const data=document.getElementById('feriadoCorridasData').value,nome=document.getElementById('feriadoCorridasNome').value.trim();if(!data||!nome)return alert('Informe a data e o nome do feriado.');const r=await banco.from('corridas_feriados').upsert([{data,nome}],{onConflict:'data'});if(r.error)return alert(r.error.message);document.getElementById('feriadoCorridasNome').value='';await carregarFeriadosCorridas();await avaliarAlertasCorridas();}
