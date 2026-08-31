@@ -217,9 +217,19 @@ function configurarCadastroClientesPorPerfil(){
 }
 function configurarInterfacePorPerfil(){
   const comercial=usuarioEhComercialRastreio();
-  ["btnDashboard","btnRelatorios","btnHistoricoFinanceiro"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=comercial?"none":"block"});
+  const entregador=usuarioLogado?.tipo==="entregador";
+  ["btnDashboard","btnRelatorios","btnHistoricoFinanceiro"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=(comercial||entregador)?"none":"block"});
+  const btnCorridas=document.getElementById("btnCorridas");
+  if(btnCorridas) btnCorridas.style.display=(usuarioLogado?.tipo==="admin"||usuarioLogado?.tipo==="financeiro"||entregador)?"block":"none";
+  const dashCorr=document.getElementById("dashboardCorridasBox");
+  if(dashCorr) dashCorr.style.display=entregador?"none":"block";
+  const notif=document.querySelector(".notificacao-box");
+  if(notif) notif.style.display=entregador?"none":"block";
+  if(entregador) document.querySelectorAll(".corridas-admin-only").forEach(e=>e.style.display="none");
+  document.querySelectorAll(".corridas-driver-only").forEach(e=>e.style.display=entregador?"":"none");
   const btnDoc=document.getElementById("btnEnvioDocumentos");
   if(btnDoc) btnDoc.style.display=(usuarioLogado?.tipo==="financeiro"||comercial)?"block":"none";
+  if(entregador) return;
   if(!comercial) return;
   const permitidas=new Set(["Coletas","Preparar","Clientes","Historico"]);
   ["Logistica","Preparar","Gerador","Etiquetas","Correios","CobrancaBancaria","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(n=>{
@@ -253,10 +263,14 @@ function iniciarSistema(){
   document.getElementById("btnEnvioDocumentos").style.display = (usuarioLogado.tipo === "financeiro" || usuarioEhComercialRastreio()) ? "block" : "none";
   document.getElementById("boxNovoRelatorio").style.display = usuarioLogado.tipo === "banco" ? "none" : "block";
   configurarInterfacePorPerfil();
-  if(usuarioEhComercialRastreio()){ mostrarSecao("envioDocumentos"); mostrarAbaEmail("coletas"); setTimeout(()=>mostrarPainelColeta("rodonaves"),50); }
+  if(usuarioLogado.tipo==="entregador"){ mostrarSecao("corridas"); setTimeout(()=>mostrarAbaCorridas("minhas"),30); }
+  else if(usuarioEhComercialRastreio()){ mostrarSecao("envioDocumentos"); mostrarAbaEmail("coletas"); setTimeout(()=>mostrarPainelColeta("rodonaves"),50); }
   else { mostrarDashboardHoje(); mostrarSecao("dashboard"); }
-  carregarRelatorios();
+  if(usuarioLogado.tipo!=="entregador") carregarRelatorios();
   carregarUsuarios();
+  if(["admin","financeiro","entregador"].includes(usuarioLogado.tipo)){
+    setTimeout(()=>carregarModuloCorridas?.(),80);
+  }
 
   if(usuarioLogado.tipo === "financeiro" || usuarioEhComercialRastreio()){
     carregarVendedorasEmail().then(() => { atualizarRemetenteAtualEmail(); return carregarClientesEmail(); }).catch(erro => {
@@ -271,7 +285,11 @@ function mostrarSecao(secao){
   document.getElementById("historico").style.display = "none";
   document.getElementById("admin").style.display = "none";
   document.getElementById("envioDocumentos").style.display = "none";
+  const corridasSec=document.getElementById("corridas"); if(corridasSec)corridasSec.style.display="none";
 
+  if(usuarioLogado?.tipo==="entregador" && secao!=="corridas"){
+    secao="corridas";
+  }
   if(secao === "envioDocumentos" && !usuarioPodeModuloEmail()){
     alert("Seu usuário não possui acesso a esta área.");
     secao = "dashboard";
@@ -279,6 +297,7 @@ function mostrarSecao(secao){
 
   document.getElementById(secao).style.display = "block";
   if(secao === "envioDocumentos") carregarModuloEmail();
+  if(secao === "corridas") carregarModuloCorridas?.();
 }
 
 function sair(){ localStorage.removeItem("usuarioLogado"); location.reload(); }
@@ -1621,10 +1640,12 @@ async function criarUsuario(){
   const email_recebimento = document.getElementById("novoUsuarioEmailRecebimento")?.value.trim() || null;
   const email_remetente = document.getElementById("novoUsuarioEmail")?.value.trim() || null;
   const nome_exibicao = document.getElementById("novoUsuarioNome")?.value.trim() || null;
+  const entregador_id = document.getElementById("novoUsuarioEntregador")?.value || null;
   const senha_app = document.getElementById("novoUsuarioSenhaApp")?.value || "";
   if(!login || !senha){ alert("Preencha login e senha"); return; }
   if(tipo==="vendedora_rastreio"&&!vendedora_id){alert("Selecione a vendedora vinculada.");return;}
-  const r=await banco.from("usuarios").insert([{login,senha,tipo,vendedora_id:tipo==="vendedora_rastreio"?vendedora_id:null,email_recebimento,email_remetente,nome_exibicao}]);
+  if(tipo==="entregador"&&!entregador_id){alert("Selecione o entregador que ficará vinculado a este usuário.");return;}
+  const r=await banco.from("usuarios").insert([{login,senha,tipo,vendedora_id:tipo==="vendedora_rastreio"?vendedora_id:null,entregador_id:tipo==="entregador"?entregador_id:null,email_recebimento,email_remetente,nome_exibicao}]);
   if(r.error){alert("Erro ao criar usuário: "+r.error.message);return;}
   if(tipo==="vendedora_rastreio" && vendedora_id && email_recebimento){
     const rv=await banco.from("email_vendedoras").update({email:email_recebimento}).eq("id",vendedora_id);
@@ -1642,20 +1663,22 @@ async function criarUsuario(){
   alert(msg);
   ["novoLogin","novaSenha","novoUsuarioEmailRecebimento","novoUsuarioEmail","novoUsuarioNome","novoUsuarioSenhaApp"].forEach(id=>{const e=document.getElementById(id);if(e)e.value=""});
   if(document.getElementById("novoUsuarioVendedora"))document.getElementById("novoUsuarioVendedora").value="";
+  if(document.getElementById("novoUsuarioEntregador"))document.getElementById("novoUsuarioEntregador").value="";
   carregarUsuarios();
 }
 async function carregarUsuarios(){
   if(!usuarioLogado || usuarioLogado.tipo !== "admin") return;
-  await carregarVendedorasAdmin(); atualizarCamposUsuarioComercial();
-  const [resposta,rv]=await Promise.all([banco.from("usuarios").select("*").order("login",{ascending:true}),banco.from("email_vendedoras").select("id,nome")]);
+  await carregarVendedorasAdmin(); atualizarCamposUsuarioComercial(); await carregarEntregadoresParaUsuario?.(); atualizarCamposUsuarioEntregador?.();
+  const [resposta,rv,re]=await Promise.all([banco.from("usuarios").select("*").order("login",{ascending:true}),banco.from("email_vendedoras").select("id,nome"),banco.from("corridas_entregadores").select("id,nome")]);
   if(resposta.error) return;
   const mapa=new Map((rv.data||[]).map(v=>[String(v.id),v.nome]));
+  const mapaEntregadores=new Map((re.data||[]).map(v=>[String(v.id),v.nome]));
   usuariosAdminCache = resposta.data || [];
   const tabela = document.getElementById("tabelaUsuarios"); tabela.innerHTML = "";
   resposta.data.forEach(user => {
     const email=user.email_remetente||"";
     const receber=user.email_recebimento||"";
-    tabela.innerHTML += `<tr><td>${escaparHtmlEmail(user.login)}</td><td>${escaparHtmlEmail(user.tipo)}</td><td>${escaparHtmlEmail(mapa.get(String(user.vendedora_id||""))||"—")}</td><td>${escaparHtmlEmail(receber||"—")}</td><td>${escaparHtmlEmail(email||"—")}</td><td>${escaparHtmlEmail(user.nome_exibicao||"—")}</td><td><button class="btn azul" onclick="editarEmailsUsuario('${String(user.id)}')">Editar e-mails</button></td><td>${email?`<div id="smtpStatus_${user.id}" style="font-size:12px;margin-bottom:6px">Não consultado</div><button class="btn azul" onclick="consultarStatusSmtpUsuario('${String(user.id)}','${escaparHtmlEmail(user.login)}','${escaparHtmlEmail(email)}','${escaparHtmlEmail(user.nome_exibicao||user.login)}')">Verificar</button> <button class="btn verde" onclick="configurarSmtpUsuario('${escaparHtmlEmail(user.login)}','${escaparHtmlEmail(email)}','${escaparHtmlEmail(user.nome_exibicao||user.login)}')">Configurar senha</button> <button class="btn azul" onclick="testarSmtpUsuario('${escaparHtmlEmail(user.login)}','${escaparHtmlEmail(email)}','${escaparHtmlEmail(user.nome_exibicao||user.login)}')">Testar</button> <button class="btn vermelho" onclick="desativarSmtpUsuario('${escaparHtmlEmail(user.login)}','${escaparHtmlEmail(email)}')">Desativar</button>`:"—"}</td><td>${email?`<div id="gmailStatus_${user.id}" style="font-size:12px;margin-bottom:6px">Opcional</div><button class="btn azul" onclick="consultarRemetenteGoogle('${String(user.id)}','${escaparHtmlEmail(email)}')">Verificar</button>`:"—"}</td></tr>`;
+    tabela.innerHTML += `<tr><td>${escaparHtmlEmail(user.login)}</td><td>${escaparHtmlEmail(user.tipo)}</td><td>${escaparHtmlEmail(mapa.get(String(user.vendedora_id||""))||"—")}</td><td>${escaparHtmlEmail(mapaEntregadores.get(String(user.entregador_id||""))||"—")}</td><td>${escaparHtmlEmail(receber||"—")}</td><td>${escaparHtmlEmail(email||"—")}</td><td>${escaparHtmlEmail(user.nome_exibicao||"—")}</td><td><button class="btn azul" onclick="editarEmailsUsuario('${String(user.id)}')">Editar e-mails</button></td><td>${email?`<div id="smtpStatus_${user.id}" style="font-size:12px;margin-bottom:6px">Não consultado</div><button class="btn azul" onclick="consultarStatusSmtpUsuario('${String(user.id)}','${escaparHtmlEmail(user.login)}','${escaparHtmlEmail(email)}','${escaparHtmlEmail(user.nome_exibicao||user.login)}')">Verificar</button> <button class="btn verde" onclick="configurarSmtpUsuario('${escaparHtmlEmail(user.login)}','${escaparHtmlEmail(email)}','${escaparHtmlEmail(user.nome_exibicao||user.login)}')">Configurar senha</button> <button class="btn azul" onclick="testarSmtpUsuario('${escaparHtmlEmail(user.login)}','${escaparHtmlEmail(email)}','${escaparHtmlEmail(user.nome_exibicao||user.login)}')">Testar</button> <button class="btn vermelho" onclick="desativarSmtpUsuario('${escaparHtmlEmail(user.login)}','${escaparHtmlEmail(email)}')">Desativar</button>`:"—"}</td><td>${email?`<div id="gmailStatus_${user.id}" style="font-size:12px;margin-bottom:6px">Opcional</div><button class="btn azul" onclick="consultarRemetenteGoogle('${String(user.id)}','${escaparHtmlEmail(email)}')">Verificar</button>`:"—"}</td></tr>`;
   });
 }
 

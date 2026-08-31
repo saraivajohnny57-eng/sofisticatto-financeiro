@@ -41,6 +41,7 @@
       <button id="btnDashboard" onclick="mostrarSecao('dashboard')">Dashboard</button>
       <button id="btnRelatorios" onclick="mostrarSecao('relatorios')">Relatórios</button>
       <button id="btnHistoricoFinanceiro" onclick="mostrarSecao('historico')">Histórico</button>
+      <button id="btnCorridas" onclick="mostrarSecao('corridas')" style="display:none;">🚚 Corridas <span id="badgeCorridasAlertas" class="badge-corridas">0</span></button>
       <button id="btnEnvioDocumentos" onclick="mostrarSecao('envioDocumentos')" style="display:none;">Envio de Documentos</button>
       <button id="btnAdmin" onclick="mostrarSecao('admin')" style="display:none;">Admin</button>
     </div>
@@ -73,6 +74,25 @@
       <div class="card total"><p id="tituloTotal">Total Finalizado</p><h2 id="total">R$ 0,00</h2></div>
     </div>
     <div class="card"><h2>Total por Banco</h2><div class="grafico-box"><canvas id="grafico"></canvas></div></div>
+
+    <div id="dashboardCorridasBox">
+      <div class="corridas-resumo" style="margin-top:14px;">
+        <div class="corridas-kpi"><small>Corridas no mês</small><b id="dashCorridasMes">0</b></div>
+        <div class="corridas-kpi"><small>Valor das corridas no mês</small><b id="dashCorridasValor">R$ 0,00</b></div>
+        <div class="corridas-kpi"><small>Total ainda aberto</small><b id="dashCorridasAberto">R$ 0,00</b></div>
+      </div>
+      <div class="card">
+        <h2>Corridas por categoria — mês atual</h2>
+        <div class="corridas-pizza-wrap">
+          <div id="corridasPizza" class="corridas-pizza"></div>
+          <div id="corridasPizzaLegenda" class="corridas-pizza-legenda"><span>Sem corridas no mês.</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Fechamentos que precisam de atenção</h2>
+        <div id="dashboardAlertasCorridas"><div class="corrida-alerta-ok">✅ Nenhum fechamento exige atenção agora.</div></div>
+      </div>
+    </div>
   </div>
 
   <div id="relatorios" style="display:none;">
@@ -2433,17 +2453,141 @@ SOFISTICATTO COSMÉTICOS</textarea>
     </div>
   </div>
 
+  <div id="corridas" style="display:none;">
+    <div class="top">
+      <div><h1>Corridas / Entregadores</h1><p>Controle de corridas, alertas e fechamentos.</p></div>
+    </div>
+    <div id="corridasAvisoSQL" class="corridas-aviso-sql"></div>
+
+    <div class="corridas-resumo">
+      <div class="corridas-kpi"><small>Corridas em aberto</small><b id="corridasQtdAberto">0</b></div>
+      <div class="corridas-kpi"><small>Valor em aberto</small><b id="corridasValorAberto">R$ 0,00</b></div>
+    </div>
+
+    <div id="corridasAlertas" class="corridas-admin-only"></div>
+
+    <div class="corridas-tabs">
+      <button id="corridasTab_nova" class="corridas-tab corridas-admin-only ativo" onclick="mostrarAbaCorridas('nova')">+ Nova Corrida</button>
+      <button id="corridasTab_corridas" class="corridas-tab corridas-admin-only" onclick="mostrarAbaCorridas('corridas')">Corridas</button>
+      <button id="corridasTab_minhas" class="corridas-tab corridas-driver-only" onclick="mostrarAbaCorridas('minhas')">Minhas Corridas</button>
+      <button id="corridasTab_entregadores" class="corridas-tab corridas-admin-only" onclick="mostrarAbaCorridas('entregadores')">Entregadores</button>
+      <button id="corridasTab_fechamentos" class="corridas-tab" onclick="mostrarAbaCorridas('fechamentos')">Histórico de Fechamentos</button>
+      <button id="corridasTab_feriados" class="corridas-tab corridas-admin-only" onclick="mostrarAbaCorridas('feriados')">Feriados</button>
+    </div>
+
+    <div id="corridasAba_nova" class="corridas-subsecao corridas-admin-only">
+      <div class="card">
+        <h2>Lançar Corrida</h2>
+        <div class="corridas-grid">
+          <div class="corridas-campo corrida-autocomplete">
+            <label>Entregador *</label>
+            <input id="corridaEntregadorBusca" autocomplete="off" placeholder="Comece a digitar o nome..." oninput="limparEntregadorSelecionadoSeDigitou()" onfocus="atualizarListaEntregadorCorrida()">
+            <input id="corridaEntregadorId" type="hidden">
+            <div id="corridaSugestoes" class="corrida-sugestoes"></div>
+          </div>
+          <div class="corridas-campo"><label>Categoria</label><input id="corridaCategoria" readonly placeholder="Preenchimento automático"></div>
+          <div class="corridas-campo"><label>Telefone</label><input id="corridaTelefone" readonly placeholder="Preenchimento automático"></div>
+          <div class="corridas-campo span2"><label>Local de retirada *</label><input id="corridaRetirada" placeholder="Onde a mercadoria foi retirada"></div>
+          <div class="corridas-campo span2"><label>Destino *</label><input id="corridaDestino" placeholder="Local de destino da mercadoria"></div>
+          <div class="corridas-campo span2"><label>Observação</label><textarea id="corridaObservacao" rows="2" placeholder="Referência, nº do pedido, instruções..."></textarea></div>
+          <div class="corridas-campo"><label>Valor da corrida *</label><input id="corridaValor" inputmode="decimal" placeholder="R$ 0,00" oninput="mascaraValor(this)"></div>
+          <div class="corridas-campo"><label>Data *</label><input id="corridaData" type="date"></div>
+        </div>
+        <div class="corridas-actions"><button class="salvar" onclick="lancarCorrida()">Lançar corrida</button></div>
+        <p style="font-size:12px;color:#706884;margin-top:10px;">Cada corrida recebe uma numeração automática no padrão <b>COR-000001</b>.</p>
+      </div>
+    </div>
+
+    <div id="corridasAba_corridas" class="corridas-subsecao corridas-admin-only" style="display:none;">
+      <div class="card">
+        <div class="top"><div><h2>Corridas</h2><p>Consulte e imprima as corridas detalhadas.</p></div><button class="buscar" onclick="imprimirCorridasFiltradas()">🖨️ Imprimir A4</button></div>
+        <div class="corridas-grid" style="margin-bottom:12px;">
+          <div class="corridas-campo"><label>Busca</label><input id="filtroCorridasBusca" placeholder="Corrida, entregador, retirada ou destino" oninput="montarTabelaCorridas()"></div>
+          <div class="corridas-campo"><label>Entregador</label><select id="filtroCorridasEntregador" onchange="montarTabelaCorridas()"><option value="">Todos os entregadores</option></select></div>
+          <div class="corridas-campo"><label>Status</label><select id="filtroCorridasStatus" onchange="montarTabelaCorridas()"><option value="">Todos</option><option value="aberta">Aberta</option><option value="fechada">Fechada</option><option value="cancelada">Cancelada</option></select></div>
+          <div class="corridas-campo"><label>Data inicial</label><input id="filtroCorridasInicio" type="date" onchange="montarTabelaCorridas()"></div>
+          <div class="corridas-campo"><label>Data final</label><input id="filtroCorridasFim" type="date" onchange="montarTabelaCorridas()"></div>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Data</th><th>Entregador</th><th>Categoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th><th>Status</th></tr></thead><tbody id="tabelaCorridas"></tbody></table></div>
+      </div>
+      <div class="card">
+        <h2>Novo Fechamento</h2>
+        <p style="color:#6f6783;">Selecione o entregador e as corridas que deseja fechar. Os alertas são somente informativos e nunca bloqueiam novos lançamentos.</p>
+        <div class="corridas-grid">
+          <div class="corridas-campo"><label>Entregador *</label><select id="fechamentoEntregador" onchange="atualizarPreviaFechamento()"><option value="">Selecione o entregador</option></select></div>
+          <div class="corridas-campo"><label>Data inicial</label><input id="fechamentoInicio" type="date" onchange="atualizarPreviaFechamento()"></div>
+          <div class="corridas-campo"><label>Data final</label><input id="fechamentoFim" type="date" onchange="atualizarPreviaFechamento()"></div>
+          <div class="corridas-campo span2"><label>Observação do fechamento</label><input id="fechamentoObs" placeholder="Ex.: pagamento via Pix / referência interna"></div>
+        </div>
+        <div class="corridas-resumo" style="margin-top:12px;"><div class="corridas-kpi"><small>Selecionadas</small><b id="fechamentoQtd">0</b></div><div class="corridas-kpi"><small>Total do fechamento</small><b id="fechamentoValor">R$ 0,00</b></div></div>
+        <div class="table-wrap"><table><thead><tr><th></th><th>Corrida</th><th>Data</th><th>Retirada</th><th>Destino</th><th>Valor</th></tr></thead><tbody id="tabelaPreviaFechamento"><tr><td colspan="6">Selecione um entregador.</td></tr></tbody></table></div>
+        <div class="corridas-actions"><button class="salvar" onclick="fecharCorridasSelecionadas()">Fechar corridas selecionadas</button></div>
+      </div>
+    </div>
+
+    <div id="corridasAba_minhas" class="corridas-subsecao corridas-driver-only" style="display:none;">
+      <div class="card">
+        <h2>Minhas Corridas</h2><p>Você visualiza somente suas próprias corridas e valores.</p>
+        <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Data</th><th>Categoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th><th>Status</th></tr></thead><tbody id="tabelaCorridasDriver"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="corridasAba_entregadores" class="corridas-subsecao corridas-admin-only" style="display:none;">
+      <div class="card">
+        <h2>Cadastro de Entregador</h2>
+        <input id="entregadorEditId" type="hidden">
+        <div class="corridas-grid">
+          <div class="corridas-campo"><label>Nome *</label><input id="entregadorNome"></div>
+          <div class="corridas-campo"><label>Telefone / WhatsApp</label><input id="entregadorTelefone"></div>
+          <div class="corridas-campo"><label>Categoria *</label><select id="entregadorCategoria"><option>Moto</option><option>Carro</option><option>Fiorino</option><option>Van</option><option>Caminhão</option><option>Outro</option></select></div>
+          <div class="corridas-campo"><label>Placa</label><input id="entregadorPlaca" placeholder="Opcional"></div>
+          <div class="corridas-campo span2"><label>Observações</label><input id="entregadorObs"></div>
+          <div class="corridas-campo"><label><input id="entregadorAtivo" type="checkbox" checked style="width:auto;"> Entregador ativo</label></div>
+        </div>
+        <h3 style="margin:18px 0 8px;">Regras de Alerta para Fechamento</h3>
+        <div class="corridas-regras">
+          <div class="corridas-regra"><label><input id="alertaMensal" type="checkbox"> 📅 Alerta mensal</label><div class="regra-config">Dia 3 de cada mês. Se cair em sábado, domingo ou feriado, alerta no próximo dia útil.</div></div>
+          <div class="corridas-regra"><label><input id="alertaQuantidade" type="checkbox"> 🔢 Alerta por quantidade</label><div class="regra-config"><label>Quantidade</label><input id="alertaQuantidadeLimite" type="number" min="1" value="64"></div></div>
+          <div class="corridas-regra"><label><input id="alertaValor" type="checkbox"> 💰 Alerta por valor</label><div class="regra-config"><label>Valor limite</label><input id="alertaValorLimite" inputmode="decimal" placeholder="R$ 0,00" oninput="mascaraValor(this)"></div></div>
+        </div>
+        <p style="font-size:12px;color:#706884;"><b>Importante:</b> as três regras são independentes. Cada entregador pode usar nenhuma, uma, duas ou todas. Os alertas nunca bloqueiam o lançamento de corridas.</p>
+        <div class="corridas-actions"><button id="btnSalvarEntregador" class="salvar" onclick="salvarEntregadorCorridas()">Cadastrar entregador</button><button class="buscar" onclick="limparFormEntregador()">Limpar</button></div>
+      </div>
+      <div class="card"><h2>Entregadores cadastrados</h2><div class="table-wrap"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Telefone</th><th>Placa</th><th>Alertas</th><th>Status</th><th>Ação</th></tr></thead><tbody id="tabelaEntregadoresCorridas"></tbody></table></div></div>
+    </div>
+
+    <div id="corridasAba_fechamentos" class="corridas-subsecao" style="display:none;">
+      <div class="card">
+        <h2>Histórico de Fechamentos</h2>
+        <p>Clique em <b>Ver corridas</b> para conferir exatamente quais corridas fazem parte do fechamento ou em <b>Imprimir</b> para gerar o relatório A4 detalhado.</p>
+        <div class="table-wrap"><table><thead><tr><th>Fechamento</th><th>Data</th><th>Entregador</th><th>Período</th><th>Qtd.</th><th>Total</th><th>Situação</th><th>Ações</th></tr></thead><tbody id="tabelaFechamentosCorridas"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="corridasAba_feriados" class="corridas-subsecao corridas-admin-only" style="display:none;">
+      <div class="card">
+        <h2>Feriados para cálculo do próximo dia útil</h2>
+        <p>Feriados nacionais fixos já são considerados. Cadastre aqui feriados municipais, estaduais ou datas móveis que devam adiar o alerta mensal.</p>
+        <div class="corridas-grid"><div class="corridas-campo"><label>Data</label><input id="feriadoCorridasData" type="date"></div><div class="corridas-campo"><label>Nome do feriado</label><input id="feriadoCorridasNome"></div></div>
+        <div class="corridas-actions"><button class="salvar" onclick="adicionarFeriadoCorridas()">Adicionar feriado</button></div>
+        <div class="table-wrap" style="margin-top:12px;"><table><thead><tr><th>Data</th><th>Feriado</th><th>Ação</th></tr></thead><tbody id="tabelaFeriadosCorridas"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+
   <div id="admin" style="display:none;">
     <div class="card">
       <h2>Criar Usuário</h2>
       <div class="inputs">
         <input type="text" id="novoLogin" placeholder="Login">
         <input type="text" id="novaSenha" placeholder="Senha">
-        <select id="novoTipo" onchange="atualizarCamposUsuarioComercial()">
+        <select id="novoTipo" onchange="atualizarCamposUsuarioComercial();atualizarCamposUsuarioEntregador()">
           <option value="financeiro">Financeiro</option><option value="banco">Banco</option><option value="admin">Admin</option>
           <option value="vendedora_rastreio">Vendedora — Rastreamento + E-mail</option>
           <option value="gerente_rastreio">Gerente — Rastreamento + E-mail</option>
+          <option value="entregador">Entregador — Somente próprias corridas</option>
         </select>
+        <select id="novoUsuarioEntregador" style="display:none;"><option value="">Entregador vinculado (somente perfil entregador)</option></select>
         <select id="novoUsuarioVendedora"><option value="">Vendedora vinculada (somente perfil vendedora)</option></select>
         <input type="email" id="novoUsuarioEmailRecebimento" placeholder="E-mail para receber (ex.: thais.sofisticatto@gmail.com)">
         <input type="email" id="novoUsuarioEmail" placeholder="E-mail remetente / enviar (ex.: comercial01@sofisticatto1.com.br)">
@@ -2466,8 +2610,17 @@ SOFISTICATTO COSMÉTICOS</textarea>
     </div>
     <div class="card">
       <h2>Usuários</h2>
-      <div class="table-wrap"><table><thead><tr><th>Login</th><th>Tipo</th><th>Vendedora</th><th>E-mail para receber</th><th>E-mail remetente</th><th>Nome</th><th>Cadastro</th><th>SMTP / Senha de aplicativo</th><th>Google Workspace</th></tr></thead><tbody id="tabelaUsuarios"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Login</th><th>Tipo</th><th>Vendedora</th><th>Entregador</th><th>E-mail para receber</th><th>E-mail remetente</th><th>Nome</th><th>Cadastro</th><th>SMTP / Senha de aplicativo</th><th>Google Workspace</th></tr></thead><tbody id="tabelaUsuarios"></tbody></table></div>
     </div>
+  </div>
+</div>
+
+
+<div id="modalFechamentoCorridas" class="corridas-modal" onclick="if(event.target===this)fecharModalFechamentoCorridas()">
+  <div class="corridas-modal-card">
+    <div class="top"><div><h2 id="modalFechamentoTitulo">Fechamento</h2><p id="modalFechamentoResumo"></p></div><button class="btn vermelho" onclick="fecharModalFechamentoCorridas()">Fechar</button></div>
+    <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Data</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th></tr></thead><tbody id="modalFechamentoTabela"></tbody></table></div>
+    <div class="corridas-actions"><button class="btn roxo" onclick="imprimirFechamentoModal()">🖨️ Imprimir fechamento A4</button></div>
   </div>
 </div>
 
@@ -2601,6 +2754,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 
 <script src="financeiro.js?v=13.9"></script>
+<script src="corridas.js?v=108"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
 <script src="cotacoes.js?v=36-alfa"></script>
