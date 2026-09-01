@@ -1224,8 +1224,8 @@ async function carregarPainelRodonaves(){
         ${coletaRegistroEhCorreios(a)?(
           prepostagemCorreiosDaColeta(a)?.idPrePostagem
             ? `<button class="btn roxo" onclick="abrirModuloCorreiosDaColeta('${a.id}')">Pré-postagem / documentos</button>
-               <button class="btn verde" onclick="abrirRotuloPrepostagemDaColeta('${a.id}')">Rótulo</button>
-               <button class="btn roxo" onclick="abrirDeclaracaoPrepostagemDaColeta('${a.id}')">Declaração</button>`
+               <button class="btn verde" onclick="abrirRotuloPrepostagemDaColeta('${a.id}')">🖨️ Etiqueta 100×150</button>
+               <button class="btn roxo" onclick="abrirDeclaracaoPrepostagemDaColeta('${a.id}')">📄 Declaração A4</button>`
             : `<button class="btn roxo" onclick="gerarPrePostagemCorreiosDaColeta('${a.id}')">Gerar pré-postagem</button>`
         ):""}
         ${podeAtualizarManual?`<button class="btn coleta-manual" onclick="alterarStatusManualColeta('${a.id}','coletado')">Marcar coletada</button>`:""}
@@ -1362,7 +1362,7 @@ function prepostagemCorreiosDaColeta(a){return a?.dados?.prepostagem_correios||n
 function parseCidadeUfColeta(v){const m=String(v||'').trim().match(/^(.*?)[\/-]\s*([A-Z]{2})\s*$/i);return m?{cidade:m[1].trim(),uf:m[2].toUpperCase()}:{cidade:String(v||'').trim(),uf:''};}
 async function abrirDocumentoPrepostagemColeta(id,modo){
   const qs=new URLSearchParams({action:'documentos-correios',modo,idPrePostagem:id});
-  if(modo==='rotulo')qs.set('tipoRotulo','P');
+  if(modo==='rotulo' || modo==='rotulo-l42')qs.set('tipoRotulo','P');
   window.open('/api/integracoes?'+qs.toString(),'_blank');
 }
 
@@ -1370,8 +1370,8 @@ function prepostagemModuloCorreiosPayload(a,pre){
   const d=a?.dados||{};
   const cu=parseCidadeUfColeta(d.cidade_destino||'');
   return {
-    idPrePostagem:pre?.idPrePostagem||'',
-    codigoObjeto:pre?.codigoObjeto||a?.protocolo_rastreio||'',
+    idPrePostagem:(Array.isArray(pre?.prepostagens)&&pre.prepostagens.length?pre.prepostagens.map(x=>x.idPrePostagem).filter(Boolean).join(','):pre?.idPrePostagem)||'',
+    codigoObjeto:(Array.isArray(pre?.prepostagens)&&pre.prepostagens.length?pre.prepostagens.map(x=>x.codigoObjeto).filter(Boolean).join(', '):pre?.codigoObjeto)||a?.protocolo_rastreio||'',
     codigoServico:pre?.codigoServico||d.codigo_servico_correios||'',
     servico:pre?.servico||'',
     cliente:a?.cliente_nome||d.razao_destino||'',
@@ -1421,13 +1421,15 @@ function abrirRotuloPrepostagemDaColeta(id){
   const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
   const pre=prepostagemCorreiosDaColeta(a);
   if(!pre?.idPrePostagem)return alert('Esta coleta ainda não possui pré-postagem.');
-  abrirDocumentoPrepostagemColeta(pre.idPrePostagem,'rotulo');
+  const ids=Array.isArray(pre.prepostagens)&&pre.prepostagens.length?pre.prepostagens.map(x=>x.idPrePostagem).filter(Boolean).join(','):pre.idPrePostagem;
+  abrirDocumentoPrepostagemColeta(ids,'rotulo-l42');
 }
 function abrirDeclaracaoPrepostagemDaColeta(id){
   const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
   const pre=prepostagemCorreiosDaColeta(a);
   if(!pre?.idPrePostagem)return alert('Esta coleta ainda não possui pré-postagem.');
-  abrirDocumentoPrepostagemColeta(pre.idPrePostagem,'declaracao');
+  const ids=Array.isArray(pre.prepostagens)&&pre.prepostagens.length?pre.prepostagens.map(x=>x.idPrePostagem).filter(Boolean).join(','):pre.idPrePostagem;
+  abrirDocumentoPrepostagemColeta(ids,'dace');
 }
 function abrirModuloCorreiosDaColeta(id){
   const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
@@ -1522,12 +1524,35 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
     // Rotinas silenciosas nunca presumem artigo perigoso: 095 só pode ser enviado por escolha explícita do usuário.
     restricaoAerea=false;
   }
-  const payload={codigoServico:codigo,pesoKg:a.peso||d.peso,medidas:d.medidas,numeroNf:a.numero_nf||d.numero_nf,chaveNFe:a.chave_nfe||d.chave_nfe||d.chave_nf,valorNf:d.valor_nf,mercadoria:d.mercadoria||'Cosméticos',destino,restricaoAereaConfirmada:restricaoAerea};
-  if(restricaoAerea)payload.listaServicoAdicional=[{codigoServicoAdicional:'095'}];
-  if(!silencioso)mostrarBalaoSistema('Correios',restricaoAerea?'Gerando pré-postagem com restrição aérea (095)...':'Gerando pré-postagem liberada para transporte aéreo...');
-  const r=await fetch('/api/integracoes?action=criar-prepostagem-correios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  const j=await r.json().catch(()=>({})); if(!r.ok||!j.ok)throw new Error(j.erro||`HTTP ${r.status}`);
-  const pre={idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico,servico:j.servico||'',gerada_em:new Date().toISOString()};
+  const qtdVolumes=Math.max(1,parseInt(a.volumes||d.volumes||1,10)||1);
+  const totalKg=numeroColetaApi(a.peso||d.peso)||0;
+  const pesoPorVolume=qtdVolumes>1&&totalKg>0?(totalKg/qtdVolumes):totalKg;
+  if(pesoPorVolume<=0)throw new Error('Informe o peso total da remessa antes de gerar a pré-postagem.');
+
+  // V120: cada pré-postagem dos Correios representa um objeto postal. Quando a coleta possui
+  // vários volumes, o peso informado no painel é o total da remessa; portanto criamos uma
+  // pré-postagem por volume usando o peso médio por volume, em vez de enviar o peso total
+  // (ex.: 327 kg) como se fosse um único pacote.
+  const valorTotalNf=numeroColetaApi(d.valor_nf)||0;
+  const valorPorVolume=qtdVolumes>1&&valorTotalNf>0?(valorTotalNf/qtdVolumes):valorTotalNf;
+  const basePayload={codigoServico:codigo,pesoKg:pesoPorVolume,medidas:d.medidas,numeroNf:a.numero_nf||d.numero_nf,chaveNFe:a.chave_nfe||d.chave_nfe||d.chave_nf,valorNf:valorPorVolume||d.valor_nf,mercadoria:d.mercadoria||'Cosméticos',destino,restricaoAereaConfirmada:restricaoAerea,totalVolumes:qtdVolumes,pesoTotalKg:totalKg,valorTotalNf};
+  if(restricaoAerea)basePayload.listaServicoAdicional=[{codigoServicoAdicional:'095'}];
+  if(!silencioso)mostrarBalaoSistema('Correios',qtdVolumes>1?`Gerando ${qtdVolumes} pré-postagens • ${pesoPorVolume.toFixed(3).replace('.',',')} kg por volume...`:(restricaoAerea?'Gerando pré-postagem com restrição aérea (095)...':'Gerando pré-postagem liberada para transporte aéreo...'));
+
+  const geradas=[];
+  for(let volumeNumero=1;volumeNumero<=qtdVolumes;volumeNumero++){
+    if(!silencioso && qtdVolumes>1) mostrarBalaoSistema('Correios',`Gerando volume ${volumeNumero}/${qtdVolumes}...`);
+    const payload={...basePayload,volumeNumero};
+    const r=await fetch('/api/integracoes?action=criar-prepostagem-correios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.ok){
+      const detalhe=geradas.length?`\n\n${geradas.length} volume(s) já foram criados antes da falha. Não repita a operação sem verificar para evitar duplicidade.`:'';
+      throw new Error((j.erro||`HTTP ${r.status}`)+detalhe);
+    }
+    geradas.push({idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico,servico:j.servico||'',volumeNumero,pesoKg:pesoPorVolume});
+  }
+  const j=geradas[0]||{};
+  const pre={idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico||codigo,servico:j.servico||'',gerada_em:new Date().toISOString(),prepostagens:geradas,quantidadeVolumes:qtdVolumes,pesoTotalKg:totalKg,pesoPorVolumeKg:pesoPorVolume};
   const novosDados={...d,codigo_servico_correios:codigo,prepostagem_correios:pre};
   if(j.cepUtilizado && String(j.cepUtilizado)!==String(j.cepOriginal||'')){
     novosDados.cep_destino=String(j.cepUtilizado).replace(/(\d{5})(\d{3})/,'$1-$2');
@@ -1537,12 +1562,15 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   if(j.codigoObjeto)patch.protocolo_rastreio=j.codigoObjeto;
   const up=await banco.from('coleta_agendamentos').update(patch).eq('id',id); if(up.error)console.warn('Pré-postagem criada, mas falhou ao gravar no agendamento:',up.error.message);
   a.dados=novosDados;if(j.codigoObjeto)a.protocolo_rastreio=j.codigoObjeto;
-  mostrarBalaoSistema('Pré-postagem criada',`${j.servico||codigo}${j.codigoObjeto?' • '+j.codigoObjeto:''}`);
-  if(!silencioso)alert(`Pré-postagem dos Correios criada com sucesso.\n\nServiço: ${j.servico||codigo}\nID: ${j.idPrePostagem}${j.codigoObjeto?`\nRastreio: ${j.codigoObjeto}`:''}`);
+  mostrarBalaoSistema('Pré-postagem criada',qtdVolumes>1?`${qtdVolumes} volumes prontos • ${j.servico||codigo}`:`${j.servico||codigo}${j.codigoObjeto?' • '+j.codigoObjeto:''}`);
+  if(!silencioso)alert(qtdVolumes>1?`Pré-postagens dos Correios criadas com sucesso.\n\nVolumes: ${qtdVolumes}\nPeso total: ${totalKg.toFixed(3).replace('.',',')} kg\nPeso por volume: ${pesoPorVolume.toFixed(3).replace('.',',')} kg\nServiço: ${j.servico||codigo}\n\nAo abrir a etiqueta 100×150, os ${qtdVolumes} rótulos serão gerados juntos.`:`Pré-postagem dos Correios criada com sucesso.\n\nServiço: ${j.servico||codigo}\nID: ${j.idPrePostagem}${j.codigoObjeto?`\nRastreio: ${j.codigoObjeto}`:''}`);
   try{localStorage.setItem('sofisticatto_prepostagem_correios_atual',JSON.stringify(prepostagemModuloCorreiosPayload(a,pre)));}catch{}
+  // Atualiza o Painel imediatamente para trocar “Gerar pré-postagem” pelos
+  // atalhos “Etiqueta 100×150” e “Declaração A4”.
+  try{ if(typeof carregarPainelRodonaves==='function') await carregarPainelRodonaves(); }catch(e){ console.warn('Atualização do painel após pré-postagem:',e); }
   if(perguntarDocumentos){
     enviarPrepostagemParaModuloCorreios(a,pre);
-    mostrarBalaoSistema('Correios','Pré-postagem pronta. Escolha Rótulo oficial ou Declaração oficial.');
+    mostrarBalaoSistema('Correios','Pré-postagem pronta. Use Etiqueta 100×150 ou Declaração A4.');
   }
   return {ok:true,...pre};
 }
