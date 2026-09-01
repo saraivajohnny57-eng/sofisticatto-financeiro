@@ -596,7 +596,9 @@ async function cotarAutomaticamenteSSW(transportadoraId,tipoFrete){
   const cnpjRem=String(FRETE_REMETENTE.cnpj||"").replace(/\D/g,"");
   const cnpjPagador=tipoFrete==="CIF"?cnpjRem:cnpjDestino;
   if(cnpjPagador.length!==14)return alert(`Para cotação ${tipoFrete}, o pagador precisa possuir CNPJ de 14 dígitos. O WebService SSW cotar() não aceita CPF como CNPJ pagador.`);
-  const original=botao?.textContent||"⚡ Cotar SSW automaticamente";if(botao){botao.disabled=true;botao.textContent="Consultando SSW...";}
+  const nomeTr=tr?.nome||"SSW";
+  const nomeCurto=/\btg\b|tgt/i.test(nomeTr)?"TG":/accert/i.test(nomeTr)?"ACCERT":nomeTr;
+  const original=botao?.textContent||`⚡ Cotar ${nomeCurto} automaticamente`;if(botao){botao.disabled=true;botao.textContent=`Consultando ${nomeCurto}...`;}
   try{
     const adm=await chaveAdminColeta();if(!adm)throw new Error("Informe a chave administrativa.");
     const r=await fetch("/api/integracoes?action=cotar-ssw",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":adm},body:JSON.stringify({transportadora_id:transportadoraId,tipo_frete:tipoFrete,cnpj_pagador:cnpjPagador,cnpj_remetente:cnpjRem,cnpj_destinatario:cnpjDestino,cep_origem:String(FRETE_REMETENTE.cep||"").replace(/\D/g,""),cep_destino:cep,valor_nf:dados.valor_nf,quantidade:dados.volumes||1,peso:dados.peso_total||0,medidas:dados.medidas||"",coletar:dados.coleta||"Sim",ent_dificil:"N",dest_contribuinte:"N"})});
@@ -604,7 +606,9 @@ async function cotarAutomaticamenteSSW(transportadoraId,tipoFrete){
     if(!r.ok){
       const detalhe=Array.isArray(d.faltando)&&d.faltando.length?`\n\nCampos ausentes: ${d.faltando.join(', ')}`:'';
       let msg=d.erro||`HTTP ${r.status}`;
-      if(/tabela de frete negociada|cotacao.*nao permitida|cotação.*não permitida/i.test(msg)) msg='A ACCERT/SSW recusou esta cotação porque o cliente possui tabela de frete negociada e esta modalidade de cotação não é permitida. Consulte a ACCERT para usar/liberar a tabela negociada deste cliente.';
+      if(/tabela de frete negociada|cotacao.*nao permitida|cotação.*não permitida/i.test(msg)){
+        msg=`A ${nomeTr} recusou esta cotação porque há uma tabela de frete negociada para este cliente/pagador e essa modalidade de cotação não foi permitida pelo WebService SSW. Consulte a ${nomeTr} para confirmar/liberar a tabela negociada.`;
+      }
       throw new Error(msg+detalhe);
     }
     if(!Number(d.valor||0))throw new Error(d.mensagem||"O SSW não retornou valor de frete.");
