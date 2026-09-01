@@ -473,13 +473,38 @@ function coletaEhRodonaves(){
 function coletaEhAccert(){
   return /accert/i.test(coletaTransportadoraAtual()?.nome||"");
 }
+function normalizarNomeTransportadoraColeta(v){
+  return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+}
+function tokensIdentidadeTransportadoraColeta(nome){
+  const genericos=new Set(["transportes","transportadora","transportadoras","logistica","logistico","express","expresso","cargas","carga","ltda","sa"]);
+  return normalizarNomeTransportadoraColeta(nome).split(" ").filter(t=>t&&t.length>=2&&!genericos.has(t));
+}
+function mesmaTransportadoraColetaSSW(a,b){
+  const na=normalizarNomeTransportadoraColeta(a),nb=normalizarNomeTransportadoraColeta(b);
+  if(!na||!nb)return false;
+  if(na===nb)return true;
+  const aTG=/(^| )tg( |$)|(^| )tgt( |$)/.test(na),bTG=/(^| )tg( |$)|(^| )tgt( |$)/.test(nb);
+  const aAcc=/accert/.test(na),bAcc=/accert/.test(nb);
+  if(aTG||bTG)return aTG&&bTG;
+  if(aAcc||bAcc)return aAcc&&bAcc;
+  const ta=tokensIdentidadeTransportadoraColeta(na),tb=new Set(tokensIdentidadeTransportadoraColeta(nb));
+  return ta.some(t=>t.length>=3&&tb.has(t));
+}
+function coletaEhTG(){
+  const n=normalizarNomeTransportadoraColeta(coletaTransportadoraAtual()?.nome||"");
+  return /(^| )tg( |$)|(^| )tgt( |$)/.test(n);
+}
 function coletaEhSSW(){
   const nome=coletaTransportadoraAtual()?.nome||"";
-  return coletaIntegracoesSSW.some(x=>String(x.transportadora_nome||"").toLowerCase()===String(nome).toLowerCase()) || coletaEhAccert();
+  // TG/TGT e ACCERT podem usar o SSW somente por credenciais da Vercel,
+  // mesmo sem uma linha coleta_ativa na Central de Integrações.
+  if(coletaEhTG()||coletaEhAccert())return true;
+  return coletaIntegracoesSSW.some(x=>mesmaTransportadoraColetaSSW(nome,x.transportadora_nome));
 }
 function coletaConviteSSW(){
   const nome=coletaTransportadoraAtual()?.nome||"";
-  return coletaIntegracoesSSW.find(x=>String(x.transportadora_nome||"").toLowerCase()===String(nome).toLowerCase())?.convite_id||"";
+  return coletaIntegracoesSSW.find(x=>mesmaTransportadoraColetaSSW(nome,x.transportadora_nome))?.convite_id||"";
 }
 function dataHojeColeta(){
   const d=new Date();
@@ -498,17 +523,23 @@ function atualizarAreaApiColeta(){
   const mostrar=coletaEhRodonaves()&&cv("coletaTipoFrete")==="CIF";
   bloco.style.display=mostrar?"block":"none";
   const accert=ce("coletaApiAccertBloco");
+  const sswAtivo=coletaEhSSW();
+  const nomeSSW=coletaTransportadoraAtual()?.nome||"SSW";
   if(accert){
-    accert.style.display=coletaEhSSW()?"block":"none";
-    const nome=coletaTransportadoraAtual()?.nome||"SSW";
+    accert.style.display=sswAtivo?"block":"none";
     const titulo=accert.querySelector("strong");
     const btn=ce("btnAgendarAccertApi");
-    if(titulo)titulo.textContent=`🚚 Coleta automática ${nome} / SSW`;
-    if(btn)btn.textContent=`Agendar na ${nome} / SSW`;
+    if(titulo)titulo.textContent=`🚚 Coleta automática ${nomeSSW} / SSW`;
+    if(btn)btn.textContent=`Agendar na ${nomeSSW} / SSW`;
     if(coletaEhAccert()&&ce("coletaDataApi")){
       const atual=cv("coletaDataApi");
       if(!atual||atual===dataAmanhaColeta())ce("coletaDataApi").value=dataHojeColeta();
     }
+  }
+  const btnSSWRodape=ce("btnRegistrarColetaSSW");
+  if(btnSSWRodape){
+    btnSSWRodape.style.display=sswAtivo?"inline-flex":"none";
+    btnSSWRodape.textContent=`Registrar na ${nomeSSW} via SSW`;
   }
   if(mostrar&&!cv("coletaDataApi"))ce("coletaDataApi").value=dataAmanhaColeta();
   if(mostrar){
@@ -1361,10 +1392,29 @@ function prepostagemModuloCorreiosPayload(a,pre){
 function enviarPrepostagemParaModuloCorreios(a,pre){
   const payload=prepostagemModuloCorreiosPayload(a,pre);
   try{localStorage.setItem('sofisticatto_prepostagem_correios_atual',JSON.stringify(payload));}catch{}
+
+  // V117: garante que o usuário saia do Painel de Coletas e seja levado
+  // efetivamente para a aba Correios/etiqueta, mantendo a pré-postagem carregada.
+  try{
+    if(typeof mostrarSecao==='function') mostrarSecao('envioDocumentos');
+    if(typeof mostrarAbaEmail==='function') mostrarAbaEmail('correios');
+  }catch(e){console.warn('V117 navegação para Correios:',e);}
+
   if(typeof carregarPrePostagemNoModuloCorreios==='function'){
     carregarPrePostagemNoModuloCorreios(payload);
   }
-  if(typeof mostrarAbaEmail==='function') mostrarAbaEmail('correios');
+
+  setTimeout(()=>{
+    try{
+      if(typeof mostrarSecao==='function') mostrarSecao('envioDocumentos');
+      if(typeof mostrarAbaEmail==='function') mostrarAbaEmail('correios');
+      if(typeof carregarPrePostagemNoModuloCorreios==='function') carregarPrePostagemNoModuloCorreios(payload);
+      const alvo=document.getElementById('emailSubCorreios');
+      if(alvo) alvo.scrollIntoView({behavior:'smooth',block:'start'});
+      const id=document.getElementById('corIdPrePostagem');
+      if(id){id.focus({preventScroll:true});id.blur();}
+    }catch(e){console.warn('V117 pós-navegação Correios:',e);}
+  },80);
   return payload;
 }
 function abrirRotuloPrepostagemDaColeta(id){
@@ -3180,7 +3230,7 @@ async function agendarColetaAccertSSW(){
     if(st)st.textContent=`✅ Coleta criada via SSW. Nº ${d.numero_coleta||"não informado"}`;
     await carregarAgendamentosColeta();
     mostrarBalaoSistema(`Coleta ${coletaTransportadoraAtual()?.nome||"SSW"} criada`,d.numero_coleta?`Número ${d.numero_coleta}`:"SSW confirmou a solicitação");
-  }catch(e){console.error("Coleta SSW",e);if(st)st.textContent="❌ "+e.message;alert("Não foi possível criar a coleta na ACCERT/SSW:\n"+e.message);}
+  }catch(e){console.error("Coleta SSW",e);if(st)st.textContent="❌ "+e.message;alert(`Não foi possível criar a coleta na ${coletaTransportadoraAtual()?.nome||"transportadora"} via SSW:\n${e.message}`);}
   finally{if(btn){btn.disabled=false;btn.textContent=`Agendar via ${coletaTransportadoraAtual()?.nome||"SSW"} / SSW`;}}
 }
 

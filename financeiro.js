@@ -2553,6 +2553,7 @@ function carregarPrePostagemNoModuloCorreios(payload){
   }
   if(payload.idPrePostagem)statusCorreiosOficial('✅ Pré-postagem carregada do Painel de Coletas: '+payload.idPrePostagem,true);
   if(typeof atualizarCorreiosTudo==='function')atualizarCorreiosTudo();
+  setTimeout(()=>verificarColetaAgendadaParaEtiquetaCorreios(true),40);
   return true;
 }
 function consumirPrePostagemCorreiosSalva(){
@@ -5530,6 +5531,7 @@ async function localizarColetaPeloXmlEtiqueta({chave,numeroNf,cnpjDestino,client
     const nomeAlvo=normalizarTextoColetaEtiqueta(cliente);
 
     let melhor=null,melhorScore=0;
+    const nfExatos=[];
     for(const a of (r.data||[])){
       const d=a.dados||{};
       const chaveLinha=somenteDigitosColetaEtiqueta(a.chave_nfe||d.chave_nfe||d.chave_nf);
@@ -5539,12 +5541,19 @@ async function localizarColetaPeloXmlEtiqueta({chave,numeroNf,cnpjDestino,client
 
       let score=0;
       if(chaveAlvo.length===44 && chaveLinha===chaveAlvo)score+=1000;
-      if(nfAlvo && nfLinha===nfAlvo)score+=250;
+      const nfIgual=!!(nfAlvo && String(nfLinha).replace(/^0+/,'')===String(nfAlvo).replace(/^0+/,''));
+      if(nfIgual){score+=250;nfExatos.push(a);}
       if(cnpjAlvo && cnpjLinha===cnpjAlvo)score+=300;
       if(nomeAlvo && nomeLinha && (nomeLinha===nomeAlvo||nomeLinha.includes(nomeAlvo)||nomeAlvo.includes(nomeLinha)))score+=60;
 
       if(score>melhorScore){melhor=a;melhorScore=score;}
     }
+
+    // V117: a NF sozinha também identifica a coleta quando existe um único
+    // agendamento com aquele número. Isso restaura a conferência automática
+    // usada ao preparar a etiqueta, mesmo sem XML/chave/CNPJ preenchidos.
+    const nfUnicos=[...new Map(nfExatos.map(x=>[String(x.id),x])).values()];
+    if(nfAlvo && nfUnicos.length===1) return nfUnicos[0];
 
     // Chave é suficiente; ou NF + CNPJ; como último recurso NF + nome.
     const confirmado=melhor && (
@@ -6538,6 +6547,46 @@ document.addEventListener("DOMContentLoaded", async function(){
   }
 });
 
+/* V117 — conferência da coleta pela NF antes da etiqueta Correios */
+async function verificarColetaAgendadaParaEtiquetaCorreios(silencioso=true){
+  const statusEl=document.getElementById('corColetaNfStatus');
+  const numeroNf=String(valorCampoCorreios('corNumeroNF')||'').trim();
+  if(!numeroNf){
+    if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
+    return {verificado:false,semNf:true};
+  }
+  if(statusEl){statusEl.style.display='block';statusEl.style.color='#6f6799';statusEl.textContent='🔎 Verificando coleta agendada para a NF '+numeroNf+'...';}
+  try{
+    const existente=await localizarColetaPeloXmlEtiqueta({
+      numeroNf,
+      cliente:valorCampoCorreios('corCliente'),
+      cnpjDestino:valorCampoCorreios('corDocumento'),
+      chave:''
+    });
+    if(existente){
+      const transp=existente?.frete_transportadoras?.nome||existente?.dados?.transportadora_nome||existente?.dados?.transportadora||'transportadora cadastrada';
+      const st=String(existente.status||'').replace(/_/g,' ')||'agendada';
+      if(statusEl){statusEl.style.color='#2e7d32';statusEl.textContent=`✅ Coleta localizada • NF ${numeroNf} • ${transp} • ${st}`;}
+      if(!silencioso && typeof mostrarBalaoSistema==='function') mostrarBalaoSistema('Coleta localizada',`NF ${numeroNf} já está no Painel de Coletas.`);
+      return {verificado:true,encontrada:true,agendamento:existente};
+    }
+    if(statusEl){statusEl.style.color='#b3261e';statusEl.textContent=`⚠️ Nenhuma coleta agendada foi localizada para a NF ${numeroNf}.`;}
+    return {verificado:true,encontrada:false};
+  }catch(e){
+    console.warn('V117 verificar coleta da etiqueta Correios:',e);
+    if(statusEl){statusEl.style.color='#b26a00';statusEl.textContent='⚠️ Não foi possível conferir a coleta agora.';}
+    return {verificado:true,erro:e};
+  }
+}
+
+async function confirmarColetaAntesDocumentoCorreios(){
+  const numeroNf=String(valorCampoCorreios('corNumeroNF')||'').trim();
+  if(!numeroNf)return true;
+  const r=await verificarColetaAgendadaParaEtiquetaCorreios(true);
+  if(r.encontrada || r.erro)return true;
+  return confirm(`A NF ${numeroNf} não foi localizada no Painel de Coletas.\n\nDeseja continuar mesmo assim com a etiqueta/documento dos Correios?`);
+}
+
 /* V63 — Documentos oficiais Correios / Pré-Postagem */
 function statusCorreiosOficial(msg,ok=true){
   const el=document.getElementById('corOficialStatus');
@@ -6609,6 +6658,7 @@ async function localizarPrePostagemCorreiosOficial(silencioso=false){
 }
 async function abrirDocumentoCorreiosOficial(tipo){
   try{
+    if(!(await confirmarColetaAntesDocumentoCorreios()))return;
     const pre=await localizarPrePostagemCorreiosOficial(true);
     const id=String(pre?.idPrePostagem||pre?.id||valorCampoCorreios('corIdPrePostagem')||'').trim();
     if(!id)throw new Error('Informe ou localize primeiro o ID da pré-postagem.');

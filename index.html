@@ -833,7 +833,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
               </div>
               <div><label class="relatorio-label">Data da postagem</label><input id="corData" type="date" onchange="atualizarCorreiosTudo()"></div>
               <div><label class="relatorio-label">Peso total (kg)</label><input id="corPeso" inputmode="decimal" placeholder="0,000" oninput="atualizarCorreiosTudo()"></div>
-              <div><label class="relatorio-label">Número da NF (opcional)</label><input id="corNumeroNF" placeholder="Ex.: 50694"></div>
+              <div><label class="relatorio-label">Número da NF (opcional)</label><input id="corNumeroNF" placeholder="Ex.: 50694" oninput="atualizarCorreiosTudo()" onblur="verificarColetaAgendadaParaEtiquetaCorreios(true)"><small id="corColetaNfStatus" style="display:none;margin-top:5px;font-size:12px;line-height:1.35;"></small></div>
               <div><label class="relatorio-label">Código de rastreio (opcional)</label><input id="corRastreio" placeholder="Ex.: QB123456789BR"></div>
 
               <div class="campo-largo" style="border:2px solid #d9d2ff;background:#faf9ff;border-radius:14px;padding:14px;">
@@ -1439,6 +1439,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <button class="btn verde" onclick="salvarAgendamentoColeta()">Salvar agendamento</button>
               <button class="btn azul" onclick="copiarMensagemColeta()">Copiar para WhatsApp</button>
               <button class="btn verde" onclick="abrirWhatsAppColeta()">Abrir WhatsApp</button>
+              <button class="btn verde" id="btnRegistrarColetaSSW" style="display:none" onclick="agendarColetaAccertSSW()">Registrar via SSW</button>
               <button class="btn roxo" onclick="registrarColetaViaPortalTransportadora()">Registrar via portal</button>
               <button class="btn roxo" onclick="registrarColetaViaTelefone()">Registrar por telefone</button>
             </div>
@@ -2758,7 +2759,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=13.9"></script>
+<script src="financeiro.js?v=117"></script>
 <script src="corridas.js?v=108"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
@@ -2770,7 +2771,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=24"></script>
 <script src="motor-integracoes.js?v=34"></script>
-<script src="coletas.js?v=43-rastreio-automatico-geral"></script>
+<script src="coletas.js?v=118"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">
