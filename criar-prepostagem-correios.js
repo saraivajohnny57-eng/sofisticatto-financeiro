@@ -1,4 +1,4 @@
-const {gerarToken,configuracaoEfetiva}=require('./_correios');
+const {gerarToken,configuracaoEfetiva,buscarCepPorEndereco}=require('./_correios');
 
 function txt(v){return String(v??'').trim();}
 function dig(v){return txt(v).replace(/\D/g,'');}
@@ -18,19 +18,30 @@ function dimensoes(v){
   return {comprimento:x,largura:y,altura:z};
 }
 function telefone(v){
-  const d=dig(v); if(d.length>=10)return {ddd:d.slice(-11,-9),numero:d.slice(-9)};
-  return {ddd:'62',numero:'32930035'};
+  let d=dig(v);
+  // Aceita telefone brasileiro com ou sem DDI 55.
+  if((d.length===12 || d.length===13) && d.startsWith('55')) d=d.slice(2);
+  // Fixo: DDD (2) + número (8). Celular: DDD (2) + número (9).
+  if(d.length===10 || d.length===11){
+    return {ddd:d.slice(0,2),numero:d.slice(2)};
+  }
+  // Telefone do destinatário é opcional nos Correios. Não inventamos um número
+  // quando o cadastro está vazio/incompleto, pois a API pode rejeitar o fallback.
+  return null;
 }
-function pessoa({nome,cpfCnpj,telefone:tel,email,endereco}){
-  const t=telefone(tel); const e=endereco||{};
+function pessoa({nome,cpfCnpj,telefone:tel,email,endereco,telefoneFallback}){
+  let t=telefone(tel);
+  if(!t && telefoneFallback) t=telefone(telefoneFallback);
+  const e=endereco||{};
   const obj={
     nome:txt(nome).slice(0,80), cpfCnpj:dig(cpfCnpj),
-    dddTelefone:t.ddd, telefone:t.numero, email:txt(email).slice(0,80),
+    email:txt(email).slice(0,80),
     endereco:{
       cep:dig(e.cep), logradouro:txt(e.logradouro).slice(0,100), numero:txt(e.numero||'S/N').slice(0,10),
       complemento:txt(e.complemento).slice(0,50), bairro:txt(e.bairro).slice(0,50), cidade:txt(e.cidade).slice(0,50), uf:txt(e.uf).toUpperCase().slice(0,2)
     }
   };
+  if(t){ obj.dddTelefone=t.ddd; obj.telefone=t.numero; }
   if(!obj.email)delete obj.email;
   if(!obj.cpfCnpj)delete obj.cpfCnpj;
   return obj;
@@ -60,6 +71,7 @@ module.exports=async function handler(req,res){
       nome:b.remetente?.nome||process.env.CORREIOS_REMETENTE_NOME||'SOFISTICATTO COSMÉTICOS',
       cpfCnpj:b.remetente?.cpfCnpj||c.cnpj,
       telefone:b.remetente?.telefone||process.env.CORREIOS_REMETENTE_TELEFONE||'(62) 3293-0035',
+      telefoneFallback:'(62) 3293-0035',
       email:b.remetente?.email||process.env.CORREIOS_REMETENTE_EMAIL||'',
       endereco:{
         cep:b.remetente?.cep||c.cepOrigem||'74550470',
@@ -69,10 +81,27 @@ module.exports=async function handler(req,res){
         bairro:b.remetente?.bairro||process.env.CORREIOS_REMETENTE_BAIRRO||'Vila Abajá', cidade:remCU.cidade||'Goiânia',uf:remCU.uf||'GO'
       }
     });
-    const destinatario=pessoa({
+    if(!/^\d{2}$/.test(remetente.dddTelefone||'') || !/^\d{8,9}$/.test(remetente.telefone||'')){
+      return res.status(400).json({ok:false,erro:`Telefone do remetente inválido para os Correios. DDD: ${remetente.dddTelefone||'-'} / número: ${remetente.telefone||'-'}. Configure no formato (62) 3293-0035 ou (62) 99999-9999.`});
+    }
+    let destinatario=pessoa({
       nome:b.destino?.nome,cpfCnpj:b.destino?.cpfCnpj,telefone:b.destino?.telefone,email:b.destino?.email,
       endereco:{cep:b.destino?.cep,logradouro:b.destino?.logradouro,numero:b.destino?.numero,complemento:b.destino?.complemento,bairro:b.destino?.bairro,cidade:destCU.cidade,uf:destCU.uf}
     });
+    const cepOriginal=destinatario.endereco.cep;
+    let cepFallback=null;
+    async function tentarCepEspecifico(){
+      const busca=await buscarCepPorEndereco({uf:destinatario.endereco.uf,localidade:destinatario.endereco.cidade,bairro:destinatario.endereco.bairro,logradouro:destinatario.endereco.logradouro,endereco:[destinatario.endereco.logradouro,destinatario.endereco.numero].filter(Boolean).join(', ')});
+      if(busca?.encontrado && busca.cep && busca.cep!==destinatario.endereco.cep){
+        cepFallback={...busca,cepOriginal,cepUtilizado:busca.cep};
+        destinatario={...destinatario,endereco:{...destinatario.endereco,cep:busca.cep}};
+        return true;
+      }
+      return false;
+    }
+    if(/000$/.test(destinatario.endereco.cep)){
+      try{await tentarCepEspecifico();}catch(e){console.warn('Fallback CEP pré-postagem:',e.message);}
+    }
     const faltam=[];
     if(destinatario.endereco.cep.length!==8)faltam.push('CEP'); if(!destinatario.endereco.logradouro)faltam.push('logradouro'); if(!destinatario.endereco.bairro)faltam.push('bairro'); if(!destinatario.endereco.cidade)faltam.push('cidade'); if(destinatario.endereco.uf.length!==2)faltam.push('UF'); if(!destinatario.nome)faltam.push('nome do destinatário');
     if(faltam.length)return res.status(400).json({ok:false,erro:'Complete os dados do destinatário antes da pré-postagem: '+faltam.join(', ')+'.'});
@@ -83,25 +112,59 @@ module.exports=async function handler(req,res){
       codigoFormatoObjetoInformado:'2',pesoCubico:0,pesoInformado:peso,
       comprimentoInformado:dm.comprimento,alturaInformada:dm.altura,larguraInformada:dm.largura,diametroInformado:0,
       precoPostagem:0,precoPrePostagem:0,cienteObjetoNaoProibido:'1',modalidadePagamento:'2',solicitarColeta:'N',
+      // Envio comum por padrão: NÃO adiciona o serviço 095 (Artigos Perigosos ANAC / restrição aérea).
+      // Os Correios orientam informar o 095 somente quando o conteúdo realmente possuir restrição para transporte aéreo.
+      // listaServicoAdicional fica ausente, em vez de enviar 095 automaticamente.
       remetente,destinatario
     };
+    // O 095 (Artigos Perigosos ANAC / restrição aérea) só é enviado após escolha explícita
+    // no balão da pré-postagem. PAC/SEDEX por si só nunca ativa essa marcação.
+    const adicionaisEntrada=Array.isArray(b.listaServicoAdicional)?b.listaServicoAdicional:[];
+    const restricaoAereaConfirmada=b.restricaoAereaConfirmada===true;
+    const adicionaisSeguros=adicionaisEntrada.filter(x=>{
+      const cod=dig(x?.codigoServicoAdicional ?? x);
+      return cod!=='095' || restricaoAereaConfirmada;
+    });
+    if(restricaoAereaConfirmada && !adicionaisSeguros.some(x=>dig(x?.codigoServicoAdicional ?? x)==='095')) adicionaisSeguros.push({codigoServicoAdicional:'095'});
+    if(adicionaisSeguros.length) base.listaServicoAdicional=adicionaisSeguros;
     let payload;
     if(chave.length===44){
       payload={...base,tipoDocumento:'NF',numeroNotaFiscal:nf||undefined,chaveNFe:chave};
     }else{
-      payload={...base,tipoDocumento:'DC',itensDeclaracaoConteudo:[{conteudo:mercadoria,descricao:mercadoria,quantidade:1,valor,pesoLiquidoGrama:peso}]};
+      payload={...base,tipoDocumento:'DC',emiteDCe:'S',itensDeclaracaoConteudo:[{conteudo:mercadoria,descricao:mercadoria,quantidade:1,valor,pesoLiquidoGrama:peso}]};
     }
     Object.keys(payload).forEach(k=>payload[k]===undefined&&delete payload[k]);
     let d;
-    try{d=await postPre(payload);}catch(e){
-      // Compatibilidade entre schemas: alguns ambientes usam declaracaoConteudo.
-      if(e.httpStatus===400 && payload.itensDeclaracaoConteudo){
-        const p2={...payload,declaracaoConteudo:payload.itensDeclaracaoConteudo.map(x=>({descricao:x.descricao,quantidade:x.quantidade,valor:x.valor,pesoLiquidoGrama:x.pesoLiquidoGrama}))};
-        delete p2.itensDeclaracaoConteudo; d=await postPre(p2); payload=p2;
+    async function postarComCompatibilidade(p){
+      try{return {d:await postPre(p),payload:p};}catch(e){
+        const msg=String(e?.message||'')+' '+JSON.stringify(e?.resposta||{});
+        // Alguns cadastros antigos possuem telefone do destinatário incompleto ou em
+        // formato não aceito pela Pré-postagem. Como o telefone é opcional, repetimos
+        // a requisição sem ele em vez de bloquear a emissão da etiqueta.
+        if(e.httpStatus===400 && /telefone do destinat[aá]rio|destinat[aá]rio.+telefone/i.test(msg) && p.destinatario){
+          const pSemTelefone={...p,destinatario:{...p.destinatario}};
+          delete pSemTelefone.destinatario.dddTelefone;
+          delete pSemTelefone.destinatario.telefone;
+          return {d:await postPre(pSemTelefone),payload:pSemTelefone};
+        }
+        if(e.httpStatus===400 && p.itensDeclaracaoConteudo){
+          const p2={...p,declaracaoConteudo:p.itensDeclaracaoConteudo.map(x=>({descricao:x.descricao,quantidade:x.quantidade,valor:x.valor,pesoLiquidoGrama:x.pesoLiquidoGrama}))};
+          delete p2.itensDeclaracaoConteudo; return {d:await postPre(p2),payload:p2};
+        }
+        throw e;
+      }
+    }
+    try{const x=await postarComCompatibilidade(payload);d=x.d;payload=x.payload;}
+    catch(e){
+      const msg=String(e?.message||'')+' '+JSON.stringify(e?.resposta||{});
+      if(/CEP-003|CEP.+não foi encontrado|CEP.+nao foi encontrado/i.test(msg) && !cepFallback){
+        const achou=await tentarCepEspecifico();
+        if(achou){payload={...payload,destinatario};const x=await postarComCompatibilidade(payload);d=x.d;payload=x.payload;}
+        else throw Object.assign(new Error(`O CEP ${cepOriginal} foi recusado pela pré-postagem e não foi possível localizar automaticamente um CEP específico para ${destinatario.endereco.logradouro}, ${destinatario.endereco.numero} - ${destinatario.endereco.cidade}/${destinatario.endereco.uf}. Atualize o CEP do cliente e tente novamente.`),{httpStatus:400,resposta:e.resposta});
       }else throw e;
     }
     const id=txt(d.id||d.idPrePostagem||d.prePostagemId); const codigoObjeto=txt(d.codigoObjeto||d.objeto?.codigo||d.codigoRastreio).toUpperCase();
     if(!id)throw Object.assign(new Error('Os Correios aceitaram a requisição, mas não retornaram o ID da pré-postagem.'),{resposta:d});
-    return res.status(200).json({ok:true,idPrePostagem:id,codigoObjeto,codigoServico:codigo,servico:(c.servicosDetalhes||[]).find(x=>String(x.codigo)===codigo)?.descricao||codigo,raw:d});
+    return res.status(200).json({ok:true,idPrePostagem:id,codigoObjeto,codigoServico:codigo,servico:(c.servicosDetalhes||[]).find(x=>String(x.codigo)===codigo)?.descricao||codigo,cepOriginal,cepUtilizado:destinatario.endereco.cep,cepFallback,raw:d});
   }catch(e){return res.status(Number(e.httpStatus)||500).json({ok:false,erro:e.message,resposta:e.resposta||null});}
 };

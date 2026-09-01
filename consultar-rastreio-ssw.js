@@ -4,7 +4,7 @@ const {obterCredenciaisIntegracao}=require('./carregar-credenciais');
 const CNPJ_PADRAO='05451985000195';
 function norm(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
 function nomeNorm(v){return norm(v).replace(/[^a-z0-9]+/g,' ').trim();}
-function statusPorTexto(v){const s=norm(v);if(/entreg|baixa realizada|ctrc entregue|entrega realizada/.test(s))return'entregue';if(/saiu.*entrega|em rota|rota de entrega|veiculo em entrega/.test(s))return'saiu_entrega';if(/filial|unidade|chegada|recebid.*unidade|transferencia/.test(s))return'na_filial';if(/cancel|devol/.test(s))return'cancelado';if(/ocorr|insucesso|recusa|ausente|endereco|avaria|extravio/.test(s))return'ocorrencia';return'em_transito';}
+function statusPorTexto(v){const s=norm(v);if(/\bentregue\b|\bentregues\b|entrega realizada|mercadoria entregue|objeto entregue|ctrc entregue|baixa realizada|recebido pelo destinatario|entregue ao destinatario/.test(s))return'entregue';if(/saiu.*para.*entrega|saida.*para.*entrega|em rota de entrega|rota de entrega|veiculo em entrega|carteiro saiu/.test(s))return'saiu_entrega';if(/saida de unidade|transferencia|em transito|em viagem|encaminhad|deslocamento/.test(s))return'em_transito';if(/chegada.*unidade|entrada.*unidade|na filial|unidade destino|recebid.*unidade|centro de distribuicao/.test(s))return'na_filial';if(/cancel|devol/.test(s))return'cancelado';if(/ocorr|insucesso|recusa|ausente|endereco|avaria|extravio/.test(s))return'ocorrencia';return'em_transito';}
 function primeiro(obj,chaves){for(const k of chaves){if(obj&&obj[k]!==undefined&&obj[k]!==null&&String(obj[k]).trim()!=='')return obj[k];}return null;}
 function objetos(obj,acc=[]){if(!obj||typeof obj!=='object')return acc;if(Array.isArray(obj)){for(const x of obj)objetos(x,acc);return acc;}acc.push(obj);for(const v of Object.values(obj))if(v&&typeof v==='object')objetos(v,acc);return acc;}
 
@@ -133,7 +133,11 @@ module.exports=async function(req,res){
         const st=norm([coleta?.status_api,coleta?.status].filter(Boolean).join(' '));
         const coletada=Boolean(coleta?.coletado_em)||/coletad|em transito|transito|na filial|saiu.*entrega|entregue/.test(st);
         const encerrada=/cancelad|cancelamento/.test(st);
-        if(coleta&&!coletada&&!encerrada){
+        const possuiDocumento=Boolean(String(rast.numero_nfe||'').trim() || String(rast.chave_nfe||'').replace(/\D/g,'').length===44);
+        // V84: se já existe NF/chave, consulta o tracking SSW mesmo que a coleta
+        // ainda esteja como "solicitada". O próprio tracking pode já conter
+        // "COLETA REALIZADA (CARREGADA NO VEÍCULO)" e deve ser a fonte da verdade.
+        if(coleta&&!coletada&&!encerrada&&!possuiDocumento){
           const agora=new Date().toISOString();
           await supabaseRest('logistica_rastreamentos',{method:'PATCH',query:`?id=eq.${encodeURIComponent(registroId)}`,body:{
             status:'aguardando_coleta',status_api:'Coleta solicitada — aguardando coleta pela transportadora',
@@ -235,6 +239,47 @@ module.exports=async function(req,res){
     if(status==='entregue')patch.finalizado_em=quando;
     else patch.finalizado_em=null;
     await supabaseRest('logistica_rastreamentos',{method:'PATCH',query:`?id=eq.${encodeURIComponent(registroId)}`,body:patch});
+
+    // Qualquer ocorrência logística posterior à coleta confirma que a carga foi
+    // retirada. Para o SSW, "COLETA REALIZADA / CARREGADA NO VEÍCULO" normalmente
+    // é classificada como em_transito; sincronizamos a coleta vinculada imediatamente.
+    if(rast.coleta_agendamento_id && ['em_transito','na_filial','saiu_entrega','entregue','ocorrencia'].includes(status)){
+      const agoraSync=new Date().toISOString();
+      let coletaAtual=null;
+      try{
+        const atuais=await supabaseRest('coleta_agendamentos',{
+          query:`?select=id,status,status_api,coletado_em&id=eq.${encodeURIComponent(rast.coleta_agendamento_id)}&limit=1`
+        });
+        coletaAtual=atuais?.[0]||null;
+      }catch{}
+      const jaColetada=Boolean(coletaAtual?.coletado_em)||/coletad/i.test(String(coletaAtual?.status||""));
+      await supabaseRest('coleta_agendamentos',{
+        method:'PATCH',
+        query:`?id=eq.${encodeURIComponent(rast.coleta_agendamento_id)}`,
+        body:{
+          status:'coletado',
+          status_api:desc||coletaAtual?.status_api||'coletado',
+          coletado_em:coletaAtual?.coletado_em||quando||agoraSync,
+          sincronizado_em:agoraSync,
+          sincronizacao_erro:null,
+          atualizado_em:agoraSync
+        }
+      }).catch(()=>{});
+      if(!jaColetada){
+        await supabaseRest('coleta_status_eventos',{
+          method:'POST',
+          body:{
+            agendamento_id:rast.coleta_agendamento_id,
+            status_anterior:coletaAtual?.status||'solicitado',
+            status_novo:'coletado',
+            origem:'ssw_tracking_automatico_v90',
+            detalhes:{descricao:desc,quando,metodo},
+            usuario:'sistema'
+          }
+        }).catch(()=>{});
+      }
+    }
+
     return json(res,200,{ok:true,status,statusBruto:desc,ultimaOcorrencia:ultima,ultimaOcorrenciaEm:quando,local:ev.compl||null,totalEventos:ev.totalEventos||eventos.length||null,metodoConsulta:metodo,dados,eventos});
   }catch(e){return json(res,e.httpStatus||502,{ok:false,erro:e.message,resposta:e.resposta||null});}
 };

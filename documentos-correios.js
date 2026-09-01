@@ -53,6 +53,78 @@ async function correiosRaw(url,opts={}){
   const t=await gerarToken('cartao');
   return fetch(url,{...opts,headers:{Authorization:`Bearer ${t}`,Accept:'*/*','Accept-Language':'pt-BR',...(opts.headers||{})}});
 }
+function documentoResposta(buf,ct,dados={}){
+  const tipo=String(ct||'').toLowerCase();
+  if(buf.slice(0,4).toString()==='%PDF' || /application\/pdf|octet-stream/.test(tipo)){
+    return {buffer:buf,contentType:'application/pdf'};
+  }
+  const texto=buf.toString('utf8');
+  let j=dados;
+  if(!j || !Object.keys(j).length){
+    try{j=JSON.parse(texto)}catch{j={}}
+  }
+  const candidatos=[
+    j?.dados,j?.pdf,j?.pdfBase64,j?.base64,j?.arquivo,j?.arquivoBase64,
+    j?.conteudo,j?.conteudoBase64,j?.data?.dados,j?.data?.pdfBase64,
+    j?.resultado?.dados,j?.resultado?.pdfBase64
+  ];
+  for(const valor of candidatos){
+    if(typeof valor==='string' && valor.length>300){
+      const limpo=valor.replace(/^data:application\/pdf;base64,/,'').replace(/\s+/g,'');
+      try{
+        const b=Buffer.from(limpo,'base64');
+        if(b.length>100 && b.slice(0,4).toString()==='%PDF') return {buffer:b,contentType:'application/pdf'};
+      }catch{}
+    }
+  }
+  if(/text\/html/i.test(tipo) || /^\s*<!doctype html|^\s*<html/i.test(texto)){
+    return {buffer:buf,contentType:'text/html; charset=utf-8'};
+  }
+  return null;
+}
+
+async function emitirDaceOficial(ids){
+  const lista=(Array.isArray(ids)?ids:String(ids||'').split(',')).map(x=>String(x).trim()).filter(Boolean);
+  const url='https://api.correios.com.br/prepostagem/v1/prepostagens/dce/dace/impressao';
+  const corpo={idsPrePostagens:lista,tipoDace:'C'};
+
+  const r=await correiosRaw(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Accept':'application/json'},
+    body:JSON.stringify(corpo)
+  });
+
+  const buf=Buffer.from(await r.arrayBuffer());
+  const texto=buf.toString('utf8');
+  let d={};
+  try{d=JSON.parse(texto)}catch{d={texto}}
+
+  if(!r.ok){
+    const mensagens=Array.isArray(d?.msgs)?d.msgs.join(' | '):'';
+    throw Object.assign(
+      new Error(mensagens||d.mensagem||d.message||d.erro||texto||`Correios HTTP ${r.status}`),
+      {httpStatus:r.status,resposta:d}
+    );
+  }
+
+  const b64=String(d?.dados||'').replace(/^data:application\/pdf;base64,/i,'').replace(/\s+/g,'');
+  if(!b64){
+    throw Object.assign(
+      new Error('Os Correios responderam à solicitação da DACE, mas não retornaram os dados do PDF. Verifique se esta pré-postagem possui DC-e emitida.'),
+      {httpStatus:422,resposta:d}
+    );
+  }
+
+  const pdf=Buffer.from(b64,'base64');
+  if(pdf.length<100 || pdf.slice(0,4).toString()!=='%PDF'){
+    throw Object.assign(
+      new Error('Os Correios retornaram dados para a DACE, porém o conteúdo não é um PDF válido.'),
+      {httpStatus:502,resposta:{objetos:d?.objetos||[],tamanho:pdf.length}}
+    );
+  }
+
+  return {buffer:pdf,contentType:'application/pdf',objetos:d?.objetos||[]};
+}
 
 async function emitirDeclaracao(id){
   const r=await correiosRaw(`https://api.correios.com.br/prepostagem/v1/prepostagens/declaracaoconteudo/${encodeURIComponent(id)}`);
@@ -64,31 +136,144 @@ async function emitirDeclaracao(id){
   return {buffer:buf,contentType:r.headers.get('content-type')||'text/html; charset=utf-8'};
 }
 
-async function emitirRotulo(id,tipoRotulo='P'){
-  const body=JSON.stringify({idsPrePostagem:[id],tipoRotulo:String(tipoRotulo||'P').toUpperCase()==='R'?'R':'P',formatoRotulo:'ET'});
-  const urls=[
+async function emitirRotulo(ids,tipoRotulo='P'){
+  const lista=(Array.isArray(ids)?ids:String(ids||'').split(',')).map(x=>String(x).trim()).filter(Boolean);
+  const tipo=String(tipoRotulo||'P').toUpperCase()==='R'?'R':'P';
+
+  // A API oficial dos Correios gera o rótulo em duas etapas:
+  // 1) POST /rotulo/assincrono/pdf -> devolve idRecibo
+  // 2) GET  /rotulo/download/assincrono/{idRecibo} -> devolve o PDF/base64
+  const body=JSON.stringify({
+    idsPrePostagem:lista,
+    tipoRotulo:tipo,
+    formatoRotulo:'ET',
+    imprimeRemetente:'S',
+    layoutImpressao:'PADRAO'
+  });
+
+  const solicitar=await correiosRaw(
     'https://api.correios.com.br/prepostagem/v1/prepostagens/rotulo/assincrono/pdf',
-    'https://api.correios.com.br/prepostagem/v1/prepostagens/rotulo'
-  ];
+    {method:'POST',headers:{'Content-Type':'application/json'},body}
+  );
+  const sbuf=Buffer.from(await solicitar.arrayBuffer());
+  const stext=sbuf.toString('utf8');
+  let recibo={}; try{recibo=JSON.parse(stext)}catch{recibo={texto:stext}}
+
+  if(!solicitar.ok){
+    throw Object.assign(
+      new Error(recibo.mensagem||recibo.message||recibo.erro||recibo.msgs?.[0]||stext||`Correios HTTP ${solicitar.status}`),
+      {httpStatus:solicitar.status,resposta:recibo}
+    );
+  }
+
+  // Em algumas respostas o PDF pode vir direto.
+  const sct=solicitar.headers.get('content-type')||'';
+  if(/pdf|octet-stream/i.test(sct) || sbuf.slice(0,4).toString()==='%PDF'){
+    return {buffer:sbuf,contentType:sct||'application/pdf'};
+  }
+
+  const idRecibo=txt(
+    recibo.idRecibo||
+    recibo.recibo||
+    recibo.id||
+    recibo?.dados?.idRecibo||
+    recibo?.data?.idRecibo
+  );
+  const b64direto=recibo.pdfBase64||recibo.base64||recibo.arquivoBase64||recibo.conteudoBase64||recibo.dados;
+  if(!idRecibo && typeof b64direto==='string' && b64direto.length>500){
+    return {buffer:Buffer.from(b64direto.replace(/^data:application\/pdf;base64,/,''),'base64'),contentType:'application/pdf'};
+  }
+  if(!idRecibo){
+    throw Object.assign(new Error('Os Correios aceitaram a solicitação, mas não retornaram o ID do recibo do rótulo.'),{httpStatus:502,resposta:recibo});
+  }
+
   let ultimo=null;
-  for(const url of urls){
-    const r=await correiosRaw(url,{method:'POST',headers:{'Content-Type':'application/json'},body});
-    const buf=Buffer.from(await r.arrayBuffer());
-    const ct=r.headers.get('content-type')||'';
-    if(r.ok){
-      if(/pdf|html|octet-stream/i.test(ct) || buf.slice(0,4).toString()==='%PDF') return {buffer:buf,contentType:ct||'application/pdf'};
-      const s=buf.toString('utf8'); let d={}; try{d=JSON.parse(s)}catch{d={texto:s}}
-      // Algumas versões retornam o documento em base64.
-      const b64=d.pdfBase64||d.base64||d.arquivoBase64||d.conteudoBase64;
-      if(b64) return {buffer:Buffer.from(b64,'base64'),contentType:'application/pdf'};
-      ultimo=Object.assign(new Error('Os Correios aceitaram a solicitação do rótulo, mas retornaram processamento assíncrono. Tente novamente em alguns segundos.'),{resposta:d,httpStatus:202});
+  // O processamento é assíncrono. Faz pequenas tentativas antes de devolver erro.
+  for(let tentativa=0;tentativa<7;tentativa++){
+    if(tentativa) await new Promise(r=>setTimeout(r,650));
+    const baixar=await correiosRaw(
+      `https://api.correios.com.br/prepostagem/v1/prepostagens/rotulo/download/assincrono/${encodeURIComponent(idRecibo)}`,
+      {method:'GET'}
+    );
+    const buf=Buffer.from(await baixar.arrayBuffer());
+    const ct=baixar.headers.get('content-type')||'';
+
+    if(baixar.ok){
+      if(/pdf|octet-stream/i.test(ct) || buf.slice(0,4).toString()==='%PDF'){
+        return {buffer:buf,contentType:'application/pdf'};
+      }
+      const texto=buf.toString('utf8');
+      let d={}; try{d=JSON.parse(texto)}catch{d={texto}}
+      const b64=d.dados||d.pdfBase64||d.base64||d.arquivoBase64||d.conteudoBase64||d?.data?.dados;
+      if(typeof b64==='string' && b64.length>100){
+        const limpo=b64.replace(/^data:application\/pdf;base64,/,'');
+        return {buffer:Buffer.from(limpo,'base64'),contentType:'application/pdf'};
+      }
+      ultimo={status:baixar.status,resposta:d};
       continue;
     }
-    const s=buf.toString('utf8'); let d={}; try{d=JSON.parse(s)}catch{d={texto:s}}
-    ultimo=Object.assign(new Error(d.mensagem||d.message||d.erro||d.msgs?.[0]||s||`Correios HTTP ${r.status}`),{httpStatus:r.status,resposta:d});
+
+    const texto=buf.toString('utf8');
+    let d={}; try{d=JSON.parse(texto)}catch{d={texto}}
+    ultimo={status:baixar.status,resposta:d};
+    // 404/202 logo após criar o recibo normalmente significa que o arquivo ainda está sendo processado.
+    if([202,404,409,425].includes(baixar.status)) continue;
+    throw Object.assign(new Error(d.mensagem||d.message||d.erro||d.msgs?.[0]||texto||`Correios HTTP ${baixar.status}`),{httpStatus:baixar.status,resposta:d});
   }
-  throw ultimo||new Error('Não foi possível emitir o rótulo oficial dos Correios.');
+
+  throw Object.assign(
+    new Error('O rótulo foi solicitado aos Correios, mas o PDF ainda está sendo processado. Clique novamente em Rótulo oficial em alguns segundos.'),
+    {httpStatus:202,resposta:{idRecibo,...(ultimo||{})}}
+  );
 }
+async function converterRotuloL42(buffer){
+  const { PDFDocument } = require('pdf-lib');
+  const origem=await PDFDocument.load(buffer);
+  const destino=await PDFDocument.create();
+  const paginas=origem.getPages();
+  if(!paginas.length) throw new Error('O PDF do rótulo oficial veio sem páginas.');
+
+  const mm=72/25.4;
+  const alvoW=100*mm, alvoH=150*mm;
+
+  // V79: captura uma área um pouco maior que 100 mm do PDF oficial.
+  // O rótulo dos Correios pode ultrapassar ligeiramente os 100 mm na página original
+  // (principalmente a borda/logomarca do lado direito). Em vez de cortar, reduzimos
+  // proporcionalmente todo o conteúdo para dentro de 100x150 mm.
+  const capturaW=110*mm;
+  const capturaH=160*mm;
+  const margem=2*mm;
+  const areaW=alvoW-(margem*2);
+  const areaH=alvoH-(margem*2);
+
+  for(const pg of paginas){
+    const {width,height}=pg.getSize();
+    const cropW=Math.min(width,capturaW);
+    const cropH=Math.min(height,capturaH);
+    const yBottom=Math.max(0,height-cropH);
+
+    const emb=await destino.embedPage(pg,{
+      left:0,
+      bottom:yBottom,
+      right:cropW,
+      top:height
+    });
+
+    const out=destino.addPage([alvoW,alvoH]);
+    const escala=Math.min(areaW/cropW,areaH/cropH);
+    const w=cropW*escala;
+    const h=cropH*escala;
+
+    out.drawPage(emb,{
+      x:(alvoW-w)/2,
+      y:alvoH-margem-h,
+      width:w,
+      height:h
+    });
+  }
+  return Buffer.from(await destino.save());
+}
+
 
 module.exports=async function handler(req,res){
   try{
@@ -101,17 +286,26 @@ module.exports=async function handler(req,res){
     let id=txt(p.idPrePostagem||p.id);
     let loc=null;
     if(!id){ loc=await localizar(p); if(!loc.ok) return res.status(404).json(loc); id=loc.id; }
+    const ids=id.split(',').map(x=>x.trim()).filter(Boolean);
+    const primeiroId=ids[0]||id;
     if(acao==='declaracao'){
-      const d=await emitirDeclaracao(id);
+      const d=await emitirDeclaracao(primeiroId);
       res.setHeader('Content-Type',d.contentType);
       res.setHeader('Content-Disposition',`inline; filename="declaracao-correios-${id}.html"`);
       return res.status(200).send(d.buffer);
     }
-    if(acao==='rotulo'){
-      const d=await emitirRotulo(id,p.tipoRotulo);
-      res.setHeader('Content-Type',d.contentType);
-      res.setHeader('Content-Disposition',`inline; filename="rotulo-correios-${id}.pdf"`);
+    if(acao==='dace'){
+      const d=await emitirDaceOficial(ids);
+      res.setHeader('Content-Type','application/pdf');
+      res.setHeader('Content-Disposition',`inline; filename="DACE-Completa-Correios-${primeiroId}${ids.length>1?'-multivolume':''}.pdf"`);
       return res.status(200).send(d.buffer);
+    }
+    if(acao==='rotulo' || acao==='rotulo-l42'){
+      const d=await emitirRotulo(ids,p.tipoRotulo);
+      const buffer=acao==='rotulo-l42' ? await converterRotuloL42(d.buffer) : d.buffer;
+      res.setHeader('Content-Type','application/pdf');
+      res.setHeader('Content-Disposition',`inline; filename="${acao==='rotulo-l42'?'rotulo-l42-100x150':'rotulo-correios'}-${id}.pdf"`);
+      return res.status(200).send(buffer);
     }
     return res.status(400).json({ok:false,erro:'Modo inválido.'});
   }catch(e){

@@ -177,6 +177,7 @@ function scoreEnderecoCorreios(item,{uf,localidade,bairro,logradouro,numero}){
   if(logItem&&logAlvo){
     if(logItem===logAlvo)score+=100;
     else if(logItem.includes(logAlvo)||logAlvo.includes(logItem))score+=70;
+    else {const a=logItem.replace(/^(RUA|R |AVENIDA|AV |TRAVESSA|RODOVIA|ESTRADA) /,''); const z=logAlvo.replace(/^(RUA|R |AVENIDA|AV |TRAVESSA|RODOVIA|ESTRADA) /,''); if(a===z)score+=90;}
   }
   if(bairro&&n(item?.bairro)===n(bairro))score+=35;
   if(Number(item?.tipoCEP)===2)score+=20; // CEP de logradouro é o fallback desejado.
@@ -191,10 +192,13 @@ async function buscarCepPorEndereco({uf,localidade,bairro,logradouro,endereco}={
   const b=String(bairro||'').trim();
   if(!estado||!cidade||!rua)return {encontrado:false,motivo:'Informe UF, cidade e logradouro para buscar um CEP específico.'};
   const numero=numeroEnderecoBusca(endereco||logradouro);
-  const tentativas=[
-    {uf:estado,localidade:cidade,bairro:b,logradouro:rua,page:'0',size:'50'},
-    {uf:estado,localidade:cidade,logradouro:rua,page:'0',size:'50'}
-  ];
+  const semTipo=rua.replace(/^(RUA|R\.?|AVENIDA|AV\.?|TRAVESSA|TRAV\.?|RODOVIA|ROD\.?|ALAMEDA|AL\.?|PRAÇA|PRACA|ESTRADA|EST\.?|VIELA)\s+/i,'').trim();
+  const variantes=[rua,semTipo].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
+  const tentativas=[];
+  for(const log of variantes){
+    tentativas.push({uf:estado,localidade:cidade,bairro:b,logradouro:log,page:'0',size:'50'});
+    tentativas.push({uf:estado,localidade:cidade,logradouro:log,page:'0',size:'50'});
+  }
   let ultimoErro=null;
   for(const params of tentativas){
     if(!params.bairro)delete params.bairro;
@@ -260,28 +264,65 @@ async function cotar({cepDestino,pesoKg,comprimento=20,largura=20,altura=20,serv
  return {resultados,melhor:validos[0]||null,cepOriginal:destOriginal,cepUtilizado:cepUsado,cepFallback,configuracao:{dr:c.dr||null,servicos:c.servicos,servicosDetalhes:c.servicosDetalhes,fonte:c.descoberta?'API Meu Contrato':'Variáveis Vercel',aviso:c.aviso||null,modoServicos:c.modoServicos||null}};
 }
 
-async function rastrear(codigo){
+function temEventosRastro(x,prof=0){
+ if(!x||prof>7)return false;
+ if(Array.isArray(x?.eventos)&&x.eventos.length)return true;
+ if(Array.isArray(x?.events)&&x.events.length)return true;
+ if(Array.isArray(x))return x.some(v=>temEventosRastro(v,prof+1));
+ if(typeof x==='object')return Object.values(x).some(v=>temEventosRastro(v,prof+1));
+ return false;
+}
+async function rastrearDetalhado(codigo){
  const cod=String(codigo||'').trim().toUpperCase();
  if(!/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(cod))throw new Error('Código de rastreio dos Correios inválido. Exemplo: AA123456789BR.');
  const base=`https://api.correios.com.br/srorastro/v1/objetos/${encodeURIComponent(cod)}`;
- const tentativas=[
-   {qs:'resultado=T',headers:{'Accept-Language':'pt-BR'}},
-   {qs:'resultado=T&idioma=pt-BR',headers:{'Accept-Language':'pt-BR'}},
-   {qs:'resultado=T',headers:{'Accept-Language':'pt-BR,pt;q=0.9'}},
-   {qs:'',headers:{'Accept-Language':'pt-BR'}}
+ // A documentação oficial do Rastro usa resultado=T. As variantes abaixo servem apenas
+ // para diagnosticar diferenças de resposta sem expor token/credenciais.
+ const requisicoes=[
+   {nome:'resultado=T',qs:'resultado=T',headers:{'Accept-Language':'pt-BR'}},
+   {nome:'resultado=T + idioma',qs:'resultado=T&idioma=pt-BR',headers:{'Accept-Language':'pt-BR'}},
+   {nome:'sem parâmetros',qs:'',headers:{'Accept-Language':'pt-BR'}}
  ];
- let ultimoErro=null;
- for(const t of tentativas){
-   try{return await apiComToken(`${base}${t.qs?'?'+t.qs:''}`,{headers:t.headers},'cartao');}
-   catch(e){
-     ultimoErro=e;
-     const msg=String(e?.message||'');
-     if(!/SRO-018|idioma|language|400/i.test(msg) && Number(e?.httpStatus)!==400)throw e;
+ const escopos=['cartao','contrato','user'];
+ let ultimoErro=null,melhorResposta=null,melhorTentativa=null;
+ const tentativas=[];
+ const resumoResposta=d=>{
+   const obj=d?.objetos?.[0]||d?.objeto||d?.resultado?.objetos?.[0]||d?.resultado?.objeto||null;
+   const eventos=Array.isArray(obj?.eventos)?obj.eventos:(Array.isArray(obj?.events)?obj.events:[]);
+   return {
+     versao:d?.versao||null,quantidade:d?.quantidade??null,
+     codigoObjeto:obj?.codObjeto||obj?.codigoObjeto||obj?.codigo||null,
+     temObjeto:Boolean(obj),totalEventos:eventos.length,
+     mensagem:obj?.mensagem||obj?.msg||d?.mensagem||d?.message||null,
+     chavesRaiz:d&&typeof d==='object'&&!Array.isArray(d)?Object.keys(d).slice(0,20):[]
+   };
+ };
+ for(const escopo of escopos){
+   for(const t of requisicoes){
+     const url=`${base}${t.qs?'?'+t.qs:''}`;
+     try{
+       const d=await apiComToken(url,{headers:t.headers},escopo);
+       const info=resumoResposta(d);
+       tentativas.push({escopo,variante:t.nome,httpStatus:200,ok:true,...info});
+       if(!melhorResposta){melhorResposta=d;melhorTentativa={escopo,variante:t.nome};}
+       if(temEventosRastro(d))return {dados:d,diagnostico:{codigo:cod,resultado:'eventos_encontrados',tentativaEscolhida:{escopo,variante:t.nome},tentativas}};
+     }catch(e){
+       ultimoErro=e;
+       tentativas.push({escopo,variante:t.nome,httpStatus:Number(e?.httpStatus)||null,ok:false,erro:String(e?.message||'Falha na consulta').slice(0,300)});
+       const msg=String(e?.message||'');
+       if(!/SRO-018|idioma|language|400|401|403|nao autorizado|não autorizado/i.test(msg) && ![400,401,403].includes(Number(e?.httpStatus)))throw e;
+     }
    }
  }
- throw ultimoErro||new Error('Não foi possível consultar o objeto nos Correios.');
+ if(melhorResposta)return {dados:melhorResposta,diagnostico:{codigo:cod,resultado:'objeto_sem_eventos',tentativaEscolhida:melhorTentativa,tentativas}};
+ const err=ultimoErro||new Error('Não foi possível consultar o objeto nos Correios.');
+ err.diagnostico={codigo:cod,resultado:'falha_total',tentativas};
+ throw err;
 }
-
+async function rastrear(codigo){
+ const r=await rastrearDetalhado(codigo);
+ return r.dados;
+}
 
 function listaPrepostResposta(d){
   if(Array.isArray(d))return d;
@@ -340,4 +381,4 @@ async function descobrirCodigoObjeto(alvo={}){
   return {codigo:candidatos[0].codigo,item:candidatos[0].item,score:candidatos[0].score};
 }
 
-module.exports={cfg,token,gerarToken,api,apiComToken,descobrirContrato,configuracaoEfetiva,cotar,buscarCepPorEndereco,rastrear,listarPrepostagens,listaPrepostResposta,valorProfundo,descobrirCodigoObjeto};
+module.exports={cfg,token,gerarToken,api,apiComToken,descobrirContrato,configuracaoEfetiva,cotar,buscarCepPorEndereco,rastrear,rastrearDetalhado,listarPrepostagens,listaPrepostResposta,valorProfundo,descobrirCodigoObjeto};

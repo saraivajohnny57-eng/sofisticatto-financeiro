@@ -5,8 +5,8 @@ function json(res,status,data){
 }
 
 function adminValido(req){
-  const esperado=process.env.INTEGRATIONS_ADMIN_KEY||"";
-  const recebido=String(req.headers["x-integrations-admin-key"]||"");
+  const esperado=String(process.env.INTEGRATIONS_ADMIN_KEY||"").trim();
+  const recebido=String(req.headers["x-integrations-admin-key"]||"").trim();
   if(!esperado||!recebido)return false;
 
   const a=Buffer.from(esperado);

@@ -4,9 +4,10 @@ const {listarPrepostagens,listaPrepostResposta,valorProfundo}=require('./_correi
 function norm(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\bcoreios\b/g,'correios');}
 function statusSSW(desc,codigo){
   const s=norm(`${desc||''} ${codigo||''}`);
-  if(/entreg|baixa realizada|ctrc entregue|entrega realizada/.test(s))return'entregue';
-  if(/saiu.*entrega|em rota|rota de entrega|veiculo em entrega/.test(s))return'saiu_entrega';
-  if(/filial|unidade|chegada|recebid.*unidade|transferencia/.test(s))return'na_filial';
+  if(/\bentregue\b|\bentregues\b|entrega realizada|mercadoria entregue|objeto entregue|ctrc entregue|baixa realizada|recebido pelo destinatario|entregue ao destinatario/.test(s))return'entregue';
+  if(/saiu.*para.*entrega|saida.*para.*entrega|em rota de entrega|rota de entrega|veiculo em entrega|carteiro saiu/.test(s))return'saiu_entrega';
+  if(/saida de unidade|transferencia|em transito|em viagem|encaminhad|deslocamento/.test(s))return'em_transito';
+  if(/chegada.*unidade|entrada.*unidade|na filial|unidade destino|recebid.*unidade|centro de distribuicao/.test(s))return'na_filial';
   if(/cancel|devol/.test(s))return'cancelado';
   if(/ocorr|insucesso|recusa|ausente|endereco|avaria|extravio/.test(s))return'ocorrencia';
   return'em_transito';
@@ -39,12 +40,13 @@ function statusPrepost(item){return txt(valorProfundo(item,['statusAtual','statu
 function numeroNfPrepost(item){return txt(valorProfundo(item,['numeroNotaFiscal','numeroNFe','numeroNfe','notaFiscal','nf']));}
 function dataPrepost(item){return txt(valorProfundo(item,['dataHoraStatusAtual','dataPostagem','dataPrePostagem','dataHora']));}
 
-async function localizarTransportadoraCorreios(){
+async function localizarTransportadorasCorreios(){
   const rows=await supabaseRest('frete_transportadoras',{query:'?select=id,nome&limit=500'}).catch(()=>[]);
-  return (rows||[]).find(x=>/correios|coreios/i.test(String(x.nome||'')))||null;
+  return (rows||[]).filter(x=>/correios|coreios/i.test(String(x.nome||'')));
 }
 async function importarObjetosCorreiosAbertos(){
-  const trans=await localizarTransportadoraCorreios();
+  const transportadoras=await localizarTransportadorasCorreios();
+  const trans=transportadoras[0]||null;
   if(!trans?.id)return {importados:0,atualizados:0,encontrados:0,avisos:['Transportadora Correios não encontrada no cadastro.']};
   const todos=[];const avisos=[];
   for(const status of ['POSTADO','PREPOSTADO','PREATENDIDO']){
@@ -58,7 +60,11 @@ async function importarObjetosCorreiosAbertos(){
     }
   }
   const unicos=[...new Map(todos.map(x=>[codigoObjeto(x),x]).filter(([c])=>/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(c))).values()];
-  let abertos=await supabaseRest('logistica_rastreamentos',{query:`?select=id,status,protocolo_rastreio,numero_nfe,parceiro_nome,created_at&transportadora_id=eq.${encodeURIComponent(trans.id)}&status=not.in.(entregue,recebido,cancelado)&limit=500`}).catch(()=>[]);
+  const idsCorreios=transportadoras.map(x=>String(x.id)).filter(Boolean);
+  const filtroTrans=idsCorreios.length?`&transportadora_id=in.(${idsCorreios.join(',')})`:'';
+  // V84: procura o objeto em TODOS os cadastros Correios (Correios, CORREIOS PAC,
+  // Correios 03298 etc.), para que o mesmo código não seja importado novamente.
+  let abertos=await supabaseRest('logistica_rastreamentos',{query:`?select=id,status,protocolo_rastreio,numero_nfe,parceiro_nome,transportadora_id,coleta_agendamento_id,created_at&sentido=eq.saida${filtroTrans}&status=not.in.(entregue,recebido,cancelado)&limit=800`}).catch(()=>[]);
   let importados=0,atualizados=0;
   for(const item of unicos){
     const codigo=codigoObjeto(item);const st=statusPrepost(item);const quando=dataIso(dataPrepost(item));const nf=numeroNfPrepost(item);const nome=nomeDestinatario(item);const nn=norm(nome);
@@ -66,10 +72,12 @@ async function importarObjetosCorreiosAbertos(){
     if(!existente&&nf)existente=(abertos||[]).find(x=>txt(x.numero_nfe)===nf)||null;
     if(!existente&&nn){const porNome=(abertos||[]).filter(x=>matchNome(x.parceiro_nome,nome));if(porNome.length===1)existente=porNome[0];}
     const patch={
-      transportadora_id:trans.id,protocolo_rastreio:codigo,
+      transportadora_id:existente?.transportadora_id||trans.id,protocolo_rastreio:codigo,
       parceiro_nome:existente?.parceiro_nome||nome,
       data_postagem:quando.slice(0,10),
-      status:/CANCEL|EXPIR|ESTORN/.test(st)?'cancelado':'em_transito',
+      status:/CANCEL|EXPIR|ESTORN/.test(st)
+        ?'cancelado'
+        :(/POSTADO/.test(st)&&!/PREPOSTADO/.test(st)?'em_transito':'aguardando_coleta'),
       ultima_ocorrencia:`Correios • ${st||'OBJETO LOCALIZADO NO CONTRATO'}`,
       ultima_ocorrencia_em:quando,metodo_consulta:'Correios API Pré-Postagem',
       consulta_api:item,consultado_api_em:new Date().toISOString(),
@@ -89,6 +97,47 @@ async function importarObjetosCorreiosAbertos(){
   }
   return {importados,atualizados,encontrados:unicos.length,avisos};
 }
+async function marcarColetaSSWComoRealizada(item,descricao,quando){
+  if(!item?.coleta_agendamento_id)return;
+  const texto=norm(descricao);
+  const confirma=/coleta realizada|carregada no veiculo|mercadoria colet|coletad|em transito|transferencia|filial|entreg/.test(texto);
+  if(!confirma)return;
+  const agora=new Date().toISOString();
+  let atual=null;
+  try{
+    const rows=await supabaseRest('coleta_agendamentos',{
+      query:`?select=id,status,status_api,coletado_em&id=eq.${encodeURIComponent(item.coleta_agendamento_id)}&limit=1`
+    });
+    atual=rows?.[0]||null;
+  }catch{}
+  const jaColetada=Boolean(atual?.coletado_em)||/coletad/i.test(String(atual?.status||""));
+  await supabaseRest('coleta_agendamentos',{
+    method:'PATCH',
+    query:`?id=eq.${encodeURIComponent(item.coleta_agendamento_id)}`,
+    body:{
+      status:'coletado',
+      status_api:descricao||atual?.status_api||'coletado',
+      coletado_em:atual?.coletado_em||quando||agora,
+      sincronizado_em:agora,
+      sincronizacao_erro:null,
+      atualizado_em:agora
+    }
+  }).catch(()=>{});
+  if(!jaColetada){
+    await supabaseRest('coleta_status_eventos',{
+      method:'POST',
+      body:{
+        agendamento_id:item.coleta_agendamento_id,
+        status_anterior:atual?.status||'solicitado',
+        status_novo:'coletado',
+        origem:'ssw_ocorrencia_automatica_v90',
+        detalhes:{descricao,quando},
+        usuario:'sistema'
+      }
+    }).catch(()=>{});
+  }
+}
+
 async function aplicarUltimaOcorrenciaSSW(item){
   let q='?select=*&order=created_at.desc&limit=30';
   const chave=String(item.chave_nfe||'').replace(/\D/g,'');
@@ -111,6 +160,7 @@ async function aplicarUltimaOcorrenciaSSW(item){
   };
   if(st==='entregue')patch.finalizado_em=quando;
   await supabaseRest('logistica_rastreamentos',{method:'PATCH',query:`?id=eq.${encodeURIComponent(item.id)}`,body:patch});
+  await marcarColetaSSWComoRealizada(item,[oc.descricao,oc.complemento].filter(Boolean).join(' — '),quando);
   return {status:st,descricao:oc.descricao||'Ocorrência SSW'};
 }
 
@@ -123,7 +173,7 @@ module.exports=async function(req,res){
     const integracoes=await supabaseRest('transportadora_integracoes',{query:'?select=transportadora_nome,status_tecnico,rastreamento_ativo,coleta_ativa,integracao_tipo,api_versao,convite_id&or=(rastreamento_ativo.eq.true,coleta_ativa.eq.true)&limit=500'}).catch(()=>[]);
     let importacaoCorreios={importados:0,atualizados:0,encontrados:0,avisos:[]};
     try{importacaoCorreios=await importarObjetosCorreiosAbertos();}catch(e){importacaoCorreios.avisos=[e.message];}
-    const rastreios=await supabaseRest('logistica_rastreamentos',{query:'?select=id,status,protocolo_rastreio,numero_cte,numero_nfe,chave_nfe,frete_transportadoras(nome)&sentido=eq.saida&status=not.in.(entregue,recebido,cancelado)&order=created_at.desc&limit=500'}).catch(()=>[]);
+    const rastreios=await supabaseRest('logistica_rastreamentos',{query:'?select=id,status,protocolo_rastreio,numero_cte,numero_nfe,chave_nfe,coleta_agendamento_id,transportadora_id,frete_transportadoras(nome)&sentido=eq.saida&status=not.in.(entregue,recebido,cancelado)&order=created_at.desc&limit=700'}).catch(()=>[]);
     const host=String(req.headers['x-forwarded-host']||req.headers.host||process.env.VERCEL_URL||'').replace(/^https?:\/\//,'');
     const proto=String(req.headers['x-forwarded-proto']||'https');
     if(!host)return json(res,500,{ok:false,erro:'Não foi possível determinar a URL do portal.'});
