@@ -88,7 +88,7 @@ module.exports = async function handler(req, res) {
       ok: true,
       servico: "sofisticatto-financeiro",
       modulo: "api-integracoes-unificada",
-      versao: "50-v123-correios-transporte-aereo",
+      versao: "51-v124-correios-transporte-aereo-omitir-lista-vazia",
       rotas_carregadas: Object.keys(ROTAS).length,
       node: process.version,
       ambiente: process.env.VERCEL_ENV || "local",
