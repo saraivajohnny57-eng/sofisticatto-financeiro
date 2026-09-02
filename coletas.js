@@ -1552,7 +1552,7 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
     geradas.push({idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico,servico:j.servico||'',volumeNumero,pesoKg:pesoPorVolume});
   }
   const j=geradas[0]||{};
-  const pre={idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico||codigo,servico:j.servico||'',gerada_em:new Date().toISOString(),prepostagens:geradas,quantidadeVolumes:qtdVolumes,pesoTotalKg:totalKg,pesoPorVolumeKg:pesoPorVolume};
+  const pre={idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico||codigo,servico:j.servico||'',gerada_em:new Date().toISOString(),prepostagens:geradas,quantidadeVolumes:qtdVolumes,pesoTotalKg:totalKg,pesoPorVolumeKg:pesoPorVolume,restricaoAereaConfirmada:restricaoAerea,transporteAereo:restricaoAerea?'nao':'pode'};
   const novosDados={...d,codigo_servico_correios:codigo,prepostagem_correios:pre};
   if(j.cepUtilizado && String(j.cepUtilizado)!==String(j.cepOriginal||'')){
     novosDados.cep_destino=String(j.cepUtilizado).replace(/(\d{5})(\d{3})/,'$1-$2');
