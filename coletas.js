@@ -1549,10 +1549,20 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
       const detalhe=geradas.length?`\n\n${geradas.length} volume(s) já foram criados antes da falha. Não repita a operação sem verificar para evitar duplicidade.`:'';
       throw new Error((j.erro||`HTTP ${r.status}`)+detalhe);
     }
-    geradas.push({idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico,servico:j.servico||'',volumeNumero,pesoKg:pesoPorVolume});
+    geradas.push({idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico,servico:j.servico||'',volumeNumero,pesoKg:pesoPorVolume,diagnosticoAereo:j.diagnosticoAereo||null});
+    if(!silencioso && j.diagnosticoAereo){
+      const dg=j.diagnosticoAereo;
+      const esperado095=restricaoAerea===true;
+      if(Boolean(dg.codigo095Enviado)!==esperado095){
+        throw new Error('Falha de segurança no transporte aéreo: a opção selecionada não corresponde ao código 095 enviado aos Correios. A pré-postagem não deve ser utilizada.');
+      }
+      if(!restricaoAerea && dg.codigo095Retornado===true){
+        alert('ATENÇÃO: você marcou que PODE ser transportado por avião e o portal NÃO enviou o adicional 095, porém a resposta dos Correios retornou o 095. Não use esta etiqueta até conferirmos esta pré-postagem.');
+      }
+    }
   }
   const j=geradas[0]||{};
-  const pre={idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico||codigo,servico:j.servico||'',gerada_em:new Date().toISOString(),prepostagens:geradas,quantidadeVolumes:qtdVolumes,pesoTotalKg:totalKg,pesoPorVolumeKg:pesoPorVolume,restricaoAereaConfirmada:restricaoAerea,transporteAereo:restricaoAerea?'nao':'pode'};
+  const pre={idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico||codigo,servico:j.servico||'',gerada_em:new Date().toISOString(),prepostagens:geradas,quantidadeVolumes:qtdVolumes,pesoTotalKg:totalKg,pesoPorVolumeKg:pesoPorVolume,restricaoAereaConfirmada:restricaoAerea,transporteAereo:restricaoAerea?'nao':'pode',diagnosticoAereo:j.diagnosticoAereo||null};
   const novosDados={...d,codigo_servico_correios:codigo,prepostagem_correios:pre};
   if(j.cepUtilizado && String(j.cepUtilizado)!==String(j.cepOriginal||'')){
     novosDados.cep_destino=String(j.cepUtilizado).replace(/(\d{5})(\d{3})/,'$1-$2');
