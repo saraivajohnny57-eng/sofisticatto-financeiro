@@ -1568,7 +1568,16 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
         throw new Error('Falha de segurança no transporte aéreo: a opção selecionada não corresponde ao código 095 enviado aos Correios. A pré-postagem não deve ser utilizada.');
       }
       if(!restricaoAerea && dg.codigo095Retornado===true){
-        alert('ATENÇÃO: você marcou que PODE ser transportado por avião e o portal NÃO enviou o adicional 095, porém a resposta dos Correios retornou o 095. Não use esta etiqueta até conferirmos esta pré-postagem.');
+        alert('ATENÇÃO: você marcou que NÃO possui característica de risco aéreo e o portal NÃO enviou o adicional 095, porém a resposta imediata dos Correios retornou o 095. Não use esta etiqueta até conferirmos esta pré-postagem.');
+      }
+      const rg=dg.registroCorreios||null;
+      if(rg?.encontrado && dg.divergenciaRegistro){
+        alert('ATENÇÃO: a consulta oficial da pré-postagem encontrou divergência entre o que o portal enviou e o que ficou gravado nos Correios. Não imprima a etiqueta ainda; o diagnóstico foi salvo para conferência.');
+      }else if(!silencioso && rg && !rg.encontrado){
+        mostrarBalaoSistema('Correios — diagnóstico', 'Pré-postagem criada. A consulta de confirmação ainda não a encontrou no /v2/prepostagens; os dados do diagnóstico foram salvos para nova conferência.');
+      }
+      if(!silencioso && rg?.encontrado && !dg.divergenciaRegistro){
+        mostrarBalaoSistema('Correios — conferido', `Pré-postagem confirmada no registro oficial. Adicional 095 gravado: ${rg.codigo095Gravado?'SIM':'NÃO'}.`);
       }
     }
   }
