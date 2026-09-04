@@ -34,7 +34,6 @@ const documentosCorreios = require("../lib/integracoes/documentos-correios");
 const criarPrepostagemCorreios = require("../lib/integracoes/criar-prepostagem-correios");
 const buscarCepCorreios = require("../lib/integracoes/buscar-cep-correios");
 const verificarCobertura = require("../lib/integracoes/verificar-cobertura");
-const diagnosticoPrepostagemCorreios = require("../lib/integracoes/diagnostico-prepostagem-correios");
 
 const ROTAS = Object.freeze({
   "validar-chave": validarChave,
@@ -66,7 +65,6 @@ const ROTAS = Object.freeze({
   "criar-prepostagem-correios": criarPrepostagemCorreios,
   "buscar-cep-correios": buscarCepCorreios,
   "verificar-cobertura": verificarCobertura,
-  "diagnostico-prepostagem-correios": diagnosticoPrepostagemCorreios,
 });
 
 function responder(res, status, body) {
@@ -90,7 +88,7 @@ module.exports = async function handler(req, res) {
       ok: true,
       servico: "sofisticatto-financeiro",
       modulo: "api-integracoes-unificada",
-      versao: "55-v128-correios-consulta-pos-gravacao",
+      versao: "53-v128-correios-consulta-registro-prepostagem",
       rotas_carregadas: Object.keys(ROTAS).length,
       node: process.version,
       ambiente: process.env.VERCEL_ENV || "local",
@@ -109,7 +107,7 @@ module.exports = async function handler(req, res) {
         tg_ssw: Boolean(
           (process.env.TG_SSW_DOMINIO||process.env.TGT_SSW_DOMINIO||process.env.TG_DOMINIO||process.env.TGT_DOMINIO||'TGT') &&
           (process.env.TG_SSW_LOGIN||process.env.TGT_SSW_LOGIN||process.env.TG_LOGIN||process.env.TGT_LOGIN) &&
-          (process.env.TG_SSW_SENHA||process.env.TGT_SENHA||process.env.TG_SENHA||process.env.TGT_SENHA)
+          (process.env.TG_SSW_SENHA||process.env.TGT_SSW_SENHA||process.env.TG_SENHA||process.env.TGT_SENHA)
         ),
         correios: Boolean(process.env.CORREIOS_USUARIO && process.env.CORREIOS_CODIGO_ACESSO)
       },
