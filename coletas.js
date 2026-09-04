@@ -1495,6 +1495,34 @@ function perguntarRestricaoAereaCorreios(){
   });
 }
 
+
+function coletarItensDeclaracaoPrePostagemCorreios(dados={}){
+  const atuais=(typeof correiosItens!=="undefined" && Array.isArray(correiosItens)?correiosItens:[])
+    .filter(x=>String(x?.conteudo||"").trim())
+    .map(x=>({descricao:String(x.conteudo||"").trim(),quantidade:Math.max(1,Number(x.quantidade||1)),valor:numeroCorreios?numeroCorreios(x.valor):Number(String(x.valor||0).replace(',','.'))||0}));
+  const temEspecifico=atuais.some(x=>!/^COSM[ÉE]TICOS?$/i.test(x.descricao));
+  const fallback=String(dados.mercadoria||"").trim();
+  const base=temEspecifico?atuais:(fallback?[{descricao:fallback,quantidade:1,valor:numeroColetaApi(dados.valor_nf)||0}]:[]);
+  const sugestao=(base.length?base:[{descricao:"",quantidade:1,valor:0}]).map(x=>`${x.descricao} | ${x.quantidade} | ${Number(x.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`).join('\n');
+  const txt=prompt('Informe o conteúdo EXATO que será enviado.\n\nUse uma linha por item no formato:\nDescrição | Quantidade | Valor unitário\n\nExemplo:\nRenova Área dos Olhos | 1 | 16,50\nRenova Colo e Pescoço | 1 | 10,50',sugestao);
+  if(txt===null)return null;
+  const itens=String(txt).split(/\n+/).map(l=>l.trim()).filter(Boolean).map(l=>{
+    const p=l.split('|').map(x=>x.trim());
+    const descricao=p[0]||'';
+    const quantidade=Math.max(1,parseInt(p[1]||'1',10)||1);
+    const valor=Number(String(p[2]||'0').replace(/\./g,'').replace(',','.'))||0;
+    return {descricao,conteudo:descricao,quantidade,valor};
+  }).filter(x=>x.descricao.length>=5);
+  if(!itens.length){alert('Informe pelo menos um item com descrição de 5 caracteres ou mais.');return coletarItensDeclaracaoPrePostagemCorreios(dados);}
+  try{
+    if(typeof correiosItens!=="undefined"){
+      correiosItens=itens.map(x=>({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()),conteudo:x.descricao,quantidade:x.quantidade,valor:Number(x.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}));
+      if(typeof montarItensCorreios==="function")montarItensCorreios();
+    }
+  }catch{}
+  return itens;
+}
+
 async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,silencioso=false}={}){
   const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id)); if(!a)throw new Error('Coleta não encontrada.');
   if(!coletaRegistroEhCorreios(a))return {ok:false,ignorado:true};
@@ -1546,7 +1574,14 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   // (ex.: 327 kg) como se fosse um único pacote.
   const valorTotalNf=numeroColetaApi(d.valor_nf)||0;
   const valorPorVolume=qtdVolumes>1&&valorTotalNf>0?(valorTotalNf/qtdVolumes):valorTotalNf;
-  const basePayload={codigoServico:codigo,pesoKg:pesoPorVolume,medidas:d.medidas,numeroNf:a.numero_nf||d.numero_nf,chaveNFe:a.chave_nfe||d.chave_nfe||d.chave_nf,valorNf:valorPorVolume||d.valor_nf,mercadoria:d.mercadoria||'Cosméticos',destino,restricaoAereaConfirmada:restricaoAerea,cienteObjetoNaoProibido,totalVolumes:qtdVolumes,pesoTotalKg:totalKg,valorTotalNf};
+  let itensDeclaracao=[];
+  if(!silencioso){
+    itensDeclaracao=coletarItensDeclaracaoPrePostagemCorreios(d);
+    if(itensDeclaracao===null)return {ok:false,cancelado:true};
+  }else{
+    itensDeclaracao=(typeof correiosItens!=="undefined"&&Array.isArray(correiosItens)?correiosItens:[]).filter(x=>String(x?.conteudo||"").trim()).map(x=>({descricao:String(x.conteudo).trim(),conteudo:String(x.conteudo).trim(),quantidade:Math.max(1,Number(x.quantidade||1)),valor:typeof numeroCorreios==="function"?numeroCorreios(x.valor):0}));
+  }
+  const basePayload={codigoServico:codigo,pesoKg:pesoPorVolume,medidas:d.medidas,numeroNf:a.numero_nf||d.numero_nf,chaveNFe:a.chave_nfe||d.chave_nfe||d.chave_nf,valorNf:valorPorVolume||d.valor_nf,mercadoria:d.mercadoria||'Cosméticos',itensDeclaracaoConteudo:itensDeclaracao,destino,restricaoAereaConfirmada:restricaoAerea,cienteObjetoNaoProibido,totalVolumes:qtdVolumes,pesoTotalKg:totalKg,valorTotalNf};
   if(restricaoAerea)basePayload.listaServicoAdicional=[{codigoServicoAdicional:'095'}];
   if(!silencioso)mostrarBalaoSistema('Correios',qtdVolumes>1?`Gerando ${qtdVolumes} pré-postagens • ${pesoPorVolume.toFixed(3).replace('.',',')} kg por volume...`:(restricaoAerea?'Gerando pré-postagem com restrição aérea (095)...':'Gerando pré-postagem liberada para transporte aéreo...'));
 
