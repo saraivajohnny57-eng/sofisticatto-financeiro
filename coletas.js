@@ -1496,31 +1496,99 @@ function perguntarRestricaoAereaCorreios(){
 }
 
 
-function coletarItensDeclaracaoPrePostagemCorreios(dados={}){
+async function coletarItensDeclaracaoPrePostagemCorreios(dados={}){
+  const numeroItem=v=>{
+    if(typeof numeroCorreios==='function')return numeroCorreios(v);
+    const n=Number(String(v??'').trim().replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''));
+    return Number.isFinite(n)?n:0;
+  };
   const atuais=(typeof correiosItens!=="undefined" && Array.isArray(correiosItens)?correiosItens:[])
     .filter(x=>String(x?.conteudo||"").trim())
-    .map(x=>({descricao:String(x.conteudo||"").trim(),quantidade:Math.max(1,Number(x.quantidade||1)),valor:numeroCorreios?numeroCorreios(x.valor):Number(String(x.valor||0).replace(',','.'))||0}));
+    .map(x=>({descricao:String(x.conteudo||"").trim(),quantidade:Math.max(1,Number(x.quantidade||1)),valor:numeroItem(x.valor)}));
   const temEspecifico=atuais.some(x=>!/^COSM[ÉE]TICOS?$/i.test(x.descricao));
   const fallback=String(dados.mercadoria||"").trim();
-  const base=temEspecifico?atuais:(fallback?[{descricao:fallback,quantidade:1,valor:numeroColetaApi(dados.valor_nf)||0}]:[]);
-  const sugestao=(base.length?base:[{descricao:"",quantidade:1,valor:0}]).map(x=>`${x.descricao} | ${x.quantidade} | ${Number(x.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`).join('\n');
-  const txt=prompt('Informe o conteúdo EXATO que será enviado.\n\nUse uma linha por item no formato:\nDescrição | Quantidade | Valor unitário\n\nExemplo:\nRenova Área dos Olhos | 1 | 16,50\nRenova Colo e Pescoço | 1 | 10,50',sugestao);
-  if(txt===null)return null;
-  const itens=String(txt).split(/\n+/).map(l=>l.trim()).filter(Boolean).map(l=>{
-    const p=l.split('|').map(x=>x.trim());
-    const descricao=p[0]||'';
-    const quantidade=Math.max(1,parseInt(p[1]||'1',10)||1);
-    const valor=Number(String(p[2]||'0').replace(/\./g,'').replace(',','.'))||0;
-    return {descricao,conteudo:descricao,quantidade,valor};
-  }).filter(x=>x.descricao.length>=5);
-  if(!itens.length){alert('Informe pelo menos um item com descrição de 5 caracteres ou mais.');return coletarItensDeclaracaoPrePostagemCorreios(dados);}
-  try{
-    if(typeof correiosItens!=="undefined"){
-      correiosItens=itens.map(x=>({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()),conteudo:x.descricao,quantidade:x.quantidade,valor:Number(x.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}));
-      if(typeof montarItensCorreios==="function")montarItensCorreios();
-    }
-  }catch{}
-  return itens;
+  let itens=(temEspecifico?atuais:(fallback?[{descricao:fallback,quantidade:1,valor:numeroColetaApi(dados.valor_nf)||0}]:[]))
+    .filter(x=>x.descricao && x.descricao.length>=5);
+
+  return new Promise(resolve=>{
+    const wrap=document.createElement('div');
+    wrap.style.cssText='position:fixed;inset:0;z-index:1000000;background:rgba(20,18,38,.58);display:flex;align-items:center;justify-content:center;padding:18px';
+    wrap.innerHTML=`
+      <div role="dialog" aria-modal="true" aria-labelledby="corItensTitulo" style="width:min(760px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(0,0,0,.30);padding:22px;color:#2f2a4a;font-family:Arial,sans-serif">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px">
+          <div>
+            <h2 id="corItensTitulo" style="margin:0 0 6px;color:#5548a8;font-size:22px">Conteúdo da declaração</h2>
+            <div style="font-size:14px;color:#70688c;line-height:1.4">Adicione cada produto separadamente. A pré-postagem só continuará quando você clicar em <b>Confirmar conteúdo</b>.</div>
+          </div>
+          <button type="button" id="corItensFechar" aria-label="Fechar" style="border:0;background:#eeeaf9;color:#5548a8;border-radius:10px;width:38px;height:38px;font-size:22px;cursor:pointer">×</button>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 120px 150px auto;gap:10px;align-items:end;background:#f7f5fc;border:1px solid #e2ddf4;border-radius:14px;padding:14px">
+          <label style="font-size:12px;font-weight:700;color:#5548a8">Descrição
+            <input id="corItemDescricao" type="text" autocomplete="off" placeholder="Ex.: Renova Área dos Olhos" style="margin-top:5px;width:100%;box-sizing:border-box;border:1px solid #d8d1ef;border-radius:10px;padding:11px;background:#fff">
+          </label>
+          <label style="font-size:12px;font-weight:700;color:#5548a8">Quantidade
+            <input id="corItemQuantidade" type="number" min="1" step="1" value="1" style="margin-top:5px;width:100%;box-sizing:border-box;border:1px solid #d8d1ef;border-radius:10px;padding:11px;background:#fff">
+          </label>
+          <label style="font-size:12px;font-weight:700;color:#5548a8">Valor unitário (R$)
+            <input id="corItemValor" type="text" inputmode="decimal" placeholder="0,00" style="margin-top:5px;width:100%;box-sizing:border-box;border:1px solid #d8d1ef;border-radius:10px;padding:11px;background:#fff">
+          </label>
+          <button type="button" id="corItemAdicionar" style="border:0;background:#3498db;color:#fff;border-radius:10px;padding:12px 15px;font-weight:700;cursor:pointer;white-space:nowrap">+ Adicionar item</button>
+        </div>
+        <div id="corItensErro" style="display:none;margin:10px 0 0;padding:9px 11px;background:#fff1f0;border:1px solid #ffc8c4;border-radius:9px;color:#b42318;font-size:13px"></div>
+        <div id="corItensLista" style="margin-top:14px"></div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;border-top:1px solid #ece8f5;padding-top:16px">
+          <button type="button" id="corItensCancelar" style="border:1px solid #d8d1ef;background:#fff;color:#5548a8;border-radius:10px;padding:11px 18px;font-weight:700;cursor:pointer">Cancelar</button>
+          <button type="button" id="corItensConfirmar" style="border:0;background:#5a4fa3;color:#fff;border-radius:10px;padding:11px 18px;font-weight:700;cursor:pointer">Confirmar conteúdo</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const q=sel=>wrap.querySelector(sel);
+    const erro=msg=>{const e=q('#corItensErro');e.textContent=msg;e.style.display='block';};
+    const limparErro=()=>{const e=q('#corItensErro');e.textContent='';e.style.display='none';};
+    const moeda=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    const escapar=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const render=()=>{
+      const box=q('#corItensLista');
+      if(!itens.length){box.innerHTML='<div style="padding:18px;text-align:center;border:1px dashed #d8d1ef;border-radius:12px;color:#81799b">Nenhum item adicionado.</div>';return;}
+      box.innerHTML=`<div style="display:grid;gap:8px">${itens.map((x,i)=>`<div style="display:grid;grid-template-columns:minmax(0,1fr) 90px 120px auto;gap:10px;align-items:center;border:1px solid #e5e0f3;border-radius:12px;padding:11px 12px;background:#fff"><div><div style="font-size:11px;color:#81799b">Descrição</div><b>${escapar(x.descricao)}</b></div><div><div style="font-size:11px;color:#81799b">Qtd.</div>${x.quantidade}</div><div><div style="font-size:11px;color:#81799b">Valor</div>${moeda(x.valor)}</div><button type="button" data-remover="${i}" style="border:0;background:#d9362b;color:#fff;border-radius:9px;padding:9px 12px;font-weight:700;cursor:pointer">Excluir</button></div>`).join('')}</div>`;
+      box.querySelectorAll('[data-remover]').forEach(b=>b.onclick=()=>{itens.splice(Number(b.dataset.remover),1);render();});
+    };
+    const adicionar=()=>{
+      limparErro();
+      const descricao=String(q('#corItemDescricao').value||'').trim();
+      const quantidade=Math.max(1,parseInt(q('#corItemQuantidade').value||'1',10)||1);
+      const valor=numeroItem(q('#corItemValor').value);
+      if(descricao.length<5){erro('Informe uma descrição com pelo menos 5 caracteres.');q('#corItemDescricao').focus();return;}
+      if(!(valor>0)){erro('Informe o valor unitário do item.');q('#corItemValor').focus();return;}
+      itens.push({descricao,conteudo:descricao,quantidade,valor});
+      q('#corItemDescricao').value='';q('#corItemQuantidade').value='1';q('#corItemValor').value='';
+      render();q('#corItemDescricao').focus();
+    };
+    const fechar=ret=>{document.removeEventListener('keydown',bloquearEnter,true);wrap.remove();resolve(ret);};
+    const bloquearEnter=e=>{
+      if(e.key==='Enter' && wrap.contains(e.target)){
+        e.preventDefault();e.stopPropagation();
+      }
+      if(e.key==='Escape'){e.preventDefault();fechar(null);}
+    };
+    document.addEventListener('keydown',bloquearEnter,true);
+    q('#corItemAdicionar').onclick=adicionar;
+    q('#corItensFechar').onclick=()=>fechar(null);
+    q('#corItensCancelar').onclick=()=>fechar(null);
+    q('#corItensConfirmar').onclick=()=>{
+      limparErro();
+      if(!itens.length){erro('Adicione pelo menos um item antes de continuar.');return;}
+      try{
+        if(typeof correiosItens!=="undefined"){
+          correiosItens=itens.map(x=>({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()),conteudo:x.descricao,quantidade:x.quantidade,valor:Number(x.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}));
+          if(typeof montarItensCorreios==='function')montarItensCorreios();
+        }
+      }catch{}
+      fechar(itens.map(x=>({...x})));
+    };
+    wrap.addEventListener('click',e=>{if(e.target===wrap)fechar(null);});
+    render();setTimeout(()=>q('#corItemDescricao')?.focus(),50);
+  });
 }
 
 async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,silencioso=false}={}){
@@ -1576,7 +1644,7 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   const valorPorVolume=qtdVolumes>1&&valorTotalNf>0?(valorTotalNf/qtdVolumes):valorTotalNf;
   let itensDeclaracao=[];
   if(!silencioso){
-    itensDeclaracao=coletarItensDeclaracaoPrePostagemCorreios(d);
+    itensDeclaracao=await coletarItensDeclaracaoPrePostagemCorreios(d);
     if(itensDeclaracao===null)return {ok:false,cancelado:true};
   }else{
     itensDeclaracao=(typeof correiosItens!=="undefined"&&Array.isArray(correiosItens)?correiosItens:[]).filter(x=>String(x?.conteudo||"").trim()).map(x=>({descricao:String(x.conteudo).trim(),conteudo:String(x.conteudo).trim(),quantidade:Math.max(1,Number(x.quantidade||1)),valor:typeof numeroCorreios==="function"?numeroCorreios(x.valor):0}));
