@@ -261,6 +261,8 @@ function iniciarSistema(){
   atualizarBotaoNotificacao();
   document.getElementById("btnAdmin").style.display = usuarioLogado.tipo === "admin" ? "block" : "none";
   document.getElementById("btnEnvioDocumentos").style.display = (usuarioLogado.tipo === "financeiro" || usuarioEhComercialRastreio()) ? "block" : "none";
+  const btnIntegracaoBancaria=document.getElementById("btnIntegracaoBancaria");
+  if(btnIntegracaoBancaria) btnIntegracaoBancaria.style.display = ["financeiro","admin"].includes(usuarioLogado.tipo) ? "block" : "none";
   document.getElementById("boxNovoRelatorio").style.display = usuarioLogado.tipo === "banco" ? "none" : "block";
   configurarInterfacePorPerfil();
   if(usuarioLogado.tipo==="entregador"){ mostrarSecao("corridas"); setTimeout(()=>mostrarAbaCorridas("minhas"),30); }
@@ -285,6 +287,7 @@ function mostrarSecao(secao){
   document.getElementById("historico").style.display = "none";
   document.getElementById("admin").style.display = "none";
   document.getElementById("envioDocumentos").style.display = "none";
+  const integracaoBancariaSec=document.getElementById("integracaoBancaria"); if(integracaoBancariaSec)integracaoBancariaSec.style.display="none";
   const corridasSec=document.getElementById("corridas"); if(corridasSec)corridasSec.style.display="none";
 
   if(usuarioLogado?.tipo==="entregador" && secao!=="corridas"){
@@ -294,9 +297,19 @@ function mostrarSecao(secao){
     alert("Seu usuário não possui acesso a esta área.");
     secao = "dashboard";
   }
+  if(secao === "integracaoBancaria" && !["financeiro","admin"].includes(usuarioLogado?.tipo)){
+    alert("Seu usuário não possui acesso à Integração Bancária.");
+    secao = "dashboard";
+  }
 
   document.getElementById(secao).style.display = "block";
   if(secao === "envioDocumentos") carregarModuloEmail();
+  if(secao === "integracaoBancaria"){
+    if(!(emailClientes||[]).length && typeof carregarClientesEmail==="function"){
+      carregarClientesEmail().catch(e=>console.warn("Integração Bancária: clientes:",e));
+    }
+    if(typeof carregarCobrancasBancarias==="function") carregarCobrancasBancarias();
+  }
   if(secao === "corridas") carregarModuloCorridas?.();
 }
 
@@ -1950,7 +1963,7 @@ function mostrarAbaEmail(aba){
     document.getElementById("emailSub" + nome).classList.remove("ativa");
     document.getElementById("emailAba" + nome).classList.remove("ativo");
   });
-  const mapa = {logistica:"Logistica",preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",correios:"Correios","cobranca-bancaria":"CobrancaBancaria",cotacoes:"Cotacoes",coletas:"Coletas",integracoes:"Integracoes",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
+  const mapa = {logistica:"Logistica",preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",correios:"Correios",cotacoes:"Cotacoes",coletas:"Coletas",integracoes:"Integracoes",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
   const nome = mapa[aba];
   document.getElementById("emailSub" + nome).classList.add("ativa");
   document.getElementById("emailAba" + nome).classList.add("ativo");
@@ -1966,9 +1979,6 @@ function mostrarAbaEmail(aba){
   }
   if(aba === "correios"){
     inicializarModuloCorreios();
-  }
-  if(aba === "cobranca-bancaria"){
-    carregarCobrancasBancarias();
   }
   if(aba === "cotacoes" && typeof inicializarModuloFretes === "function"){
     inicializarModuloFretes();
