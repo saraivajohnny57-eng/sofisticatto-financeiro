@@ -596,7 +596,7 @@ async function cotarAutomaticamenteSSW(transportadoraId,tipoFrete){
   const cnpjRem=String(FRETE_REMETENTE.cnpj||"").replace(/\D/g,"");
   const cnpjPagador=tipoFrete==="CIF"?cnpjRem:cnpjDestino;
   if(cnpjPagador.length!==14)return alert(`Para cotação ${tipoFrete}, o pagador precisa possuir CNPJ de 14 dígitos. O WebService SSW cotar() não aceita CPF como CNPJ pagador.`);
-  console.info(`[V134 SSW ${tipoFrete}] Papéis da cotação`,{remetente:cnpjRem,destinatario:cnpjDestino,pagador:cnpjPagador});
+  console.info(`[V136 SSW ${tipoFrete}] Papéis da cotação`,{remetente:cnpjRem,destinatario:cnpjDestino,pagador:cnpjPagador});
   const nomeTr=tr?.nome||"SSW";
   const nomeCurto=/\btg\b|tgt/i.test(nomeTr)?"TG":/accert/i.test(nomeTr)?"ACCERT":nomeTr;
   const original=botao?.textContent||`⚡ Cotar ${nomeCurto} automaticamente`;if(botao){botao.disabled=true;botao.textContent=`Consultando ${nomeCurto}...`;}
@@ -610,6 +610,7 @@ async function cotarAutomaticamenteSSW(transportadoraId,tipoFrete){
       if(/tabela de frete negociada|cotacao.*nao permitida|cotação.*não permitida/i.test(msg)){
         msg=`A ${nomeTr} recusou esta cotação porque há uma tabela de frete negociada para este cliente/pagador e essa modalidade de cotação não foi permitida pelo WebService SSW. Consulte a ${nomeTr} para confirmar/liberar a tabela negociada.`;
       }
+      if(d.resposta) console.error(`[V136 SSW ${tipoFrete}] Diagnóstico backend`, d.resposta);
       throw new Error(msg+detalhe);
     }
     if(!Number(d.valor||0))throw new Error(d.mensagem||"O SSW não retornou valor de frete.");
