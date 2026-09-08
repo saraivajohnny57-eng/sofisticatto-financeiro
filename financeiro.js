@@ -262,7 +262,7 @@ function iniciarSistema(){
   document.getElementById("btnAdmin").style.display = usuarioLogado.tipo === "admin" ? "block" : "none";
   document.getElementById("btnEnvioDocumentos").style.display = (usuarioLogado.tipo === "financeiro" || usuarioEhComercialRastreio()) ? "block" : "none";
   const btnIntegracaoBancaria=document.getElementById("btnIntegracaoBancaria");
-  if(btnIntegracaoBancaria) btnIntegracaoBancaria.style.display = ["financeiro","admin"].includes(usuarioLogado.tipo) ? "block" : "none";
+  if(btnIntegracaoBancaria) btnIntegracaoBancaria.style.display = ["financeiro","banco","admin"].includes(usuarioLogado.tipo) ? "block" : "none";
   document.getElementById("boxNovoRelatorio").style.display = usuarioLogado.tipo === "banco" ? "none" : "block";
   configurarInterfacePorPerfil();
   if(usuarioLogado.tipo==="entregador"){ mostrarSecao("corridas"); setTimeout(()=>mostrarAbaCorridas("minhas"),30); }
@@ -297,7 +297,7 @@ function mostrarSecao(secao){
     alert("Seu usuário não possui acesso a esta área.");
     secao = "dashboard";
   }
-  if(secao === "integracaoBancaria" && !["financeiro","admin"].includes(usuarioLogado?.tipo)){
+  if(secao === "integracaoBancaria" && !["financeiro","banco","admin"].includes(usuarioLogado?.tipo)){
     alert("Seu usuário não possui acesso à Integração Bancária.");
     secao = "dashboard";
   }
@@ -309,6 +309,8 @@ function mostrarSecao(secao){
       carregarClientesEmail().catch(e=>console.warn("Integração Bancária: clientes:",e));
     }
     if(typeof carregarCobrancasBancarias==="function") carregarCobrancasBancarias();
+    if(typeof carregarFilaCobrancaMassa==="function") carregarFilaCobrancaMassa();
+    if(typeof aplicarPadraoBancoCobrancaManual==="function") aplicarPadraoBancoCobrancaManual();
   }
   if(secao === "corridas") carregarModuloCorridas?.();
 }
@@ -6741,6 +6743,33 @@ async function abrirDocumentoCorreiosOficial(tipo){
 let cobrancasBancarias = [];
 let cobClienteSelecionado = null;
 
+// V138 — Instruções padrão do Banco do Brasil, conforme tela operacional da Sofisticatto.
+// Campos que estavam SEM MARCA permanecem sem seleção (null).
+const COBRANCA_PADRAO_BB = Object.freeze({
+  abatimento:null,
+  desconto:null,
+  juros:{tipo:"percentual_mes",percentual:5},
+  multa:{tipo:"percentual",percentual:2,dias_corridos_apos_vencimento:1},
+  pagamento_parcial:null,
+  protesto_negativacao:null
+});
+
+function instrucoesPadraoBancoCobranca(codigo){
+  if(String(codigo||"").toLowerCase()==="bb") return JSON.parse(JSON.stringify(COBRANCA_PADRAO_BB));
+  return {abatimento:null,desconto:null,juros:null,multa:null,pagamento_parcial:null,protesto_negativacao:null};
+}
+function aplicarPadraoBancoCobrancaManual(){
+  const cod=document.getElementById("cobBanco")?.value||"bb";
+  const multa=document.getElementById("cobMulta"),juros=document.getElementById("cobJuros");
+  if(cod==="bb"){if(multa)multa.value="2";if(juros)juros.value="5";}
+}
+function atualizarPainelInstrucoesBancoBoleto(){
+  const box=document.getElementById("bolInstrucoesBancoPadrao");if(!box)return;
+  const cod=document.getElementById("bolBancoCodigo")?.value||"";
+  if(cod!=="bb"){box.innerHTML="";return;}
+  box.innerHTML=`<div class="bol-instrucoes-bb"><b>🇧🇷 Padrão Banco do Brasil</b><span>Abatimento: sem marca</span><span>Desconto: sem marca</span><span>Juros: 5,00% ao mês</span><span>Multa: 2,00% • 1 dia corrido após o vencimento</span><span>Pagamento parcial: sem marca</span><span>Protesto/Negativação: sem marca</span></div>`;
+}
+
 function cobNum(v){
   if(typeof v === 'number') return Number.isFinite(v) ? v : 0;
   let s = String(v || '').trim();
@@ -6934,8 +6963,12 @@ async function abrirEmissaoBoletoRelatorio(relatorioId){
   document.getElementById("bolValor").value=valorParaInput(boletoCobrancaAtual?.valor??item.valor??0);
   document.getElementById("bolNumeroNf").value=boletoCobrancaAtual?.numero_nf||"";
   document.getElementById("bolDescricao").value=boletoCobrancaAtual?.descricao||`Cobrança ${item.nome||""}`;
-  document.getElementById("bolMulta").value=String(boletoCobrancaAtual?.multa_percentual??0).replace(".",",");
-  document.getElementById("bolJuros").value=String(boletoCobrancaAtual?.juros_percentual??0).replace(".",",");
+  const bancoCodigoAtual=codigoBancoCobranca(item.banco);
+  const multaPadrao=bancoCodigoAtual==="bb"?2:0;
+  const jurosPadrao=bancoCodigoAtual==="bb"?5:0;
+  document.getElementById("bolMulta").value=String(boletoCobrancaAtual?.multa_percentual??multaPadrao).replace(".",",");
+  document.getElementById("bolJuros").value=String(boletoCobrancaAtual?.juros_percentual??jurosPadrao).replace(".",",");
+  atualizarPainelInstrucoesBancoBoleto();
 
   const hoje=new Date();
   const bolDataBaseEl=document.getElementById("bolDataBase");
@@ -7275,6 +7308,7 @@ async function salvarPreparacaoBoletoRelatorio(){
     descricao:document.getElementById("bolDescricao").value.trim()||null,
     multa_percentual:valorBoletoModal("bolMulta"),
     juros_percentual:valorBoletoModal("bolJuros"),
+    instrucoes_banco:instrucoesPadraoBancoCobranca(codigoBancoCobranca(boletoRelatorioAtual.banco)),
     condicao_pagamento:condicao,
     data_base:dataBase,
     valor_total_grupo:valorTotal,
@@ -7302,7 +7336,11 @@ async function salvarPreparacaoBoletoRelatorio(){
     referencia:`REL-${boletoRelatorioAtual.id}-${i+1}DE${boletoParcelasAtuais.length}`
   }));
 
-  const r=await banco.from("cobrancas_bancarias").insert(linhas).select();
+  let r=await banco.from("cobrancas_bancarias").insert(linhas).select();
+  if(r.error && /instrucoes_banco/i.test(String(r.error.message||""))){
+    const compativeis=linhas.map(({instrucoes_banco,...resto})=>resto);
+    r=await banco.from("cobrancas_bancarias").insert(compativeis).select();
+  }
   if(r.error)return alert("Não foi possível preparar os boletos: "+r.error.message);
 
   boletoCobrancaAtual=r.data?.[0]||null;
@@ -7316,3 +7354,130 @@ async function salvarPreparacaoBoletoRelatorio(){
   if(typeof carregarCobrancasBancarias==="function")carregarCobrancasBancarias();
 }
 
+
+
+// ============================================================
+// V138 — FILA DO RELATÓRIO + EMISSÃO EM MASSA
+// ============================================================
+let cobrancaMassaRelatorios=[];
+let cobrancaMassaPreparadas=[];
+let cobrancaMassaPastaHandle=null;
+let cobrancaMassaArquivosEmitidos=[];
+
+async function carregarFilaCobrancaMassa(){
+  const tb=document.getElementById("cobMassaTabela");
+  if(tb)tb.innerHTML='<tr><td colspan="7">Carregando relatório financeiro...</td></tr>';
+  try{
+    const [rel,prep]=await Promise.all([
+      banco.from("boletos").select("*").neq("status","Finalizado").order("valor",{ascending:false}),
+      banco.from("cobrancas_bancarias").select("*").neq("status","cancelado").order("parcela_numero",{ascending:true})
+    ]);
+    if(rel.error)throw rel.error;
+    cobrancaMassaRelatorios=rel.data||[];
+    cobrancaMassaPreparadas=prep.error?[]:(prep.data||[]);
+    renderFilaCobrancaMassa();
+  }catch(e){
+    console.error("Fila cobrança em massa:",e);
+    if(tb)tb.innerHTML=`<tr><td colspan="7">⚠ ${escaparHtmlEmail(e.message||String(e))}</td></tr>`;
+  }
+}
+function parcelasDoRelatorioMassa(id){
+  return (cobrancaMassaPreparadas||[]).filter(x=>String(x.relatorio_id)===String(id)&&x.status!=="cancelado").sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0));
+}
+function dadosGrupoCobrancaMassa(rel){
+  const parcelas=parcelasDoRelatorioMassa(rel.id);
+  const pronto=Boolean(rel.banco&&bancoSuportaCobrancaIntegrada(rel.banco)&&parcelas.length&&parcelas.every(p=>p.vencimento&&Number(p.valor)>0));
+  const valorTotal=parcelas.length?parcelas.reduce((s,p)=>s+Number(p.valor||0),0):valorParaNumero(rel.valor||0);
+  return {rel,parcelas,pronto,valorTotal,condicao:parcelas[0]?.condicao_pagamento||""};
+}
+function renderFilaCobrancaMassa(){
+  const tb=document.getElementById("cobMassaTabela");if(!tb)return;
+  const grupos=(cobrancaMassaRelatorios||[]).map(dadosGrupoCobrancaMassa).sort((a,b)=>b.valorTotal-a.valorTotal);
+  tb.innerHTML=grupos.length?grupos.map(g=>{
+    let situacao="";
+    if(!g.rel.banco)situacao='<span class="cob-massa-status falta">Banco não definido</span>';
+    else if(!bancoSuportaCobrancaIntegrada(g.rel.banco))situacao='<span class="cob-massa-status falta">Banco sem integração</span>';
+    else if(!g.parcelas.length)situacao='<span class="cob-massa-status preparar">Definir parcelas</span>';
+    else situacao='<span class="cob-massa-status pronto">Pronto para emissão</span>';
+    const cond=g.parcelas.length?`${escaparHtmlEmail(g.condicao||"Personalizado")} • ${g.parcelas.length} boleto(s)`:'—';
+    const acao=g.rel.banco&&bancoSuportaCobrancaIntegrada(g.rel.banco)
+      ?`<button class="btn azul" onclick="abrirEmissaoBoletoRelatorio('${g.rel.id}')">${g.parcelas.length?'Editar parcelas':'Definir parcelas'}</button>`:'—';
+    return `<tr><td>${g.pronto?`<input type="checkbox" class="cob-massa-check" data-id="${g.rel.id}" onchange="atualizarResumoCobrancaMassa()">`:''}</td><td><b>${escaparHtmlEmail(g.rel.nome||'')}</b></td><td>${escaparHtmlEmail(g.rel.banco||'—')}</td><td>${cobMoeda(g.valorTotal)}</td><td>${cond}</td><td>${situacao}</td><td>${acao}</td></tr>`;
+  }).join(''):'<tr><td colspan="7">Nenhum lançamento em andamento no relatório.</td></tr>';
+  atualizarResumoCobrancaMassa();
+}
+function checksCobrancaMassa(){return Array.from(document.querySelectorAll('.cob-massa-check'));}
+function selecionarProntosCobrancaMassa(){checksCobrancaMassa().forEach(c=>c.checked=true);atualizarResumoCobrancaMassa();}
+function gruposSelecionadosCobrancaMassa(){
+  const ids=new Set(checksCobrancaMassa().filter(c=>c.checked).map(c=>String(c.dataset.id)));
+  return (cobrancaMassaRelatorios||[]).filter(r=>ids.has(String(r.id))).map(dadosGrupoCobrancaMassa).filter(g=>g.pronto);
+}
+function atualizarResumoCobrancaMassa(){
+  const grupos=gruposSelecionadosCobrancaMassa();
+  const qtd=grupos.length,parc=grupos.reduce((s,g)=>s+g.parcelas.length,0),valor=grupos.reduce((s,g)=>s+g.valorTotal,0);
+  const a=document.getElementById('cobMassaQtd'),b=document.getElementById('cobMassaParcelas'),c=document.getElementById('cobMassaValor');
+  if(a)a.textContent=qtd;if(b)b.textContent=parc;if(c)c.textContent=cobMoeda(valor);
+}
+function ordemCobrancaMassa(grupos){
+  return [...grupos].sort((a,b)=>b.valorTotal-a.valorTotal).map(g=>({...g,parcelas:[...g.parcelas].sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0))}));
+}
+function abrirOrdemImpressaoCobrancaMassa(){
+  const selecionados=gruposSelecionadosCobrancaMassa();
+  const base=selecionados.length?selecionados:(cobrancaMassaRelatorios||[]).map(dadosGrupoCobrancaMassa).filter(g=>g.pronto);
+  if(!base.length)return alert('Não há cobranças preparadas para conferir.');
+  const grupos=ordemCobrancaMassa(base);
+  const w=window.open('','_blank','width=1100,height=800');if(!w)return alert('Permita pop-ups para abrir a conferência.');
+  const linhas=grupos.map((g,gi)=>`<section><h2>${gi+1}. ${escaparHtmlEmail(g.rel.nome||'')} <small>${cobMoeda(g.valorTotal)} • ${escaparHtmlEmail(g.rel.banco||'')}</small></h2><table><thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Referência</th></tr></thead><tbody>${g.parcelas.map(p=>`<tr><td><b>${p.parcela_numero||1}/${p.parcela_total||g.parcelas.length}</b></td><td>${p.vencimento?new Date(p.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td>${cobMoeda(p.valor)}</td><td>${escaparHtmlEmail(p.referencia||'')}</td></tr>`).join('')}</tbody></table></section>`).join('');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Ordem de impressão - Boletos</title><style>body{font-family:Arial;padding:24px;color:#222}h1{margin:0 0 6px}p{color:#666}section{break-inside:avoid;margin:22px 0;padding:15px;border:1px solid #ddd;border-radius:12px}h2{font-size:18px;margin:0 0 10px}h2 small{font-size:13px;font-weight:normal;color:#666;margin-left:10px}table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}@media print{button{display:none}body{padding:0}section{border:0;border-bottom:1px solid #aaa;border-radius:0}}</style></head><body><button onclick="window.print()">🖨 Imprimir conferência</button><h1>Ordem dos boletos</h1><p>Clientes: maior valor total → menor. Parcelas do mesmo cliente permanecem juntas e em sequência.</p>${linhas}</body></html>`);w.document.close();
+}
+async function escolherPastaCobrancaMassa(){
+  if(!window.showDirectoryPicker) return null;
+  try{
+    const h=await window.showDirectoryPicker({mode:'readwrite'});
+    cobrancaMassaPastaHandle=h;
+    const el=document.getElementById('cobMassaPasta');if(el)el.textContent=`Pasta selecionada: ${h.name}`;
+    return h;
+  }catch(e){if(e?.name==='AbortError')return null;throw e;}
+}
+async function salvarBlobNaPastaCobrancaMassa(handle,nome,blob){
+  const arq=await handle.getFileHandle(nome,{create:true});const wr=await arq.createWritable();await wr.write(blob);await wr.close();
+}
+function nomeArquivoBoletoMassa(g,p){
+  const seguro=String(g.rel.nome||'CLIENTE').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,' ');
+  const parc=`${String(p.parcela_numero||1).padStart(2,'0')}de${String(p.parcela_total||g.parcelas.length).padStart(2,'0')}`;
+  return `${seguro} - ${parc} - ${Number(p.valor||0).toFixed(2).replace('.',',')}.pdf`;
+}
+async function emitirBoletosEmMassa(){
+  const grupos=ordemCobrancaMassa(gruposSelecionadosCobrancaMassa());
+  if(!grupos.length)return alert('Selecione pelo menos um cliente com parcelas preparadas.');
+
+  const pasta=await escolherPastaCobrancaMassa();
+  if(window.showDirectoryPicker && !pasta)return; // usuário cancelou o seletor
+
+  // O motor de emissão real será ligado às APIs BB/Bradesco. A fila já está pronta para recebê-lo.
+  // O contrato esperado é window.emitirBoletoBancoIntegrado(parcela, grupo) => {blob|base64|url,...dadosBanco}
+  if(typeof window.emitirBoletoBancoIntegrado!=='function'){
+    abrirOrdemImpressaoCobrancaMassa();
+    return alert('O lote está organizado e a pasta foi escolhida. A emissão REAL ainda depende da conexão das APIs do Banco do Brasil/Bradesco. Nenhum boleto foi registrado no banco nesta etapa.');
+  }
+
+  const btn=document.getElementById('btnEmitirMassa');if(btn){btn.disabled=true;btn.textContent='Emitindo...';}
+  const resultados=[];
+  try{
+    for(const g of grupos){
+      for(const p of g.parcelas){
+        try{
+          const ret=await window.emitirBoletoBancoIntegrado(p,g);
+          let blob=ret?.blob||null;
+          if(!blob&&ret?.base64){const bin=atob(String(ret.base64).replace(/^data:application\/pdf;base64,/,''));const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);blob=new Blob([arr],{type:'application/pdf'});}
+          if(blob&&pasta)await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,p),blob);
+          resultados.push({ok:true,g,p,ret,blob});
+        }catch(e){resultados.push({ok:false,g,p,erro:e});}
+      }
+    }
+    cobrancaMassaArquivosEmitidos=resultados.filter(x=>x.ok&&x.blob);
+    const ok=resultados.filter(x=>x.ok).length,erros=resultados.length-ok;
+    mostrarBalaoSistema?.('Emissão em massa concluída',`${ok} boleto(s) emitido(s)${erros?` • ${erros} com erro`:''}.`);
+    await carregarFilaCobrancaMassa();
+  }finally{if(btn){btn.disabled=false;btn.textContent='💳 Emitir em massa';}}
+}

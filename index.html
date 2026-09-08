@@ -14,7 +14,7 @@
 </script>
 <title>Sofisticatto Financeiro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235a4fa3'/%3E%3Ctext x='50' y='63' text-anchor='middle' font-size='54' fill='white' font-family='Arial'%3ES%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=119">
+<link rel="stylesheet" href="styles.css?v=138-emissao-massa-bb">
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -2588,15 +2588,42 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <section id="emailSubCobrancaBancaria" class="email-subaba ativa">
 
 <div class="cobranca-wrap">
-  <div class="cobranca-head"><div><h2>💳 Cobrança Bancária</h2><p>Banco do Brasil e Bradesco • boleto, Pix e acompanhamento.</p></div><div class="cobranca-status-integracoes"><span class="cobranca-bank-status pendente">Banco do Brasil • Configuração pendente</span><span class="cobranca-bank-status pendente">Bradesco • Configuração pendente</span></div></div>
+  <div class="cobranca-head"><div><h2>💳 Cobrança Bancária</h2><p>Banco do Brasil e Bradesco • relatório financeiro, emissão em massa e acompanhamento.</p></div><div class="cobranca-status-integracoes"><span class="cobranca-bank-status pendente">Banco do Brasil • Integração em configuração</span><span class="cobranca-bank-status pendente">Bradesco • Integração em configuração</span></div></div>
+
+  <div class="cobranca-card cobranca-massa-card">
+    <div class="cobranca-massa-topo">
+      <div><h3>📚 Fila do Relatório Financeiro</h3><p>Puxa os lançamentos do relatório. O banco definido pelo usuário Banco é respeitado e as parcelas do mesmo cliente permanecem juntas.</p></div>
+      <div class="cobranca-massa-acoes">
+        <button class="btn azul" onclick="carregarFilaCobrancaMassa()">↻ Atualizar lista</button>
+        <button class="btn roxo" onclick="selecionarProntosCobrancaMassa()">☑ Selecionar prontos</button>
+        <button class="btn verde" id="btnEmitirMassa" onclick="emitirBoletosEmMassa()">💳 Emitir em massa</button>
+      </div>
+    </div>
+    <div class="cobranca-massa-resumo">
+      <span><b id="cobMassaQtd">0</b> clientes selecionados</span>
+      <span><b id="cobMassaParcelas">0</b> boletos</span>
+      <span>Total: <b id="cobMassaValor">R$ 0,00</b></span>
+      <span id="cobMassaPasta">Pasta: será escolhida ao emitir</span>
+    </div>
+    <div class="cobranca-table-wrap">
+      <table class="cobranca-table cobranca-massa-table">
+        <thead><tr><th></th><th>Cliente</th><th>Banco</th><th>Valor total</th><th>Condição / parcelas</th><th>Situação</th><th>Ações</th></tr></thead>
+        <tbody id="cobMassaTabela"><tr><td colspan="7">Clique em “Atualizar lista”.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="cobranca-massa-rodape">
+      <div>🖨 <b>Ordem de impressão:</b> clientes pelo valor total do maior para o menor; dentro de cada cliente, parcelas em sequência 1/N, 2/N, 3/N...</div>
+      <button class="btn azul" onclick="abrirOrdemImpressaoCobrancaMassa()">👁 Conferir ordem</button>
+    </div>
+  </div>
   <div class="cobranca-grid">
     <div class="cobranca-card"><h3>Nova cobrança</h3>
       <label>Cliente</label><div class="cobranca-busca-wrap"><input id="cobClienteBusca" placeholder="Nome, CNPJ ou CPF" oninput="buscarClienteCobranca()"><div id="cobClienteResultados" class="cobranca-resultados"></div></div><input type="hidden" id="cobClienteId">
       <div id="cobClienteResumo" class="cobranca-cliente-resumo">Selecione um cliente para carregar os dados automaticamente.</div>
-      <div class="cobranca-linha"><div><label>Banco</label><select id="cobBanco"><option value="bb">Banco do Brasil</option><option value="bradesco">Bradesco</option></select></div><div><label>Tipo</label><select id="cobTipo"><option value="boleto_pix">Boleto + Pix</option><option value="boleto">Boleto</option></select></div></div>
+      <div class="cobranca-linha"><div><label>Banco</label><select id="cobBanco" onchange="aplicarPadraoBancoCobrancaManual()"><option value="bb">Banco do Brasil</option><option value="bradesco">Bradesco</option></select></div><div><label>Tipo</label><select id="cobTipo"><option value="boleto_pix">Boleto + Pix</option><option value="boleto">Boleto</option></select></div></div>
       <div class="cobranca-linha"><div><label>Valor</label><input id="cobValor" inputmode="decimal" placeholder="0,00"></div><div><label>Vencimento</label><input id="cobVencimento" type="date"></div></div>
       <div class="cobranca-linha"><div><label>Nº NF</label><input id="cobNumeroNf"></div><div><label>Referência</label><input id="cobReferencia" placeholder="Automática se vazio"></div></div>
-      <div class="cobranca-linha"><div><label>Multa (%)</label><input id="cobMulta" value="0"></div><div><label>Juros ao mês (%)</label><input id="cobJuros" value="0"></div></div>
+      <div class="cobranca-linha"><div><label>Multa (%)</label><input id="cobMulta" value="2"></div><div><label>Juros ao mês (%)</label><input id="cobJuros" value="5"></div></div>
       <label>Descrição</label><textarea id="cobDescricao" rows="3"></textarea>
       <div class="cobranca-acoes"><button class="btn azul" onclick="previsualizarCobranca()">👁 Conferir</button><button class="btn verde" onclick="emitirCobrancaBancaria()">💳 Preparar cobrança</button></div><div id="cobStatus" class="cobranca-status-msg"></div>
     </div>
@@ -2787,7 +2814,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=137-banco-lateral"></script>
+<script src="financeiro.js?v=138-emissao-massa-bb"></script>
 <script src="corridas.js?v=108"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
@@ -3234,9 +3261,10 @@ SOFISTICATTO COSMÉTICOS</textarea>
     </div>
 
     <div><label>Nº NF / documento</label><input id="bolNumeroNf"></div>
-    <div><label>Multa (%)</label><input id="bolMulta" value="0"></div>
-    <div><label>Juros ao mês (%)</label><input id="bolJuros" value="0"></div>
+    <div><label>Multa (%)</label><input id="bolMulta" value="2"></div>
+    <div><label>Juros ao mês (%)</label><input id="bolJuros" value="5"></div>
     <div class="span2"><label>Descrição</label><textarea id="bolDescricao" rows="2"></textarea></div>
+    <div class="span2" id="bolInstrucoesBancoPadrao"></div>
   </div>
 
   <div class="bol-parcelas-head">

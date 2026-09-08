@@ -2277,3 +2277,14 @@ html.modo-portal-publico .portal-conteudo{
 /* V112 - ações das corridas sempre visíveis perto do número */
 .corridas-acoes{white-space:nowrap;min-width:175px}
 .corridas-acoes .btn{padding:7px 9px;margin:2px;font-size:12px}
+
+
+/* V138 — Integração bancária / emissão em massa */
+.cobranca-massa-card{margin-bottom:18px;border-left:5px solid #5a4fa3}
+.cobranca-massa-topo{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.cobranca-massa-topo h3{margin:0 0 5px}.cobranca-massa-topo p{margin:0;color:#6f6882;max-width:760px}.cobranca-massa-acoes{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.cobranca-massa-resumo{display:flex;gap:10px;flex-wrap:wrap;margin:15px 0}.cobranca-massa-resumo span{background:#f5f2ff;border:1px solid #e5defc;border-radius:999px;padding:8px 12px;font-size:12px;color:#4a416a}
+.cobranca-massa-table th:first-child,.cobranca-massa-table td:first-child{width:34px;text-align:center}.cobranca-massa-table input[type=checkbox]{width:18px;height:18px}
+.cob-massa-status{display:inline-block;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800}.cob-massa-status.pronto{background:#d1e7dd;color:#0f5132}.cob-massa-status.preparar{background:#fff3cd;color:#664d03}.cob-massa-status.falta{background:#f8d7da;color:#842029}
+.cobranca-massa-rodape{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:12px;padding:11px 13px;background:#f8f7fc;border-radius:10px;font-size:12px;color:#514a64}
+.bol-instrucoes-bb{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:12px;background:#f4f8ff;border:1px solid #cfe0fa;border-radius:12px}.bol-instrucoes-bb b{grid-column:1/-1;color:#183f75}.bol-instrucoes-bb span{font-size:12px;padding:7px 9px;background:#fff;border-radius:8px;border:1px solid #e4edf9}
+@media(max-width:900px){.cobranca-massa-topo,.cobranca-massa-rodape{flex-direction:column}.cobranca-massa-acoes{justify-content:flex-start}.bol-instrucoes-bb{grid-template-columns:1fr}}
