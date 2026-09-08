@@ -596,7 +596,7 @@ async function cotarAutomaticamenteSSW(transportadoraId,tipoFrete){
   const cnpjRem=String(FRETE_REMETENTE.cnpj||"").replace(/\D/g,"");
   const cnpjPagador=tipoFrete==="CIF"?cnpjRem:cnpjDestino;
   if(cnpjPagador.length!==14)return alert(`Para cotação ${tipoFrete}, o pagador precisa possuir CNPJ de 14 dígitos. O WebService SSW cotar() não aceita CPF como CNPJ pagador.`);
-  console.info(`[V133 SSW ${tipoFrete}] Papéis da cotação`,{remetente:cnpjRem,destinatario:cnpjDestino,pagador:cnpjPagador});
+  console.info(`[V134 SSW ${tipoFrete}] Papéis da cotação`,{remetente:cnpjRem,destinatario:cnpjDestino,pagador:cnpjPagador});
   const nomeTr=tr?.nome||"SSW";
   const nomeCurto=/\btg\b|tgt/i.test(nomeTr)?"TG":/accert/i.test(nomeTr)?"ACCERT":nomeTr;
   const original=botao?.textContent||`⚡ Cotar ${nomeCurto} automaticamente`;if(botao){botao.disabled=true;botao.textContent=`Consultando ${nomeCurto}...`;}
