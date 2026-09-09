@@ -249,6 +249,10 @@ async function entrar(){
     alert("Login ou senha inválidos");
     return;
   }
+  if(resposta.data.ativo === false){
+    alert("Este acesso está bloqueado. Entre em contato com o Financeiro.");
+    return;
+  }
 
   usuarioLogado = resposta.data;
   localStorage.setItem("usuarioLogado", JSON.stringify(usuarioLogado));

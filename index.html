@@ -2550,6 +2550,16 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <div class="corridas-campo span2"><label>Observações</label><input id="entregadorObs"></div>
           <div class="corridas-campo"><label><input id="entregadorAtivo" type="checkbox" checked style="width:auto;"> Entregador ativo</label></div>
         </div>
+
+        <h3 style="margin:18px 0 8px;">🔐 Acesso do Entregador</h3>
+        <div class="corridas-grid" style="background:#faf8ff;border:1px solid #e4def6;border-radius:14px;padding:14px;">
+          <div class="corridas-campo"><label><input id="entregadorAcessoAtivo" type="checkbox" style="width:auto;" onchange="atualizarCamposAcessoEntregador()"> Liberar acesso ao portal</label></div>
+          <div class="corridas-campo"><label>Login</label><input id="entregadorLogin" placeholder="Ex.: joao.moto" autocomplete="off"></div>
+          <div class="corridas-campo"><label>Senha</label><input id="entregadorSenha" type="password" placeholder="Nova senha" autocomplete="new-password"></div>
+          <div class="corridas-campo"><label>Confirmar senha</label><input id="entregadorSenhaConfirmar" type="password" placeholder="Repita a senha" autocomplete="new-password"></div>
+          <div class="corridas-campo span2"><small id="entregadorAcessoAjuda" style="color:#706884;">Ao liberar o acesso, o Financeiro cria o login e a senha do parceiro. Ele verá somente as próprias corridas e fechamentos.</small></div>
+        </div>
+
         <h3 style="margin:18px 0 8px;">Regras de Alerta para Fechamento</h3>
         <div class="corridas-regras">
           <div class="corridas-regra"><label><input id="alertaMensal" type="checkbox"> 📅 Alerta mensal</label><div class="regra-config">Dia 3 de cada mês. Se cair em sábado, domingo ou feriado, alerta no próximo dia útil.</div></div>
@@ -2559,7 +2569,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <p style="font-size:12px;color:#706884;"><b>Importante:</b> as três regras são independentes. Cada entregador pode usar nenhuma, uma, duas ou todas. Os alertas nunca bloqueiam o lançamento de corridas.</p>
         <div class="corridas-actions"><button id="btnSalvarEntregador" class="salvar" onclick="salvarEntregadorCorridas()">Cadastrar entregador</button><button class="buscar" onclick="limparFormEntregador()">Limpar</button></div>
       </div>
-      <div class="card"><h2>Entregadores cadastrados</h2><div class="table-wrap"><table><thead><tr><th>Nome</th><th>Veículo</th><th>Telefone</th><th>Placa</th><th>Alertas</th><th>Status</th><th>Ação</th></tr></thead><tbody id="tabelaEntregadoresCorridas"></tbody></table></div></div>
+      <div class="card"><h2>Entregadores cadastrados</h2><div class="table-wrap"><table><thead><tr><th>Nome</th><th>Veículo</th><th>Telefone</th><th>Placa</th><th>Alertas</th><th>Status</th><th>Acesso</th><th>Ação</th></tr></thead><tbody id="tabelaEntregadoresCorridas"></tbody></table></div></div>
     </div>
 
     <div id="corridasAba_fechamentos" class="corridas-subsecao" style="display:none;">
@@ -2814,8 +2824,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=139-parcelamento-bb"></script>
-<script src="corridas.js?v=140-parceiros"></script>
+<script src="financeiro.js?v=141-login-entregador"></script>
+<script src="corridas.js?v=141-login-entregador"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
 <script src="cotacoes.js?v=136-ssw-coleta"></script>

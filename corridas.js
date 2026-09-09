@@ -1,9 +1,10 @@
-/* Sofisticatto Financeiro V140 - Corridas / Entregadores Parceiros */
+/* Sofisticatto Financeiro V141 - Login dos Entregadores pelo Financeiro */
 let corridasEntregadoresCache=[];
 let corridasAbertasCache=[];
 let corridasFechamentosCache=[];
 let corridasGraficoAtual=null;
 let corridaEntregadorSelecionado=null;
+let corridasUsuariosEntregadoresCache=[];
 
 function usuarioEhEntregador(){ return usuarioLogado?.tipo === 'entregador'; }
 function usuarioPodeAdministrarCorridas(){ return ['admin','financeiro'].includes(usuarioLogado?.tipo); }
@@ -42,6 +43,14 @@ async function carregarEntregadoresCorridas(){
   const r=await q;
   if(r.error){ console.warn('Corridas: execute o SQL V108.',r.error); mostrarAvisoCorridasBanco(r.error); return; }
   corridasEntregadoresCache=r.data||[];
+  if(usuarioPodeAdministrarCorridas()){
+    const ru=await banco.from('usuarios').select('id,login,tipo,entregador_id,ativo').eq('tipo','entregador').order('login',{ascending:true});
+    if(ru.error){
+      // Compatibilidade caso a coluna "ativo" ainda não tenha sido criada.
+      const ru2=await banco.from('usuarios').select('id,login,tipo,entregador_id').eq('tipo','entregador').order('login',{ascending:true});
+      corridasUsuariosEntregadoresCache=ru2.error?[]:(ru2.data||[]).map(x=>({...x,ativo:true}));
+    }else corridasUsuariosEntregadoresCache=ru.data||[];
+  }
   montarTabelaEntregadores();
   atualizarListaEntregadorCorrida();
   atualizarSelectFechamentoEntregador();
@@ -119,6 +128,69 @@ async function lancarCorrida(){
   await carregarCorridas(); await avaliarAlertasCorridas(); atualizarDashboardCorridas();
 }
 
+
+function acessoEntregadorPorId(entregadorId){
+  return corridasUsuariosEntregadoresCache.find(u=>String(u.entregador_id||'')===String(entregadorId||''))||null;
+}
+function atualizarCamposAcessoEntregador(){
+  const ativo=!!document.getElementById('entregadorAcessoAtivo')?.checked;
+  ['entregadorLogin','entregadorSenha','entregadorSenhaConfirmar'].forEach(id=>{
+    const e=document.getElementById(id); if(e)e.disabled=!ativo;
+  });
+}
+async function salvarAcessoEntregadorCorridas(entregadorId,nome,{ativo,login,senha}){
+  const atual=acessoEntregadorPorId(entregadorId);
+  if(!ativo){
+    if(atual){
+      const r=await banco.from('usuarios').update({ativo:false}).eq('id',atual.id);
+      if(r.error && /ativo/i.test(r.error.message||'')) throw new Error('Execute o SQL V141 antes de bloquear acessos de entregadores.');
+      if(r.error) throw new Error(r.error.message);
+    }
+    return;
+  }
+  if(!login) throw new Error('Informe o login do entregador.');
+  if(!atual && !senha) throw new Error('Informe a senha inicial do entregador.');
+  const duplicado=await banco.from('usuarios').select('id,entregador_id').eq('login',login).limit(1);
+  if(!duplicado.error && duplicado.data?.length && String(duplicado.data[0].id)!==String(atual?.id||'')){
+    throw new Error('Este login já está sendo usado por outro usuário.');
+  }
+  if(atual){
+    const payload={login,ativo:true,nome_exibicao:nome};
+    if(senha)payload.senha=senha;
+    const r=await banco.from('usuarios').update(payload).eq('id',atual.id);
+    if(r.error && /ativo/i.test(r.error.message||'')) throw new Error('Execute o SQL V141 no Supabase antes de gerenciar acessos.');
+    if(r.error)throw new Error(r.error.message);
+  }else{
+    const r=await banco.from('usuarios').insert([{login,senha,tipo:'entregador',entregador_id:entregadorId,nome_exibicao:nome,ativo:true}]);
+    if(r.error && /ativo/i.test(r.error.message||'')) throw new Error('Execute o SQL V141 no Supabase antes de criar o acesso.');
+    if(r.error)throw new Error(r.error.message);
+  }
+}
+async function redefinirSenhaEntregadorCorridas(entregadorId){
+  if(!usuarioPodeAdministrarCorridas())return;
+  const u=acessoEntregadorPorId(entregadorId);
+  if(!u)return alert('Este entregador ainda não possui acesso.');
+  const s=prompt('Digite a nova senha do entregador:');
+  if(s===null)return;
+  if(String(s).trim().length<4)return alert('A senha deve possuir pelo menos 4 caracteres.');
+  const s2=prompt('Confirme a nova senha:');
+  if(s2===null)return;
+  if(s!==s2)return alert('As senhas não conferem.');
+  const r=await banco.from('usuarios').update({senha:s}).eq('id',u.id);
+  if(r.error)return alert('Erro ao redefinir senha: '+r.error.message);
+  alert('Senha redefinida com sucesso.');
+}
+async function alternarAcessoEntregadorCorridas(entregadorId){
+  if(!usuarioPodeAdministrarCorridas())return;
+  const u=acessoEntregadorPorId(entregadorId);
+  if(!u)return alert('Este entregador ainda não possui acesso. Clique em Editar e crie o login e a senha.');
+  const novo=u.ativo===false;
+  const r=await banco.from('usuarios').update({ativo:novo}).eq('id',u.id);
+  if(r.error && /ativo/i.test(r.error.message||''))return alert('Execute o SQL V141 no Supabase antes de ativar/bloquear acessos.');
+  if(r.error)return alert('Erro ao alterar acesso: '+r.error.message);
+  await carregarEntregadoresCorridas();
+}
+
 async function salvarEntregadorCorridas(){
   if(!usuarioPodeAdministrarCorridas())return;
   const id=document.getElementById('entregadorEditId').value;
@@ -135,30 +207,94 @@ async function salvarEntregadorCorridas(){
   const limite_quantidade=Math.max(1,Number(document.getElementById('alertaQuantidadeLimite').value||64));
   const alerta_valor=document.getElementById('alertaValor').checked;
   const limite_valor=valorNumeroCorridas(document.getElementById('alertaValorLimite').value);
-  if(!nome||!categoria)return alert('Informe o nome e a categoria do entregador.');
+  const acessoAtivo=!!document.getElementById('entregadorAcessoAtivo')?.checked;
+  const login=(document.getElementById('entregadorLogin')?.value||'').trim();
+  const senha=document.getElementById('entregadorSenha')?.value||'';
+  const senha2=document.getElementById('entregadorSenhaConfirmar')?.value||'';
+  if(!nome||!categoria)return alert('Informe o nome e o veículo do entregador.');
   if(alerta_valor && limite_valor<=0)return alert('Informe o limite em reais para o alerta por valor.');
+  if(acessoAtivo && !login)return alert('Informe o login do entregador.');
+  if(acessoAtivo && senha!==senha2)return alert('As senhas do entregador não conferem.');
+  if(acessoAtivo && !id && senha.length<4)return alert('Informe uma senha inicial com pelo menos 4 caracteres.');
+  if(acessoAtivo && senha && senha.length<4)return alert('A senha deve possuir pelo menos 4 caracteres.');
+
   const payload={nome,telefone:telefone||null,categoria,placa:placa||null,nome_pagamento:nome_pagamento||null,banco_pagamento:banco_pagamento||null,chave_pix:chave_pix||null,observacoes:observacoes||null,alerta_mensal,alerta_quantidade,limite_quantidade,alerta_valor,limite_valor:alerta_valor?limite_valor:null,ativo:document.getElementById('entregadorAtivo').checked};
-  const r=id?await banco.from('corridas_entregadores').update(payload).eq('id',id):await banco.from('corridas_entregadores').insert([payload]);
+  let entregadorId=id;
+  let r;
+  if(id){
+    r=await banco.from('corridas_entregadores').update(payload).eq('id',id).select('id').single();
+  }else{
+    r=await banco.from('corridas_entregadores').insert([payload]).select('id').single();
+    entregadorId=r.data?.id;
+  }
   if(r.error)return alert('Erro ao salvar entregador: '+r.error.message);
-  alert(id?'Entregador atualizado.':'Entregador cadastrado.'); limparFormEntregador(); await carregarEntregadoresCorridas(); await avaliarAlertasCorridas();
+  try{
+    await salvarAcessoEntregadorCorridas(entregadorId,nome,{ativo:acessoAtivo,login,senha});
+  }catch(e){
+    return alert('Entregador salvo, mas houve erro ao configurar o acesso: '+e.message);
+  }
+  alert(id?'Entregador e acesso atualizados.':'Entregador cadastrado e acesso configurado.');
+  limparFormEntregador();
+  await carregarEntregadoresCorridas(); await avaliarAlertasCorridas();
 }
 function editarEntregadorCorridas(id){
   const x=corridasEntregadoresCache.find(e=>String(e.id)===String(id));if(!x)return;
-  document.getElementById('entregadorEditId').value=x.id;document.getElementById('entregadorNome').value=x.nome||'';document.getElementById('entregadorTelefone').value=x.telefone||'';document.getElementById('entregadorCategoria').value=x.categoria||'';document.getElementById('entregadorPlaca').value=x.placa||'';if(document.getElementById('entregadorNomePagamento'))document.getElementById('entregadorNomePagamento').value=x.nome_pagamento||'';if(document.getElementById('entregadorBanco'))document.getElementById('entregadorBanco').value=x.banco_pagamento||'';if(document.getElementById('entregadorChavePix'))document.getElementById('entregadorChavePix').value=x.chave_pix||'';document.getElementById('entregadorObs').value=x.observacoes||'';document.getElementById('entregadorAtivo').checked=x.ativo!==false;document.getElementById('alertaMensal').checked=!!x.alerta_mensal;document.getElementById('alertaQuantidade').checked=!!x.alerta_quantidade;document.getElementById('alertaQuantidadeLimite').value=x.limite_quantidade||64;document.getElementById('alertaValor').checked=!!x.alerta_valor;document.getElementById('alertaValorLimite').value=x.limite_valor||'';
-  document.getElementById('btnSalvarEntregador').textContent='Atualizar entregador'; window.scrollTo({top:document.getElementById('corridasAba_entregadores').offsetTop-20,behavior:'smooth'});
+  const u=acessoEntregadorPorId(id);
+  document.getElementById('entregadorEditId').value=x.id;
+  document.getElementById('entregadorNome').value=x.nome||'';
+  document.getElementById('entregadorTelefone').value=x.telefone||'';
+  document.getElementById('entregadorCategoria').value=x.categoria||'Moto';
+  document.getElementById('entregadorPlaca').value=x.placa||'';
+  if(document.getElementById('entregadorNomePagamento'))document.getElementById('entregadorNomePagamento').value=x.nome_pagamento||'';
+  if(document.getElementById('entregadorBanco'))document.getElementById('entregadorBanco').value=x.banco_pagamento||'';
+  if(document.getElementById('entregadorChavePix'))document.getElementById('entregadorChavePix').value=x.chave_pix||'';
+  document.getElementById('entregadorObs').value=x.observacoes||'';
+  document.getElementById('entregadorAtivo').checked=x.ativo!==false;
+  document.getElementById('alertaMensal').checked=!!x.alerta_mensal;
+  document.getElementById('alertaQuantidade').checked=!!x.alerta_quantidade;
+  document.getElementById('alertaQuantidadeLimite').value=x.limite_quantidade||64;
+  document.getElementById('alertaValor').checked=!!x.alerta_valor;
+  document.getElementById('alertaValorLimite').value=x.limite_valor||'';
+  document.getElementById('entregadorAcessoAtivo').checked=!!u && u.ativo!==false;
+  document.getElementById('entregadorLogin').value=u?.login||'';
+  document.getElementById('entregadorSenha').value='';
+  document.getElementById('entregadorSenhaConfirmar').value='';
+  document.getElementById('entregadorSenha').placeholder=u?'Deixe em branco para manter':'Nova senha';
+  document.getElementById('entregadorSenhaConfirmar').placeholder=u?'Deixe em branco para manter':'Repita a senha';
+  atualizarCamposAcessoEntregador();
+  document.getElementById('btnSalvarEntregador').textContent='Atualizar entregador';
+  window.scrollTo({top:document.getElementById('corridasAba_entregadores').offsetTop-20,behavior:'smooth'});
 }
 function limparFormEntregador(){
-  ['entregadorEditId','entregadorNome','entregadorTelefone','entregadorPlaca','entregadorNomePagamento','entregadorBanco','entregadorChavePix','entregadorObs','alertaValorLimite'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('entregadorCategoria').value='Moto';document.getElementById('entregadorAtivo').checked=true;document.getElementById('alertaMensal').checked=false;document.getElementById('alertaQuantidade').checked=false;document.getElementById('alertaQuantidadeLimite').value=64;document.getElementById('alertaValor').checked=false;document.getElementById('btnSalvarEntregador').textContent='Cadastrar entregador';
+  ['entregadorEditId','entregadorNome','entregadorTelefone','entregadorPlaca','entregadorNomePagamento','entregadorBanco','entregadorChavePix','entregadorObs','alertaValorLimite','entregadorLogin','entregadorSenha','entregadorSenhaConfirmar'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('entregadorCategoria').value='Moto';
+  document.getElementById('entregadorAtivo').checked=true;
+  document.getElementById('entregadorAcessoAtivo').checked=false;
+  document.getElementById('entregadorSenha').placeholder='Nova senha';
+  document.getElementById('entregadorSenhaConfirmar').placeholder='Repita a senha';
+  atualizarCamposAcessoEntregador();
+  document.getElementById('alertaMensal').checked=false;
+  document.getElementById('alertaQuantidade').checked=false;
+  document.getElementById('alertaQuantidadeLimite').value=64;
+  document.getElementById('alertaValor').checked=false;
+  document.getElementById('btnSalvarEntregador').textContent='Cadastrar entregador';
 }
 function montarTabelaEntregadores(){
   const tb=document.getElementById('tabelaEntregadoresCorridas');if(!tb)return;
   tb.innerHTML=corridasEntregadoresCache.length?corridasEntregadoresCache.map(x=>{
     const regras=[]; if(x.alerta_mensal)regras.push('📅 Mensal');if(x.alerta_quantidade)regras.push(`🔢 ${x.limite_quantidade||64} corridas`);if(x.alerta_valor)regras.push(`💰 ${fmtMoedaCorridas(x.limite_valor)}`);
-    return `<tr><td><b>${escCorridas(x.nome)}</b></td><td>${escCorridas(x.categoria||'—')}</td><td>${escCorridas(x.telefone||'—')}</td><td>${escCorridas(x.placa||'—')}</td><td>${regras.join('<br>')||'Sem alertas'}</td><td>${x.ativo!==false?'<span class="corridas-status ok">Ativo</span>':'<span class="corridas-status">Inativo</span>'}</td><td><button class="btn azul" onclick="editarEntregadorCorridas('${x.id}')">Editar</button></td></tr>`;
-  }).join(''):'<tr><td colspan="7">Nenhum entregador cadastrado.</td></tr>';
+    const u=acessoEntregadorPorId(x.id);
+    const acesso=!u
+      ?'<span class="corridas-status">Sem acesso</span>'
+      :(u.ativo===false
+        ?`<span class="corridas-status">Bloqueado</span><br><small>${escCorridas(u.login||'')}</small>`
+        :`<span class="corridas-status ok">Liberado</span><br><small>${escCorridas(u.login||'')}</small>`);
+    const acoesAcesso=u
+      ?`<button class="btn azul" onclick="redefinirSenhaEntregadorCorridas('${x.id}')">🔑 Senha</button> <button class="btn ${u.ativo===false?'verde':'vermelho'}" onclick="alternarAcessoEntregadorCorridas('${x.id}')">${u.ativo===false?'Ativar':'Bloquear'}</button>`
+      :'';
+    return `<tr><td><b>${escCorridas(x.nome)}</b></td><td>${escCorridas(x.categoria||'—')}</td><td>${escCorridas(x.telefone||'—')}</td><td>${escCorridas(x.placa||'—')}</td><td>${regras.join('<br>')||'Sem alertas'}</td><td>${x.ativo!==false?'<span class="corridas-status ok">Ativo</span>':'<span class="corridas-status">Inativo</span>'}</td><td>${acesso}<div style="margin-top:6px">${acoesAcesso}</div></td><td><button class="btn azul" onclick="editarEntregadorCorridas('${x.id}')">Editar</button></td></tr>`;
+  }).join(''):'<tr><td colspan="8">Nenhum entregador cadastrado.</td></tr>';
 }
-
 
 async function editarCorridaLancada(id){
   if(!usuarioPodeAdministrarCorridas()) return alert('Seu usuário não pode editar corridas.');
