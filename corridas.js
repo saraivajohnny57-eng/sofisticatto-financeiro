@@ -1,4 +1,4 @@
-/* Sofisticatto Financeiro V141 - Login dos Entregadores pelo Financeiro */
+/* Sofisticatto Financeiro V142 - Portal do Entregador em 3 abas */
 let corridasEntregadoresCache=[];
 let corridasAbertasCache=[];
 let corridasFechamentosCache=[];
@@ -10,7 +10,7 @@ function usuarioEhEntregador(){ return usuarioLogado?.tipo === 'entregador'; }
 function usuarioPodeAdministrarCorridas(){ return ['admin','financeiro'].includes(usuarioLogado?.tipo); }
 function fmtMoedaCorridas(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
 function escCorridas(v){ return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
-function fmtDataCorridas(v){ if(!v)return '—'; const s=String(v).slice(0,10).split('-'); return s.length===3?`${s[2]}/${s[1]}/${s[0]}`:v; }
+function fmtDataCorridas(v){ if(!v)return '—'; const s=String(v).slice(0,10).split('-'); return s.length===3?`${s[2]}/${s[1]}/${s[0]}`:String(v); }
 function codigoCorrida(n){ return `COR-${String(n||0).padStart(6,'0')}`; }
 function codigoFechamento(n){ return `FEC-${String(n||0).padStart(6,'0')}`; }
 function valorNumeroCorridas(v){ return Number(String(v??'0').replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0; }
@@ -25,14 +25,17 @@ async function carregarModuloCorridas(){
 }
 
 function mostrarAbaCorridas(aba){
-  const permitida=usuarioEhEntregador()?['minhas','fechamentos']:['nova','corridas','entregadores','fechamentos','feriados'];
-  if(!permitida.includes(aba)) aba=usuarioEhEntregador()?'minhas':'nova';
+  const permitida=usuarioEhEntregador()?['driver_aberto','driver_aguardando','driver_historico']:['nova','corridas','entregadores','fechamentos','feriados'];
+  if(!permitida.includes(aba)) aba=usuarioEhEntregador()?'driver_aberto':'nova';
   document.querySelectorAll('.corridas-subsecao').forEach(e=>e.style.display='none');
   document.querySelectorAll('.corridas-tab').forEach(e=>e.classList.remove('ativo'));
   const sec=document.getElementById('corridasAba_'+aba); if(sec)sec.style.display='block';
   const btn=document.getElementById('corridasTab_'+aba); if(btn)btn.classList.add('ativo');
   if(aba==='corridas'||aba==='minhas') montarTabelaCorridas();
   if(aba==='fechamentos') montarTabelaFechamentos();
+  if(aba==='driver_aberto') montarPortalEntregadorAberto();
+  if(aba==='driver_aguardando') montarPortalEntregadorAguardando();
+  if(aba==='driver_historico') montarPortalEntregadorHistorico();
   if(aba==='entregadores') montarTabelaEntregadores();
 }
 
@@ -65,6 +68,7 @@ async function carregarCorridas(){
   corridasAbertasCache=r.data||[];
   montarTabelaCorridas();
   montarResumoCorridas();
+  if(usuarioEhEntregador()) montarPortalEntregadorAberto();
 }
 
 async function carregarFechamentosCorridas(){
@@ -75,6 +79,7 @@ async function carregarFechamentosCorridas(){
   if(r.error){ console.warn('Fechamentos:',r.error); return; }
   corridasFechamentosCache=r.data||[];
   montarTabelaFechamentos();
+  if(usuarioEhEntregador()){ montarPortalEntregadorAguardando(); montarPortalEntregadorHistorico(); }
 }
 
 function mostrarAvisoCorridasBanco(erro){
@@ -381,6 +386,25 @@ async function fecharCorridasSelecionadas(){
   alert(`Fechamento ${codigoFechamento(n)} realizado com sucesso.`);
   document.getElementById('fechamentoObs').value=''; await Promise.all([carregarCorridas(),carregarFechamentosCorridas()]); atualizarPreviaFechamento(); await avaliarAlertasCorridas(); atualizarDashboardCorridas();
 }
+
+function montarPortalEntregadorAberto(){
+  const tb=document.getElementById('tabelaCorridasDriverAberto'); if(!tb)return;
+  const arr=corridasAbertasCache.filter(x=>x.status==='aberta'&&!x.fechamento_id);
+  tb.innerHTML=arr.length?arr.map(x=>`<tr><td><b>${codigoCorrida(x.numero_corrida)}</b></td><td>${fmtDataCorridas(x.data_corrida)}</td><td>${escCorridas(x.categoria||'—')}</td><td>${x.volume?escCorridas(x.volume):'—'}</td><td>${escCorridas(x.tipo_mercadoria||'—')}</td><td>${escCorridas(x.retirada)}</td><td>${escCorridas(x.destino)}</td><td>${escCorridas(x.observacao||'—')}</td><td><b>${fmtMoedaCorridas(x.valor)}</b></td></tr>`).join(''):'<tr><td colspan="9">Nenhuma corrida em aberto.</td></tr>';
+  const total=arr.reduce((s,x)=>s+Number(x.valor||0),0); const e=document.getElementById('totalCorridasDriverAberto'); if(e)e.textContent=fmtMoedaCorridas(total);
+}
+function montarPortalEntregadorAguardando(){
+  const tb=document.getElementById('tabelaDriverAguardando'); if(!tb)return;
+  const arr=corridasFechamentosCache.filter(x=>!x.pago_em && x.status_pagamento!=='pago');
+  tb.innerHTML=arr.length?arr.map(x=>`<tr><td><b>${codigoFechamento(x.numero_fechamento)}</b></td><td>${fmtDataCorridas(x.data_fechamento)}</td><td>${fmtDataCorridas(x.periodo_inicio)} a ${fmtDataCorridas(x.periodo_fim)}</td><td>${x.qtd_corridas||0}</td><td><b>${fmtMoedaCorridas(x.valor_total)}</b></td><td><span class="corridas-status fechado">Aguardando pagamento</span></td><td><button class="btn azul" onclick="abrirFechamentoCorridas('${x.id}')">Ver detalhado</button>${!x.recebido_em?` <button class="btn verde" onclick="confirmarRecebimentoFechamento('${x.id}')">✅ Marcar recebido</button>`:''}</td></tr>`).join(''):'<tr><td colspan="7">Nenhum fechamento aguardando pagamento.</td></tr>';
+}
+function dataPagamentoFechamento(x){ return x.pago_em||x.recebido_em||null; }
+function montarPortalEntregadorHistorico(){
+  const tb=document.getElementById('tabelaDriverHistorico'); if(!tb)return;
+  const arr=corridasFechamentosCache.filter(x=>x.pago_em||x.status_pagamento==='pago').sort((a,b)=>String(dataPagamentoFechamento(b)||'').localeCompare(String(dataPagamentoFechamento(a)||'')));
+  tb.innerHTML=arr.length?arr.map(x=>`<tr><td>${fmtDataCorridas(x.data_fechamento)}</td><td>${fmtDataCorridas(dataPagamentoFechamento(x))}</td><td>${fmtDataCorridas(x.periodo_inicio)} a ${fmtDataCorridas(x.periodo_fim)}</td><td><b>${fmtMoedaCorridas(x.valor_total)}</b></td><td><button class="btn azul" onclick="abrirFechamentoCorridas('${x.id}')">Ver detalhado</button></td></tr>`).join(''):'<tr><td colspan="5">Nenhum pagamento no histórico.</td></tr>';
+}
+
 function statusFechamentoCorridas(x){
   if(x.recebido_em)return {texto:'Recebido pelo entregador',classe:'ok'};
   if(x.pago_em||x.status_pagamento==='pago')return {texto:'Pago — aguardando confirmação',classe:'ok'};

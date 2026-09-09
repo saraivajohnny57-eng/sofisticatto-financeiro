@@ -2470,9 +2470,11 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <div class="corridas-tabs">
       <button id="corridasTab_nova" class="corridas-tab corridas-admin-only ativo" onclick="mostrarAbaCorridas('nova')">+ Nova Corrida</button>
       <button id="corridasTab_corridas" class="corridas-tab corridas-admin-only" onclick="mostrarAbaCorridas('corridas')">Corridas</button>
-      <button id="corridasTab_minhas" class="corridas-tab corridas-driver-only" onclick="mostrarAbaCorridas('minhas')">Minhas Corridas</button>
+      <button id="corridasTab_driver_aberto" class="corridas-tab corridas-driver-only" onclick="mostrarAbaCorridas('driver_aberto')">Em aberto</button>
+      <button id="corridasTab_driver_aguardando" class="corridas-tab corridas-driver-only" onclick="mostrarAbaCorridas('driver_aguardando')">Fechado aguardando pagamento</button>
+      <button id="corridasTab_driver_historico" class="corridas-tab corridas-driver-only" onclick="mostrarAbaCorridas('driver_historico')">Histórico</button>
       <button id="corridasTab_entregadores" class="corridas-tab corridas-admin-only" onclick="mostrarAbaCorridas('entregadores')">Entregadores</button>
-      <button id="corridasTab_fechamentos" class="corridas-tab" onclick="mostrarAbaCorridas('fechamentos')">Histórico de Fechamentos</button>
+      <button id="corridasTab_fechamentos" class="corridas-tab corridas-admin-only" onclick="mostrarAbaCorridas('fechamentos')">Histórico de Fechamentos</button>
       <button id="corridasTab_feriados" class="corridas-tab corridas-admin-only" onclick="mostrarAbaCorridas('feriados')">Feriados</button>
     </div>
 
@@ -2528,10 +2530,24 @@ SOFISTICATTO COSMÉTICOS</textarea>
       </div>
     </div>
 
-    <div id="corridasAba_minhas" class="corridas-subsecao corridas-driver-only" style="display:none;">
+    <div id="corridasAba_driver_aberto" class="corridas-subsecao corridas-driver-only" style="display:none;">
       <div class="card">
-        <h2>Minhas Corridas</h2><p>Acompanhe somente as corridas lançadas no seu nome, os valores cobrados e os fechamentos.</p>
-        <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Data</th><th>Veículo</th><th>Volume</th><th>Mercadoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th><th>Status</th></tr></thead><tbody id="tabelaCorridasDriver"></tbody><tfoot><tr><td colspan="8"><b>Total das minhas corridas</b></td><td><b id="totalMinhasCorridas">R$ 0,00</b></td><td></td></tr></tfoot></table></div>
+        <h2>Em aberto</h2><p>Corridas lançadas no seu nome que ainda não entraram em fechamento.</p>
+        <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Data</th><th>Veículo</th><th>Volume</th><th>Mercadoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th></tr></thead><tbody id="tabelaCorridasDriverAberto"></tbody><tfoot><tr><td colspan="8"><b>Total em aberto</b></td><td><b id="totalCorridasDriverAberto">R$ 0,00</b></td></tr></tfoot></table></div>
+      </div>
+    </div>
+
+    <div id="corridasAba_driver_aguardando" class="corridas-subsecao corridas-driver-only" style="display:none;">
+      <div class="card">
+        <h2>Fechado aguardando pagamento</h2><p>Fechamentos já realizados pelo Financeiro e que ainda aguardam pagamento/baixa.</p>
+        <div class="table-wrap"><table><thead><tr><th>Fechamento</th><th>Data de fechamento</th><th>Período fechado</th><th>Qtd.</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="tabelaDriverAguardando"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="corridasAba_driver_historico" class="corridas-subsecao corridas-driver-only" style="display:none;">
+      <div class="card">
+        <h2>Histórico</h2><p>Fechamentos pagos, organizados para facilitar sua conferência.</p>
+        <div class="table-wrap"><table><thead><tr><th>Data de fechamento</th><th>Data de pagamento</th><th>Período fechado</th><th>Total</th><th>Ação</th></tr></thead><tbody id="tabelaDriverHistorico"></tbody></table></div>
       </div>
     </div>
 
@@ -2824,8 +2840,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=141-login-entregador"></script>
-<script src="corridas.js?v=141-login-entregador"></script>
+<script src="financeiro.js?v=142-portal-entregador"></script>
+<script src="corridas.js?v=142-portal-entregador"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
 <script src="cotacoes.js?v=136-ssw-coleta"></script>
