@@ -7144,15 +7144,24 @@ function dataSomadaBoleto(dataBase,dias){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 function dividirValorParcelasBoleto(total,quantidade){
+  const qtd=Math.max(1,Math.trunc(Number(quantidade)||1));
   const centavos=Math.round(Number(total||0)*100);
-  const base=Math.floor(centavos/quantidade);
-  const resto=centavos-(base*quantidade);
+  const base=Math.floor(centavos/qtd);
+  const resto=centavos-(base*qtd);
 
-  // Regra Sofisticatto: quando houver diferença, a PRIMEIRA parcela recebe o excedente.
-  return Array.from({length:quantidade},(_,i)=>{
-    const valorCentavos=base+(i===0?resto:0);
-    return valorCentavos/100;
-  });
+  // V139 — Regra de distribuição conforme o padrão usado pela Sofisticatto no BB Cobrança:
+  // • sobra de 1 centavo: o centavo vai para a PRIMEIRA parcela;
+  // • sobra de 2 ou mais centavos: distribui 1 centavo por parcela, começando das ÚLTIMAS.
+  // Exemplos:
+  // R$ 199,99 / 3 => 66,67 | 66,66 | 66,66
+  // R$ 200,00 / 3 => 66,66 | 66,67 | 66,67
+  const valores=Array(qtd).fill(base);
+  if(resto===1){
+    valores[0]+=1;
+  }else if(resto>1){
+    for(let i=qtd-resto;i<qtd;i++) if(i>=0) valores[i]+=1;
+  }
+  return valores.map(v=>v/100);
 }
 function gerarParcelasBoleto(){
   const prazos=prazosCondicaoBoleto();

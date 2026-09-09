@@ -2486,8 +2486,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <input id="corridaEntregadorId" type="hidden">
             <div id="corridaSugestoes" class="corrida-sugestoes"></div>
           </div>
-          <div class="corridas-campo"><label>Categoria</label><input id="corridaCategoria" readonly placeholder="Preenchimento automático"></div>
-          <div class="corridas-campo"><label>Telefone</label><input id="corridaTelefone" readonly placeholder="Preenchimento automático"></div>
+          <div class="corridas-campo"><label>Veículo</label><input id="corridaCategoria" readonly placeholder="Preenchimento automático do cadastro"></div>
+          <div class="corridas-campo"><label>Telefone / WhatsApp</label><input id="corridaTelefone" readonly placeholder="Preenchimento automático do cadastro"></div>
           <div class="corridas-campo span2"><label>Local de retirada *</label><input id="corridaRetirada" placeholder="Onde a mercadoria foi retirada"></div>
           <div class="corridas-campo span2"><label>Destino *</label><input id="corridaDestino" placeholder="Local de destino da mercadoria"></div>
           <div class="corridas-campo"><label>Volume</label><input id="corridaVolume" type="number" min="1" step="1" placeholder="Opcional"></div>
@@ -2511,7 +2511,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <div class="corridas-campo"><label>Data inicial</label><input id="filtroCorridasInicio" type="date" onchange="montarTabelaCorridas()"></div>
           <div class="corridas-campo"><label>Data final</label><input id="filtroCorridasFim" type="date" onchange="montarTabelaCorridas()"></div>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Ações</th><th>Data</th><th>Entregador</th><th>Categoria</th><th>Volume</th><th>Mercadoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th><th>Status</th></tr></thead><tbody id="tabelaCorridas"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Ações</th><th>Data</th><th>Entregador</th><th>Veículo</th><th>Volume</th><th>Mercadoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th><th>Status</th></tr></thead><tbody id="tabelaCorridas"></tbody></table></div>
       </div>
       <div class="card">
         <h2>Novo Fechamento</h2>
@@ -2530,8 +2530,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
     <div id="corridasAba_minhas" class="corridas-subsecao corridas-driver-only" style="display:none;">
       <div class="card">
-        <h2>Minhas Corridas</h2><p>Você visualiza somente suas próprias corridas e valores.</p>
-        <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Data</th><th>Categoria</th><th>Volume</th><th>Mercadoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th><th>Status</th></tr></thead><tbody id="tabelaCorridasDriver"></tbody></table></div>
+        <h2>Minhas Corridas</h2><p>Acompanhe somente as corridas lançadas no seu nome, os valores cobrados e os fechamentos.</p>
+        <div class="table-wrap"><table><thead><tr><th>Corrida</th><th>Data</th><th>Veículo</th><th>Volume</th><th>Mercadoria</th><th>Retirada</th><th>Destino</th><th>Observação</th><th>Valor</th><th>Status</th></tr></thead><tbody id="tabelaCorridasDriver"></tbody><tfoot><tr><td colspan="8"><b>Total das minhas corridas</b></td><td><b id="totalMinhasCorridas">R$ 0,00</b></td><td></td></tr></tfoot></table></div>
       </div>
     </div>
 
@@ -2542,7 +2542,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div class="corridas-grid">
           <div class="corridas-campo"><label>Nome *</label><input id="entregadorNome"></div>
           <div class="corridas-campo"><label>Telefone / WhatsApp</label><input id="entregadorTelefone"></div>
-          <div class="corridas-campo"><label>Categoria *</label><select id="entregadorCategoria"><option>Moto</option><option>Carro</option><option>Fiorino</option><option>Van</option><option>Caminhão</option><option>Outro</option></select></div>
+          <div class="corridas-campo"><label>Veículo *</label><select id="entregadorCategoria"><option>Moto</option><option>Carro</option><option>Fiorino</option><option>Van</option><option>Caminhão</option><option>Outro</option></select></div>
           <div class="corridas-campo"><label>Placa</label><input id="entregadorPlaca" placeholder="Opcional"></div>
           <div class="corridas-campo"><label>Nome para pagamento</label><input id="entregadorNomePagamento" placeholder="Opcional — se vazio usa o nome do entregador"></div>
           <div class="corridas-campo"><label>Banco</label><input id="entregadorBanco" placeholder="Ex.: Nubank, Banco do Brasil..."></div>
@@ -2559,13 +2559,13 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <p style="font-size:12px;color:#706884;"><b>Importante:</b> as três regras são independentes. Cada entregador pode usar nenhuma, uma, duas ou todas. Os alertas nunca bloqueiam o lançamento de corridas.</p>
         <div class="corridas-actions"><button id="btnSalvarEntregador" class="salvar" onclick="salvarEntregadorCorridas()">Cadastrar entregador</button><button class="buscar" onclick="limparFormEntregador()">Limpar</button></div>
       </div>
-      <div class="card"><h2>Entregadores cadastrados</h2><div class="table-wrap"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Telefone</th><th>Placa</th><th>Alertas</th><th>Status</th><th>Ação</th></tr></thead><tbody id="tabelaEntregadoresCorridas"></tbody></table></div></div>
+      <div class="card"><h2>Entregadores cadastrados</h2><div class="table-wrap"><table><thead><tr><th>Nome</th><th>Veículo</th><th>Telefone</th><th>Placa</th><th>Alertas</th><th>Status</th><th>Ação</th></tr></thead><tbody id="tabelaEntregadoresCorridas"></tbody></table></div></div>
     </div>
 
     <div id="corridasAba_fechamentos" class="corridas-subsecao" style="display:none;">
       <div class="card">
         <h2>Histórico de Fechamentos</h2>
-        <p>Clique em <b>Ver corridas</b> para conferir exatamente quais corridas fazem parte do fechamento ou em <b>Imprimir</b> para gerar o relatório A4 detalhado.</p>
+        <p>Cada fechamento reúne as corridas do período. Financeiro pode marcar o pagamento e o entregador parceiro pode confirmar o recebimento pelo próprio acesso.</p>
         <div class="table-wrap"><table><thead><tr><th>Fechamento</th><th>Data</th><th>Entregador</th><th>Período</th><th>Qtd.</th><th>Total</th><th>Situação</th><th>Ações</th></tr></thead><tbody id="tabelaFechamentosCorridas"></tbody></table></div>
       </div>
     </div>
@@ -2814,8 +2814,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=138-emissao-massa-bb"></script>
-<script src="corridas.js?v=108"></script>
+<script src="financeiro.js?v=139-parcelamento-bb"></script>
+<script src="corridas.js?v=140-parceiros"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
 <script src="cotacoes.js?v=136-ssw-coleta"></script>

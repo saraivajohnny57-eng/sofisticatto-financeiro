@@ -1,4 +1,4 @@
-/* Sofisticatto Financeiro V108 - Corridas / Entregadores */
+/* Sofisticatto Financeiro V140 - Corridas / Entregadores Parceiros */
 let corridasEntregadoresCache=[];
 let corridasAbertasCache=[];
 let corridasFechamentosCache=[];
@@ -78,7 +78,7 @@ function atualizarListaEntregadorCorrida(){
   const termo=(document.getElementById('corridaEntregadorBusca')?.value||'').trim().toLowerCase();
   const itens=corridasEntregadoresCache.filter(x=>x.ativo!==false && (!termo || x.nome.toLowerCase().includes(termo) || String(x.telefone||'').includes(termo))).slice(0,12);
   if(!termo){ box.style.display='none'; box.innerHTML=''; return; }
-  box.innerHTML=itens.length?itens.map(x=>`<button type="button" onclick="selecionarEntregadorCorrida('${x.id}')"><b>${escCorridas(x.nome)}</b><span>${escCorridas(x.categoria||'')} · ${escCorridas(x.telefone||'')}</span></button>`).join(''):'<div class="corrida-sug-vazio">Nenhum entregador encontrado.</div>';
+  box.innerHTML=itens.length?itens.map(x=>`<button type="button" onclick="selecionarEntregadorCorrida('${x.id}')"><b>${escCorridas(x.nome)}</b><span>${escCorridas(x.categoria||'Veículo não informado')}${x.placa?` • ${escCorridas(x.placa)}`:''} · ${escCorridas(x.telefone||'Sem telefone')}</span></button>`).join(''):'<div class="corrida-sug-vazio">Nenhum entregador encontrado.</div>';
   box.style.display='block';
 }
 function selecionarEntregadorCorrida(id){
@@ -86,7 +86,7 @@ function selecionarEntregadorCorrida(id){
   corridaEntregadorSelecionado=x;
   document.getElementById('corridaEntregadorBusca').value=x.nome||'';
   document.getElementById('corridaEntregadorId').value=x.id;
-  document.getElementById('corridaCategoria').value=x.categoria||'';
+  document.getElementById('corridaCategoria').value=[x.categoria,x.placa].filter(Boolean).join(' • ');
   document.getElementById('corridaTelefone').value=x.telefone||'';
   document.getElementById('corridaSugestoes').style.display='none';
 }
@@ -211,6 +211,8 @@ function montarTabelaCorridas(){
   if(tbd){
     const arrDriver=corridasAbertasCache;
     tbd.innerHTML=arrDriver.length?arrDriver.map(x=>`<tr><td><b>${codigoCorrida(x.numero_corrida)}</b></td><td>${fmtDataCorridas(x.data_corrida)}</td><td>${escCorridas(x.categoria||'—')}</td><td>${x.volume?escCorridas(x.volume):'—'}</td><td>${escCorridas(x.tipo_mercadoria||'—')}</td><td>${escCorridas(x.retirada)}</td><td>${escCorridas(x.destino)}</td><td>${escCorridas(x.observacao||'—')}</td><td><b>${fmtMoedaCorridas(x.valor)}</b></td><td><span class="corridas-status ${x.status==='fechada'?'fechado':x.status==='aberta'?'ok':''}">${escCorridas(x.status)}</span></td></tr>`).join(''):'<tr><td colspan="10">Nenhuma corrida encontrada.</td></tr>';
+    const totalDriver=document.getElementById('totalMinhasCorridas');
+    if(totalDriver)totalDriver.textContent=fmtMoedaCorridas(arrDriver.reduce((s,x)=>s+Number(x.valor||0),0));
   }
 }
 function atualizarSelectFechamentoEntregador(){
@@ -243,9 +245,19 @@ async function fecharCorridasSelecionadas(){
   alert(`Fechamento ${codigoFechamento(n)} realizado com sucesso.`);
   document.getElementById('fechamentoObs').value=''; await Promise.all([carregarCorridas(),carregarFechamentosCorridas()]); atualizarPreviaFechamento(); await avaliarAlertasCorridas(); atualizarDashboardCorridas();
 }
+function statusFechamentoCorridas(x){
+  if(x.recebido_em)return {texto:'Recebido pelo entregador',classe:'ok'};
+  if(x.pago_em||x.status_pagamento==='pago')return {texto:'Pago — aguardando confirmação',classe:'ok'};
+  return {texto:'Fechado — aguardando pagamento',classe:'fechado'};
+}
 function montarTabelaFechamentos(){
   const tb=document.getElementById('tabelaFechamentosCorridas');if(!tb)return;
-  tb.innerHTML=corridasFechamentosCache.length?corridasFechamentosCache.map(x=>`<tr><td><b>${codigoFechamento(x.numero_fechamento)}</b></td><td>${fmtDataCorridas(x.data_fechamento)}</td><td>${escCorridas(x.entregador_nome)}</td><td>${fmtDataCorridas(x.periodo_inicio)} a ${fmtDataCorridas(x.periodo_fim)}</td><td>${x.qtd_corridas||0}</td><td><b>${fmtMoedaCorridas(x.valor_total)}</b></td><td><span class="corridas-status ${x.status_pagamento==='pago'?'ok':'fechado'}">${x.status_pagamento==='pago'?'Pago':'Fechado'}</span></td><td><button class="btn azul" onclick="abrirFechamentoCorridas('${x.id}')">Ver corridas</button> <button class="btn roxo" onclick="imprimirFechamentoCorridas('${x.id}')">🖨️ Imprimir</button>${usuarioPodeAdministrarCorridas()?` <button class="btn azul" onclick="editarFechamentoCorridas('${x.id}')">✏️ Editar</button> <button class="btn vermelho" onclick="excluirFechamentoCorridas('${x.id}')">🗑️ Excluir</button>`:''}${usuarioPodeAdministrarCorridas()&&x.status_pagamento!=='pago'?` <button class="btn verde" onclick="marcarFechamentoPago('${x.id}')">Marcar pago</button>`:''}</td></tr>`).join(''):'<tr><td colspan="8">Nenhum fechamento realizado.</td></tr>';
+  tb.innerHTML=corridasFechamentosCache.length?corridasFechamentosCache.map(x=>{
+    const st=statusFechamentoCorridas(x);
+    const btnFinanceiro=usuarioPodeAdministrarCorridas()&&!x.pago_em?` <button class="btn verde" onclick="marcarFechamentoPago('${x.id}')">💰 Marcar pago</button>`:'';
+    const btnEntregador=usuarioEhEntregador()&&!x.recebido_em?` <button class="btn verde" onclick="confirmarRecebimentoFechamento('${x.id}')">✅ Confirmar recebimento</button>`:'';
+    return `<tr><td><b>${codigoFechamento(x.numero_fechamento)}</b></td><td>${fmtDataCorridas(x.data_fechamento)}</td><td>${escCorridas(x.entregador_nome)}</td><td>${fmtDataCorridas(x.periodo_inicio)} a ${fmtDataCorridas(x.periodo_fim)}</td><td>${x.qtd_corridas||0}</td><td><b>${fmtMoedaCorridas(x.valor_total)}</b></td><td><span class="corridas-status ${st.classe}">${st.texto}</span></td><td><button class="btn azul" onclick="abrirFechamentoCorridas('${x.id}')">Ver corridas</button> <button class="btn roxo" onclick="imprimirFechamentoCorridas('${x.id}')">🖨️ Imprimir</button>${usuarioPodeAdministrarCorridas()?` <button class="btn azul" onclick="editarFechamentoCorridas('${x.id}')">✏️ Editar</button> <button class="btn vermelho" onclick="excluirFechamentoCorridas('${x.id}')">🗑️ Excluir</button>`:''}${btnFinanceiro}${btnEntregador}</td></tr>`;
+  }).join(''):'<tr><td colspan="8">Nenhum fechamento realizado.</td></tr>';
 }
 async function buscarCorridasFechamento(id){
   const r=await banco.from('corridas').select('*').eq('fechamento_id',id).order('data_corrida',{ascending:true}).order('numero_corrida',{ascending:true});
@@ -255,14 +267,29 @@ async function abrirFechamentoCorridas(id){
   const f=corridasFechamentosCache.find(x=>String(x.id)===String(id)); if(!f)return;
   const arr=await buscarCorridasFechamento(id);
   document.getElementById('modalFechamentoTitulo').textContent=`${codigoFechamento(f.numero_fechamento)} — ${f.entregador_nome}`;
-  document.getElementById('modalFechamentoResumo').innerHTML=`<b>Período:</b> ${fmtDataCorridas(f.periodo_inicio)} a ${fmtDataCorridas(f.periodo_fim)} &nbsp; <b>Corridas:</b> ${f.qtd_corridas} &nbsp; <b>Total:</b> ${fmtMoedaCorridas(f.valor_total)}${f.observacao?`<br><b>Observação:</b> ${escCorridas(f.observacao)}`:''}`;
+  document.getElementById('modalFechamentoResumo').innerHTML=`<b>Período:</b> ${fmtDataCorridas(f.periodo_inicio)} a ${fmtDataCorridas(f.periodo_fim)} &nbsp; <b>Corridas:</b> ${f.qtd_corridas} &nbsp; <b>Total:</b> ${fmtMoedaCorridas(f.valor_total)}<br><b>Pagamento:</b> ${statusFechamentoCorridas(f).texto}${f.pago_em?` em ${new Date(f.pago_em).toLocaleString('pt-BR')}`:''}${f.recebido_em?`<br><b>Recebimento confirmado:</b> ${new Date(f.recebido_em).toLocaleString('pt-BR')}`:''}${f.observacao?`<br><b>Observação:</b> ${escCorridas(f.observacao)}`:''}`;
   document.getElementById('modalFechamentoTabela').innerHTML=arr.map(x=>`<tr><td>${codigoCorrida(x.numero_corrida)}</td><td>${fmtDataCorridas(x.data_corrida)}</td><td>${x.volume?escCorridas(x.volume):'—'}</td><td>${escCorridas(x.tipo_mercadoria||'—')}</td><td>${escCorridas(x.retirada)}</td><td>${escCorridas(x.destino)}</td><td>${escCorridas(x.observacao||'—')}</td><td>${fmtMoedaCorridas(x.valor)}</td></tr>`).join('');
   const m=document.getElementById('modalFechamentoCorridas');m.dataset.id=id;m.style.display='flex';
 }
 function fecharModalFechamentoCorridas(){document.getElementById('modalFechamentoCorridas').style.display='none';}
 async function marcarFechamentoPago(id){
-  if(!confirm('Marcar este fechamento como pago?'))return;
-  const r=await banco.from('corridas_fechamentos').update({status_pagamento:'pago',pago_em:new Date().toISOString()}).eq('id',id);if(r.error)return alert(r.error.message);await carregarFechamentosCorridas();
+  if(!usuarioPodeAdministrarCorridas())return;
+  if(!confirm('Confirmar que este fechamento foi pago?'))return;
+  const agora=new Date().toISOString();
+  const r=await banco.from('corridas_fechamentos').update({status_pagamento:'pago',pago_em:agora,pago_por:usuarioLogado?.login||null}).eq('id',id);
+  if(r.error)return alert('Erro ao marcar pagamento: '+r.error.message+'\n\nSe esta for a primeira vez usando a V140, execute o SQL V140 no Supabase.');
+  await carregarFechamentosCorridas();
+}
+async function confirmarRecebimentoFechamento(id){
+  if(!usuarioEhEntregador())return;
+  const f=corridasFechamentosCache.find(x=>String(x.id)===String(id));
+  if(!f||String(f.entregador_id)!==String(usuarioLogado?.entregador_id))return alert('Este fechamento não pertence ao seu usuário.');
+  if(!confirm(`Confirmar o recebimento de ${fmtMoedaCorridas(f.valor_total)} referente ao ${codigoFechamento(f.numero_fechamento)}?`))return;
+  const agora=new Date().toISOString();
+  const r=await banco.from('corridas_fechamentos').update({status_pagamento:'pago',pago_em:f.pago_em||agora,recebido_em:agora,recebido_por:usuarioLogado?.login||null}).eq('id',id).eq('entregador_id',usuarioLogado.entregador_id);
+  if(r.error)return alert('Erro ao confirmar recebimento: '+r.error.message+'\n\nExecute o SQL V140 no Supabase para habilitar a confirmação do entregador.');
+  await carregarFechamentosCorridas();
+  alert('Recebimento confirmado com sucesso.');
 }
 
 async function editarFechamentoCorridas(id){
