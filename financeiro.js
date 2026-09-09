@@ -226,7 +226,12 @@ function configurarInterfacePorPerfil(){
   const notif=document.querySelector(".notificacao-box");
   if(notif) notif.style.display=entregador?"none":"block";
   if(entregador) document.querySelectorAll(".corridas-admin-only").forEach(e=>e.style.display="none");
-  document.querySelectorAll(".corridas-driver-only").forEach(e=>e.style.display=entregador?"":"none");
+  document.querySelectorAll(".corridas-driver-only").forEach(e=>{
+    if(!entregador){ e.style.display="none"; return; }
+    // V143: a classe possui display:none no CSS. Limpar o inline não a torna visível.
+    // Exibe somente os BOTÕES das três abas; o conteúdo é aberto por mostrarAbaCorridas().
+    e.style.display = e.tagName === "BUTTON" ? "inline-flex" : "none";
+  });
   const btnDoc=document.getElementById("btnEnvioDocumentos");
   if(btnDoc) btnDoc.style.display=(usuarioLogado?.tipo==="financeiro"||comercial)?"block":"none";
   if(entregador) return;
