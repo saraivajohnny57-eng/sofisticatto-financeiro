@@ -7502,7 +7502,7 @@ async function emitirBoletosEmMassa(){
 }
 
 /* =========================================================
-   V145 — BANCO DO BRASIL: CHAVE ADMIN VISÍVEL + CERTIFICADO A1
+   V146 — BANCO DO BRASIL: CNPJ DO TITULAR + CERTIFICADO A1
    ========================================================= */
 function bbAdminKey(){return sessionStorage.getItem('integrations_admin_key')||localStorage.getItem('integrations_admin_key')||''}
 function bbSetAdminStatus(texto,tipo='pendente'){
