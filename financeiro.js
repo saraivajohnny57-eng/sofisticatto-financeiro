@@ -320,6 +320,7 @@ function mostrarSecao(secao){
     if(typeof carregarCobrancasBancarias==="function") carregarCobrancasBancarias();
     if(typeof carregarFilaCobrancaMassa==="function") carregarFilaCobrancaMassa();
     if(typeof aplicarPadraoBancoCobrancaManual==="function") aplicarPadraoBancoCobrancaManual();
+    if(typeof carregarStatusBancoBB==="function") setTimeout(()=>carregarStatusBancoBB(),50);
   }
   if(secao === "corridas") carregarModuloCorridas?.();
 }
@@ -7498,4 +7499,79 @@ async function emitirBoletosEmMassa(){
     mostrarBalaoSistema?.('Emissão em massa concluída',`${ok} boleto(s) emitido(s)${erros?` • ${erros} com erro`:''}.`);
     await carregarFilaCobrancaMassa();
   }finally{if(btn){btn.disabled=false;btn.textContent='💳 Emitir em massa';}}
+}
+
+/* =========================================================
+   V144 — BANCO DO BRASIL: CREDENCIAIS + CERTIFICADO A1
+   ========================================================= */
+function bbAdminKey(){return sessionStorage.getItem('integrations_admin_key')||''}
+function salvarChaveAdminBancoBB(){
+  const el=document.getElementById('bbIntegrationsAdminKey');const v=String(el?.value||'').trim();
+  if(!v)return alert('Informe a chave administrativa das integrações.');
+  sessionStorage.setItem('integrations_admin_key',v);carregarStatusBancoBB(true);
+}
+function bbAmbiente(){return document.getElementById('bbAmbiente')?.value==='teste'?'teste':'producao'}
+async function bbReq(action,{method='GET',body,raw=false}={}){
+  const chave=bbAdminKey();
+  if(!chave)throw new Error('Informe a chave administrativa das integrações nesta tela.');
+  const amb=bbAmbiente();
+  const r=await fetch(`/api/banco-bb?action=${encodeURIComponent(action)}&ambiente=${encodeURIComponent(amb)}`,{
+    method,headers:{'x-integrations-admin-key':chave,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify({...body,ambiente:amb}):undefined
+  });
+  if(raw){if(!r.ok){let j={};try{j=await r.json()}catch{}throw new Error(j.erro||`HTTP ${r.status}`)}return r}
+  const j=await r.json().catch(()=>({}));if(!r.ok||j.ok===false)throw new Error(j.erro||`HTTP ${r.status}`);return j;
+}
+function bbFmtData(v){if(!v)return '—';const d=new Date(v);return isNaN(d)?'—':d.toLocaleDateString('pt-BR')}
+function bbAviso(texto,tipo=''){const e=document.getElementById('bbAvisoCertificado');if(!e)return;e.className=`bb-cert-aviso ${tipo}`.trim();e.textContent=texto}
+async function carregarStatusBancoBB(mostrarErro=false){
+  const amb=bbAmbiente();
+  const keyEl=document.getElementById('bbIntegrationsAdminKey');if(keyEl&&!keyEl.value&&bbAdminKey())keyEl.value=bbAdminKey();
+  document.getElementById('bbAmbienteResumo')&&(document.getElementById('bbAmbienteResumo').textContent=amb==='teste'?'Teste':'Produção');
+  if(!bbAdminKey()){bbAviso('Informe a chave administrativa das integrações para consultar e atualizar o Banco do Brasil.','alerta');return}
+  try{
+    const j=await bbReq('status');const c=j.certificado||{}, pend=j.certificado_pendente||{}, cred=j.credenciais||{};
+    const status=document.getElementById('bbCertStatusResumo'), val=document.getElementById('bbCertValidadeResumo'), dias=document.getElementById('bbCertDiasResumo'), det=document.getElementById('bbCertDetalhes'), topo=document.getElementById('bbStatusTopo');
+    if(status)status.textContent=c.configurado?(c.vencido?'Vencido':'Ativo'):'Não cadastrado';if(val)val.textContent=bbFmtData(c.valido_ate);if(dias)dias.textContent=c.dias_restantes==null?'—':String(c.dias_restantes);
+    if(det){let txt=c.configurado?`ATIVO\nTitular: ${c.titular||'—'}\nCNPJ: ${c.cnpj||'—'}\nEmissor: ${c.emissor||'—'}\nValidade: ${bbFmtData(c.valido_de)} até ${bbFmtData(c.valido_ate)}\nCadeia pública: ${c.quantidade_cadeia||'—'} certificado(s)`:'Nenhum certificado A1 ativo neste ambiente.';if(pend.configurado)txt+=`\n\nNOVO A1 AGUARDANDO TESTE BB\nTitular: ${pend.titular||'—'}\nValidade: ${bbFmtData(pend.valido_ate)}\nBaixe a cadeia PEM, envie ao Developers BB e depois clique em Testar conexão BB.`;det.textContent=txt;}
+    const scopes=document.getElementById('bbScopes');if(scopes&&!scopes.value&&cred.scopes)scopes.value=cred.scopes;
+    if(pend.configurado){bbAviso(`🟡 Novo A1 validado localmente e aguardando ativação. Envie a cadeia PEM ao Developers BB e depois teste a conexão. O A1 anterior continua ativo até o teste passar.`,'alerta');}
+    else if(c.configurado&&!c.vencido&&cred.configuradas){bbAviso(`✅ A1 ativo válido até ${bbFmtData(c.valido_ate)}. Credenciais OAuth cadastradas.`,'ok');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Banco do Brasil • configuração pronta para teste'}}
+    else if(c.vencido){bbAviso(`⚠️ O certificado cadastrado venceu em ${bbFmtData(c.valido_ate)}. Substitua pelo novo A1 antes de emitir boletos.`,'erro');if(topo){topo.className='cobranca-bank-status pendente';topo.textContent='Banco do Brasil • certificado vencido'}}
+    else if(!c.configurado){bbAviso('Nenhum certificado A1 cadastrado. Selecione o novo .pfx/.p12 e clique em “Validar e substituir A1”.','alerta');if(topo){topo.className='cobranca-bank-status pendente';topo.textContent='Banco do Brasil • A1 pendente'}}
+    else {bbAviso('Certificado A1 cadastrado. Falta salvar as credenciais OAuth deste ambiente.','alerta')}
+  }catch(e){bbAviso('Não foi possível consultar a configuração: '+e.message,'erro');if(mostrarErro)alert(e.message)}
+}
+async function salvarCredenciaisBancoBB(){
+  try{
+    const body={app_key:document.getElementById('bbAppKey')?.value||'',client_id:document.getElementById('bbClientId')?.value||'',client_secret:document.getElementById('bbClientSecret')?.value||'',scopes:document.getElementById('bbScopes')?.value||''};
+    if(!confirm(`Salvar/atualizar as credenciais do Banco do Brasil no ambiente de ${bbAmbiente()==='teste'?'TESTE':'PRODUÇÃO'}?`))return;
+    const j=await bbReq('salvar-credenciais',{method:'POST',body});
+    ['bbAppKey','bbClientId','bbClientSecret'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='' });
+    bbAviso('✅ '+j.mensagem,'ok');await carregarStatusBancoBB();
+  }catch(e){alert('Não foi possível salvar as credenciais do BB.\n\n'+e.message)}
+}
+function arquivoParaBase64(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||'').split(',').pop()||'');r.onerror=()=>reject(new Error('Não foi possível ler o arquivo A1.'));r.readAsDataURL(file)})}
+async function atualizarCertificadoBancoBB(){
+  const file=document.getElementById('bbCertArquivo')?.files?.[0];const senha=document.getElementById('bbCertSenha')?.value||'';
+  if(!file)return alert('Selecione o novo certificado A1 (.pfx ou .p12).');if(!senha)return alert('Informe a senha do certificado A1.');
+  if(!/\.(pfx|p12)$/i.test(file.name))return alert('Selecione um arquivo .pfx ou .p12.');
+  if(!confirm(`Validar e substituir o certificado A1 do ambiente de ${bbAmbiente()==='teste'?'TESTE':'PRODUÇÃO'}?\n\nO sistema só gravará o novo certificado se a senha, validade e estrutura estiverem corretas.`))return;
+  bbAviso('Validando o novo certificado A1...','');
+  try{
+    const base64=await arquivoParaBase64(file);const j=await bbReq('atualizar-certificado',{method:'POST',body:{pfx_base64:base64,senha,nome_arquivo:file.name}});
+    document.getElementById('bbCertSenha').value='';document.getElementById('bbCertArquivo').value='';
+    bbAviso(`🟡 ${j.mensagem} Validade: ${bbFmtData(j.certificado?.valido_ate)}. Agora baixe a cadeia PEM e envie ao Developers BB.`,'alerta');await carregarStatusBancoBB();
+  }catch(e){bbAviso('❌ O certificado atual não foi alterado. '+e.message,'erro');alert('Não foi possível substituir o A1.\n\n'+e.message)}
+}
+async function baixarCadeiaBancoBB(){
+  try{
+    const r=await bbReq('cadeia',{raw:true});const blob=await r.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`BB_CADEIA_${bbAmbiente().toUpperCase()}.pem`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+    bbAviso('✅ Cadeia PEM pública gerada. Envie esse arquivo em Developers BB → Certificados → Importar cadeia completa.','ok');
+  }catch(e){alert('Não foi possível baixar a cadeia pública.\n\n'+e.message)}
+}
+async function testarConexaoBancoBB(){
+  if(!confirm(`Testar autenticação OAuth/mTLS do Banco do Brasil no ambiente de ${bbAmbiente()==='teste'?'TESTE':'PRODUÇÃO'}?\n\nEsse teste não emite boleto.`))return;
+  bbAviso('Testando mTLS e autenticação OAuth no Banco do Brasil...','');
+  try{const j=await bbReq('testar',{method:'POST',body:{}});const t=j.teste||{};bbAviso(`✅ Conexão com o BB realizada. OAuth respondeu ${t.status||200}${t.expires_in?` • token válido por ${t.expires_in}s`:''}.${t.promovido?' O novo A1 foi ativado automaticamente e substituiu o anterior.':''} Nenhum boleto foi emitido.`,'ok');const topo=document.getElementById('bbStatusTopo');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Banco do Brasil • conexão validada'}}
+  catch(e){bbAviso('❌ Falha no teste com o Banco do Brasil: '+e.message,'erro');alert('Teste Banco do Brasil não concluído.\n\n'+e.message+'\n\nSe você acabou de enviar a cadeia no Developers BB, aguarde a internalização e tente novamente.')}
 }

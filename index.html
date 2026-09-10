@@ -2614,7 +2614,49 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <section id="emailSubCobrancaBancaria" class="email-subaba ativa">
 
 <div class="cobranca-wrap">
-  <div class="cobranca-head"><div><h2>💳 Cobrança Bancária</h2><p>Banco do Brasil e Bradesco • relatório financeiro, emissão em massa e acompanhamento.</p></div><div class="cobranca-status-integracoes"><span class="cobranca-bank-status pendente">Banco do Brasil • Integração em configuração</span><span class="cobranca-bank-status pendente">Bradesco • Integração em configuração</span></div></div>
+  <div class="cobranca-head"><div><h2>💳 Cobrança Bancária</h2><p>Banco do Brasil e Bradesco • relatório financeiro, emissão em massa e acompanhamento.</p></div><div class="cobranca-status-integracoes"><span id="bbStatusTopo" class="cobranca-bank-status pendente">Banco do Brasil • verificando configuração</span><span class="cobranca-bank-status pendente">Bradesco • Integração em configuração</span></div></div>
+
+  <div class="cobranca-card bb-cert-card">
+    <div class="bb-cert-topo">
+      <div><h3>🔐 Banco do Brasil — Credenciais e Certificado A1</h3><p>Atualize o A1 pelo próprio portal, sem alterar arquivos ou variáveis da Vercel a cada renovação.</p></div>
+      <div class="bb-cert-acoes"><button class="btn azul" onclick="carregarStatusBancoBB(true)">↻ Atualizar status</button><button class="btn verde" onclick="testarConexaoBancoBB()">✅ Testar conexão BB</button></div>
+    </div>
+    <div id="bbAvisoCertificado" class="bb-cert-aviso">Carregando situação do certificado...</div>
+    <div class="bb-cert-kpis">
+      <div><span>Ambiente</span><strong id="bbAmbienteResumo">Produção</strong></div>
+      <div><span>Certificado</span><strong id="bbCertStatusResumo">Não verificado</strong></div>
+      <div><span>Validade</span><strong id="bbCertValidadeResumo">—</strong></div>
+      <div><span>Dias restantes</span><strong id="bbCertDiasResumo">—</strong></div>
+    </div>
+    <div class="bb-cert-grid">
+      <div class="bb-cert-bloco">
+        <h4>Credenciais OAuth</h4>
+        <label>Ambiente</label><select id="bbAmbiente" onchange="carregarStatusBancoBB()"><option value="producao">Produção</option><option value="teste">Teste</option></select>
+        <label>App Key</label><input id="bbAppKey" type="password" autocomplete="off" placeholder="Deixe em branco para manter a atual">
+        <label>Client ID</label><input id="bbClientId" type="password" autocomplete="off" placeholder="Deixe em branco para manter o atual">
+        <label>Client Secret</label><input id="bbClientSecret" type="password" autocomplete="new-password" placeholder="Deixe em branco para manter o atual">
+        <label>Scopes (opcional)</label><input id="bbScopes" placeholder="Ex.: cobrancas.boletos-info cobrancas.boletos-requisicao">
+        <button class="btn roxo" onclick="salvarCredenciaisBancoBB()">💾 Salvar credenciais</button>
+        <p class="bb-cert-ajuda">Os valores ficam criptografados no backend. O portal nunca devolve o Client Secret depois de salvo.</p>
+      </div>
+      <div class="bb-cert-bloco">
+        <h4>Certificado digital A1</h4>
+        <label>Novo arquivo A1 (.pfx ou .p12)</label><input id="bbCertArquivo" type="file" accept=".pfx,.p12,application/x-pkcs12">
+        <label>Senha do A1</label><input id="bbCertSenha" type="password" autocomplete="new-password" placeholder="Senha do certificado">
+        <div class="bb-cert-botoes">
+          <button class="btn verde" onclick="atualizarCertificadoBancoBB()">🔄 Validar e substituir A1</button>
+          <button class="btn azul" onclick="baixarCadeiaBancoBB()">⬇ Baixar cadeia PEM para o BB</button>
+        </div>
+        <p class="bb-cert-ajuda">O novo certificado só substitui o anterior depois de passar na validação local. A cadeia PEM baixada contém apenas certificados públicos — nunca a chave privada.</p>
+        <div id="bbCertDetalhes" class="bb-cert-detalhes">Nenhum certificado carregado.</div>
+      </div>
+    </div>
+    <div class="bb-cert-footer">
+      <label>Chave administrativa das integrações</label>
+      <div class="bb-admin-row"><input id="bbIntegrationsAdminKey" type="password" autocomplete="off" placeholder="INTEGRATIONS_ADMIN_KEY"><button class="btn azul" onclick="salvarChaveAdminBancoBB()">Usar nesta sessão</button></div>
+      <small>Essa chave já é usada pelo servidor seguro das integrações. Ela fica somente nesta sessão do navegador e evita acesso não autorizado ao certificado bancário.</small>
+    </div>
+  </div>
 
   <div class="cobranca-card cobranca-massa-card">
     <div class="cobranca-massa-topo">
@@ -2840,7 +2882,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=143-corrige-abas-entregador"></script>
+<script src="financeiro.js?v=144-bb-a1"></script>
 <script src="corridas.js?v=143-corrige-abas-entregador"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
