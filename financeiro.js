@@ -7554,14 +7554,14 @@ async function carregarStatusBancoBB(mostrarErro=false){
   try{
     const j=await bbReq('status');const c=j.certificado||{}, pend=j.certificado_pendente||{}, cred=j.credenciais||{};
     const status=document.getElementById('bbCertStatusResumo'), val=document.getElementById('bbCertValidadeResumo'), dias=document.getElementById('bbCertDiasResumo'), det=document.getElementById('bbCertDetalhes'), topo=document.getElementById('bbStatusTopo');
-    if(status)status.textContent=c.configurado?(c.vencido?'Vencido':'Ativo'):'Não cadastrado';if(val)val.textContent=bbFmtData(c.valido_ate);if(dias)dias.textContent=c.dias_restantes==null?'—':String(c.dias_restantes);
-    if(det){let txt=c.configurado?`ATIVO\nTitular: ${c.titular||'—'}\nCNPJ: ${c.cnpj||'—'}\nEmissor: ${c.emissor||'—'}\nValidade: ${bbFmtData(c.valido_de)} até ${bbFmtData(c.valido_ate)}\nCadeia pública: ${c.quantidade_cadeia||'—'} certificado(s)`:'Nenhum certificado A1 ativo neste ambiente.';if(pend.configurado)txt+=`\n\nNOVO A1 AGUARDANDO TESTE BB\nTitular: ${pend.titular||'—'}\nValidade: ${bbFmtData(pend.valido_ate)}\nBaixe a cadeia PEM, envie ao Developers BB e depois clique em Testar conexão BB.`;det.textContent=txt;}
+    if(status)status.textContent=c.configurado?(c.vencido?'Não exigido • A1 vencido':'Não exigido • A1 armazenado'):'Não exigido';if(val)val.textContent=bbFmtData(c.valido_ate);if(dias)dias.textContent=c.dias_restantes==null?'—':String(c.dias_restantes);
+    if(det){let txt=c.configurado?`ATIVO\nTitular: ${c.titular||'—'}\nCNPJ: ${c.cnpj||'—'}\nEmissor: ${c.emissor||'—'}\nValidade: ${bbFmtData(c.valido_de)} até ${bbFmtData(c.valido_ate)}\nCadeia pública: ${c.quantidade_cadeia||'—'} certificado(s)`:'Nenhum certificado A1 ativo neste ambiente.';if(pend.configurado)txt+=`\n\nA1 ARMAZENADO (NÃO EXIGIDO PELA COBRANÇAS V2)\nTitular: ${pend.titular||'—'}\nValidade: ${bbFmtData(pend.valido_ate)}\nO Portal Developers BB informou que esta aplicação não exige mTLS.`;det.textContent=txt;}
     const scopes=document.getElementById('bbScopes');if(scopes&&!scopes.value&&cred.scopes)scopes.value=cred.scopes;
-    if(pend.configurado){bbAviso(`🟡 Novo A1 validado localmente e aguardando ativação. Envie a cadeia PEM ao Developers BB e depois teste a conexão. O A1 anterior continua ativo até o teste passar.`,'alerta');}
-    else if(c.configurado&&!c.vencido&&cred.configuradas){bbAviso(`✅ A1 ativo válido até ${bbFmtData(c.valido_ate)}. Credenciais OAuth cadastradas.`,'ok');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Banco do Brasil • configuração pronta para teste'}}
-    else if(c.vencido){bbAviso(`⚠️ O certificado cadastrado venceu em ${bbFmtData(c.valido_ate)}. Substitua pelo novo A1 antes de emitir boletos.`,'erro');if(topo){topo.className='cobranca-bank-status pendente';topo.textContent='Banco do Brasil • certificado vencido'}}
-    else if(!c.configurado){bbAviso('Nenhum certificado A1 cadastrado. Selecione o novo .pfx/.p12 e clique em “Validar e substituir A1”.','alerta');if(topo){topo.className='cobranca-bank-status pendente';topo.textContent='Banco do Brasil • A1 pendente'}}
-    else {bbAviso('Certificado A1 cadastrado. Falta salvar as credenciais OAuth deste ambiente.','alerta')}
+    if(pend.configurado){bbAviso(`✅ Credenciais OAuth podem ser testadas normalmente. A Cobranças v2 desta aplicação não exige mTLS; o A1 salvo fica apenas disponível no portal e não bloqueia a conexão.`,'ok');}
+    else if(cred.configuradas){bbAviso(`✅ Credenciais OAuth cadastradas. Cobranças v2: mTLS não exigido. Pronto para testar a autenticação com o BB.`,'ok');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Banco do Brasil • credenciais prontas para teste'}}
+    else if(c.vencido){bbAviso(`ℹ️ O A1 armazenado venceu em ${bbFmtData(c.valido_ate)}, mas a Cobranças v2 desta aplicação não exige mTLS. Isso não bloqueia o OAuth.`,'alerta');if(topo){topo.className='cobranca-bank-status pendente';topo.textContent='Banco do Brasil • salvar credenciais OAuth'}}
+    else if(!cred.configuradas){bbAviso('Salve App Key, Client ID e Client Secret para testar a autenticação OAuth. O A1 não é obrigatório para a Cobranças v2 desta aplicação.','alerta');if(topo){topo.className='cobranca-bank-status pendente';topo.textContent='Banco do Brasil • credenciais pendentes'}}
+    else {bbAviso('Configuração bancária carregada. Salve as credenciais OAuth para continuar.','alerta')}
   }catch(e){bbAviso('Não foi possível consultar a configuração: '+e.message,'erro');if(mostrarErro)alert(e.message)}
 }
 async function salvarCredenciaisBancoBB(){
@@ -7583,18 +7583,26 @@ async function atualizarCertificadoBancoBB(){
   try{
     const base64=await arquivoParaBase64(file);const j=await bbReq('atualizar-certificado',{method:'POST',body:{pfx_base64:base64,senha,nome_arquivo:file.name}});
     document.getElementById('bbCertSenha').value='';document.getElementById('bbCertArquivo').value='';
-    bbAviso(`🟡 ${j.mensagem} Validade: ${bbFmtData(j.certificado?.valido_ate)}. Agora baixe a cadeia PEM e envie ao Developers BB.`,'alerta');await carregarStatusBancoBB();
+    bbAviso(`✅ A1 validado e armazenado. Validade: ${bbFmtData(j.certificado?.valido_ate)}. Para a Cobranças v2 desta aplicação, o Portal Developers BB informou que mTLS não é exigido.`,'ok');await carregarStatusBancoBB();
   }catch(e){bbAviso('❌ O certificado atual não foi alterado. '+e.message,'erro');alert('Não foi possível substituir o A1.\n\n'+e.message)}
 }
 async function baixarCadeiaBancoBB(){
   try{
     const r=await bbReq('cadeia',{raw:true});const blob=await r.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`BB_CADEIA_${bbAmbiente().toUpperCase()}.pem`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
-    bbAviso('✅ Cadeia PEM pública gerada. Envie esse arquivo em Developers BB → Certificados → Importar cadeia completa.','ok');
+    bbAviso('✅ Cadeia PEM pública gerada. Guarde-a para uso futuro caso alguma API do BB venha a exigir mTLS. Para a Cobranças v2 atual, o envio não é necessário.','ok');
   }catch(e){alert('Não foi possível baixar a cadeia pública.\n\n'+e.message)}
 }
 async function testarConexaoBancoBB(){
-  if(!confirm(`Testar autenticação OAuth/mTLS do Banco do Brasil no ambiente de ${bbAmbiente()==='teste'?'TESTE':'PRODUÇÃO'}?\n\nEsse teste não emite boleto.`))return;
-  bbAviso('Testando mTLS e autenticação OAuth no Banco do Brasil...','');
-  try{const j=await bbReq('testar',{method:'POST',body:{}});const t=j.teste||{};bbAviso(`✅ Conexão com o BB realizada. OAuth respondeu ${t.status||200}${t.expires_in?` • token válido por ${t.expires_in}s`:''}.${t.promovido?' O novo A1 foi ativado automaticamente e substituiu o anterior.':''} Nenhum boleto foi emitido.`,'ok');const topo=document.getElementById('bbStatusTopo');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Banco do Brasil • conexão validada'}}
-  catch(e){bbAviso('❌ Falha no teste com o Banco do Brasil: '+e.message,'erro');alert('Teste Banco do Brasil não concluído.\n\n'+e.message+'\n\nSe você acabou de enviar a cadeia no Developers BB, aguarde a internalização e tente novamente.')}
+  if(!confirm(`Testar a autenticação OAuth do Banco do Brasil no ambiente de ${bbAmbiente()==='teste'?'TESTE':'PRODUÇÃO'}?
+
+A Cobranças v2 desta aplicação não exige mTLS e este teste não emite boleto.`))return;
+  bbAviso('Testando autenticação OAuth no Banco do Brasil...','');
+  try{
+    const j=await bbReq('testar',{method:'POST',body:{}});const t=j.teste||{};
+    bbAviso(`✅ Conexão OAuth com o BB realizada. HTTP ${t.status||200}${t.expires_in?` • token válido por ${t.expires_in}s`:''}. Escopos: ${t.scope||'Cobranças v2'}. mTLS não exigido. Nenhum boleto foi emitido.`,'ok');
+    const topo=document.getElementById('bbStatusTopo');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Banco do Brasil • OAuth validado'}
+  }catch(e){
+    bbAviso('❌ Falha no teste OAuth com o Banco do Brasil: '+e.message,'erro');
+    alert('Teste Banco do Brasil não concluído.\n\n'+e.message+'\n\nAs credenciais não foram apagadas. Confira a mensagem retornada pelo BB e tente novamente.');
+  }
 }

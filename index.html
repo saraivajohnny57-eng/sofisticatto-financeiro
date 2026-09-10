@@ -2618,7 +2618,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
   <div class="cobranca-card bb-cert-card">
     <div class="bb-cert-topo">
-      <div><h3>🔐 Banco do Brasil — Credenciais e Certificado A1</h3><p>Atualize o A1 pelo próprio portal, sem alterar arquivos ou variáveis da Vercel a cada renovação.</p></div>
+      <div><h3>🔐 Banco do Brasil — Credenciais OAuth e certificado A1</h3><p>Configure as credenciais OAuth pelo portal. Para a Cobranças v2 desta aplicação, o Banco do Brasil informou que mTLS não é exigido.</p></div>
       <div class="bb-cert-acoes"><button class="btn azul" onclick="carregarStatusBancoBB(true)">↻ Atualizar status</button><button class="btn verde" onclick="testarConexaoBancoBB()">✅ Testar conexão BB</button></div>
     </div>
     <div class="bb-admin-box">
@@ -2638,7 +2638,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <div id="bbAvisoCertificado" class="bb-cert-aviso">Carregando situação do certificado...</div>
     <div class="bb-cert-kpis">
       <div><span>Ambiente</span><strong id="bbAmbienteResumo">Produção</strong></div>
-      <div><span>Certificado</span><strong id="bbCertStatusResumo">Não verificado</strong></div>
+      <div><span>mTLS / A1</span><strong id="bbCertStatusResumo">Não exigido</strong></div>
       <div><span>Validade</span><strong id="bbCertValidadeResumo">—</strong></div>
       <div><span>Dias restantes</span><strong id="bbCertDiasResumo">—</strong></div>
     </div>
@@ -2649,19 +2649,19 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <label>App Key</label><input id="bbAppKey" type="password" autocomplete="off" placeholder="Deixe em branco para manter a atual">
         <label>Client ID</label><input id="bbClientId" type="password" autocomplete="off" placeholder="Deixe em branco para manter o atual">
         <label>Client Secret</label><input id="bbClientSecret" type="password" autocomplete="new-password" placeholder="Deixe em branco para manter o atual">
-        <label>Scopes (opcional)</label><input id="bbScopes" placeholder="Ex.: cobrancas.boletos-info cobrancas.boletos-requisicao">
+        <label>Scopes OAuth</label><input id="bbScopes" value="cobrancas.boletos-info cobrancas.boletos-requisicao" placeholder="cobrancas.boletos-info cobrancas.boletos-requisicao"><p class="bb-cert-ajuda">Padrão usado pela Cobranças v2. O sistema também aplica este valor automaticamente se o campo estiver vazio.</p>
         <button class="btn roxo" onclick="salvarCredenciaisBancoBB()">💾 Salvar credenciais</button>
         <p class="bb-cert-ajuda">Os valores ficam criptografados no backend. O portal nunca devolve o Client Secret depois de salvo.</p>
       </div>
       <div class="bb-cert-bloco">
-        <h4>Certificado digital A1</h4>
+        <h4>Certificado digital A1 <small style="font-weight:500;color:#6d6680;">(opcional nesta API)</small></h4>
         <label>Novo arquivo A1 (.pfx ou .p12)</label><input id="bbCertArquivo" type="file" accept=".pfx,.p12,application/x-pkcs12">
         <label>Senha do A1</label><input id="bbCertSenha" type="password" autocomplete="new-password" placeholder="Senha do certificado">
         <div class="bb-cert-botoes">
           <button class="btn verde" onclick="atualizarCertificadoBancoBB()">🔄 Validar e substituir A1</button>
           <button class="btn azul" onclick="baixarCadeiaBancoBB()">⬇ Baixar cadeia PEM para o BB</button>
         </div>
-        <p class="bb-cert-ajuda">O novo certificado só substitui o anterior depois de passar na validação local. A cadeia PEM baixada contém apenas certificados públicos — nunca a chave privada.</p>
+        <p class="bb-cert-ajuda">O A1 pode permanecer armazenado para outras APIs ou uso futuro. Na aplicação atual, a Cobranças v2 não exige mTLS. A cadeia PEM contém apenas certificados públicos — nunca a chave privada.</p>
         <div id="bbCertDetalhes" class="bb-cert-detalhes">Nenhum certificado carregado.</div>
       </div>
     </div>
@@ -2891,7 +2891,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=146-bb-cnpj-titular"></script>
+<script src="financeiro.js?v=147-bb-oauth-scopes-sem-mtls"></script>
 <script src="corridas.js?v=143-corrige-abas-entregador"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
