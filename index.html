@@ -2621,6 +2621,20 @@ SOFISTICATTO COSMÉTICOS</textarea>
       <div><h3>🔐 Banco do Brasil — Credenciais e Certificado A1</h3><p>Atualize o A1 pelo próprio portal, sem alterar arquivos ou variáveis da Vercel a cada renovação.</p></div>
       <div class="bb-cert-acoes"><button class="btn azul" onclick="carregarStatusBancoBB(true)">↻ Atualizar status</button><button class="btn verde" onclick="testarConexaoBancoBB()">✅ Testar conexão BB</button></div>
     </div>
+    <div class="bb-admin-box">
+      <div class="bb-admin-box-head">
+        <div>
+          <strong>🔑 Chave administrativa das integrações</strong>
+          <small>Use a mesma chave administrativa já utilizada nas integrações do sistema. Ela fica somente nesta sessão do navegador.</small>
+        </div>
+        <span id="bbAdminKeyStatus" class="bb-admin-status pendente">Não validada</span>
+      </div>
+      <div class="bb-admin-row">
+        <input id="bbIntegrationsAdminKey" type="password" autocomplete="off" placeholder="Digite a chave administrativa">
+        <button class="btn azul" onclick="salvarChaveAdminBancoBB()">🔐 Validar e usar</button>
+        <button class="btn" onclick="limparChaveAdminBancoBB()">Limpar</button>
+      </div>
+    </div>
     <div id="bbAvisoCertificado" class="bb-cert-aviso">Carregando situação do certificado...</div>
     <div class="bb-cert-kpis">
       <div><span>Ambiente</span><strong id="bbAmbienteResumo">Produção</strong></div>
@@ -2650,11 +2664,6 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <p class="bb-cert-ajuda">O novo certificado só substitui o anterior depois de passar na validação local. A cadeia PEM baixada contém apenas certificados públicos — nunca a chave privada.</p>
         <div id="bbCertDetalhes" class="bb-cert-detalhes">Nenhum certificado carregado.</div>
       </div>
-    </div>
-    <div class="bb-cert-footer">
-      <label>Chave administrativa das integrações</label>
-      <div class="bb-admin-row"><input id="bbIntegrationsAdminKey" type="password" autocomplete="off" placeholder="INTEGRATIONS_ADMIN_KEY"><button class="btn azul" onclick="salvarChaveAdminBancoBB()">Usar nesta sessão</button></div>
-      <small>Essa chave já é usada pelo servidor seguro das integrações. Ela fica somente nesta sessão do navegador e evita acesso não autorizado ao certificado bancário.</small>
     </div>
   </div>
 
@@ -2882,7 +2891,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=144-bb-a1"></script>
+<script src="financeiro.js?v=145-bb-chave-admin"></script>
 <script src="corridas.js?v=143-corrige-abas-entregador"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>

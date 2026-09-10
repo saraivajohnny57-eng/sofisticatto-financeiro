@@ -7502,13 +7502,35 @@ async function emitirBoletosEmMassa(){
 }
 
 /* =========================================================
-   V144 — BANCO DO BRASIL: CREDENCIAIS + CERTIFICADO A1
+   V145 — BANCO DO BRASIL: CHAVE ADMIN VISÍVEL + CERTIFICADO A1
    ========================================================= */
-function bbAdminKey(){return sessionStorage.getItem('integrations_admin_key')||''}
-function salvarChaveAdminBancoBB(){
+function bbAdminKey(){return sessionStorage.getItem('integrations_admin_key')||localStorage.getItem('integrations_admin_key')||''}
+function bbSetAdminStatus(texto,tipo='pendente'){
+  const e=document.getElementById('bbAdminKeyStatus');if(!e)return;
+  e.textContent=texto;e.className=`bb-admin-status ${tipo}`;
+}
+async function salvarChaveAdminBancoBB(){
   const el=document.getElementById('bbIntegrationsAdminKey');const v=String(el?.value||'').trim();
   if(!v)return alert('Informe a chave administrativa das integrações.');
-  sessionStorage.setItem('integrations_admin_key',v);carregarStatusBancoBB(true);
+  bbSetAdminStatus('Validando…','pendente');
+  try{
+    const r=await fetch('/api/integracoes?action=validar-chave',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':v},body:'{}'});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||j.ok===false)throw new Error(j.erro||'Chave administrativa inválida ou não configurada no servidor.');
+    sessionStorage.setItem('integrations_admin_key',v);
+    bbSetAdminStatus('Validada','ok');
+    await carregarStatusBancoBB(true);
+  }catch(e){
+    sessionStorage.removeItem('integrations_admin_key');
+    bbSetAdminStatus('Inválida','erro');
+    alert('Não foi possível validar a chave administrativa.\n\n'+e.message);
+  }
+}
+function limparChaveAdminBancoBB(){
+  sessionStorage.removeItem('integrations_admin_key');
+  const el=document.getElementById('bbIntegrationsAdminKey');if(el)el.value='';
+  bbSetAdminStatus('Não validada','pendente');
+  bbAviso('Informe a chave administrativa das integrações para consultar e atualizar o Banco do Brasil.','alerta');
 }
 function bbAmbiente(){return document.getElementById('bbAmbiente')?.value==='teste'?'teste':'producao'}
 async function bbReq(action,{method='GET',body,raw=false}={}){
@@ -7527,7 +7549,8 @@ async function carregarStatusBancoBB(mostrarErro=false){
   const amb=bbAmbiente();
   const keyEl=document.getElementById('bbIntegrationsAdminKey');if(keyEl&&!keyEl.value&&bbAdminKey())keyEl.value=bbAdminKey();
   document.getElementById('bbAmbienteResumo')&&(document.getElementById('bbAmbienteResumo').textContent=amb==='teste'?'Teste':'Produção');
-  if(!bbAdminKey()){bbAviso('Informe a chave administrativa das integrações para consultar e atualizar o Banco do Brasil.','alerta');return}
+  if(!bbAdminKey()){bbSetAdminStatus('Não validada','pendente');bbAviso('Informe e valide a chave administrativa acima para consultar e atualizar o Banco do Brasil.','alerta');return}
+  bbSetAdminStatus('Em uso','ok');
   try{
     const j=await bbReq('status');const c=j.certificado||{}, pend=j.certificado_pendente||{}, cred=j.credenciais||{};
     const status=document.getElementById('bbCertStatusResumo'), val=document.getElementById('bbCertValidadeResumo'), dias=document.getElementById('bbCertDiasResumo'), det=document.getElementById('bbCertDetalhes'), topo=document.getElementById('bbStatusTopo');
