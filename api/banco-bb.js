@@ -15,8 +15,36 @@ function nomeCert(cert){return nomeAttr(cert.subject.attributes,'commonName')||n
 function mesmoDn(a,b){return a.attributes.length===b.attributes.length && a.attributes.every((x,i)=>x.type===b.attributes[i]?.type&&String(x.value)===String(b.attributes[i]?.value))}
 function ehAutoAssinado(cert){return mesmoDn(cert.subject,cert.issuer)}
 function extrairCnpj(cert){
-  const vals=[...(cert.subject?.attributes||[]).map(x=>String(x.value||'')),nomeCert(cert)];
-  for(const v of vals){const m=v.match(/(?:^|\D)(\d{14})(?:\D|$)/);if(m)return m[1]}
+  const attrs=cert.subject?.attributes||[];
+  const esperado=soDigitos(process.env.BB_CNPJ||CNPJ_PADRAO);
+  const extrair14=v=>{
+    const texto=String(v||'');
+    const achados=texto.match(/\d{14}/g)||[];
+    return achados.map(soDigitos).find(x=>x.length===14)||'';
+  };
+
+  // ICP-Brasil: prioriza o identificador do TITULAR. Em certificados PJ,
+  // o CNPJ costuma estar no CN (ex.: EMPRESA:05451985000195) e/ou no OID
+  // 2.16.76.1.3.3. Não usamos o primeiro número de 14 dígitos de qualquer
+  // atributo, pois outros campos podem pertencer à AC/AR e causar falso CNPJ.
+  const cn=nomeAttr(attrs,'commonName');
+  const cnpjCn=extrair14(cn);
+  if(cnpjCn)return cnpjCn;
+
+  const oidCnpj='2.16.76.1.3.3';
+  const attrCnpj=attrs.find(a=>String(a.type||'')===oidCnpj);
+  const cnpjOid=extrair14(attrCnpj?.value);
+  if(cnpjOid)return cnpjOid;
+
+  // Se o CNPJ esperado estiver explicitamente em algum atributo do subject,
+  // ele é aceito como fallback seguro (somente subject do certificado folha).
+  if(esperado&&attrs.some(a=>soDigitos(a.value).includes(esperado)))return esperado;
+
+  // Último fallback: somente atributos de identidade do titular, nunca issuer.
+  for(const nome of ['serialNumber','organizationName','organizationalUnitName']){
+    const c=extrair14(nomeAttr(attrs,nome));
+    if(c)return c;
+  }
   return '';
 }
 function montarCadeia(certificados){
@@ -150,5 +178,5 @@ module.exports=async function(req,res){
       return json(res,200,{ok:true,teste});
     }
     return json(res,400,{ok:false,erro:'Ação inválida.'});
-  }catch(e){console.error('[BANCO-BB V144]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
+  }catch(e){console.error('[BANCO-BB V146]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
 };
