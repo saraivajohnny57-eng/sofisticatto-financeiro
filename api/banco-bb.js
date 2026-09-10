@@ -4,6 +4,7 @@ const {exigirAdmin,supabaseRest,criptografar,descriptografar}=require('../lib/in
 
 const TABELA='integracoes_bancarias_segredos';
 const CNPJ_PADRAO='05451985000195';
+const BB_SCOPE_COBRANCAS='cobrancas.boletos-info cobrancas.boletos-requisicao';
 const normalizarAmb=v=>String(v||'producao').toLowerCase()==='teste'?'teste':'producao';
 const soDigitos=v=>String(v||'').replace(/\D/g,'');
 
@@ -104,11 +105,13 @@ async function statusAmbiente(amb){
   const cred=await obterRegistro(idRegistro(amb,'credenciais'));
   const cert=await obterRegistro(idRegistro(amb,'certificado'));
   const pend=await obterRegistro(idRegistro(amb,'certificado_pendente'));
-  const meta=cert?.metadata||null;
-  const pendMeta=pend?.metadata||null;
+  // Como a Cobranças v2 desta aplicação não exige mTLS, um A1 já validado
+  // localmente pode ser exibido como armazenado mesmo se veio da V146 como "pendente".
+  const certExibido=pend||cert;
+  const meta=certExibido?.metadata||null;
   let dias=null, vencido=false;
   if(meta?.valido_ate){dias=Math.ceil((new Date(meta.valido_ate)-new Date())/86400000);vencido=dias<0}
-  return {ambiente:amb,credenciais:{configuradas:!!cred,app_key:!!cred,client_id:!!cred,client_secret:!!cred,scopes:cred?.metadata?.scopes||''},certificado:{configurado:!!cert,...(meta||{}),dias_restantes:dias,vencido},certificado_pendente:pend?{configurado:true,...pendMeta}: {configurado:false}};
+  return {ambiente:amb,mtls_exigido:false,credenciais:{configuradas:!!cred,app_key:!!cred,client_id:!!cred,client_secret:!!cred,scopes:cred?.metadata?.scopes||BB_SCOPE_COBRANCAS},certificado:{configurado:!!certExibido,...(meta||{}),dias_restantes:dias,vencido,uso:'opcional'},certificado_pendente:{configurado:false}};
 }
 function postHttps({url,headers,body,pfx,passphrase}){
   return new Promise((resolve,reject)=>{
@@ -122,20 +125,22 @@ function postHttps({url,headers,body,pfx,passphrase}){
 }
 async function testarOAuth(amb){
   const credReg=await obterRegistro(idRegistro(amb,'credenciais'));
-  const pendReg=await obterRegistro(idRegistro(amb,'certificado_pendente'));
-  const certReg=pendReg||await obterRegistro(idRegistro(amb,'certificado'));
   if(!credReg)throw new Error('Credenciais BB ainda não cadastradas neste ambiente.');
-  if(!certReg)throw new Error('Certificado A1 ainda não cadastrado neste ambiente.');
-  const cred=descriptografar(credReg), cert=descriptografar(certReg);
+  const cred=descriptografar(credReg);
   const base=amb==='teste'?'https://oauth.hm.bb.com.br':'https://oauth.bb.com.br';
-  const form=new URLSearchParams({grant_type:'client_credentials'});
-  if(cred.scopes)form.set('scope',cred.scopes);
-  const body=form.toString();
+
+  // Cobranças v2 exige escopos OAuth mesmo quando o campo foi salvo vazio.
+  // Para esta aplicação o Portal Developers BB informou que mTLS não é exigido,
+  // portanto o teste OAuth NÃO depende do A1 e não envia PFX na conexão.
+  const scopes=String(cred.scopes||BB_SCOPE_COBRANCAS).trim()||BB_SCOPE_COBRANCAS;
+  // O BB tem histórico de exigir separação RFC3986 (%20), e URLSearchParams usa '+'.
+  // Montamos o payload explicitamente para garantir %20 entre múltiplos escopos.
+  const body=`grant_type=client_credentials&scope=${encodeURIComponent(scopes)}`;
   const auth=Buffer.from(`${cred.client_id}:${cred.client_secret}`,'utf8').toString('base64');
-  const r=await postHttps({url:`${base}/oauth/token`,headers:{Authorization:`Basic ${auth}`,'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(body)},body,pfx:Buffer.from(cert.pfx_base64,'base64'),passphrase:cert.senha});
+  const r=await postHttps({url:`${base}/oauth/token`,headers:{Authorization:`Basic ${auth}`,'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(body)},body});
   let data={};try{data=JSON.parse(r.text||'{}')}catch{data={raw:r.text}}
   if(r.status<200||r.status>=300)throw new Error(data.error_description||data.error||data.message||`BB OAuth HTTP ${r.status}`);
-  return {ok:true,status:r.status,token_recebido:!!data.access_token,expires_in:data.expires_in||null,scope:data.scope||cred.scopes||'',usou_pendente:!!pendReg};
+  return {ok:true,status:r.status,token_recebido:!!data.access_token,expires_in:data.expires_in||null,scope:data.scope||scopes,mtls_exigido:false};
 }
 
 module.exports=async function(req,res){
@@ -150,7 +155,7 @@ module.exports=async function(req,res){
       const app_key=String(req.body?.app_key||anterior.app_key||'').trim();
       const client_id=String(req.body?.client_id||anterior.client_id||'').trim();
       const client_secret=String(req.body?.client_secret||anterior.client_secret||'').trim();
-      const scopes=String(req.body?.scopes??anterior.scopes??'').trim();
+      const scopes=String(req.body?.scopes??anterior.scopes??BB_SCOPE_COBRANCAS).trim()||BB_SCOPE_COBRANCAS;
       if(!app_key||!client_id||!client_secret)throw new Error('Informe App Key, Client ID e Client Secret na primeira configuração.');
       await salvarRegistro(idRegistro(amb,'credenciais'),'bb',amb,'credenciais',{app_key,client_id,client_secret,scopes},{scopes});
       return json(res,200,{ok:true,mensagem:'Credenciais salvas com criptografia no backend.'});
@@ -160,7 +165,7 @@ module.exports=async function(req,res){
       if(!base64||!senha)throw new Error('Selecione o arquivo A1 e informe a senha.');
       const p=parsePfx(base64,senha);
       await salvarRegistro(idRegistro(amb,'certificado_pendente'),'bb',amb,'certificado_pendente',{pfx_base64:base64,senha,pem_cadeia:p.pem},{...p.metadata,nome_arquivo:String(req.body?.nome_arquivo||'certificado.pfx')});
-      return json(res,200,{ok:true,mensagem:'Novo A1 validado e preparado. O certificado atual continuará ativo até o novo passar no teste com o BB.',certificado:p.metadata});
+      return json(res,200,{ok:true,mensagem:'A1 validado e armazenado com segurança. Para a Cobranças v2 desta aplicação, o Banco do Brasil não exige mTLS.',certificado:p.metadata});
     }
     if(action==='cadeia'){
       const certReg=(await obterRegistro(idRegistro(amb,'certificado_pendente')))||(await obterRegistro(idRegistro(amb,'certificado')));if(!certReg)throw new Error('Nenhum A1 cadastrado.');
@@ -168,15 +173,8 @@ module.exports=async function(req,res){
     }
     if(action==='testar'){
       const teste=await testarOAuth(amb);
-      if(teste.usou_pendente){
-        const pend=await obterRegistro(idRegistro(amb,'certificado_pendente'));
-        const aberto=descriptografar(pend);
-        await salvarRegistro(idRegistro(amb,'certificado'),'bb',amb,'certificado',aberto,pend.metadata||{});
-        await supabaseRest(TABELA,{method:'DELETE',query:`?id=eq.${encodeURIComponent(idRegistro(amb,'certificado_pendente'))}`});
-        teste.promovido=true;
-      }
       return json(res,200,{ok:true,teste});
     }
     return json(res,400,{ok:false,erro:'Ação inválida.'});
-  }catch(e){console.error('[BANCO-BB V146]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
+  }catch(e){console.error('[BANCO-BB V147]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
 };
