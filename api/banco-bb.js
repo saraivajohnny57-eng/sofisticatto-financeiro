@@ -5,6 +5,7 @@ const {exigirAdmin,supabaseRest,criptografar,descriptografar}=require('../lib/in
 const TABELA='integracoes_bancarias_segredos';
 const CNPJ_PADRAO='05451985000195';
 const BB_SCOPE_COBRANCAS='cobrancas.boletos-info cobrancas.boletos-requisicao';
+const BB_CONFIG_PRODUCAO=Object.freeze({numeroConvenio:'3054166',numeroCarteira:'17',numeroVariacaoCarteira:'027',codigoModalidade:1});
 const normalizarAmb=v=>String(v||'producao').toLowerCase()==='teste'?'teste':'producao';
 const soDigitos=v=>String(v||'').replace(/\D/g,'');
 
@@ -183,23 +184,29 @@ function dataBb(v){
 }
 function amanhaDaData(v){const d=new Date(String(v)+'T12:00:00');d.setDate(d.getDate()+1);return dataBb(d.toISOString())}
 function texto(v,max){return String(v||'').trim().replace(/[\\\r\n]/g,' ').slice(0,max)}
-async function emitirBoletoPiloto(amb,entrada={}){
+function configBbProducao(){return {...BB_CONFIG_PRODUCAO}}
+function montarNossoNumeroBb(sequencial){
+  const seq=soDigitos(sequencial);
+  if(seq.length!==10)throw new Error('Informe o sequencial do Nosso Número com exatamente 10 dígitos.');
+  if(seq==='0000000000')throw new Error('O sequencial do Nosso Número não pode ser zero.');
+  return '000'+BB_CONFIG_PRODUCAO.numeroConvenio+seq;
+}
+function prepararBoletoPiloto(amb,entrada={}){
   if(amb!=='producao')throw new Error('A emissão piloto desta tela está liberada somente em Produção.');
-  const convenio=soDigitos(entrada.numeroConvenio), carteira=soDigitos(entrada.numeroCarteira), variacao=soDigitos(entrada.numeroVariacaoCarteira);
-  const modalidade=Number(entrada.codigoModalidade||1), valor=Number(entrada.valorOriginal||0);
+  const {numeroConvenio:convenio,numeroCarteira:carteira,numeroVariacaoCarteira:variacao,codigoModalidade:modalidade}=BB_CONFIG_PRODUCAO;
+  const valor=Number(entrada.valorOriginal||0);
   const venc=String(entrada.dataVencimento||'');
   const doc=soDigitos(entrada.numeroInscricao), cep=soDigitos(entrada.cep);
   const nome=texto(entrada.nome,30), endereco=texto(entrada.endereco,30), bairro=texto(entrada.bairro,30), cidade=texto(entrada.cidade,30), uf=texto(entrada.uf,2).toUpperCase();
-  if(convenio.length!==7)throw new Error('O número do convênio deve ter 7 dígitos.');
-  if(!carteira||!variacao)throw new Error('Informe carteira e variação da carteira do convênio.');
-  if(![1,4].includes(modalidade))throw new Error('Modalidade inválida. Use 1 (Simples) ou 4 (Vinculada).');
+  if(convenio.length!==7||!carteira||!variacao)throw new Error('A configuração bancária oficial do BB está incompleta no servidor.');
+  if(modalidade!==1)throw new Error('A configuração oficial desta integração deve permanecer na modalidade 1 (Simples).');
   if(!(valor>0))throw new Error('Informe um valor maior que zero.');
   if(!venc)throw new Error('Informe o vencimento.');
   if(![11,14].includes(doc.length))throw new Error('Informe CPF ou CNPJ válido do pagador.');
   if(!nome||!endereco||!bairro||!cidade||uf.length!==2||cep.length<7)throw new Error('Preencha nome, endereço, bairro, cidade, UF e CEP do pagador.');
   const tipoInscricao=doc.length===11?1:2;
-  const seq=String(Date.now()).slice(-10);
-  const nossoNumero='000'+convenio+seq;
+  const seq=soDigitos(entrada.sequencialNossoNumero);
+  const nossoNumero=montarNossoNumeroBb(seq);
   const seuNumero=texto(entrada.numeroTituloBeneficiario||('SF'+seq),15).toUpperCase();
   const payload={
     numeroConvenio:Number(convenio),numeroCarteira:Number(carteira),numeroVariacaoCarteira:Number(variacao),codigoModalidade:modalidade,
@@ -212,6 +219,21 @@ async function emitirBoletoPiloto(amb,entrada={}){
     indicadorPix:'N'
   };
   if(entrada.email)payload.email=texto(entrada.email,60);
+  return {
+    ok:true,
+    configuracao:{numeroConvenio:convenio,numeroCarteira:carteira,numeroVariacaoCarteira:variacao,codigoModalidade:modalidade},
+    sequencialNossoNumero:seq,
+    numeroTituloCliente:nossoNumero,
+    numeroTituloBeneficiario:seuNumero,
+    resumo:{valorOriginal:payload.valorOriginal,dataVencimento:payload.dataVencimento,pagador:{tipoInscricao:payload.pagador.tipoInscricao,numeroInscricao:doc,nome:payload.pagador.nome,cidade:payload.pagador.cidade,uf:payload.pagador.uf},jurosMora:payload.jurosMora,multa:payload.multa,indicadorPermissaoRecebimentoParcial:payload.indicadorPermissaoRecebimentoParcial},
+    payload
+  };
+}
+async function emitirBoletoPiloto(amb,entrada={}){
+  const preparo=prepararBoletoPiloto(amb,entrada);
+  const payload=preparo.payload;
+  const nossoNumero=preparo.numeroTituloCliente;
+  const seuNumero=preparo.numeroTituloBeneficiario;
   const o=await obterTokenOAuth(amb), base='https://api.bb.com.br';
   const url=`${base}/cobrancas/v2/boletos?gw-dev-app-key=${encodeURIComponent(o.cred.app_key)}`;
   const body=JSON.stringify(payload);
@@ -277,10 +299,15 @@ module.exports=async function(req,res){
       const teste=await testarApiCobrancas(amb,req.body||{});
       return json(res,200,{ok:true,teste});
     }
+    if(action==='preparar-piloto'){
+      const preparo=prepararBoletoPiloto(amb,req.body||{});
+      const {payload,...seguro}=preparo;
+      return json(res,200,{ok:true,preparo:seguro});
+    }
     if(action==='emitir-piloto'){
       const emissao=await emitirBoletoPiloto(amb,req.body||{});
       return json(res,201,{ok:true,emissao});
     }
     return json(res,400,{ok:false,erro:'Ação inválida.'});
-  }catch(e){console.error('[BANCO-BB V149]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
+  }catch(e){console.error('[BANCO-BB V150]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
 };
