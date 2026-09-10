@@ -2678,11 +2678,14 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <div class="bb-api-test-box" style="margin-top:14px;padding:14px;border:2px solid #e6b800;border-radius:12px;background:#fffdf2;">
       <h4 style="margin:0 0 6px;">🧾 Emissão piloto — 1 boleto real</h4>
       <p class="bb-cert-ajuda"><b>Atenção:</b> este botão registra UM boleto real no Banco do Brasil. Confira todos os dados antes de confirmar. Juros: 5% ao mês • Multa: 2% a partir do dia seguinte ao vencimento • sem desconto • sem pagamento parcial.</p>
+      <div style="margin:10px 0;padding:10px 12px;border:1px solid #e2d69a;border-radius:10px;background:#fffaf0;font-size:13px;">
+        <b>Configuração oficial BB:</b> Convênio <b>3054166</b> • Carteira/Variação <b>17/027</b> • Modalidade <b>1 — Simples</b>. Esses parâmetros ficam fixos no servidor para evitar digitação incorreta.
+      </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
-        <div><label>Convênio (7 dígitos)</label><input id="bbPilotoConvenio" inputmode="numeric"></div>
-        <div><label>Carteira</label><input id="bbPilotoCarteira" inputmode="numeric" value="17"></div>
-        <div><label>Variação</label><input id="bbPilotoVariacao" inputmode="numeric"></div>
-        <div><label>Modalidade</label><select id="bbPilotoModalidade"><option value="1">1 — Simples</option><option value="4">4 — Vinculada</option></select></div>
+        <div><label>Convênio</label><input value="3054166" readonly></div>
+        <div><label>Carteira / Variação</label><input value="17 / 027" readonly></div>
+        <div><label>Modalidade</label><input value="1 — Simples" readonly></div>
+        <div><label>Sequencial do Nosso Número (10 dígitos)</label><input id="bbPilotoSequencial" inputmode="numeric" maxlength="10" placeholder="Ex.: 0000034114"></div>
         <div><label>Valor (R$)</label><input id="bbPilotoValor" type="number" min="0.01" step="0.01"></div>
         <div><label>Vencimento</label><input id="bbPilotoVencimento" type="date"></div>
         <div><label>CPF/CNPJ pagador</label><input id="bbPilotoDocumento" inputmode="numeric"></div>
@@ -2694,7 +2697,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div><label>CEP</label><input id="bbPilotoCep" inputmode="numeric"></div>
         <div><label>E-mail (opcional)</label><input id="bbPilotoEmail" type="email"></div>
       </div>
-      <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn verde" onclick="emitirBoletoPilotoBB()">🧾 Conferir e emitir 1 boleto real</button><span style="font-size:12px;color:#766d4d;">A emissão em massa continua bloqueada até este piloto ser conferido.</span></div>
+      <div style="margin-top:10px;padding:9px 12px;border-radius:9px;background:#fff7d6;font-size:12px;color:#6d5e21;"><b>Nosso Número:</b> o BB exige 20 dígitos no formato <b>000 + convênio + sequencial de 10 dígitos</b>. Informe aqui o próximo sequencial livre do sistema atual. O print anterior mostrou 0000034113; use 0000034114 somente se 34113 realmente for o último já utilizado.</div>
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn azul" onclick="previsualizarBoletoPilotoBB()">🔎 Pré-visualizar emissão</button><button class="btn verde" id="btnBbEmitirPiloto" onclick="emitirBoletoPilotoBB()" disabled>🧾 Emitir 1 boleto real</button><span style="font-size:12px;color:#766d4d;">A emissão em massa continua bloqueada até este piloto ser conferido.</span></div>
       <div id="bbPilotoResultado" class="bb-cert-aviso" style="margin-top:10px;">Nenhum boleto piloto emitido nesta sessão.</div>
     </div>
   </div>
@@ -2923,7 +2927,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=148-bb-teste-api-cobrancas"></script>
+<script src="financeiro.js?v=150-bb-nosso-numero-seguro"></script>
 <script src="corridas.js?v=143-corrige-abas-entregador"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
