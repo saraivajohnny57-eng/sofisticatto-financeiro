@@ -123,16 +123,17 @@ function getHttps({url,headers}){
     req.on('error',reject);req.end();
   });
 }
-function postHttps({url,headers,body,pfx,passphrase}){
+function requestHttps({url,headers={},body='',method='POST',pfx,passphrase}){
   return new Promise((resolve,reject)=>{
     const u=new URL(url);
-    const req=https.request({hostname:u.hostname,port:443,path:u.pathname+u.search,method:'POST',headers,pfx,passphrase,rejectUnauthorized:true,timeout:20000},res=>{
+    const req=https.request({hostname:u.hostname,port:443,path:u.pathname+u.search,method,headers,pfx,passphrase,rejectUnauthorized:true,timeout:20000},res=>{
       const parts=[];res.on('data',d=>parts.push(d));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,text:Buffer.concat(parts).toString('utf8')}));
     });
     req.on('timeout',()=>req.destroy(new Error('Tempo esgotado ao conectar ao Banco do Brasil.')));
-    req.on('error',reject);req.write(body);req.end();
+    req.on('error',reject);if(body)req.write(body);req.end();
   });
 }
+function postHttps(o){return requestHttps({...o,method:'POST'})}
 
 async function obterTokenOAuth(amb){
   const credReg=await obterRegistro(idRegistro(amb,'credenciais'));
@@ -172,6 +173,52 @@ async function testarApiCobrancas(amb,entrada={}){
   }
   const quantidade=Array.isArray(data?.boletos)?data.boletos.length:(Array.isArray(data?.listaBoletos)?data.listaBoletos.length:null);
   return {ok:true,status:r.status,endpoint:'/cobrancas/v2/boletos',metodo:'GET',somente_consulta:true,data:dataBbHoje(),quantidade};
+}
+
+
+function dataBb(v){
+  const d=v?new Date(String(v).includes('T')?v:String(v)+'T12:00:00'):new Date();
+  if(isNaN(d))throw new Error('Data inválida.');
+  return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
+}
+function amanhaDaData(v){const d=new Date(String(v)+'T12:00:00');d.setDate(d.getDate()+1);return dataBb(d.toISOString())}
+function texto(v,max){return String(v||'').trim().replace(/[\\\r\n]/g,' ').slice(0,max)}
+async function emitirBoletoPiloto(amb,entrada={}){
+  if(amb!=='producao')throw new Error('A emissão piloto desta tela está liberada somente em Produção.');
+  const convenio=soDigitos(entrada.numeroConvenio), carteira=soDigitos(entrada.numeroCarteira), variacao=soDigitos(entrada.numeroVariacaoCarteira);
+  const modalidade=Number(entrada.codigoModalidade||1), valor=Number(entrada.valorOriginal||0);
+  const venc=String(entrada.dataVencimento||'');
+  const doc=soDigitos(entrada.numeroInscricao), cep=soDigitos(entrada.cep);
+  const nome=texto(entrada.nome,30), endereco=texto(entrada.endereco,30), bairro=texto(entrada.bairro,30), cidade=texto(entrada.cidade,30), uf=texto(entrada.uf,2).toUpperCase();
+  if(convenio.length!==7)throw new Error('O número do convênio deve ter 7 dígitos.');
+  if(!carteira||!variacao)throw new Error('Informe carteira e variação da carteira do convênio.');
+  if(![1,4].includes(modalidade))throw new Error('Modalidade inválida. Use 1 (Simples) ou 4 (Vinculada).');
+  if(!(valor>0))throw new Error('Informe um valor maior que zero.');
+  if(!venc)throw new Error('Informe o vencimento.');
+  if(![11,14].includes(doc.length))throw new Error('Informe CPF ou CNPJ válido do pagador.');
+  if(!nome||!endereco||!bairro||!cidade||uf.length!==2||cep.length<7)throw new Error('Preencha nome, endereço, bairro, cidade, UF e CEP do pagador.');
+  const tipoInscricao=doc.length===11?1:2;
+  const seq=String(Date.now()).slice(-10);
+  const nossoNumero='000'+convenio+seq;
+  const seuNumero=texto(entrada.numeroTituloBeneficiario||('SF'+seq),15).toUpperCase();
+  const payload={
+    numeroConvenio:Number(convenio),numeroCarteira:Number(carteira),numeroVariacaoCarteira:Number(variacao),codigoModalidade:modalidade,
+    dataEmissao:dataBb(),dataVencimento:dataBb(venc),valorOriginal:Math.round(valor*100)/100,valorAbatimento:0,
+    indicadorAceiteTituloVencido:'S',numeroDiasLimiteRecebimento:90,codigoAceite:'N',codigoTipoTitulo:2,descricaoTipoTitulo:'DUPLICATA MERCANTIL',
+    indicadorPermissaoRecebimentoParcial:'N',numeroTituloBeneficiario:seuNumero,numeroTituloCliente:nossoNumero,
+    mensagemBloquetoOcorrencia:'SOFISTICATTO COSMETICOS',desconto:{tipo:0},segundoDesconto:{tipo:0},terceiroDesconto:{tipo:0},
+    jurosMora:{tipo:2,porcentagem:5.00},multa:{tipo:2,data:amanhaDaData(venc),porcentagem:2.00},
+    pagador:{tipoInscricao,numeroInscricao:doc.replace(/^0+/,''),nome,endereco,bairro,cidade,cep:cep.replace(/^0+/,''),uf},
+    indicadorPix:'N'
+  };
+  if(entrada.email)payload.email=texto(entrada.email,60);
+  const o=await obterTokenOAuth(amb), base='https://api.bb.com.br';
+  const url=`${base}/cobrancas/v2/boletos?gw-dev-app-key=${encodeURIComponent(o.cred.app_key)}`;
+  const body=JSON.stringify(payload);
+  const r=await requestHttps({url,method:'POST',headers:{Authorization:`Bearer ${o.token}`,Accept:'application/json','Content-Type':'application/json','Content-Length':Buffer.byteLength(body)},body});
+  let data={};try{data=JSON.parse(r.text||'{}')}catch{data={raw:r.text}}
+  if(r.status<200||r.status>=300){const detalhe=data?.erros?.[0]?.mensagem||data?.mensagem||data?.message||data?.error_description||data?.error||`API Cobranças v2 HTTP ${r.status}`;throw new Error(detalhe)}
+  return {ok:true,status:r.status,emitido:true,numeroTituloCliente:nossoNumero,numeroTituloBeneficiario:seuNumero,numeroBoletoBB:data.numero||data.numeroBoletoBB||data.numeroTituloCliente||nossoNumero,linhaDigitavel:data.linhaDigitavel||data.linhaDigitavelBoleto||null,codigoBarraNumerico:data.codigoBarraNumerico||data.codigoBarras||null,data};
 }
 
 async function testarOAuth(amb){
@@ -230,6 +277,10 @@ module.exports=async function(req,res){
       const teste=await testarApiCobrancas(amb,req.body||{});
       return json(res,200,{ok:true,teste});
     }
+    if(action==='emitir-piloto'){
+      const emissao=await emitirBoletoPiloto(amb,req.body||{});
+      return json(res,201,{ok:true,emissao});
+    }
     return json(res,400,{ok:false,erro:'Ação inválida.'});
-  }catch(e){console.error('[BANCO-BB V148]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
+  }catch(e){console.error('[BANCO-BB V149]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
 };
