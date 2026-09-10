@@ -113,6 +113,16 @@ async function statusAmbiente(amb){
   if(meta?.valido_ate){dias=Math.ceil((new Date(meta.valido_ate)-new Date())/86400000);vencido=dias<0}
   return {ambiente:amb,mtls_exigido:false,credenciais:{configuradas:!!cred,app_key:!!cred,client_id:!!cred,client_secret:!!cred,scopes:cred?.metadata?.scopes||BB_SCOPE_COBRANCAS},certificado:{configurado:!!certExibido,...(meta||{}),dias_restantes:dias,vencido,uso:'opcional'},certificado_pendente:{configurado:false}};
 }
+function getHttps({url,headers}){
+  return new Promise((resolve,reject)=>{
+    const u=new URL(url);
+    const req=https.request({hostname:u.hostname,port:443,path:u.pathname+u.search,method:'GET',headers,rejectUnauthorized:true,timeout:20000},res=>{
+      const parts=[];res.on('data',d=>parts.push(d));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,text:Buffer.concat(parts).toString('utf8')}));
+    });
+    req.on('timeout',()=>req.destroy(new Error('Tempo esgotado ao consultar a API do Banco do Brasil.')));
+    req.on('error',reject);req.end();
+  });
+}
 function postHttps({url,headers,body,pfx,passphrase}){
   return new Promise((resolve,reject)=>{
     const u=new URL(url);
@@ -123,6 +133,47 @@ function postHttps({url,headers,body,pfx,passphrase}){
     req.on('error',reject);req.write(body);req.end();
   });
 }
+
+async function obterTokenOAuth(amb){
+  const credReg=await obterRegistro(idRegistro(amb,'credenciais'));
+  if(!credReg)throw new Error('Credenciais BB ainda não cadastradas neste ambiente.');
+  const cred=descriptografar(credReg);
+  const base=amb==='teste'?'https://oauth.hm.bb.com.br':'https://oauth.bb.com.br';
+  const scopes=String(cred.scopes||BB_SCOPE_COBRANCAS).trim()||BB_SCOPE_COBRANCAS;
+  const body=`grant_type=client_credentials&scope=${encodeURIComponent(scopes)}`;
+  const auth=Buffer.from(`${cred.client_id}:${cred.client_secret}`,'utf8').toString('base64');
+  const r=await postHttps({url:`${base}/oauth/token`,headers:{Authorization:`Basic ${auth}`,'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(body)},body});
+  let data={};try{data=JSON.parse(r.text||'{}')}catch{data={raw:r.text}}
+  if(r.status<200||r.status>=300)throw new Error(data.error_description||data.error||data.message||`BB OAuth HTTP ${r.status}`);
+  if(!data.access_token)throw new Error('O BB não retornou access_token.');
+  return {cred,token:data.access_token,expires_in:data.expires_in||null,scope:data.scope||scopes,status:r.status};
+}
+function dataBbHoje(){const d=new Date();return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear()}
+async function testarApiCobrancas(amb,entrada={}){
+  const agencia=soDigitos(entrada.agencia);
+  const conta=soDigitos(entrada.conta);
+  if(!agencia||!conta)throw new Error('Informe agência e conta do convênio BB para o teste de consulta.');
+  const o=await obterTokenOAuth(amb);
+  const base=amb==='teste'?'https://api.hm.bb.com.br':'https://api.bb.com.br';
+  const q=new URLSearchParams({
+    'gw-dev-app-key':o.cred.app_key,
+    indicadorSituacao:'B',
+    agenciaBeneficiario:agencia,
+    contaBeneficiario:conta,
+    dataInicioMovimento:dataBbHoje(),
+    dataFimMovimento:dataBbHoje()
+  });
+  const r=await getHttps({url:`${base}/cobrancas/v2/boletos?${q.toString()}`,headers:{Authorization:`Bearer ${o.token}`,Accept:'application/json'}});
+  let data={};try{data=JSON.parse(r.text||'{}')}catch{data={raw:r.text}}
+  // 200 confirma a chamada. 204 também é aceito como consulta sem conteúdo.
+  if(r.status!==200&&r.status!==204){
+    const detalhe=data?.erros?.[0]?.mensagem||data?.mensagem||data?.message||data?.error_description||data?.error||`API Cobranças v2 HTTP ${r.status}`;
+    throw new Error(detalhe);
+  }
+  const quantidade=Array.isArray(data?.boletos)?data.boletos.length:(Array.isArray(data?.listaBoletos)?data.listaBoletos.length:null);
+  return {ok:true,status:r.status,endpoint:'/cobrancas/v2/boletos',metodo:'GET',somente_consulta:true,data:dataBbHoje(),quantidade};
+}
+
 async function testarOAuth(amb){
   const credReg=await obterRegistro(idRegistro(amb,'credenciais'));
   if(!credReg)throw new Error('Credenciais BB ainda não cadastradas neste ambiente.');
@@ -175,6 +226,10 @@ module.exports=async function(req,res){
       const teste=await testarOAuth(amb);
       return json(res,200,{ok:true,teste});
     }
+    if(action==='testar-api'){
+      const teste=await testarApiCobrancas(amb,req.body||{});
+      return json(res,200,{ok:true,teste});
+    }
     return json(res,400,{ok:false,erro:'Ação inválida.'});
-  }catch(e){console.error('[BANCO-BB V147]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
+  }catch(e){console.error('[BANCO-BB V148]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
 };
