@@ -7624,3 +7624,21 @@ async function testarApiCobrancasBB(){
     alert('Teste da API Cobranças v2 não concluído.\n\n'+e.message+'\n\nNenhum boleto foi emitido ou alterado.');
   }
 }
+
+
+async function emitirBoletoPilotoBB(){
+  const v=id=>String(document.getElementById(id)?.value||'').trim();
+  const body={numeroConvenio:v('bbPilotoConvenio'),numeroCarteira:v('bbPilotoCarteira'),numeroVariacaoCarteira:v('bbPilotoVariacao'),codigoModalidade:v('bbPilotoModalidade'),valorOriginal:Number(v('bbPilotoValor')||0),dataVencimento:v('bbPilotoVencimento'),numeroInscricao:v('bbPilotoDocumento'),nome:v('bbPilotoNome'),endereco:v('bbPilotoEndereco'),bairro:v('bbPilotoBairro'),cidade:v('bbPilotoCidade'),uf:v('bbPilotoUf'),cep:v('bbPilotoCep'),email:v('bbPilotoEmail')};
+  const out=document.getElementById('bbPilotoResultado');
+  if(bbAmbiente()!=='producao')return alert('Selecione o ambiente PRODUÇÃO para a emissão piloto real.');
+  const resumo=`ATENÇÃO: ESTA AÇÃO REGISTRA UM BOLETO REAL NO BANCO DO BRASIL.\n\nPagador: ${body.nome}\nCPF/CNPJ: ${body.numeroInscricao}\nValor: ${Number(body.valorOriginal||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}\nVencimento: ${body.dataVencimento?new Date(body.dataVencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}\nConvênio: ${body.numeroConvenio}\nCarteira/Variação: ${body.numeroCarteira}/${body.numeroVariacaoCarteira}\n\nJuros: 5% ao mês\nMulta: 2% a partir do dia seguinte\nDesconto: nenhum\nPagamento parcial: não\n\nDeseja registrar este boleto REAL?`;
+  if(!confirm(resumo))return;
+  const confirmacao=prompt('Para confirmar a emissão REAL, digite exatamente: EMITIR');
+  if(String(confirmacao||'').trim().toUpperCase()!=='EMITIR')return alert('Emissão cancelada. Nenhum boleto foi registrado.');
+  if(out){out.className='bb-cert-aviso';out.textContent='Registrando UM boleto piloto no Banco do Brasil...'}
+  try{
+    const j=await bbReq('emitir-piloto',{method:'POST',body});const e=j.emissao||{};
+    if(out){out.className='bb-cert-aviso ok';out.textContent=`✅ Boleto REAL registrado no BB. HTTP ${e.status||201}. Nosso número: ${e.numeroTituloCliente||'—'}${e.linhaDigitavel?` • Linha digitável: ${e.linhaDigitavel}`:''}. Confira o título no Banco do Brasil antes de liberar emissão em massa.`}
+    alert('Boleto piloto registrado com sucesso no Banco do Brasil.\n\nNosso número: '+(e.numeroTituloCliente||'—')+'\n\nAgora confira esse boleto no portal/gerenciador do BB antes de emitir qualquer outro.');
+  }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ O boleto piloto NÃO foi confirmado como emitido: '+e.message}alert('Emissão piloto não concluída.\n\n'+e.message+'\n\nNão tente novamente sem conferir primeiro no BB se algum título foi registrado.');}
+}

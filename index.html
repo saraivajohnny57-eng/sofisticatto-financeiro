@@ -2675,6 +2675,28 @@ SOFISTICATTO COSMÉTICOS</textarea>
       </div>
       <div id="bbTesteApiResultado" class="bb-cert-aviso" style="margin-top:10px;">Aguardando teste da API.</div>
     </div>
+    <div class="bb-api-test-box" style="margin-top:14px;padding:14px;border:2px solid #e6b800;border-radius:12px;background:#fffdf2;">
+      <h4 style="margin:0 0 6px;">🧾 Emissão piloto — 1 boleto real</h4>
+      <p class="bb-cert-ajuda"><b>Atenção:</b> este botão registra UM boleto real no Banco do Brasil. Confira todos os dados antes de confirmar. Juros: 5% ao mês • Multa: 2% a partir do dia seguinte ao vencimento • sem desconto • sem pagamento parcial.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+        <div><label>Convênio (7 dígitos)</label><input id="bbPilotoConvenio" inputmode="numeric"></div>
+        <div><label>Carteira</label><input id="bbPilotoCarteira" inputmode="numeric" value="17"></div>
+        <div><label>Variação</label><input id="bbPilotoVariacao" inputmode="numeric"></div>
+        <div><label>Modalidade</label><select id="bbPilotoModalidade"><option value="1">1 — Simples</option><option value="4">4 — Vinculada</option></select></div>
+        <div><label>Valor (R$)</label><input id="bbPilotoValor" type="number" min="0.01" step="0.01"></div>
+        <div><label>Vencimento</label><input id="bbPilotoVencimento" type="date"></div>
+        <div><label>CPF/CNPJ pagador</label><input id="bbPilotoDocumento" inputmode="numeric"></div>
+        <div><label>Nome / Razão social</label><input id="bbPilotoNome" maxlength="30"></div>
+        <div><label>Endereço</label><input id="bbPilotoEndereco" maxlength="30"></div>
+        <div><label>Bairro</label><input id="bbPilotoBairro" maxlength="30"></div>
+        <div><label>Cidade</label><input id="bbPilotoCidade" maxlength="30"></div>
+        <div><label>UF</label><input id="bbPilotoUf" maxlength="2"></div>
+        <div><label>CEP</label><input id="bbPilotoCep" inputmode="numeric"></div>
+        <div><label>E-mail (opcional)</label><input id="bbPilotoEmail" type="email"></div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn verde" onclick="emitirBoletoPilotoBB()">🧾 Conferir e emitir 1 boleto real</button><span style="font-size:12px;color:#766d4d;">A emissão em massa continua bloqueada até este piloto ser conferido.</span></div>
+      <div id="bbPilotoResultado" class="bb-cert-aviso" style="margin-top:10px;">Nenhum boleto piloto emitido nesta sessão.</div>
+    </div>
   </div>
 
   <div class="cobranca-card cobranca-massa-card">
