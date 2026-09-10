@@ -7606,3 +7606,21 @@ A Cobranças v2 desta aplicação não exige mTLS e este teste não emite boleto
     alert('Teste Banco do Brasil não concluído.\n\n'+e.message+'\n\nAs credenciais não foram apagadas. Confira a mensagem retornada pelo BB e tente novamente.');
   }
 }
+
+async function testarApiCobrancasBB(){
+  const agencia=String(document.getElementById('bbTesteAgencia')?.value||'').replace(/\D/g,'');
+  const conta=String(document.getElementById('bbTesteConta')?.value||'').replace(/\D/g,'');
+  const out=document.getElementById('bbTesteApiResultado');
+  if(!agencia||!conta)return alert('Informe a agência e a conta beneficiária do convênio de cobrança do Banco do Brasil.');
+  if(!confirm(`Fazer uma consulta segura na API Cobranças v2 em ${bbAmbiente()==='teste'?'TESTE':'PRODUÇÃO'}?\n\nO teste usa GET e não emite, altera nem baixa boletos.`))return;
+  if(out){out.className='bb-cert-aviso';out.textContent='Consultando a API Cobranças v2 do Banco do Brasil...'}
+  try{
+    const j=await bbReq('testar-api',{method:'POST',body:{agencia,conta}});const t=j.teste||{};
+    let extra=t.quantidade==null?'Consulta aceita pelo BB.':`${t.quantidade} boleto(s) retornado(s) para hoje.`;
+    if(out){out.className='bb-cert-aviso ok';out.textContent=`✅ API Cobranças v2 respondeu HTTP ${t.status||200}. ${extra} Nenhum boleto foi emitido ou alterado.`}
+    const topo=document.getElementById('bbStatusTopo');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Banco do Brasil • API Cobranças v2 validada'}
+  }catch(e){
+    if(out){out.className='bb-cert-aviso erro';out.textContent='❌ A API respondeu, mas o teste não foi concluído: '+e.message}
+    alert('Teste da API Cobranças v2 não concluído.\n\n'+e.message+'\n\nNenhum boleto foi emitido ou alterado.');
+  }
+}

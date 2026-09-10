@@ -2665,6 +2665,16 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div id="bbCertDetalhes" class="bb-cert-detalhes">Nenhum certificado carregado.</div>
       </div>
     </div>
+    <div class="bb-api-test-box" style="margin-top:14px;padding:14px;border:1px solid #d9d2ea;border-radius:12px;background:#faf9ff;">
+      <h4 style="margin:0 0 6px;">🧪 Teste seguro — API Cobranças v2</h4>
+      <p class="bb-cert-ajuda" style="margin:0 0 10px;">Faz somente uma consulta GET dos boletos movimentados hoje. Não registra, altera, baixa nem emite boleto.</p>
+      <div style="display:grid;grid-template-columns:minmax(140px,1fr) minmax(180px,1fr) auto;gap:10px;align-items:end;">
+        <div><label>Agência beneficiária</label><input id="bbTesteAgencia" inputmode="numeric" placeholder="Ex.: 1234"></div>
+        <div><label>Conta beneficiária</label><input id="bbTesteConta" inputmode="numeric" placeholder="Conta do convênio BB"></div>
+        <button class="btn verde" onclick="testarApiCobrancasBB()">🔎 Testar API Cobranças v2</button>
+      </div>
+      <div id="bbTesteApiResultado" class="bb-cert-aviso" style="margin-top:10px;">Aguardando teste da API.</div>
+    </div>
   </div>
 
   <div class="cobranca-card cobranca-massa-card">
@@ -2891,7 +2901,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=147-bb-oauth-scopes-sem-mtls"></script>
+<script src="financeiro.js?v=148-bb-teste-api-cobrancas"></script>
 <script src="corridas.js?v=143-corrige-abas-entregador"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
