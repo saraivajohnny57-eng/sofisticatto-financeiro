@@ -7548,7 +7548,20 @@ async function gerarPdfBoletoBb(d,opt={}){
   const agenciaCodigo='03483-5 / 19039-X';
   const carteira='17 / 027';
   const pagEndereco=[d.endereco,d.numero,d.bairro,d.cep,d.cidade,d.uf].filter(Boolean).join(' - ');
-  const only=(v)=>String(v??'').replace(/\s+/g,' ').trim();
+  // V166: StandardFonts do PDF-Lib usa WinAnsi. Dados vindos do cadastro/API podem
+  // conter U+FFFD (�), emojis ou caracteres Unicode que fazem a geração inteira falhar.
+  // Mantemos os acentos latinos suportados e convertemos apenas caracteres incompatíveis.
+  const textoWinAnsiSeguro=(v)=>String(v??'')
+    .replace(/\uFFFD/g,'-')
+    .replace(/[–—−]/g,'-')
+    .replace(/[‘’‚]/g,"'")
+    .replace(/[“”„]/g,'"')
+    .replace(/…/g,'...')
+    .replace(/•/g,'-')
+    .replace(/→/g,'->')
+    .replace(/←/g,'<-')
+    .replace(/[^\x20-\x7E\xA0-\xFF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]/g,' ');
+  const only=(v)=>textoWinAnsiSeguro(v).replace(/\s+/g,' ').trim();
   const mm=v=>v*72/25.4;
   const drawTextFit=(text,x,y,maxW,size=7,f=font,align='left')=>{
     text=only(text);let sz=size;while(sz>4.0&&f.widthOfTextAtSize(text,sz)>maxW)sz-=.18;
@@ -8277,4 +8290,4 @@ async function emitirBoletoPilotoBB(){
 setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bbPilotoDocumento','bbPilotoNome','bbPilotoEndereco','bbPilotoBairro','bbPilotoCidade','bbPilotoUf','bbPilotoCep','bbPilotoEmail'].forEach(id=>{const el=document.getElementById(id);if(el&&!el.dataset.bbPreviewWatch){el.dataset.bbPreviewWatch='1';el.addEventListener('input',invalidarPreparoPilotoBB);el.addEventListener('change',invalidarPreparoPilotoBB)}});configurarBuscaClientePilotoBB();bbPilotoCarregarProximoNossoNumero()},0);
 
 
-// V165 — Impressão Normal em PDF único por pedido/parcelamento, sem logo Sofisticatto; 2ª via BB permanece separada.
+// V166 — Corrige caracteres incompatíveis com WinAnsi na Impressão Normal; PDF único e 2ª via BB preservados.
