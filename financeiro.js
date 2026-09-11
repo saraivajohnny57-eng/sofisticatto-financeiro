@@ -7640,9 +7640,12 @@ function bbPilotoMostrarSequencial(seq){
 async function bbPilotoCarregarProximoNossoNumero(){
   try{
     const j=await bbReq('proximo-nosso-numero',{method:'GET'});
-    bbPilotoMostrarSequencial(j?.sequencialNossoNumero||'0000034113');
+    bbPilotoMostrarSequencial(j?.sequencialNossoNumero||'');
   }catch(e){
-    bbPilotoMostrarSequencial('0000034113');
+    bbPilotoMostrarSequencial('');
+    invalidarPreparoPilotoBB();
+    const out=document.getElementById('bbPilotoResultado');
+    if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Controle automático do Nosso Número indisponível: '+e.message}
     console.warn('Não foi possível consultar o próximo Nosso Número:',e);
   }
 }
@@ -7774,11 +7777,12 @@ async function emitirBoletoPilotoBB(){
   if(out){out.className='bb-cert-aviso';out.textContent='Registrando UM boleto piloto no Banco do Brasil...'}
   try{
     const j=await bbReq('emitir-piloto',{method:'POST',body});const e=j.emissao||{};
-    if(out){out.className='bb-cert-aviso ok';out.textContent=`✅ Boleto REAL registrado no BB. HTTP ${e.status||201}. Nº do título: ${e.numeroTituloBeneficiario||body.numeroTituloBeneficiario||'—'} • Nosso número: ${e.numeroTituloCliente||'—'}${e.linhaDigitavel?` • Linha digitável: ${e.linhaDigitavel}`:''}. Confira o título no Banco do Brasil antes de emitir qualquer outro.`}
+    const avisoExtra=e.aviso?`\n\n⚠️ ${e.aviso}`:'';
+    if(out){out.className='bb-cert-aviso ok';out.textContent=`✅ Boleto REAL confirmado pelo BB. HTTP ${e.status||201}. Nº do título: ${e.numeroTituloBeneficiario||body.numeroTituloBeneficiario||'—'} • Nosso número: ${e.numeroTituloCliente||'—'} • Próximo sequencial: ${e.proximoSequencialNossoNumero||'—'}${e.linhaDigitavel?` • Linha digitável: ${e.linhaDigitavel}`:''}.${e.aviso?' ⚠️ '+e.aviso:''}`}
     invalidarPreparoPilotoBB();
     bbPilotoMostrarSequencial(e.proximoSequencialNossoNumero||'');
     bbPilotoCarregarProximoNossoNumero();
-    alert('Boleto piloto registrado com sucesso no Banco do Brasil.\n\nNº do título: '+(e.numeroTituloBeneficiario||body.numeroTituloBeneficiario||'—')+'\nNosso número: '+(e.numeroTituloCliente||'—')+'\n\nAgora confira esse boleto no portal/gerenciador do BB antes de emitir qualquer outro.');
+    alert('Boleto piloto confirmado pelo Banco do Brasil.\n\nNº do título: '+(e.numeroTituloBeneficiario||body.numeroTituloBeneficiario||'—')+'\nNosso número: '+(e.numeroTituloCliente||'—')+'\nPróximo sequencial: '+(e.proximoSequencialNossoNumero||'—')+avisoExtra+'\n\nConfira o boleto no BB antes de liberar a emissão em massa.');
   }catch(e){invalidarPreparoPilotoBB();if(out){out.className='bb-cert-aviso erro';out.textContent='❌ O boleto piloto NÃO foi confirmado como emitido: '+e.message}alert('Emissão piloto não concluída.\n\n'+e.message+'\n\nNão tente novamente sem conferir primeiro no BB se algum título foi registrado.');}
 }
 setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bbPilotoDocumento','bbPilotoNome','bbPilotoEndereco','bbPilotoBairro','bbPilotoCidade','bbPilotoUf','bbPilotoCep','bbPilotoEmail'].forEach(id=>{const el=document.getElementById(id);if(el&&!el.dataset.bbPreviewWatch){el.dataset.bbPreviewWatch='1';el.addEventListener('input',invalidarPreparoPilotoBB);el.addEventListener('change',invalidarPreparoPilotoBB)}});configurarBuscaClientePilotoBB();bbPilotoCarregarProximoNossoNumero()},0);
