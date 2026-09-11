@@ -207,7 +207,8 @@ function prepararBoletoPiloto(amb,entrada={}){
   const tipoInscricao=doc.length===11?1:2;
   const seq=soDigitos(entrada.sequencialNossoNumero);
   const nossoNumero=montarNossoNumeroBb(seq);
-  const seuNumero=texto(entrada.numeroTituloBeneficiario||('SF'+seq),15).toUpperCase();
+  const seuNumero=texto(entrada.numeroTituloBeneficiario,15).toUpperCase();
+  if(!seuNumero)throw new Error('Informe o Nº do Título da cobrança. Use até 15 caracteres, por exemplo o número da NF ou do pedido.');
   const payload={
     numeroConvenio:Number(convenio),numeroCarteira:Number(carteira),numeroVariacaoCarteira:Number(variacao),codigoModalidade:modalidade,
     dataEmissao:dataBb(),dataVencimento:dataBb(venc),valorOriginal:Math.round(valor*100)/100,valorAbatimento:0,
