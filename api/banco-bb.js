@@ -309,7 +309,8 @@ async function consultarBoletoBb(amb,nossoNumero,oAuth=null){
   const base=amb==='teste'?'https://api.hm.bb.com.br':'https://api.bb.com.br';
   const nn=encodeURIComponent(String(nossoNumero||'').trim());
   if(!nn)throw new Error('Nosso Número ausente para consulta do boleto.');
-  const url=`${base}/cobrancas/v2/boletos/${nn}?numeroConvenio=${encodeURIComponent(BB_CONVENIO)}&gw-dev-app-key=${encodeURIComponent(o.cred.app_key)}`;
+  const convenioConsulta=String(process.env.BB_CONVENIO||BB_CONFIG_PRODUCAO.numeroConvenio);
+  const url=`${base}/cobrancas/v2/boletos/${nn}?numeroConvenio=${encodeURIComponent(convenioConsulta)}&gw-dev-app-key=${encodeURIComponent(o.cred.app_key)}`;
   const r=await getHttps({url,headers:{Authorization:`Bearer ${o.token}`,Accept:'application/json'}});
   let data={};try{data=JSON.parse(r.text||'{}')}catch{data={raw:r.text}}
   if(r.status<200||r.status>=300)throw new Error(data?.erros?.[0]?.mensagem||data?.mensagem||data?.message||`Consulta do boleto BB HTTP ${r.status}`);
