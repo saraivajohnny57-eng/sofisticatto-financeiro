@@ -6900,7 +6900,7 @@ function renderHistoricoCobrancas(){
   tb.innerHTML=lista.length?lista.map(x=>{
     const emitido=x.status==='aberto'&&x.banco==='bb'&&x.nosso_numero;
     const acoes=emitido
-      ?`<button class="btn azul" onclick="abrirBoletoPdfRegistro('${x.id}',false)">🖨 Boleto</button> <button class="btn verde" onclick="abrirBoletoPdfRegistro('${x.id}',true)">⬇ PDF</button>`
+      ?`<button class="btn azul" onclick="abrirBoletoOficialBbRegistro('${x.id}')">🏦 Boleto oficial BB</button> <button class="btn verde" onclick="abrirBoletoPdfRegistro('${x.id}',true)" title="Fallback local caso o link oficial esteja indisponível">⬇ PDF local</button>`
       :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`;
     return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span></td><td>${acoes}</td></tr>`;
   }).join(''):'<tr><td colspan="7">Nenhuma cobrança encontrada.</td></tr>';
@@ -7454,13 +7454,17 @@ function corpoEmissaoBbDaParcela(p){
 }
 async function emitirParcelaBbReal(p){
   if(!p?.id)throw new Error('Parcela sem identificação local.');
-  if(p.status==='aberto'&&p.nosso_numero)return {jaEmitido:true,emissao:{numeroTituloCliente:p.nosso_numero,numeroTituloBeneficiario:numeroTituloParcelaBb(p),linhaDigitavel:p.linha_digitavel,codigoBarraNumerico:p.codigo_barras,status:200}};
+  if(p.status==='aberto'&&p.nosso_numero)return {jaEmitido:true,emissao:{numeroTituloCliente:p.nosso_numero,numeroTituloBeneficiario:numeroTituloParcelaBb(p),linhaDigitavel:p.linha_digitavel,codigoBarraNumerico:p.codigo_barras,urlImagemBoleto:p.pdf_url||null,status:200}};
   const body=corpoEmissaoBbDaParcela(p);
   if(!body.numeroTituloBeneficiario)throw new Error('Informe o Nº do Título / NF antes de emitir.');
   const j=await bbReq('emitir-boleto',{method:'POST',body});
   const e=j.emissao||{};
-  const upd={status:'aberto',emitido_em:new Date().toISOString(),nosso_numero:e.numeroTituloCliente||e.numeroBoletoBB||null,linha_digitavel:e.linhaDigitavel||null,codigo_barras:e.codigoBarraNumerico||null,atualizado_em:new Date().toISOString()};
-  const r=await banco.from('cobrancas_bancarias').update(upd).eq('id',p.id).select().single();
+  const upd={status:'aberto',emitido_em:new Date().toISOString(),nosso_numero:e.numeroTituloCliente||e.numeroBoletoBB||null,linha_digitavel:e.linhaDigitavel||null,codigo_barras:e.codigoBarraNumerico||null,pdf_url:e.urlImagemBoleto||null,atualizado_em:new Date().toISOString()};
+  let r=await banco.from('cobrancas_bancarias').update(upd).eq('id',p.id).select().single();
+  if(r.error&&/pdf_url/i.test(String(r.error.message||''))){
+    const {pdf_url,...semPdfUrl}=upd;
+    r=await banco.from('cobrancas_bancarias').update(semPdfUrl).eq('id',p.id).select().single();
+  }
   if(r.error){
     console.error('BB emitido, mas falhou atualização local:',r.error);
     e.avisoLocal='Boleto emitido pelo BB, porém o histórico local não foi atualizado. Não emita novamente sem conferir no BB.';
@@ -7478,7 +7482,7 @@ async function emitirGrupoBoletoRelatorioReal(rows,ctx={}){
   if(st){
     st.innerHTML=`${erro?'⚠️':'✅'} <b>${ok} boleto(s)</b> confirmado(s) pelo Banco do Brasil.${erro?`<br>Falha na próxima parcela: ${escaparHtmlEmail(erro.erro?.message||'Erro desconhecido')}. <b>Não repita as parcelas já confirmadas.</b>`:''}`;
     const emitidos=resultados.filter(x=>x.ok);
-    if(emitidos.length)st.innerHTML+=`<div class="bol-retorno-acoes"><button type="button" class="btn azul" onclick="imprimirResultadosBbUltimaEmissao()">🖨 Visualizar / imprimir</button><button type="button" class="btn verde" onclick="salvarResultadosBbUltimaEmissao()">⬇ Salvar PDF${emitidos.length>1?'s':''}</button></div>`;
+    if(emitidos.length)st.innerHTML+=`<div class="bol-retorno-acoes"><button type="button" class="btn azul" onclick="imprimirResultadosBbUltimaEmissao()">🏦 Abrir boleto oficial BB</button><button type="button" class="btn verde" onclick="salvarResultadosBbUltimaEmissao()">⬇ PDF local (fallback)${emitidos.length>1?'s':''}</button></div>`;
   }
   window.__bbUltimosResultados=resultados.filter(x=>x.ok);
   if(erro)alert(`${ok} boleto(s) foram confirmados antes da falha.\n\n${erro.erro?.message||erro.erro}\n\nNão tente novamente sem conferir no BB.`);
@@ -7487,7 +7491,7 @@ async function emitirGrupoBoletoRelatorioReal(rows,ctx={}){
 function registroParaBoletoVisual(reg,emissao={}){
   return {
     cliente_nome:reg?.cliente_nome||'',cpf_cnpj:reg?.cpf_cnpj||'',endereco:reg?.endereco||'',numero:reg?.numero||'',bairro:reg?.bairro||'',cidade:reg?.cidade||'',uf:reg?.uf||'',cep:reg?.cep||'',
-    numero_titulo:numeroTituloParcelaBb(reg),nosso_numero:emissao.numeroTituloCliente||reg?.nosso_numero||'',linha_digitavel:emissao.linhaDigitavel||reg?.linha_digitavel||'',codigo_barras:emissao.codigoBarraNumerico||reg?.codigo_barras||'',
+    numero_titulo:numeroTituloParcelaBb(reg),nosso_numero:emissao.numeroTituloCliente||reg?.nosso_numero||'',linha_digitavel:emissao.linhaDigitavel||reg?.linha_digitavel||'',codigo_barras:emissao.codigoBarraNumerico||reg?.codigo_barras||'',url_boleto_oficial:emissao.urlImagemBoleto||reg?.pdf_url||'',
     valor:Number(reg?.valor||0),vencimento:reg?.vencimento||'',emitido_em:reg?.emitido_em||'',parcela_numero:reg?.parcela_numero||1,parcela_total:reg?.parcela_total||1
   };
 }
@@ -7697,16 +7701,55 @@ async function gerarPdfBoletoBb(d){
   return new Blob([await pdf.save()],{type:'application/pdf'});
 }
 function nomePdfBoletoBb(d){const n=String(d.cliente_nome||'CLIENTE').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,' ');return `${n||'CLIENTE'} - ${d.numero_titulo||d.nosso_numero||'boleto'}.pdf`;}
+function localizarUrlImagemBoletoBb(obj){
+  const vistos=new Set();
+  function rec(v){
+    if(!v||typeof v!=='object'||vistos.has(v))return '';
+    vistos.add(v);
+    for(const [k,val] of Object.entries(v)){
+      if(['urlimagemboleto','url_imagem_boleto','urlboleto','linkboleto'].includes(String(k).toLowerCase())&&typeof val==='string'&&/^https?:\/\//i.test(val.trim()))return val.trim();
+    }
+    for(const val of Object.values(v)){const r=rec(val);if(r)return r;}
+    return '';
+  }
+  return rec(obj);
+}
+async function obterUrlBoletoOficialBb(reg,emissao={}){
+  let url=String(emissao?.urlImagemBoleto||reg?.pdf_url||'').trim();
+  if(/^https?:\/\//i.test(url))return url;
+  const nn=String(emissao?.numeroTituloCliente||reg?.nosso_numero||'').trim();
+  if(!nn)throw new Error('Nosso Número ausente para consultar a segunda via oficial no BB.');
+  const j=await bbReq('consultar-boleto',{method:'POST',body:{nosso_numero:nn}});
+  url=localizarUrlImagemBoletoBb(j?.consulta||j);
+  if(!url)throw new Error('O Banco do Brasil não retornou urlImagemBoleto para este título. Use o PDF local como alternativa.');
+  if(reg?.id){
+    try{await banco.from('cobrancas_bancarias').update({pdf_url:url,atualizado_em:new Date().toISOString()}).eq('id',reg.id)}catch(e){console.warn('Não foi possível salvar urlImagemBoleto localmente:',e)}
+  }
+  return url;
+}
+async function abrirBoletoOficialBbRegistro(id){
+  const x=(cobrancasBancarias||[]).find(a=>String(a.id)===String(id))||(cobrancaMassaPreparadas||[]).find(a=>String(a.id)===String(id));
+  if(!x)return alert('Cobrança não encontrada.');
+  const w=window.open('about:blank','_blank');
+  try{
+    if(w){w.document.write('<p style="font-family:Arial;padding:24px">Consultando a segunda via oficial no Banco do Brasil...</p>');}
+    const url=await obterUrlBoletoOficialBb(x);
+    if(w)w.location.replace(url);else window.open(url,'_blank');
+  }catch(e){if(w)w.close();alert('Não foi possível abrir o boleto oficial do Banco do Brasil.\n\n'+e.message)}
+}
 async function abrirBoletoPdfRegistro(id,baixar=false){
   const x=(cobrancasBancarias||[]).find(a=>String(a.id)===String(id))||(cobrancaMassaPreparadas||[]).find(a=>String(a.id)===String(id));if(!x)return alert('Cobrança não encontrada.');
   try{const d=registroParaBoletoVisual(x);const blob=await gerarPdfBoletoBb(d);const url=URL.createObjectURL(blob);if(baixar){const a=document.createElement('a');a.href=url;a.download=nomePdfBoletoBb(d);a.click();setTimeout(()=>URL.revokeObjectURL(url),5000)}else{window.open(url,'_blank');setTimeout(()=>URL.revokeObjectURL(url),60000)}}catch(e){alert('Não foi possível gerar o boleto para impressão.\n\n'+e.message)}
 }
-async function imprimirResultadosBbUltimaEmissao(){for(const x of (window.__bbUltimosResultados||[])){const reg=x.registro||x.p;const d=registroParaBoletoVisual(reg,x.emissao||{});try{const b=await gerarPdfBoletoBb(d);window.open(URL.createObjectURL(b),'_blank')}catch(e){alert(e.message);break}}}
-async function salvarResultadosBbUltimaEmissao(){for(const x of (window.__bbUltimosResultados||[])){const reg=x.registro||x.p;const d=registroParaBoletoVisual(reg,x.emissao||{});try{const b=await gerarPdfBoletoBb(d);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=nomePdfBoletoBb(d);a.click()}catch(e){alert(e.message);break}}}
+async function imprimirResultadosBbUltimaEmissao(){for(const x of (window.__bbUltimosResultados||[])){const reg=x.registro||x.p;try{const url=await obterUrlBoletoOficialBb(reg,x.emissao||{});window.open(url,'_blank')}catch(e){alert('Boleto oficial BB indisponível: '+e.message);break}}}
+async function salvarResultadosBbUltimaEmissao(){for(const x of (window.__bbUltimosResultados||[])){const reg=x.registro||x.p;try{const url=await obterUrlBoletoOficialBb(reg,x.emissao||{});window.open(url,'_blank')}catch(e){const d=registroParaBoletoVisual(reg,x.emissao||{});try{const b=await gerarPdfBoletoBb(d);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=nomePdfBoletoBb(d);a.click()}catch(e2){alert(e2.message);break}}}}
 async function emitirBoletoBancoIntegradoV155(p,g){
   const bancoNome=g?.rel?.banco||p?.banco_nome||p?.banco||'';
   if(codigoBancoCobranca(bancoNome)!=='bb')throw new Error('A emissão real do Bradesco ainda está em configuração. Nenhum boleto foi registrado.');
-  const r=await emitirParcelaBbReal(p);const reg=r.registro||p;const d=registroParaBoletoVisual(reg,r.emissao||{});const blob=await gerarPdfBoletoBb(d);return {...r.emissao,blob,registro:reg};
+  const r=await emitirParcelaBbReal(p);const reg=r.registro||p;const d=registroParaBoletoVisual(reg,r.emissao||{});
+  let urlOficial='';try{urlOficial=await obterUrlBoletoOficialBb(reg,r.emissao||{})}catch{}
+  // Mantém o PDF local apenas como fallback para o salvamento em massa. A visualização padrão usa a 2ª via oficial do BB.
+  const blob=await gerarPdfBoletoBb(d);return {...r.emissao,urlImagemBoleto:urlOficial||r.emissao?.urlImagemBoleto||null,blob,registro:reg};
 }
 window.emitirBoletoBancoIntegrado=emitirBoletoBancoIntegradoV155;
 
@@ -8112,8 +8155,8 @@ async function emitirBoletoPilotoBB(){
   try{
     const j=await bbReq('emitir-piloto',{method:'POST',body});const e=j.emissao||{};
     const avisoExtra=e.aviso?`\n\n⚠️ ${e.aviso}`:'';
-    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ Boleto REAL confirmado pelo BB. HTTP ${e.status||201}. Nº do título: ${e.numeroTituloBeneficiario||body.numeroTituloBeneficiario||'—'} • Nosso número: ${e.numeroTituloCliente||'—'} • Próximo sequencial: ${e.proximoSequencialNossoNumero||'—'}${e.linhaDigitavel?` • Linha digitável: ${e.linhaDigitavel}`:''}.${e.aviso?' ⚠️ '+e.aviso:''}<div class="bol-retorno-acoes"><button class="btn azul" onclick="imprimirResultadosBbUltimaEmissao()">🖨 Visualizar / imprimir</button><button class="btn verde" onclick="salvarResultadosBbUltimaEmissao()">⬇ Salvar PDF</button></div>`}
-    let regPiloto={cliente_nome:body.nome,cpf_cnpj:body.numeroInscricao,endereco:body.endereco,numero:'',bairro:body.bairro,cidade:body.cidade,uf:body.uf,cep:body.cep,email:body.email,banco:'bb',banco_nome:'BANCO DO BRASIL',tipo:'boleto',valor:body.valorOriginal,vencimento:body.dataVencimento,numero_nf:body.numeroTituloBeneficiario,referencia:'PILOTO-'+body.numeroTituloBeneficiario,status:'aberto',origem:'piloto_bb',parcela_numero:1,parcela_total:1,nosso_numero:e.numeroTituloCliente||null,linha_digitavel:e.linhaDigitavel||null,codigo_barras:e.codigoBarraNumerico||null,emitido_em:new Date().toISOString(),criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
+    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ Boleto REAL confirmado pelo BB. HTTP ${e.status||201}. Nº do título: ${e.numeroTituloBeneficiario||body.numeroTituloBeneficiario||'—'} • Nosso número: ${e.numeroTituloCliente||'—'} • Próximo sequencial: ${e.proximoSequencialNossoNumero||'—'}${e.linhaDigitavel?` • Linha digitável: ${e.linhaDigitavel}`:''}.${e.aviso?' ⚠️ '+e.aviso:''}<div class="bol-retorno-acoes"><button class="btn azul" onclick="imprimirResultadosBbUltimaEmissao()">🏦 Abrir boleto oficial BB</button><button class="btn verde" onclick="salvarResultadosBbUltimaEmissao()">⬇ PDF local (fallback)</button></div>`}
+    let regPiloto={cliente_nome:body.nome,cpf_cnpj:body.numeroInscricao,endereco:body.endereco,numero:'',bairro:body.bairro,cidade:body.cidade,uf:body.uf,cep:body.cep,email:body.email,banco:'bb',banco_nome:'BANCO DO BRASIL',tipo:'boleto',valor:body.valorOriginal,vencimento:body.dataVencimento,numero_nf:body.numeroTituloBeneficiario,referencia:'PILOTO-'+body.numeroTituloBeneficiario,status:'aberto',origem:'piloto_bb',parcela_numero:1,parcela_total:1,nosso_numero:e.numeroTituloCliente||null,linha_digitavel:e.linhaDigitavel||null,codigo_barras:e.codigoBarraNumerico||null,pdf_url:e.urlImagemBoleto||null,emitido_em:new Date().toISOString(),criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
     try{const sr=await banco.from('cobrancas_bancarias').insert([regPiloto]).select().single();if(!sr.error)regPiloto=sr.data}catch(_){}
     window.__bbUltimosResultados=[{ok:true,p:regPiloto,registro:regPiloto,emissao:e}];
     if(typeof carregarCobrancasBancarias==='function')carregarCobrancasBancarias();
@@ -8125,3 +8168,5 @@ async function emitirBoletoPilotoBB(){
 }
 setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bbPilotoDocumento','bbPilotoNome','bbPilotoEndereco','bbPilotoBairro','bbPilotoCidade','bbPilotoUf','bbPilotoCep','bbPilotoEmail'].forEach(id=>{const el=document.getElementById(id);if(el&&!el.dataset.bbPreviewWatch){el.dataset.bbPreviewWatch='1';el.addEventListener('input',invalidarPreparoPilotoBB);el.addEventListener('change',invalidarPreparoPilotoBB)}});configurarBuscaClientePilotoBB();bbPilotoCarregarProximoNossoNumero()},0);
 
+
+// V162 — Prioriza urlImagemBoleto oficial retornada pela API Cobranças v2; PDF próprio fica apenas como fallback.
