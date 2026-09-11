@@ -7515,6 +7515,16 @@ function dataBrBoletoBb(v){
   if(m)return `${m[3]}/${m[2]}/${m[1]}`;
   return s;
 }
+async function garantirAssinaturaAtivaBoleto(){
+  if(emailAssinaturaAtiva?.logo_url)return emailAssinaturaAtiva;
+  try{
+    const r=await banco.from("email_assinaturas").select("*").eq("ativo",true).limit(1);
+    if(!r.error&&r.data?.[0]){emailAssinaturaAtiva=r.data[0];return emailAssinaturaAtiva;}
+    const r2=await banco.from("email_assinaturas").select("*").order("created_at",{ascending:true}).limit(1);
+    if(!r2.error&&r2.data?.[0]){emailAssinaturaAtiva=r2.data[0];return emailAssinaturaAtiva;}
+  }catch(e){console.warn("Não foi possível carregar a assinatura para o boleto:",e)}
+  return emailAssinaturaAtiva||null;
+}
 async function gerarPdfBoletoBb(d){
   if(!d?.linha_digitavel||!d?.codigo_barras)throw new Error('Ainda não há linha digitável/código de barras salvo. Atualize/consulte o boleto antes de gerar o PDF.');
   await carregarScriptUmaVez('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js','PDFLib');
@@ -7530,98 +7540,117 @@ async function gerarPdfBoletoBb(d){
   const beneficiario='SOFISTICATTO INDUSTRIA COMERCIO E EXPORTACAO DE COSMETICOS LTDA';
   const cnpjBen='05.451.985/0001-95';
   const enderecoBen='RUA 4 QD.35 LT.14E, Nº 217 - VILA ABAJÁ - GOIÂNIA/GO - 74550-470';
-  // Dados reproduzidos do boleto BB Cobrança fornecido pela Sofisticatto.
   const agenciaCodigo='03483-5 / 19039-X';
   const carteira='17 / 027';
   const pagEndereco=[d.endereco,d.numero,d.bairro,d.cep,d.cidade,d.uf].filter(Boolean).join(' - ');
   const only=(v)=>String(v??'').replace(/\s+/g,' ').trim();
   const drawTextFit=(text,x,y,maxW,size=7,f=font,align='left')=>{
-    text=only(text);let sz=size;while(sz>4.5&&f.widthOfTextAtSize(text,sz)>maxW)sz-=.25;
+    text=only(text);let sz=size;while(sz>4.2&&f.widthOfTextAtSize(text,sz)>maxW)sz-=.2;
     let xx=x;if(align==='right')xx=x+maxW-f.widthOfTextAtSize(text,sz);if(align==='center')xx=x+(maxW-f.widthOfTextAtSize(text,sz))/2;
     pg.drawText(text,{x:xx,y,size:sz,font:f,color:black,maxWidth:maxW});
   };
-  const line=(x1,y1,x2,y2,w=.5,dashArray)=>pg.drawLine({start:{x:x1,y:y1},end:{x:x2,y:y2},thickness:w,color:black,dashArray});
-  const rect=(x,y,w,h)=>pg.drawRectangle({x,y,width:w,height:h,borderColor:black,borderWidth:.5});
+  const line=(x1,y1,x2,y2,w=.45,dashArray)=>pg.drawLine({start:{x:x1,y:y1},end:{x:x2,y:y2},thickness:w,color:black,dashArray});
+  const rect=(x,y,w,h,bw=.45)=>pg.drawRectangle({x,y,width:w,height:h,borderColor:black,borderWidth:bw});
   const cell=(x,y,w,h,label,value,opt={})=>{
-    rect(x,y,w,h);drawTextFit(label,x+3,y+h-8,w-6,5.2,font);
-    if(value!==undefined&&value!==null&&String(value)!=='')drawTextFit(value,x+3,y+4,w-6,opt.valueSize||7.2,opt.bold?bold:font,opt.align||'left');
+    rect(x,y,w,h);drawTextFit(label,x+3,y+h-7,w-6,4.8,font);
+    if(value!==undefined&&value!==null&&String(value)!=='')drawTextFit(value,x+3,y+4,w-6,opt.valueSize||7,opt.bold?bold:font,opt.align||'left');
   };
-  const logoUrl=logoEtiquetaUrl?.()||emailAssinaturaAtiva?.logo_url||'';
+
+  const assinatura=await garantirAssinaturaAtivaBoleto();
+  const logoUrl=assinatura?.logo_url||logoEtiquetaUrl?.()||'';
   const logoData=await imagemUrlParaDataUrlRelatorio(logoUrl);
   async function drawLogo(x,y,w,h){
     if(logoData){
-      try{const bytes=Uint8Array.from(atob(logoData.split(',')[1]),c=>c.charCodeAt(0));const im=logoData.startsWith('data:image/png')?await pdf.embedPng(bytes):await pdf.embedJpg(bytes);const sc=Math.min(w/im.width,h/im.height);pg.drawImage(im,{x:x+(w-im.width*sc)/2,y:y+(h-im.height*sc)/2,width:im.width*sc,height:im.height*sc});return;}catch(e){console.warn('Logo boleto:',e)}
+      try{
+        const bytes=Uint8Array.from(atob(logoData.split(',')[1]),c=>c.charCodeAt(0));
+        const im=logoData.startsWith('data:image/png')?await pdf.embedPng(bytes):await pdf.embedJpg(bytes);
+        const sc=Math.min(w/im.width,h/im.height);
+        pg.drawImage(im,{x:x+(w-im.width*sc)/2,y:y+(h-im.height*sc)/2,width:im.width*sc,height:im.height*sc});
+        return true;
+      }catch(e){console.warn('Logo boleto:',e)}
     }
-    drawTextFit('Sofisticatto',x,y+h/2-5,w,16,bold,'center');drawTextFit('COSMÉTICOS',x,y+3,w,5.5,font,'center');
+    drawTextFit('Sofisticatto',x,y+h/2-4,w,14,bold,'center');
+    drawTextFit('COSMÉTICOS',x,y+2,w,5,font,'center');
+    return false;
   }
   function bankHeader(yTop){
-    const h=28;rect(L,yTop-h,CW,h);
-    pg.drawRectangle({x:L+3,y:yTop-h+4,width:20,height:20,color:yellow,borderColor:black,borderWidth:.35});
-    drawTextFit('BB',L+3,yTop-h+10,20,9,bold,'center');
-    drawTextFit('BANCO DO BRASIL',L+29,yTop-h+8,119,12.5,bold);
-    line(L+154,yTop-h,L+154,yTop);drawTextFit('001-9',L+158,yTop-h+8,49,13,bold,'center');
-    line(L+211,yTop-h,L+211,yTop);drawTextFit(linhaFmt,L+217,yTop-h+9,CW-220,9.2,bold,'center');
+    const h=31;rect(L,yTop-h,CW,h,.7);
+    pg.drawRectangle({x:L+3,y:yTop-h+4,width:23,height:23,color:yellow,borderColor:black,borderWidth:.5});
+    drawTextFit('BB',L+3,yTop-h+10,23,9,bold,'center');
+    drawTextFit('BANCO DO BRASIL',L+31,yTop-h+9,120,12.8,bold);
+    line(L+157,yTop-h,L+157,yTop,.7);drawTextFit('001-9',L+161,yTop-h+9,49,13,bold,'center');
+    line(L+215,yTop-h,L+215,yTop,.7);drawTextFit(linhaFmt,L+220,yTop-h+10,CW-225,9,bold,'center');
     return yTop-h;
-  }
-  function reciboEntrega(yTop){
-    const h=119;rect(L,yTop-h,CW,h);
-    const left=365,right=CW-left;
-    drawTextFit('Local do Pagamento',L+4,yTop-10,left-8,5.2,font);
-    drawTextFit('Pagável em qualquer banco.',L+4,yTop-25,left-8,8,bold);
-    drawTextFit('Nome do Beneficiário/CNPJ/CPF',L+4,yTop-39,left-8,5.2,font);
-    drawTextFit(`${beneficiario} - CNPJ: ${cnpjBen}`,L+4,yTop-53,left-8,6.6,bold);
-    drawTextFit('Pagador/CNPJ/CPF',L+4,yTop-68,left-8,5.2,font);
-    drawTextFit(`${d.cliente_nome||''} - CNPJ/CPF: ${d.cpf_cnpj||''}`,L+4,yTop-82,left-8,6.6,bold);
-    drawTextFit('Nosso-Número',L+4,yTop-97,92,5.2,font);drawTextFit(d.nosso_numero||'—',L+78,yTop-97,125,7,bold);
-    line(L+left,yTop-h,L+left,yTop);
-    drawTextFit('Agência / Código do Beneficiário',L+left+4,yTop-10,right-8,5.2,font);drawTextFit(agenciaCodigo,L+left+4,yTop-25,right-8,8,bold,'right');
-    drawTextFit('Data de Vencimento',L+left+4,yTop-42,right-8,5.2,font);drawTextFit(venc,L+left+4,yTop-57,right-8,8,bold,'right');
-    drawTextFit('Nr Documento',L+left+4,yTop-73,right-8,5.2,font);drawTextFit(d.numero_titulo||'—',L+left+4,yTop-88,right-8,8,bold,'right');
-    drawTextFit('Valor do Documento',L+left+4,yTop-103,right-8,5.2,font);drawTextFit(moeda,L+left+4,yTop-116,right-8,8,bold,'right');
-    drawTextFit('Recebi(emos) o boleto com essas características.',L+4,yTop-h+7,240,5.2,font);
-    drawTextFit('Assinatura / Data da Entrega / Nome',L+245,yTop-h+7,left-248,5.2,font,'right');
-    drawTextFit('Recibo de Entrega',L+left+5,yTop-h+7,right-10,6,bold,'right');
-    return yTop-h;
-  }
-  function blocoBoleto(yTop,reciboPagador=false){
-    yTop=bankHeader(yTop);
-    const right=142,leftW=CW-right;
-    cell(L,yTop-27,leftW,27,'Local do Pagamento','Pagável em qualquer banco.',{bold:true,valueSize:7.5});
-    cell(L+leftW,yTop-27,right,27,'Data de Vencimento',venc,{bold:true,valueSize:9,align:'right'});yTop-=27;
-    cell(L,yTop-30,leftW,30,'Nome do Beneficiário/CPF/CNPJ/Endereço',`${beneficiario} - CNPJ: ${cnpjBen}`,{bold:true,valueSize:6.2});
-    cell(L+leftW,yTop-30,right,30,'Agência / Código do Beneficiário',agenciaCodigo,{bold:true,valueSize:8,align:'right'});yTop-=30;
-    const widths=[88,82,62,55,leftW-287];let x=L;
-    const vals=[['Data do Documento',emissao],['Nr Documento',d.numero_titulo||'—'],['Espécie DOC','DM'],['Aceite','N'],['Data Processamento',emissao]];
-    vals.forEach((v,i)=>{cell(x,yTop-30,widths[i],30,v[0],v[1],{bold:i===1,valueSize:7.2});x+=widths[i]});
-    cell(L+leftW,yTop-30,right,30,'Nosso-Número',d.nosso_numero||'—',{bold:true,valueSize:7.4,align:'right'});yTop-=30;
-    cell(L,yTop-28,82,28,'Uso do Banco','');cell(L+82,yTop-28,78,28,'Carteira',carteira,{valueSize:7.5});cell(L+160,yTop-28,62,28,'Espécie','R$',{valueSize:7.5});cell(L+222,yTop-28,leftW-222,28,'Quantidade x Valor','');
-    cell(L+leftW,yTop-28,right,28,'(=) Valor do Documento',moeda,{bold:true,valueSize:9,align:'right'});yTop-=28;
-    if(!reciboPagador){
-      const ih=83;rect(L,yTop-ih,leftW,ih);drawTextFit('Instruções de Responsabilidade do Beneficiário',L+4,yTop-11,leftW-8,6.5,bold);
-      drawTextFit('Juros.....: 5,00% ao mês',L+7,yTop-29,leftW-14,6.4,font);drawTextFit('Multa.....: 2,00% após 1 dia corrido do vencimento',L+7,yTop-43,leftW-14,6.4,font);
-      drawTextFit('Instruções de responsabilidade do Beneficiário.',L+7,yTop-61,leftW-14,5.6,font);
-      cell(L+leftW,yTop-21,right,21,'(-) Desconto / Abatimento','—',{align:'right'});cell(L+leftW,yTop-42,right,21,'(+) Juros / Multa','—',{align:'right'});cell(L+leftW,yTop-63,right,21,'(=) Valor Cobrado',moeda,{bold:true,valueSize:9,align:'right'});rect(L+leftW,yTop-ih,right,ih-63);
-      yTop-=ih;
-    }
-    const ph=54;rect(L,yTop-ph,CW,ph);drawTextFit('Nome do Pagador/CPF/CNPJ/Endereço',L+4,yTop-10,CW-8,5.2,font);drawTextFit(`${d.cliente_nome||''} - CNPJ/CPF: ${d.cpf_cnpj||''}`,L+4,yTop-26,CW-8,7.5,bold);drawTextFit(pagEndereco,L+4,yTop-41,CW-8,6.5,font);drawTextFit('Sacador / Avalista:',L+4,yTop-ph+5,CW-8,5.2,font);yTop-=ph;
-    return yTop;
   }
 
-  // V158 — layout inspirado no boleto original gerado pelo BB Cobrança fornecido pela Sofisticatto.
-  let y=814;
-  await drawLogo(L,y-38,120,34);
-  drawTextFit('BB Cobrança',L+CW-90,y-14,90,6,font,'right');
-  drawTextFit('Boleto bancário',L+CW-90,y-26,90,5.2,font,'right');
-  y-=43;
-  y=bankHeader(y);y=reciboEntrega(y-3);
-  drawTextFit('Autenticação Mecânica',L+CW-140,y-12,140,5.5,font,'right');
-  y-=28;line(L,y,L+CW,y,.5,[5,4]);drawTextFit('Corte aqui',L+5,y+5,55,5.2,font);y-=13;
-  y=blocoBoleto(y,false);
-  drawTextFit('Autenticação Mecânica - Ficha de Compensação',L+CW-195,y-12,195,5.8,bold,'right');
+  // V159 — replica mais fiel da organização visual do BB Cobrança fornecido pelo usuário.
+  // Marca Sofisticatto apenas no topo, usando a imagem cadastrada em Assinatura.
+  let y=817;
+  await drawLogo(L,y-38,128,31);
+  drawTextFit('BB Cobrança',L+CW-88,y-13,88,5.7,font,'right');
+  drawTextFit('Boleto bancário',L+CW-88,y-25,88,5,font,'right');
+  y-=46;
+
+  // Recibo de entrega: cabeçalho + quadro compacto, igual ao primeiro bloco do BB Cobrança.
+  y=bankHeader(y);
+  const reciboH=145, rightW=164, leftW=CW-rightW;
+  rect(L,y-reciboH,CW,reciboH,.55); line(L+leftW,y-reciboH,L+leftW,y,.5);
+  drawTextFit('Local do Pagamento',L+4,y-10,leftW-8,4.8,font);
+  drawTextFit('Pagável em qualquer banco.',L+4,y-25,leftW-8,7.6,bold);
+  drawTextFit('Nome do Beneficiário/CNPJ/CPF',L+4,y-42,leftW-8,4.8,font);
+  drawTextFit(`${beneficiario} - CNPJ: ${cnpjBen}`,L+4,y-57,leftW-8,6.15,bold);
+  drawTextFit('Pagador/CNPJ/CPF',L+4,y-75,leftW-8,4.8,font);
+  drawTextFit(`${d.cliente_nome||''} - CNPJ/CPF: ${d.cpf_cnpj||''}`,L+4,y-90,leftW-8,6.15,bold);
+  drawTextFit('Nosso-Número',L+4,y-110,85,4.8,font);
+  drawTextFit(d.nosso_numero||'—',L+82,y-111,150,6.8,bold);
+  drawTextFit('Recebi(emos) o boleto com essas características.',L+4,y-reciboH+8,225,4.8,font);
+  drawTextFit('Assinatura / Data da Entrega / Nome',L+230,y-reciboH+8,leftW-235,4.6,font,'right');
+  drawTextFit('Agência / Código do Beneficiário',L+leftW+4,y-10,rightW-8,4.8,font);
+  drawTextFit(agenciaCodigo,L+leftW+4,y-27,rightW-8,7.5,bold,'right');
+  drawTextFit('Data de Vencimento',L+leftW+4,y-47,rightW-8,4.8,font);
+  drawTextFit(venc,L+leftW+4,y-64,rightW-8,8,bold,'right');
+  drawTextFit('Nr Documento',L+leftW+4,y-84,rightW-8,4.8,font);
+  drawTextFit(d.numero_titulo||'—',L+leftW+4,y-101,rightW-8,8,bold,'right');
+  drawTextFit('Valor do Documento',L+leftW+4,y-121,rightW-8,4.8,font);
+  drawTextFit(moeda,L+leftW+4,y-139,rightW-8,8.5,bold,'right');
+  y-=reciboH;
+  drawTextFit('Autenticação Mecânica',L+CW-140,y-13,140,5,font,'right');
+  y-=31; line(L,y,L+CW,y,.5,[5,4]); drawTextFit('Corte aqui',L+5,y+5,55,4.9,font); y-=15;
+
+  // Ficha de compensação.
+  y=bankHeader(y);
+  const rw=145,lw=CW-rw;
+  cell(L,y-29,lw,29,'Local do Pagamento','Pagável em qualquer banco.',{bold:true,valueSize:7.4});
+  cell(L+lw,y-29,rw,29,'Data de Vencimento',venc,{bold:true,valueSize:8.7,align:'right'}); y-=29;
+  cell(L,y-31,lw,31,'Nome do Beneficiário/CPF/CNPJ/Endereço',`${beneficiario} - CNPJ: ${cnpjBen}`,{bold:true,valueSize:5.9});
+  cell(L+lw,y-31,rw,31,'Agência / Código do Beneficiário',agenciaCodigo,{bold:true,valueSize:7.5,align:'right'}); y-=31;
+  const widths=[92,83,64,55,lw-294]; let x=L;
+  const vals=[['Data do Documento',emissao],['Nr Documento',d.numero_titulo||'—'],['Espécie DOC','DM'],['Aceite','N'],['Data Processamento',emissao]];
+  vals.forEach((v,i)=>{cell(x,y-31,widths[i],31,v[0],v[1],{bold:i===1,valueSize:7});x+=widths[i]});
+  cell(L+lw,y-31,rw,31,'Nosso-Número',d.nosso_numero||'—',{bold:true,valueSize:6.9,align:'right'}); y-=31;
+  cell(L,y-29,82,29,'Uso do Banco',''); cell(L+82,y-29,78,29,'Carteira',carteira,{valueSize:7.2});
+  cell(L+160,y-29,62,29,'Espécie','R$',{valueSize:7.2}); cell(L+222,y-29,lw-222,29,'Quantidade x Valor','');
+  cell(L+lw,y-29,rw,29,'(=) Valor do Documento',moeda,{bold:true,valueSize:8.7,align:'right'}); y-=29;
+
+  const instrH=105; rect(L,y-instrH,lw,instrH); drawTextFit('Instruções de Responsabilidade do Beneficiário',L+4,y-12,lw-8,6.2,bold);
+  const jurosDia=(Number(d.valor||0)*0.05/30);
+  drawTextFit(`Juros.....: 5,00% ao mês - (${cobMoeda(jurosDia)} ao dia)`,L+8,y-34,lw-16,6,font);
+  drawTextFit('Multa.....: 2,00% após 1 dia corrido do vencimento',L+8,y-51,lw-16,6,font);
+  drawTextFit('Instruções de responsabilidade do Beneficiário.',L+8,y-76,lw-16,5.4,font);
+  cell(L+lw,y-25,rw,25,'(-) Desconto / Abatimento','—',{align:'right'});
+  cell(L+lw,y-50,rw,25,'(+) Juros / Multa','—',{align:'right'});
+  cell(L+lw,y-75,rw,25,'(=) Valor Cobrado',moeda,{bold:true,valueSize:8.7,align:'right'});
+  rect(L+lw,y-instrH,rw,instrH-75); y-=instrH;
+
+  const pagH=67; rect(L,y-pagH,CW,pagH); drawTextFit('Nome do Pagador/CPF/CNPJ/Endereço',L+4,y-10,CW-8,4.8,font);
+  drawTextFit(`${d.cliente_nome||''} - CNPJ/CPF: ${d.cpf_cnpj||''}`,L+4,y-28,CW-8,7.3,bold);
+  drawTextFit(pagEndereco,L+4,y-45,CW-8,6.2,font); drawTextFit('Sacador / Avalista:',L+4,y-pagH+6,CW-8,4.8,font); y-=pagH;
+  drawTextFit('Autenticação Mecânica - Ficha de Compensação',L+CW-205,y-14,205,5.4,bold,'right');
+
   const png=await barcodePngBb(d.codigo_barras),img=await pdf.embedPng(png);
-  pg.drawImage(img,{x:L+2,y:y-76,width:355,height:49});drawTextFit(String(d.codigo_barras).replace(/\D/g,''),L+2,y-88,355,6.2,bold);
-  await drawLogo(L+390,y-78,125,42);
-  drawTextFit(enderecoBen,L,y-104,CW,5.2,font);
+  pg.drawImage(img,{x:L+2,y:y-83,width:365,height:55});
+  drawTextFit(String(d.codigo_barras).replace(/\D/g,''),L+2,y-94,365,5.8,bold);
+  drawTextFit(enderecoBen,L,y-112,CW,4.9,font);
   return new Blob([await pdf.save()],{type:'application/pdf'});
 }
 function nomePdfBoletoBb(d){const n=String(d.cliente_nome||'CLIENTE').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,' ');return `${n||'CLIENTE'} - ${d.numero_titulo||d.nosso_numero||'boleto'}.pdf`;}
