@@ -7650,51 +7650,51 @@ async function gerarPdfBoletoBb(d){
   // Altura total: ~102 mm (dentro do intervalo oficial de 95 a 108 mm).
   // ===========================
   const fichaBottom=28;
-  const fichaTop=fichaBottom+mm(102);
+  const fichaTop=fichaBottom+mm(108);
   y=bankHeader(fichaTop);
   const rw=145,lw=CW-rw;
-  cell(L,y-28,lw,28,'Local de Pagamento','Pagável em qualquer banco.',{bold:true,valueSize:7.2});
-  cell(L+lw,y-28,rw,28,'Data de Vencimento',venc,{bold:true,valueSize:8.2,align:'right'}); y-=28;
-  cell(L,y-31,lw,31,'Nome do Beneficiário/CNPJ/CPF',`${beneficiario} - CNPJ: ${cnpjBen}`,{bold:true,valueSize:5.7});
-  cell(L+lw,y-31,rw,31,'Agência / Código do Beneficiário',agenciaCodigo,{bold:true,valueSize:7.2,align:'right'}); y-=31;
+  cell(L,y-22,lw,22,'Local de Pagamento','Pagável em qualquer banco.',{bold:true,valueSize:6.8});
+  cell(L+lw,y-22,rw,22,'Data de Vencimento',venc,{bold:true,valueSize:7.7,align:'right'}); y-=22;
+  cell(L,y-25,lw,25,'Nome do Beneficiário/CNPJ/CPF',`${beneficiario} - CNPJ: ${cnpjBen}`,{bold:true,valueSize:5.4});
+  cell(L+lw,y-25,rw,25,'Agência / Código do Beneficiário',agenciaCodigo,{bold:true,valueSize:6.8,align:'right'}); y-=25;
   const widths=[86,80,62,50,lw-278]; let x=L;
   const vals=[['Data do Documento',emissao],['Nr Documento',d.numero_titulo||'—'],['Espécie DOC','DM'],['Aceite','N'],['Data Processamento',emissao]];
-  vals.forEach((v,i)=>{cell(x,y-29,widths[i],29,v[0],v[1],{bold:i===1,valueSize:6.8});x+=widths[i]});
-  cell(L+lw,y-29,rw,29,'Nosso-Número',d.nosso_numero||'—',{bold:true,valueSize:6.5,align:'right'}); y-=29;
-  cell(L,y-27,76,27,'Uso do Banco','');
-  cell(L+76,y-27,75,27,'Carteira',carteira,{valueSize:6.8});
-  cell(L+151,y-27,58,27,'Espécie','R$',{valueSize:6.8});
-  cell(L+209,y-27,lw-209,27,'Quantidade x Valor','');
-  cell(L+lw,y-27,rw,27,'(=) Valor do Documento',moeda,{bold:true,valueSize:8.2,align:'right'}); y-=27;
+  vals.forEach((v,i)=>{cell(x,y-24,widths[i],24,v[0],v[1],{bold:i===1,valueSize:6.2});x+=widths[i]});
+  cell(L+lw,y-24,rw,24,'Nosso-Número',d.nosso_numero||'—',{bold:true,valueSize:6.0,align:'right'}); y-=24;
+  cell(L,y-22,76,22,'Uso do Banco','');
+  cell(L+76,y-22,75,22,'Carteira',carteira,{valueSize:6.3});
+  cell(L+151,y-22,58,22,'Espécie','R$',{valueSize:6.3});
+  cell(L+209,y-22,lw-209,22,'Quantidade x Valor','');
+  cell(L+lw,y-22,rw,22,'(=) Valor do Documento',moeda,{bold:true,valueSize:7.6,align:'right'}); y-=22;
 
-  const instrH=78;
+  const instrH=58;
   rect(L,y-instrH,lw,instrH);
-  drawTextFit('Instruções de Responsabilidade do Beneficiário',L+4,y-11,lw-8,5.8,bold);
+  drawTextFit('Instruções de Responsabilidade do Beneficiário',L+4,y-10,lw-8,5.5,bold);
   const jurosDia=(Number(d.valor||0)*0.05/30);
-  drawTextFit(`Juros.....: 5,00% ao mês - (${cobMoeda(jurosDia)} ao dia)`,L+7,y-29,lw-14,5.7,font);
-  drawTextFit('Multa.....: 2,00% após 1 dia corrido do vencimento',L+7,y-45,lw-14,5.7,font);
-  drawTextFit('Instruções de responsabilidade do Beneficiário.',L+7,y-64,lw-14,5.0,font);
-  cell(L+lw,y-26,rw,26,'(-) Desconto / Abatimento','—',{align:'right'});
-  cell(L+lw,y-52,rw,26,'(+) Juros / Multa','—',{align:'right'});
-  cell(L+lw,y-78,rw,26,'(=) Valor Cobrado',moeda,{bold:true,valueSize:8.0,align:'right'});
+  drawTextFit(`Juros.....: 5,00% ao mês - (${cobMoeda(jurosDia)} ao dia)`,L+7,y-25,lw-14,5.3,font);
+  drawTextFit('Multa.....: 2,00% após 1 dia corrido do vencimento',L+7,y-39,lw-14,5.3,font);
+  drawTextFit('Instruções de responsabilidade do Beneficiário.',L+7,y-52,lw-14,4.8,font);
+  cell(L+lw,y-19,rw,19,'(-) Desconto / Abatimento','—',{align:'right'});
+  cell(L+lw,y-38,rw,19,'(+) Juros / Multa','—',{align:'right'});
+  cell(L+lw,y-58,rw,20,'(=) Valor Cobrado',moeda,{bold:true,valueSize:7.6,align:'right'});
   y-=instrH;
 
-  const pagH=55;
+  const pagH=43;
   rect(L,y-pagH,CW,pagH);
-  drawTextFit('Nome do Pagador/CPF/CNPJ/Endereço',L+4,y-9,CW-8,4.6,font);
-  drawTextFit(`${d.cliente_nome||''} - CNPJ/CPF: ${d.cpf_cnpj||''}`,L+4,y-25,CW-8,6.8,bold);
-  drawTextFit(pagEndereco,L+4,y-40,CW-8,5.7,font);
-  drawTextFit('Sacador / Avalista:',L+4,y-pagH+5,CW-8,4.5,font);
+  drawTextFit('Nome do Pagador/CPF/CNPJ/Endereço',L+4,y-8,CW-8,4.4,font);
+  drawTextFit(`${d.cliente_nome||''} - CNPJ/CPF: ${d.cpf_cnpj||''}`,L+4,y-21,CW-8,6.2,bold);
+  drawTextFit(pagEndereco,L+4,y-33,CW-8,5.2,font);
+  drawTextFit('Sacador / Avalista:',L+4,y-pagH+4,CW-8,4.2,font);
   y-=pagH;
 
   // Código de barras: 2 de 5 intercalado, 103 mm x 13 mm, com zona de silêncio de 5 mm.
-  drawTextFit('Autenticação Mecânica - Ficha de Compensação',L+CW-205,y-11,205,4.7,font,'right');
+  drawTextFit('Autenticação Mecânica - Ficha de Compensação',L+CW-205,y-10,205,4.5,font,'right');
   const png=await barcodePngBb(d.codigo_barras),img=await pdf.embedPng(png);
   const barW=mm(103),barH=mm(13),quiet=mm(5);
   const barX=L+quiet;
-  const barY=fichaBottom+mm(12); // centro >= 12 mm da margem inferior da ficha
+  const barY=fichaBottom+mm(8); // área reservada exclusivamente ao código de barras; não invade dados do pagador
   pg.drawImage(img,{x:barX,y:barY,width:barW,height:barH});
-  drawTextFit(String(d.codigo_barras).replace(/\D/g,''),barX,barY-10,barW,5.2,bold);
+  drawTextFit(String(d.codigo_barras).replace(/\D/g,''),barX,barY-9,barW,4.8,bold);
 
   // Sem marca d'água e sem elementos decorativos dentro da ficha de compensação.
   // Isto facilita a validação no Validador de Layout BB.
@@ -7721,7 +7721,7 @@ async function obterUrlBoletoOficialBb(reg,emissao={}){
   if(!nn)throw new Error('Nosso Número ausente para consultar a segunda via oficial no BB.');
   const j=await bbReq('consultar-boleto',{method:'POST',body:{nosso_numero:nn}});
   url=localizarUrlImagemBoletoBb(j?.consulta||j);
-  if(!url)throw new Error('O Banco do Brasil não retornou urlImagemBoleto para este título. Use o PDF local como alternativa.');
+  if(!url)return ''; // títulos antigos podem não devolver a URL no detalhamento; fluxo chamador abre a página oficial de 2ª via.
   if(reg?.id){
     try{await banco.from('cobrancas_bancarias').update({pdf_url:url,atualizado_em:new Date().toISOString()}).eq('id',reg.id)}catch(e){console.warn('Não foi possível salvar urlImagemBoleto localmente:',e)}
   }
@@ -7734,15 +7734,17 @@ async function abrirBoletoOficialBbRegistro(id){
   try{
     if(w){w.document.write('<p style="font-family:Arial;padding:24px">Consultando a segunda via oficial no Banco do Brasil...</p>');}
     const url=await obterUrlBoletoOficialBb(x);
-    if(w)w.location.replace(url);else window.open(url,'_blank');
+    const destino=url||'https://boleto.apps.bb.com.br/segunda-via-final';
+    if(w)w.location.replace(destino);else window.open(destino,'_blank');
+    if(!url)alert('Este título foi emitido antes de o portal salvar a URL oficial retornada pelo BB. Abrimos a página oficial de 2ª via do Banco do Brasil.');
   }catch(e){if(w)w.close();alert('Não foi possível abrir o boleto oficial do Banco do Brasil.\n\n'+e.message)}
 }
 async function abrirBoletoPdfRegistro(id,baixar=false){
   const x=(cobrancasBancarias||[]).find(a=>String(a.id)===String(id))||(cobrancaMassaPreparadas||[]).find(a=>String(a.id)===String(id));if(!x)return alert('Cobrança não encontrada.');
   try{const d=registroParaBoletoVisual(x);const blob=await gerarPdfBoletoBb(d);const url=URL.createObjectURL(blob);if(baixar){const a=document.createElement('a');a.href=url;a.download=nomePdfBoletoBb(d);a.click();setTimeout(()=>URL.revokeObjectURL(url),5000)}else{window.open(url,'_blank');setTimeout(()=>URL.revokeObjectURL(url),60000)}}catch(e){alert('Não foi possível gerar o boleto para impressão.\n\n'+e.message)}
 }
-async function imprimirResultadosBbUltimaEmissao(){for(const x of (window.__bbUltimosResultados||[])){const reg=x.registro||x.p;try{const url=await obterUrlBoletoOficialBb(reg,x.emissao||{});window.open(url,'_blank')}catch(e){alert('Boleto oficial BB indisponível: '+e.message);break}}}
-async function salvarResultadosBbUltimaEmissao(){for(const x of (window.__bbUltimosResultados||[])){const reg=x.registro||x.p;try{const url=await obterUrlBoletoOficialBb(reg,x.emissao||{});window.open(url,'_blank')}catch(e){const d=registroParaBoletoVisual(reg,x.emissao||{});try{const b=await gerarPdfBoletoBb(d);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=nomePdfBoletoBb(d);a.click()}catch(e2){alert(e2.message);break}}}}
+async function imprimirResultadosBbUltimaEmissao(){for(const x of (window.__bbUltimosResultados||[])){const reg=x.registro||x.p;try{const url=await obterUrlBoletoOficialBb(reg,x.emissao||{});window.open(url||'https://boleto.apps.bb.com.br/segunda-via-final','_blank')}catch(e){alert('Boleto oficial BB indisponível: '+e.message);break}}}
+async function salvarResultadosBbUltimaEmissao(){for(const x of (window.__bbUltimosResultados||[])){const reg=x.registro||x.p;try{const url=await obterUrlBoletoOficialBb(reg,x.emissao||{});if(url){window.open(url,'_blank');continue;}const d=registroParaBoletoVisual(reg,x.emissao||{});const b=await gerarPdfBoletoBb(d);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=nomePdfBoletoBb(d);a.click()}catch(e){const d=registroParaBoletoVisual(reg,x.emissao||{});try{const b=await gerarPdfBoletoBb(d);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=nomePdfBoletoBb(d);a.click()}catch(e2){alert(e2.message);break}}}}
 async function emitirBoletoBancoIntegradoV155(p,g){
   const bancoNome=g?.rel?.banco||p?.banco_nome||p?.banco||'';
   if(codigoBancoCobranca(bancoNome)!=='bb')throw new Error('A emissão real do Bradesco ainda está em configuração. Nenhum boleto foi registrado.');
