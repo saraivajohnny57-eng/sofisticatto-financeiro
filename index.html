@@ -2685,6 +2685,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div><label>Convênio</label><input value="3054166" readonly></div>
         <div><label>Carteira / Variação</label><input value="17 / 027" readonly></div>
         <div><label>Modalidade</label><input value="1 — Simples" readonly></div>
+        <div><label>Nº do Título</label><input id="bbPilotoNumeroTitulo" maxlength="15" placeholder="Ex.: NF12345 ou 34114"></div>
         <div><label>Sequencial do Nosso Número (10 dígitos)</label><input id="bbPilotoSequencial" inputmode="numeric" maxlength="10" placeholder="Ex.: 0000034114"></div>
         <div><label>Valor (R$)</label><input id="bbPilotoValor" type="number" min="0.01" step="0.01"></div>
         <div><label>Vencimento</label><input id="bbPilotoVencimento" type="date"></div>
@@ -2697,7 +2698,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div><label>CEP</label><input id="bbPilotoCep" inputmode="numeric"></div>
         <div><label>E-mail (opcional)</label><input id="bbPilotoEmail" type="email"></div>
       </div>
-      <div style="margin-top:10px;padding:9px 12px;border-radius:9px;background:#fff7d6;font-size:12px;color:#6d5e21;"><b>Nosso Número:</b> o BB exige 20 dígitos no formato <b>000 + convênio + sequencial de 10 dígitos</b>. Informe aqui o próximo sequencial livre do sistema atual. O print anterior mostrou 0000034113; use 0000034114 somente se 34113 realmente for o último já utilizado.</div>
+      <div style="margin-top:10px;padding:9px 12px;border-radius:9px;background:#fff7d6;font-size:12px;color:#6d5e21;"><b>Nº do Título:</b> é a identificação interna/comercial da cobrança (máx. 15 caracteres), por exemplo o número da NF ou do pedido. <b>Nosso Número:</b> é a identificação bancária e continua sendo montada no formato <b>000 + convênio + sequencial de 10 dígitos</b>. Informe o próximo sequencial livre do sistema atual.</div>
       <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn azul" onclick="previsualizarBoletoPilotoBB()">🔎 Pré-visualizar emissão</button><button class="btn verde" id="btnBbEmitirPiloto" onclick="emitirBoletoPilotoBB()" disabled>🧾 Emitir 1 boleto real</button><span style="font-size:12px;color:#766d4d;">A emissão em massa continua bloqueada até este piloto ser conferido.</span></div>
       <div id="bbPilotoResultado" class="bb-cert-aviso" style="margin-top:10px;">Nenhum boleto piloto emitido nesta sessão.</div>
     </div>
@@ -2927,7 +2928,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=150-bb-nosso-numero-seguro"></script>
+<script src="financeiro.js?v=151-bb-numero-titulo"></script>
 <script src="corridas.js?v=143-corrige-abas-entregador"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>

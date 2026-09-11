@@ -7629,7 +7629,7 @@ async function testarApiCobrancasBB(){
 let bbPilotoPreparoAtual=null;
 function dadosBoletoPilotoBB(){
   const v=id=>String(document.getElementById(id)?.value||'').trim();
-  return {sequencialNossoNumero:v('bbPilotoSequencial'),valorOriginal:Number(v('bbPilotoValor')||0),dataVencimento:v('bbPilotoVencimento'),numeroInscricao:v('bbPilotoDocumento'),nome:v('bbPilotoNome'),endereco:v('bbPilotoEndereco'),bairro:v('bbPilotoBairro'),cidade:v('bbPilotoCidade'),uf:v('bbPilotoUf'),cep:v('bbPilotoCep'),email:v('bbPilotoEmail')};
+  return {numeroTituloBeneficiario:v('bbPilotoNumeroTitulo'),sequencialNossoNumero:v('bbPilotoSequencial'),valorOriginal:Number(v('bbPilotoValor')||0),dataVencimento:v('bbPilotoVencimento'),numeroInscricao:v('bbPilotoDocumento'),nome:v('bbPilotoNome'),endereco:v('bbPilotoEndereco'),bairro:v('bbPilotoBairro'),cidade:v('bbPilotoCidade'),uf:v('bbPilotoUf'),cep:v('bbPilotoCep'),email:v('bbPilotoEmail')};
 }
 function invalidarPreparoPilotoBB(){
   bbPilotoPreparoAtual=null;
@@ -7641,9 +7641,9 @@ async function previsualizarBoletoPilotoBB(){
   if(out){out.className='bb-cert-aviso';out.textContent='Validando os dados e montando o Nosso Número, sem emitir boleto...'}
   try{
     const j=await bbReq('preparar-piloto',{method:'POST',body});const p=j.preparo||{};
-    bbPilotoPreparoAtual={body,numeroTituloCliente:p.numeroTituloCliente,sequencialNossoNumero:p.sequencialNossoNumero};
+    bbPilotoPreparoAtual={body,numeroTituloCliente:p.numeroTituloCliente,numeroTituloBeneficiario:p.numeroTituloBeneficiario,sequencialNossoNumero:p.sequencialNossoNumero};
     const r=p.resumo||{}, cfg=p.configuracao||{};
-    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ <b>Prévia validada — nenhum boleto emitido.</b><br>Convênio: ${cfg.numeroConvenio||'3054166'} • Carteira/Variação: ${cfg.numeroCarteira||'17'}/${cfg.numeroVariacaoCarteira||'027'} • Modalidade: ${cfg.codigoModalidade||1}<br><b>Nosso Número que será enviado:</b> ${p.numeroTituloCliente||'—'}<br>Pagador: ${r.pagador?.nome||'—'} • CPF/CNPJ: ${r.pagador?.numeroInscricao||'—'}<br>Valor: ${Number(r.valorOriginal||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} • Vencimento BB: ${r.dataVencimento||'—'}<br>Juros: 5% ao mês • Multa: 2% • Pagamento parcial: não.`}
+    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ <b>Prévia validada — nenhum boleto emitido.</b><br>Convênio: ${cfg.numeroConvenio||'3054166'} • Carteira/Variação: ${cfg.numeroCarteira||'17'}/${cfg.numeroVariacaoCarteira||'027'} • Modalidade: ${cfg.codigoModalidade||1}<br><b>Nº do Título:</b> ${p.numeroTituloBeneficiario||'—'}<br><b>Nosso Número que será enviado:</b> ${p.numeroTituloCliente||'—'}<br>Pagador: ${r.pagador?.nome||'—'} • CPF/CNPJ: ${r.pagador?.numeroInscricao||'—'}<br>Valor: ${Number(r.valorOriginal||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} • Vencimento BB: ${r.dataVencimento||'—'}<br>Juros: 5% ao mês • Multa: 2% • Pagamento parcial: não.`}
     const btn=document.getElementById('btnBbEmitirPiloto');if(btn)btn.disabled=false;
   }catch(e){invalidarPreparoPilotoBB();if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Prévia não concluída: '+e.message}alert('Não foi possível preparar a emissão.\n\n'+e.message)}
 }
@@ -7652,17 +7652,17 @@ async function emitirBoletoPilotoBB(){
   if(!bbPilotoPreparoAtual)return alert('Primeiro clique em “Pré-visualizar emissão” e confira o Nosso Número.');
   if(JSON.stringify(body)!==JSON.stringify(bbPilotoPreparoAtual.body)){invalidarPreparoPilotoBB();return alert('Algum dado foi alterado depois da prévia. Gere a pré-visualização novamente antes de emitir.');}
   const nosso=bbPilotoPreparoAtual.numeroTituloCliente;
-  const resumo=`ATENÇÃO: ESTA AÇÃO REGISTRA UM BOLETO REAL NO BANCO DO BRASIL.\n\nPagador: ${body.nome}\nCPF/CNPJ: ${body.numeroInscricao}\nValor: ${Number(body.valorOriginal||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}\nVencimento: ${body.dataVencimento?new Date(body.dataVencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}\nConvênio: 3054166\nCarteira/Variação: 17/027\nModalidade: 1 — Simples\nNosso Número: ${nosso}\n\nJuros: 5% ao mês\nMulta: 2% a partir do dia seguinte\nDesconto: nenhum\nPagamento parcial: não\n\nDeseja registrar este boleto REAL?`;
+  const resumo=`ATENÇÃO: ESTA AÇÃO REGISTRA UM BOLETO REAL NO BANCO DO BRASIL.\n\nPagador: ${body.nome}\nCPF/CNPJ: ${body.numeroInscricao}\nValor: ${Number(body.valorOriginal||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}\nVencimento: ${body.dataVencimento?new Date(body.dataVencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}\nConvênio: 3054166\nCarteira/Variação: 17/027\nModalidade: 1 — Simples\nNº do Título: ${body.numeroTituloBeneficiario||'—'}\nNosso Número: ${nosso}\n\nJuros: 5% ao mês\nMulta: 2% a partir do dia seguinte\nDesconto: nenhum\nPagamento parcial: não\n\nDeseja registrar este boleto REAL?`;
   if(!confirm(resumo))return;
-  const confirmacao=prompt(`Para confirmar a emissão REAL do Nosso Número ${nosso}, digite exatamente: EMITIR`);
+  const confirmacao=prompt(`Para confirmar a emissão REAL do título ${body.numeroTituloBeneficiario||'—'} / Nosso Número ${nosso}, digite exatamente: EMITIR`);
   if(String(confirmacao||'').trim().toUpperCase()!=='EMITIR')return alert('Emissão cancelada. Nenhum boleto foi registrado.');
   if(out){out.className='bb-cert-aviso';out.textContent='Registrando UM boleto piloto no Banco do Brasil...'}
   try{
     const j=await bbReq('emitir-piloto',{method:'POST',body});const e=j.emissao||{};
-    if(out){out.className='bb-cert-aviso ok';out.textContent=`✅ Boleto REAL registrado no BB. HTTP ${e.status||201}. Nosso número: ${e.numeroTituloCliente||'—'}${e.linhaDigitavel?` • Linha digitável: ${e.linhaDigitavel}`:''}. Confira o título no Banco do Brasil antes de emitir qualquer outro.`}
+    if(out){out.className='bb-cert-aviso ok';out.textContent=`✅ Boleto REAL registrado no BB. HTTP ${e.status||201}. Nº do título: ${e.numeroTituloBeneficiario||body.numeroTituloBeneficiario||'—'} • Nosso número: ${e.numeroTituloCliente||'—'}${e.linhaDigitavel?` • Linha digitável: ${e.linhaDigitavel}`:''}. Confira o título no Banco do Brasil antes de emitir qualquer outro.`}
     invalidarPreparoPilotoBB();
-    alert('Boleto piloto registrado com sucesso no Banco do Brasil.\n\nNosso número: '+(e.numeroTituloCliente||'—')+'\n\nAgora confira esse boleto no portal/gerenciador do BB antes de emitir qualquer outro.');
+    alert('Boleto piloto registrado com sucesso no Banco do Brasil.\n\nNº do título: '+(e.numeroTituloBeneficiario||body.numeroTituloBeneficiario||'—')+'\nNosso número: '+(e.numeroTituloCliente||'—')+'\n\nAgora confira esse boleto no portal/gerenciador do BB antes de emitir qualquer outro.');
   }catch(e){invalidarPreparoPilotoBB();if(out){out.className='bb-cert-aviso erro';out.textContent='❌ O boleto piloto NÃO foi confirmado como emitido: '+e.message}alert('Emissão piloto não concluída.\n\n'+e.message+'\n\nNão tente novamente sem conferir primeiro no BB se algum título foi registrado.');}
 }
-setTimeout(()=>{['bbPilotoSequencial','bbPilotoValor','bbPilotoVencimento','bbPilotoDocumento','bbPilotoNome','bbPilotoEndereco','bbPilotoBairro','bbPilotoCidade','bbPilotoUf','bbPilotoCep','bbPilotoEmail'].forEach(id=>{const el=document.getElementById(id);if(el&&!el.dataset.bbPreviewWatch){el.dataset.bbPreviewWatch='1';el.addEventListener('input',invalidarPreparoPilotoBB);el.addEventListener('change',invalidarPreparoPilotoBB)}})},0);
+setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoSequencial','bbPilotoValor','bbPilotoVencimento','bbPilotoDocumento','bbPilotoNome','bbPilotoEndereco','bbPilotoBairro','bbPilotoCidade','bbPilotoUf','bbPilotoCep','bbPilotoEmail'].forEach(id=>{const el=document.getElementById(id);if(el&&!el.dataset.bbPreviewWatch){el.dataset.bbPreviewWatch='1';el.addEventListener('input',invalidarPreparoPilotoBB);el.addEventListener('change',invalidarPreparoPilotoBB)}})},0);
 
