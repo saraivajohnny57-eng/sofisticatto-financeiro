@@ -293,6 +293,29 @@ async function prepararBoletoPiloto(amb,entrada={}){
     payload
   };
 }
+function acharCampoBb(obj,chaves){
+  const alvos=new Set(chaves.map(x=>String(x).toLowerCase()));
+  const vistos=new Set();
+  function rec(v){
+    if(!v||typeof v!=='object'||vistos.has(v))return null;vistos.add(v);
+    for(const [k,val] of Object.entries(v)){if(alvos.has(String(k).toLowerCase())&&val!==null&&val!==undefined&&String(val)!=='')return val;}
+    for(const val of Object.values(v)){const r=rec(val);if(r!==null&&r!==undefined)return r;}
+    return null;
+  }
+  return rec(obj);
+}
+async function consultarBoletoBb(amb,nossoNumero,oAuth=null){
+  const o=oAuth||await obterTokenOAuth(amb);
+  const base=amb==='teste'?'https://api.hm.bb.com.br':'https://api.bb.com.br';
+  const nn=encodeURIComponent(String(nossoNumero||'').trim());
+  if(!nn)throw new Error('Nosso Número ausente para consulta do boleto.');
+  const url=`${base}/cobrancas/v2/boletos/${nn}?gw-dev-app-key=${encodeURIComponent(o.cred.app_key)}`;
+  const r=await getHttps({url,headers:{Authorization:`Bearer ${o.token}`,Accept:'application/json'}});
+  let data={};try{data=JSON.parse(r.text||'{}')}catch{data={raw:r.text}}
+  if(r.status<200||r.status>=300)throw new Error(data?.erros?.[0]?.mensagem||data?.mensagem||data?.message||`Consulta do boleto BB HTTP ${r.status}`);
+  return {status:r.status,data};
+}
+
 async function emitirBoletoPiloto(amb,entrada={}){
   // V154: reserva o sequencial ATOMICAMENTE antes do POST ao BB.
   // Assim dois usuários nunca conseguem enviar o mesmo Nosso Número.
@@ -318,15 +341,21 @@ async function emitirBoletoPiloto(amb,entrada={}){
   // O BB já confirmou sucesso. Qualquer falha de auditoria daqui para frente NÃO transforma
   // uma emissão real em erro HTTP 500, evitando a dúvida que ocorreu com o título 55789.
   const auditoriaOk=await marcarReservaEmitida(amb,reserva.sequencial,seuNumero);
+  // A resposta do POST pode variar. Faz uma consulta imediata do título confirmado
+  // para obter linha digitável/código de barras quando o POST não os trouxer.
+  let consulta=null;
+  try{consulta=await consultarBoletoBb(amb,nossoNumero,o)}catch(e){console.warn('[BANCO-BB V155] boleto emitido; consulta complementar falhou:',e.message)}
+  const conjunto={post:data,consulta:consulta?.data||null};
+  const linhaDigitavel=acharCampoBb(conjunto,['linhaDigitavel','linha_digitavel','linhaDigitavelBoleto']);
+  const codigoBarraNumerico=acharCampoBb(conjunto,['codigoBarraNumerico','codigoBarras','codigoBarra','codigo_barras']);
+  const numeroBoletoBB=acharCampoBb(conjunto,['numero','numeroBoletoBB','numeroTituloCliente','nossoNumero'])||nossoNumero;
   return {
     ok:true,status:r.status,emitido:true,numeroTituloCliente:nossoNumero,numeroTituloBeneficiario:seuNumero,
-    numeroBoletoBB:data.numero||data.numeroBoletoBB||data.numeroTituloCliente||nossoNumero,
-    linhaDigitavel:data.linhaDigitavel||data.linhaDigitavelBoleto||null,
-    codigoBarraNumerico:data.codigoBarraNumerico||data.codigoBarras||null,
+    numeroBoletoBB,linhaDigitavel:linhaDigitavel||null,codigoBarraNumerico:codigoBarraNumerico||null,
     sequencialReservado:reserva.sequencial,proximoSequencialNossoNumero:reserva.proximo,
     controleSequencial:{reservadoAntesDoEnvio:true,auditoriaConfirmada:auditoriaOk},
     aviso:auditoriaOk?null:'Boleto emitido pelo BB, mas a marcação de auditoria local falhou. O próximo sequencial já ficou reservado com segurança.',
-    data
+    data,consulta:consulta?.data||null
   };
 }
 
@@ -395,10 +424,15 @@ module.exports=async function(req,res){
       const {payload,...seguro}=preparo;
       return json(res,200,{ok:true,preparo:seguro});
     }
-    if(action==='emitir-piloto'){
+    if(action==='emitir-piloto'||action==='emitir-boleto'){
       const emissao=await emitirBoletoPiloto(amb,req.body||{});
       return json(res,201,{ok:true,emissao});
     }
+    if(action==='consultar-boleto'){
+      const nosso=String(req.body?.nosso_numero||req.query?.nosso_numero||'').trim();
+      const consulta=await consultarBoletoBb(amb,nosso);
+      return json(res,200,{ok:true,consulta:consulta.data,status:consulta.status});
+    }
     return json(res,400,{ok:false,erro:'Ação inválida.'});
-  }catch(e){console.error('[BANCO-BB V154]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
+  }catch(e){console.error('[BANCO-BB V155]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
 };
