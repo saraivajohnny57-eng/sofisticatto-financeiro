@@ -7559,6 +7559,16 @@ async function gerarPdfBoletoBb(d){
   const assinatura=await garantirAssinaturaAtivaBoleto();
   const logoUrl=assinatura?.logo_url||logoEtiquetaUrl?.()||'';
   const logoData=await imagemUrlParaDataUrlRelatorio(logoUrl);
+  async function embedPngAsset(path){
+    try{
+      const u=new URL(path,window.location.href).href;
+      const r=await fetch(u,{cache:'no-store'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      return await pdf.embedPng(new Uint8Array(await r.arrayBuffer()));
+    }catch(e){console.warn('Asset boleto não carregado:',path,e);return null}
+  }
+  const bbLogoAsset=await embedPngAsset('assets/bb-logo.png');
+  const bbWatermarkAsset=await embedPngAsset('assets/bb-watermark.png');
   async function drawLogo(x,y,w,h){
     if(logoData){
       try{
@@ -7574,27 +7584,41 @@ async function gerarPdfBoletoBb(d){
     return false;
   }
   function bankHeader(yTop){
-    const h=31;rect(L,yTop-h,CW,h,.7);
-    pg.drawRectangle({x:L+3,y:yTop-h+4,width:23,height:23,color:yellow,borderColor:black,borderWidth:.5});
-    drawTextFit('BB',L+3,yTop-h+10,23,9,bold,'center');
-    drawTextFit('BANCO DO BRASIL',L+31,yTop-h+9,120,12.8,bold);
-    line(L+157,yTop-h,L+157,yTop,.7);drawTextFit('001-9',L+161,yTop-h+9,49,13,bold,'center');
-    line(L+215,yTop-h,L+215,yTop,.7);drawTextFit(linhaFmt,L+220,yTop-h+10,CW-225,9,bold,'center');
+    const h=34;rect(L,yTop-h,CW,h,.8);
+    if(bbLogoAsset){
+      const targetW=142,targetH=22,sc=Math.min(targetW/bbLogoAsset.width,targetH/bbLogoAsset.height);
+      pg.drawImage(bbLogoAsset,{x:L+7,y:yTop-h+6,width:bbLogoAsset.width*sc,height:bbLogoAsset.height*sc});
+    }else{
+      pg.drawRectangle({x:L+4,y:yTop-h+5,width:24,height:24,color:yellow,borderColor:black,borderWidth:.5});
+      drawTextFit('BB',L+4,yTop-h+11,24,9,bold,'center');
+      drawTextFit('BANCO DO BRASIL',L+34,yTop-h+10,116,12.2,bold);
+    }
+    line(L+158,yTop-h,L+158,yTop,.75);
+    drawTextFit('001-9',L+160,yTop-h+10,50,13,bold,'center');
+    line(L+214,yTop-h,L+214,yTop,.75);
+    drawTextFit(linhaFmt,L+219,yTop-h+11,CW-224,9,bold,'center');
     return yTop-h;
   }
+  function drawBbWatermark(x,y,w,h,opacity=.16){
+    if(!bbWatermarkAsset)return;
+    const sc=Math.min(w/bbWatermarkAsset.width,h/bbWatermarkAsset.height);
+    pg.drawImage(bbWatermarkAsset,{x:x+(w-bbWatermarkAsset.width*sc)/2,y:y+(h-bbWatermarkAsset.height*sc)/2,width:bbWatermarkAsset.width*sc,height:bbWatermarkAsset.height*sc,opacity});
+  }
 
-  // V159 — replica mais fiel da organização visual do BB Cobrança fornecido pelo usuário.
-  // Marca Sofisticatto apenas no topo, usando a imagem cadastrada em Assinatura.
-  let y=817;
-  await drawLogo(L,y-38,128,31);
-  drawTextFit('BB Cobrança',L+CW-88,y-13,88,5.7,font,'right');
-  drawTextFit('Boleto bancário',L+CW-88,y-25,88,5,font,'right');
-  y-=46;
+  // V160 — layout inspirado no BB Cobrança fornecido pelo usuário, com marca oficial extraída do próprio boleto enviado.
+  // A logo da Sofisticatto vem da assinatura ativa e recebe maior destaque no cabeçalho.
+  let y=820;
+  await drawLogo(L,y-47,160,42);
+  drawTextFit(beneficiario,L+184,y-15,CW-190,7,bold);
+  drawTextFit('CNPJ: '+cnpjBen,L+184,y-29,CW-190,5.8,font);
+  drawTextFit(enderecoBen,L+184,y-41,CW-190,5.2,font);
+  y-=55;
 
   // Recibo de entrega: cabeçalho + quadro compacto, igual ao primeiro bloco do BB Cobrança.
   y=bankHeader(y);
   const reciboH=145, rightW=164, leftW=CW-rightW;
   rect(L,y-reciboH,CW,reciboH,.55); line(L+leftW,y-reciboH,L+leftW,y,.5);
+  drawBbWatermark(L+145,y-reciboH+12,155,122,.13);
   drawTextFit('Local do Pagamento',L+4,y-10,leftW-8,4.8,font);
   drawTextFit('Pagável em qualquer banco.',L+4,y-25,leftW-8,7.6,bold);
   drawTextFit('Nome do Beneficiário/CNPJ/CPF',L+4,y-42,leftW-8,4.8,font);
@@ -7632,7 +7656,7 @@ async function gerarPdfBoletoBb(d){
   cell(L+160,y-29,62,29,'Espécie','R$',{valueSize:7.2}); cell(L+222,y-29,lw-222,29,'Quantidade x Valor','');
   cell(L+lw,y-29,rw,29,'(=) Valor do Documento',moeda,{bold:true,valueSize:8.7,align:'right'}); y-=29;
 
-  const instrH=105; rect(L,y-instrH,lw,instrH); drawTextFit('Instruções de Responsabilidade do Beneficiário',L+4,y-12,lw-8,6.2,bold);
+  const instrH=105; rect(L,y-instrH,lw,instrH); drawBbWatermark(L+170,y-instrH+4,150,98,.11); drawTextFit('Instruções de Responsabilidade do Beneficiário',L+4,y-12,lw-8,6.2,bold);
   const jurosDia=(Number(d.valor||0)*0.05/30);
   drawTextFit(`Juros.....: 5,00% ao mês - (${cobMoeda(jurosDia)} ao dia)`,L+8,y-34,lw-16,6,font);
   drawTextFit('Multa.....: 2,00% após 1 dia corrido do vencimento',L+8,y-51,lw-16,6,font);
@@ -7650,7 +7674,12 @@ async function gerarPdfBoletoBb(d){
   const png=await barcodePngBb(d.codigo_barras),img=await pdf.embedPng(png);
   pg.drawImage(img,{x:L+2,y:y-83,width:365,height:55});
   drawTextFit(String(d.codigo_barras).replace(/\D/g,''),L+2,y-94,365,5.8,bold);
-  drawTextFit(enderecoBen,L,y-112,CW,4.9,font);
+  drawTextFit(enderecoBen,L,y-112,300,4.9,font);
+  if(bbLogoAsset){
+    const targetW=118,targetH=19,sc=Math.min(targetW/bbLogoAsset.width,targetH/bbLogoAsset.height);
+    pg.drawImage(bbLogoAsset,{x:L+CW-122,y:y-116,width:bbLogoAsset.width*sc,height:bbLogoAsset.height*sc,opacity:.62});
+  }
+  drawTextFit('BB Cobrança 3.00.01',L+365,y-112,90,4.5,font,'center');
   return new Blob([await pdf.save()],{type:'application/pdf'});
 }
 function nomePdfBoletoBb(d){const n=String(d.cliente_nome||'CLIENTE').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,' ');return `${n||'CLIENTE'} - ${d.numero_titulo||d.nosso_numero||'boleto'}.pdf`;}
