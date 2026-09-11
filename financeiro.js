@@ -7488,7 +7488,7 @@ function registroParaBoletoVisual(reg,emissao={}){
   return {
     cliente_nome:reg?.cliente_nome||'',cpf_cnpj:reg?.cpf_cnpj||'',endereco:reg?.endereco||'',numero:reg?.numero||'',bairro:reg?.bairro||'',cidade:reg?.cidade||'',uf:reg?.uf||'',cep:reg?.cep||'',
     numero_titulo:numeroTituloParcelaBb(reg),nosso_numero:emissao.numeroTituloCliente||reg?.nosso_numero||'',linha_digitavel:emissao.linhaDigitavel||reg?.linha_digitavel||'',codigo_barras:emissao.codigoBarraNumerico||reg?.codigo_barras||'',
-    valor:Number(reg?.valor||0),vencimento:reg?.vencimento||'',parcela_numero:reg?.parcela_numero||1,parcela_total:reg?.parcela_total||1
+    valor:Number(reg?.valor||0),vencimento:reg?.vencimento||'',emitido_em:reg?.emitido_em||'',parcela_numero:reg?.parcela_numero||1,parcela_total:reg?.parcela_total||1
   };
 }
 function carregarScriptUmaVez(src,chave){
@@ -7503,16 +7503,108 @@ async function barcodePngBb(codigo){
   const xml=new XMLSerializer().serializeToString(svg);const url=URL.createObjectURL(new Blob([xml],{type:'image/svg+xml'}));
   try{return await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=Math.max(900,img.width||900);c.height=Math.max(120,img.height||120);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL('image/png'))};img.onerror=reject;img.src=url})}finally{URL.revokeObjectURL(url)}
 }
+function formatarLinhaDigitavelBb(v){
+  const n=String(v||'').replace(/\D/g,'');
+  if(n.length!==47)return String(v||'');
+  return `${n.slice(0,5)}.${n.slice(5,10)} ${n.slice(10,15)}.${n.slice(15,21)} ${n.slice(21,26)}.${n.slice(26,32)} ${n.slice(32,33)} ${n.slice(33)}`;
+}
+function dataBrBoletoBb(v){
+  if(!v)return '—';
+  const s=String(v).slice(0,10);
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(m)return `${m[3]}/${m[2]}/${m[1]}`;
+  return s;
+}
 async function gerarPdfBoletoBb(d){
   if(!d?.linha_digitavel||!d?.codigo_barras)throw new Error('Ainda não há linha digitável/código de barras salvo. Atualize/consulte o boleto antes de gerar o PDF.');
   await carregarScriptUmaVez('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js','PDFLib');
-  const {PDFDocument,StandardFonts}=PDFLib;const pdf=await PDFDocument.create();const pg=pdf.addPage([595.28,841.89]);const font=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold);
-  let y=795;const txt=(t,x=42,size=10,f=font)=>{pg.drawText(String(t??''),{x,y,size,font:f,maxWidth:510});y-=size+7};
-  txt('BANCO DO BRASIL 001-9',42,15,bold);txt('Boleto de cobrança registrado',42,11,bold);y-=4;txt('Linha digitável:',42,9,bold);txt(d.linha_digitavel,42,12,bold);y-=8;
-  txt('Beneficiário: SOFISTICATTO INDUSTRIA COMERCIO E EXPORTACAO DE COSMETICOS LTDA',42,9,bold);txt('CNPJ: 05.451.985/0001-95',42,9);txt('Endereço: Rua 4 Qd.35 Lt.14E, Nº 217 - Vila Abajá - Goiânia/GO - CEP 74550-470',42,8);y-=5;
-  txt(`Pagador: ${d.cliente_nome}`,42,10,bold);txt(`CPF/CNPJ: ${d.cpf_cnpj}`,42,9);txt(`Endereço: ${[d.endereco,d.numero,d.bairro,d.cidade,d.uf,d.cep].filter(Boolean).join(' - ')}`,42,9);y-=5;
-  txt(`Nº do Título: ${d.numero_titulo}`,42,9);txt(`Nosso Número: ${d.nosso_numero}`,42,9);txt(`Vencimento: ${d.vencimento?new Date(d.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}`,42,10,bold);txt(`Valor: ${cobMoeda(d.valor)}`,42,12,bold);txt('Juros: 5% ao mês • Multa: 2% a partir do dia seguinte ao vencimento',42,8);y-=10;
-  const png=await barcodePngBb(d.codigo_barras);const img=await pdf.embedPng(png);pg.drawImage(img,{x:42,y:y-70,width:510,height:68});y-=90;txt(String(d.codigo_barras).replace(/\D/g,''),42,9,bold);y-=12;txt('PAGÁVEL EM QUALQUER BANCO ATÉ O VENCIMENTO.',42,9,bold);txt('Representação gerada pelo portal a partir dos dados confirmados pela API Cobranças v2 do Banco do Brasil.',42,7);
+  const {PDFDocument,StandardFonts,rgb}=PDFLib;
+  const pdf=await PDFDocument.create();
+  const pg=pdf.addPage([595.28,841.89]);
+  const font=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold);
+  const W=595.28, L=34, R=34, CW=W-L-R;
+  const black=rgb(0,0,0), gray=rgb(.96,.96,.96), purple=rgb(.18,.14,.40);
+  const linhaFmt=formatarLinhaDigitavelBb(d.linha_digitavel);
+  const venc=dataBrBoletoBb(d.vencimento), emissao=dataBrBoletoBb(d.emitido_em||new Date().toISOString());
+  const moeda=cobMoeda(d.valor);
+  const beneficiario='SOFISTICATTO INDUSTRIA COMERCIO E EXPORTACAO DE COSMETICOS LTDA';
+  const cnpjBen='05.451.985/0001-95';
+  const enderecoBen='Rua 4 Qd.35 Lt.14E, Nº 217 - Vila Abajá - Goiânia/GO - CEP 74550-470';
+  const conv='3054166', carteira='17 / 027';
+  const pagEndereco=[d.endereco,d.numero,d.bairro,d.cidade,d.uf,d.cep].filter(Boolean).join(' - ');
+  const drawTextFit=(text,x,y,maxW,size=7,f=font,align='left')=>{
+    text=String(text??''); let sz=size; while(sz>4.5 && f.widthOfTextAtSize(text,sz)>maxW)sz-=.25;
+    let xx=x;if(align==='right')xx=x+maxW-f.widthOfTextAtSize(text,sz);if(align==='center')xx=x+(maxW-f.widthOfTextAtSize(text,sz))/2;
+    pg.drawText(text,{x:xx,y,size:sz,font:f,color:black,maxWidth:maxW});
+  };
+  const line=(x1,y1,x2,y2,w=.55,dashArray)=>pg.drawLine({start:{x:x1,y:y1},end:{x:x2,y:y2},thickness:w,color:black,dashArray});
+  const rect=(x,y,w,h,fill=null)=>pg.drawRectangle({x,y,width:w,height:h,borderColor:black,borderWidth:.55,...(fill?{color:fill}:{})});
+  const labelValue=(x,y,w,h,label,value,opt={})=>{
+    rect(x,y,w,h,opt.fill||null);drawTextFit(label,x+4,y+h-10,w-8,5.8,font);drawTextFit(value,x+4,y+5,w-8,opt.valueSize||8,opt.bold?bold:font,opt.align||'left');
+  };
+  const logoUrl=logoEtiquetaUrl?.()||emailAssinaturaAtiva?.logo_url||'';
+  const logoData=await imagemUrlParaDataUrlRelatorio(logoUrl);
+  async function drawLogo(x,y,w,h){
+    if(logoData){
+      try{const bytes=Uint8Array.from(atob(logoData.split(',')[1]),c=>c.charCodeAt(0));const im=logoData.startsWith('data:image/png')?await pdf.embedPng(bytes):await pdf.embedJpg(bytes);const sc=Math.min(w/im.width,h/im.height);pg.drawImage(im,{x:x+(w-im.width*sc)/2,y:y+(h-im.height*sc)/2,width:im.width*sc,height:im.height*sc});return;}catch(e){console.warn('Logo BB boleto:',e)}
+    }
+    drawTextFit('Sofisticatto',x,y+h/2-7,w,18,bold,'center');drawTextFit('COSMÉTICOS',x,y+3,w,6,font,'center');
+  }
+  const desenharCabecalho=async(yTop,titulo)=>{
+    const h=44;rect(L,yTop-h,CW,h);
+    await drawLogo(L+5,yTop-h+4,145,h-8);
+    line(L+155,yTop-h,L+155,yTop);
+    drawTextFit(beneficiario,L+164,yTop-16,CW-170,8,bold);
+    drawTextFit(`CNPJ: ${cnpjBen}`,L+164,yTop-29,CW-170,7,font);
+    drawTextFit(titulo,L+164,yTop-h+6,CW-170,7,bold,'right');
+    return yTop-h;
+  };
+  const desenharBancoLinha=async(yTop)=>{
+    const h=32;rect(L,yTop-h,CW,h);
+    pg.drawRectangle({x:L+3,y:yTop-h+4,width:20,height:20,color:rgb(1,.84,0)});
+    drawTextFit('BB',L+3,yTop-h+10,20,9,bold,'center');
+    drawTextFit('BANCO DO BRASIL',L+29,yTop-h+9,125,13,bold);
+    line(L+160,yTop-h,L+160,yTop);drawTextFit('001-9',L+166,yTop-h+9,52,14,bold,'center');
+    line(L+224,yTop-h,L+224,yTop);drawTextFit(linhaFmt,L+230,yTop-h+10,CW-236,10,bold,'center');
+    return yTop-h;
+  };
+  const blocoPrincipal=(yTop,comInstrucoes=true)=>{
+    const right=128, leftW=CW-right;
+    labelValue(L,yTop-30,leftW,30,'Local de Pagamento','PAGÁVEL EM QUALQUER BANCO ATÉ O VENCIMENTO.',{bold:true,valueSize:8});
+    labelValue(L+leftW,yTop-30,right,30,'Vencimento',venc,{bold:true,valueSize:10,align:'right'});
+    yTop-=30;
+    labelValue(L,yTop-31,leftW*0.67,31,'Beneficiário',beneficiario,{bold:true,valueSize:7});
+    labelValue(L+leftW*0.67,yTop-31,leftW*0.33,31,'CNPJ',cnpjBen,{bold:true,valueSize:7});
+    labelValue(L+leftW,yTop-31,right,31,'Convênio / Carteira',`${conv} • ${carteira}`,{bold:true,valueSize:8,align:'right'});
+    yTop-=31;
+    const c1=100,c2=92,c3=67,c4=64,c5=leftW-c1-c2-c3-c4;
+    labelValue(L,yTop-31,c1,31,'Data do Documento',emissao,{valueSize:8});
+    labelValue(L+c1,yTop-31,c2,31,'Nº do Documento',d.numero_titulo||'—',{bold:true,valueSize:8});
+    labelValue(L+c1+c2,yTop-31,c3,31,'Espécie Doc.','DM',{valueSize:8});
+    labelValue(L+c1+c2+c3,yTop-31,c4,31,'Aceite','N',{valueSize:8});
+    labelValue(L+c1+c2+c3+c4,yTop-31,c5,31,'Processamento',emissao,{valueSize:8});
+    labelValue(L+leftW,yTop-31,right,31,'Nosso Número',d.nosso_numero||'—',{bold:true,valueSize:7.5,align:'right'});
+    yTop-=31;
+    labelValue(L,yTop-31,100,31,'Uso do Banco','');labelValue(L+100,yTop-31,95,31,'Carteira',carteira,{valueSize:8});labelValue(L+195,yTop-31,65,31,'Espécie','R$',{valueSize:8});labelValue(L+260,yTop-31,leftW-260,31,'Quantidade / Valor','');
+    labelValue(L+leftW,yTop-31,right,31,'(=) Valor do Documento',moeda,{bold:true,valueSize:10,align:'right'});
+    yTop-=31;
+    if(comInstrucoes){
+      const h=93;rect(L,yTop-h,leftW,h);drawTextFit('Instruções (Texto de responsabilidade do beneficiário)',L+5,yTop-13,leftW-10,7,bold);drawTextFit('Após o vencimento, cobrar juros de 5% ao mês e multa de 2%.',L+8,yTop-31,leftW-16,7);drawTextFit('Sem desconto. Pagamento parcial não permitido.',L+8,yTop-46,leftW-16,7);drawTextFit('Em caso de dúvidas, entre em contato com o financeiro da Sofisticatto.',L+8,yTop-61,leftW-16,7);
+      labelValue(L+leftW,yTop-18,right,18,'(-) Desconto / Abatimento','—',{align:'right'});labelValue(L+leftW,yTop-36,right,18,'(-) Outras Deduções','—',{align:'right'});labelValue(L+leftW,yTop-54,right,18,'(+) Mora / Multa','—',{align:'right'});labelValue(L+leftW,yTop-72,right,18,'(+) Outros Acréscimos','—',{align:'right'});labelValue(L+leftW,yTop-h,right,h-72,'(=) Valor Cobrado',moeda,{bold:true,valueSize:10,align:'right'});
+      yTop-=h;
+    }
+    const ph=48;rect(L,yTop-ph,CW,ph);drawTextFit('Pagador',L+5,yTop-12,50,6,font);drawTextFit(d.cliente_nome||'',L+55,yTop-13,CW-60,9,bold);drawTextFit(`CPF/CNPJ: ${d.cpf_cnpj||'—'}`,L+55,yTop-28,CW-60,7);drawTextFit(pagEndereco,L+55,yTop-41,CW-60,7);yTop-=ph;
+    return yTop;
+  };
+  let y=805;
+  y=await desenharCabecalho(y,'Recibo do Pagador');y-=7;y=await desenharBancoLinha(y);y=blocoPrincipal(y,true);
+  drawTextFit('Autenticação Mecânica',L+CW-150,y-14,150,6,font,'right');
+  y-=37;drawTextFit('✂  Corte aqui',L,y+1,70,6,font);line(L+70,y+4,L+CW,y+4,.55,[5,4]);y-=12;
+  y=await desenharBancoLinha(y);y=blocoPrincipal(y,false);
+  drawTextFit('Ficha de Compensação',L+CW-145,y-14,145,7,bold,'right');drawTextFit('Autenticação Mecânica',L+CW-145,y-27,145,6,font,'right');
+  const png=await barcodePngBb(d.codigo_barras);const img=await pdf.embedPng(png);pg.drawImage(img,{x:L+4,y:y-86,width:360,height:54});drawTextFit(String(d.codigo_barras).replace(/\D/g,''),L+4,y-99,360,7,bold);
+  await drawLogo(L+385,y-89,135,58);
+  drawTextFit('Representação para impressão gerada pelo portal com dados confirmados pela API Cobranças v2 do Banco do Brasil.',L,y-116,CW,5.5,font,'center');
   return new Blob([await pdf.save()],{type:'application/pdf'});
 }
 function nomePdfBoletoBb(d){const n=String(d.cliente_nome||'CLIENTE').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,' ');return `${n||'CLIENTE'} - ${d.numero_titulo||d.nosso_numero||'boleto'}.pdf`;}
