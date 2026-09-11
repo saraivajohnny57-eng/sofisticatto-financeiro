@@ -7627,6 +7627,119 @@ async function testarApiCobrancasBB(){
 
 
 let bbPilotoPreparoAtual=null;
+let bbPilotoClienteBuscaTimer=null;
+let bbPilotoClientePreenchendo=false;
+
+function bbPilotoMostrarSequencial(seq){
+  const hidden=document.getElementById('bbPilotoSequencial');
+  const view=document.getElementById('bbPilotoSequencialExibicao');
+  const v=String(seq||'').replace(/\D/g,'').padStart(10,'0');
+  if(hidden)hidden.value=v&&v!=='0000000000'?v:'';
+  if(view)view.value=v&&v!=='0000000000'?v:'Carregando...';
+}
+async function bbPilotoCarregarProximoNossoNumero(){
+  try{
+    const j=await bbReq('proximo-nosso-numero',{method:'GET'});
+    bbPilotoMostrarSequencial(j?.sequencialNossoNumero||'0000034113');
+  }catch(e){
+    bbPilotoMostrarSequencial('0000034113');
+    console.warn('Não foi possível consultar o próximo Nosso Número:',e);
+  }
+}
+
+function bbPilotoLimitar(v,max){return String(v||"").trim().slice(0,max)}
+function bbPilotoDocumentoNormalizado(v){return String(v||"").replace(/\D/g,"")}
+function bbPilotoNomeNormalizado(v){return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim()}
+function bbPilotoPrimeiroEmail(c){return Array.isArray(c?.emails)?String(c.emails.find(Boolean)||""):String(c?.email||c?.emails||"")}
+function bbPilotoEnderecoCliente(c){
+  const partes=[c?.endereco||c?.logradouro||"",c?.numero||"",c?.complemento||""].map(v=>String(v||"").trim()).filter(Boolean);
+  if(!partes.length)return "";
+  const rua=partes[0];
+  const resto=partes.slice(1).join(" - ");
+  return bbPilotoLimitar(resto?`${rua}, ${resto}`:rua,30);
+}
+function bbPilotoPreencherCliente(c){
+  if(!c)return false;
+  bbPilotoClientePreenchendo=true;
+  const f=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v??""};
+  f('bbPilotoDocumento',c.cpf_cnpj||c.cnpj||c.cpf||"");
+  f('bbPilotoNome',bbPilotoLimitar(c.nome||c.razao_social||"",30));
+  f('bbPilotoEndereco',bbPilotoEnderecoCliente(c));
+  f('bbPilotoBairro',bbPilotoLimitar(c.bairro||"",30));
+  f('bbPilotoCidade',bbPilotoLimitar(c.cidade||"",30));
+  f('bbPilotoUf',bbPilotoLimitar(String(c.uf||"").toUpperCase(),2));
+  f('bbPilotoCep',String(c.cep||"").replace(/\D/g,""));
+  f('bbPilotoEmail',bbPilotoPrimeiroEmail(c));
+  bbPilotoClientePreenchendo=false;
+  invalidarPreparoPilotoBB();
+  const aviso=document.getElementById('bbPilotoClienteBuscaAviso');
+  if(aviso){aviso.style.background='#eefaf1';aviso.style.color='#246339';aviso.innerHTML=`✅ <b>Cliente encontrado no cadastro:</b> ${String(c.nome||c.razao_social||'').replace(/[<>&"]/g,'')} — dados preenchidos automaticamente.`}
+  return true;
+}
+function bbPilotoMontarSugestoesClientes(termo=""){
+  const nomeLista=document.getElementById('bbPilotoClientesLista');
+  const docLista=document.getElementById('bbPilotoDocumentosLista');
+  if(!nomeLista||!docLista)return;
+  const tNome=bbPilotoNomeNormalizado(termo),tDoc=bbPilotoDocumentoNormalizado(termo);
+  let lista=(emailClientes||[]);
+  if(tNome||tDoc){lista=lista.filter(c=>{
+    const n=bbPilotoNomeNormalizado(c.nome||c.razao_social||"");
+    const d=bbPilotoDocumentoNormalizado(c.cpf_cnpj||c.cnpj||c.cpf||"");
+    return (tDoc&&d.includes(tDoc))||(tNome&&n.includes(tNome));
+  })}
+  lista=lista.slice(0,40);
+  nomeLista.innerHTML=lista.map(c=>`<option value="${String(c.nome||c.razao_social||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">${String(c.cpf_cnpj||'').replace(/</g,'&lt;')}</option>`).join('');
+  docLista.innerHTML=lista.map(c=>`<option value="${String(c.cpf_cnpj||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">${String(c.nome||c.razao_social||'').replace(/</g,'&lt;')}</option>`).join('');
+}
+async function bbPilotoBuscarClienteCadastro(valor,tipo){
+  const texto=String(valor||"").trim();if(!texto)return null;
+  const doc=bbPilotoDocumentoNormalizado(texto),nome=bbPilotoNomeNormalizado(texto);
+  let local=null;
+  if(tipo==='documento'&&doc.length>=11){local=(emailClientes||[]).find(c=>bbPilotoDocumentoNormalizado(c.cpf_cnpj||c.cnpj||c.cpf||"")===doc)}
+  if(tipo==='nome'&&nome.length>=3){local=(emailClientes||[]).find(c=>bbPilotoNomeNormalizado(c.nome||c.razao_social||"")===nome)}
+  if(local)return local;
+  try{
+    if(!banco)return null;
+    let r;
+    if(tipo==='documento'&&doc.length>=8){
+      const trecho=doc.slice(-8);
+      r=await banco.from('email_clientes').select('*').ilike('cpf_cnpj',`%${trecho}%`).limit(20);
+      if(!r.error){const ex=(r.data||[]).find(c=>bbPilotoDocumentoNormalizado(c.cpf_cnpj)===doc);if(ex)return ex}
+    }else if(tipo==='nome'&&nome.length>=3){
+      r=await banco.from('email_clientes').select('*').ilike('nome',texto).limit(10);
+      if(!r.error){const ex=(r.data||[]).find(c=>bbPilotoNomeNormalizado(c.nome||c.razao_social||"")===nome);if(ex)return ex}
+    }
+  }catch(e){console.warn('Busca automática de cliente BB:',e)}
+  return null;
+}
+function bbPilotoAgendarBuscaCliente(tipo){
+  if(bbPilotoClientePreenchendo)return;
+  clearTimeout(bbPilotoClienteBuscaTimer);
+  const id=tipo==='documento'?'bbPilotoDocumento':'bbPilotoNome';
+  const valor=document.getElementById(id)?.value||"";
+  bbPilotoMontarSugestoesClientes(valor);
+  const aviso=document.getElementById('bbPilotoClienteBuscaAviso');
+  if(aviso){aviso.style.background='#eef8ff';aviso.style.color='#28566f';aviso.innerHTML='<b>🔎 Preenchimento automático:</b> procurando o cliente no cadastro…'}
+  bbPilotoClienteBuscaTimer=setTimeout(async()=>{
+    const cliente=await bbPilotoBuscarClienteCadastro(valor,tipo);
+    if(cliente){bbPilotoPreencherCliente(cliente);return}
+    if(aviso){aviso.style.background='#fff7d6';aviso.style.color='#6d5e21';aviso.innerHTML='<b>🔎 Cliente ainda não identificado.</b> Continue digitando ou selecione uma sugestão. Se não estiver cadastrado, os campos podem ser preenchidos manualmente.'}
+  },300);
+}
+function configurarBuscaClientePilotoBB(){
+  const nome=document.getElementById('bbPilotoNome'),doc=document.getElementById('bbPilotoDocumento');
+  if(!nome||!doc||nome.dataset.bbClienteBusca==='1')return;
+  nome.dataset.bbClienteBusca=doc.dataset.bbClienteBusca='1';
+  nome.addEventListener('input',()=>bbPilotoAgendarBuscaCliente('nome'));
+  nome.addEventListener('change',()=>bbPilotoAgendarBuscaCliente('nome'));
+  doc.addEventListener('input',()=>bbPilotoAgendarBuscaCliente('documento'));
+  doc.addEventListener('change',()=>bbPilotoAgendarBuscaCliente('documento'));
+  bbPilotoMontarSugestoesClientes();
+  if((emailClientes||[]).length===0 && typeof carregarClientesEmail==='function'){
+    Promise.resolve(carregarClientesEmail()).then(()=>bbPilotoMontarSugestoesClientes()).catch(()=>{});
+  }
+}
+
 function dadosBoletoPilotoBB(){
   const v=id=>String(document.getElementById(id)?.value||'').trim();
   return {numeroTituloBeneficiario:v('bbPilotoNumeroTitulo'),sequencialNossoNumero:v('bbPilotoSequencial'),valorOriginal:Number(v('bbPilotoValor')||0),dataVencimento:v('bbPilotoVencimento'),numeroInscricao:v('bbPilotoDocumento'),nome:v('bbPilotoNome'),endereco:v('bbPilotoEndereco'),bairro:v('bbPilotoBairro'),cidade:v('bbPilotoCidade'),uf:v('bbPilotoUf'),cep:v('bbPilotoCep'),email:v('bbPilotoEmail')};
@@ -7641,7 +7754,9 @@ async function previsualizarBoletoPilotoBB(){
   if(out){out.className='bb-cert-aviso';out.textContent='Validando os dados e montando o Nosso Número, sem emitir boleto...'}
   try{
     const j=await bbReq('preparar-piloto',{method:'POST',body});const p=j.preparo||{};
-    bbPilotoPreparoAtual={body,numeroTituloCliente:p.numeroTituloCliente,numeroTituloBeneficiario:p.numeroTituloBeneficiario,sequencialNossoNumero:p.sequencialNossoNumero};
+    bbPilotoMostrarSequencial(p.sequencialNossoNumero||'');
+    const bodyConfirmado=dadosBoletoPilotoBB();
+    bbPilotoPreparoAtual={body:bodyConfirmado,numeroTituloCliente:p.numeroTituloCliente,numeroTituloBeneficiario:p.numeroTituloBeneficiario,sequencialNossoNumero:p.sequencialNossoNumero};
     const r=p.resumo||{}, cfg=p.configuracao||{};
     if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ <b>Prévia validada — nenhum boleto emitido.</b><br>Convênio: ${cfg.numeroConvenio||'3054166'} • Carteira/Variação: ${cfg.numeroCarteira||'17'}/${cfg.numeroVariacaoCarteira||'027'} • Modalidade: ${cfg.codigoModalidade||1}<br><b>Nº do Título:</b> ${p.numeroTituloBeneficiario||'—'}<br><b>Nosso Número que será enviado:</b> ${p.numeroTituloCliente||'—'}<br>Pagador: ${r.pagador?.nome||'—'} • CPF/CNPJ: ${r.pagador?.numeroInscricao||'—'}<br>Valor: ${Number(r.valorOriginal||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} • Vencimento BB: ${r.dataVencimento||'—'}<br>Juros: 5% ao mês • Multa: 2% • Pagamento parcial: não.`}
     const btn=document.getElementById('btnBbEmitirPiloto');if(btn)btn.disabled=false;
@@ -7661,8 +7776,10 @@ async function emitirBoletoPilotoBB(){
     const j=await bbReq('emitir-piloto',{method:'POST',body});const e=j.emissao||{};
     if(out){out.className='bb-cert-aviso ok';out.textContent=`✅ Boleto REAL registrado no BB. HTTP ${e.status||201}. Nº do título: ${e.numeroTituloBeneficiario||body.numeroTituloBeneficiario||'—'} • Nosso número: ${e.numeroTituloCliente||'—'}${e.linhaDigitavel?` • Linha digitável: ${e.linhaDigitavel}`:''}. Confira o título no Banco do Brasil antes de emitir qualquer outro.`}
     invalidarPreparoPilotoBB();
+    bbPilotoMostrarSequencial(e.proximoSequencialNossoNumero||'');
+    bbPilotoCarregarProximoNossoNumero();
     alert('Boleto piloto registrado com sucesso no Banco do Brasil.\n\nNº do título: '+(e.numeroTituloBeneficiario||body.numeroTituloBeneficiario||'—')+'\nNosso número: '+(e.numeroTituloCliente||'—')+'\n\nAgora confira esse boleto no portal/gerenciador do BB antes de emitir qualquer outro.');
   }catch(e){invalidarPreparoPilotoBB();if(out){out.className='bb-cert-aviso erro';out.textContent='❌ O boleto piloto NÃO foi confirmado como emitido: '+e.message}alert('Emissão piloto não concluída.\n\n'+e.message+'\n\nNão tente novamente sem conferir primeiro no BB se algum título foi registrado.');}
 }
-setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoSequencial','bbPilotoValor','bbPilotoVencimento','bbPilotoDocumento','bbPilotoNome','bbPilotoEndereco','bbPilotoBairro','bbPilotoCidade','bbPilotoUf','bbPilotoCep','bbPilotoEmail'].forEach(id=>{const el=document.getElementById(id);if(el&&!el.dataset.bbPreviewWatch){el.dataset.bbPreviewWatch='1';el.addEventListener('input',invalidarPreparoPilotoBB);el.addEventListener('change',invalidarPreparoPilotoBB)}})},0);
+setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bbPilotoDocumento','bbPilotoNome','bbPilotoEndereco','bbPilotoBairro','bbPilotoCidade','bbPilotoUf','bbPilotoCep','bbPilotoEmail'].forEach(id=>{const el=document.getElementById(id);if(el&&!el.dataset.bbPreviewWatch){el.dataset.bbPreviewWatch='1';el.addEventListener('input',invalidarPreparoPilotoBB);el.addEventListener('change',invalidarPreparoPilotoBB)}});configurarBuscaClientePilotoBB();bbPilotoCarregarProximoNossoNumero()},0);
 
