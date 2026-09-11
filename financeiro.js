@@ -7623,6 +7623,54 @@ async function gerarPdfBoletoBb(d,opt={}){
   }
 
   // ===========================
+  // CANHOTO / RECIBO DE ENTREGA (V167)
+  // Inspirado na Impressão Normal do BB Cobrança. Fica no topo da via normal
+  // e pode ser destacado para assinatura/controle de entrega.
+  // ===========================
+  if(opt.impressaoNormal){
+    const canhotoTituloY=y+8;
+    drawTextFit('Recibo de Entrega',L+CW-120,canhotoTituloY,120,6.4,bold,'right');
+    y=bankHeader(y);
+    const ct=y, ch=95;
+    const cRight=205, cLeft=CW-cRight;
+    rect(L,ct-ch,CW,ch,.55);
+    line(L+cLeft,ct-ch,L+cLeft,ct,.45);
+    // esquerda: beneficiário, pagador e dados principais
+    drawTextFit('Nome do Beneficiário/CNPJ/CPF',L+4,ct-9,cLeft-8,4.2,font);
+    drawTextFit(`${beneficiario} - CNPJ: ${cnpjBen}`,L+4,ct-22,cLeft-8,5.6,bold);
+    drawTextFit('Pagador/CNPJ/CPF',L+4,ct-34,cLeft-8,4.2,font);
+    drawTextFit(`${d.cliente_nome||''} - CNPJ/CPF: ${d.cpf_cnpj||''}`,L+4,ct-47,cLeft-8,5.4,bold);
+    // linha de vencimento/documento/espécie/moeda
+    const rowY=ct-61, rowH=18;
+    const cols=[92,104,64,64,cLeft-324]; let cx=L;
+    const vals=[['Data de Vencimento',venc],['Nr Documento',d.numero_titulo||'—'],['Espécie','DM'],['Moeda','R$'],['Valor do Documento',moeda]];
+    vals.forEach((v,i)=>{cell(cx,rowY-rowH,cols[i],rowH,v[0],v[1],{bold:i===4,valueSize:i===4?6.6:5.5,align:i===4?'right':'center'});cx+=cols[i]});
+    drawTextFit('Recebi(emos) o boleto com essas características.',L+4,ct-ch+5,170,4.0,font);
+    drawTextFit('Assinatura',L+180,ct-ch+5,145,4.0,font);
+    drawTextFit('Data da Entrega',L+330,ct-ch+5,90,4.0,font);
+    drawTextFit('Nome',L+425,ct-ch+5,cLeft-429,4.0,font);
+    // direita: agência, nosso número e valor
+    drawTextFit('Agência / Código do Beneficiário',L+cLeft+4,ct-9,cRight-8,4.2,font);
+    drawTextFit(agenciaCodigo,L+cLeft+4,ct-22,cRight-8,6.0,bold,'right');
+    drawTextFit('Nosso-Número',L+cLeft+4,ct-36,cRight-8,4.2,font);
+    drawTextFit(d.nosso_numero||'—',L+cLeft+4,ct-49,cRight-8,5.9,bold,'right');
+    drawTextFit('Valor do Documento',L+cLeft+4,ct-63,cRight-8,4.2,font);
+    drawTextFit(moeda,L+cLeft+4,ct-78,cRight-8,6.8,bold,'right');
+    y=ct-ch;
+    // local de pagamento em faixa inferior, como no canhoto do BB Cobrança
+    const payH=22;
+    rect(L,y-payH,CW,payH,.55);
+    drawTextFit('Local de Pagamento',L+4,y-8,CW-8,4.0,font);
+    drawTextFit('Pagável em qualquer banco.',L+4,y-19,CW-8,5.8,bold);
+    y-=payH;
+    // linha de destaque/corte entre canhoto e recibo do pagador
+    const cutStubY=y-14;
+    line(L,cutStubY,L+CW,cutStubY,.55,[5,4]);
+    drawTextFit('Corte aqui',L+3,cutStubY+5,58,4.4,font);
+    y=cutStubY-18;
+  }
+
+  // ===========================
   // RECIBO DO PAGADOR
   // Deve conter no mínimo beneficiário/endereço/CNPJ, pagador, nosso número,
   // número do documento, vencimento e valor. Também mantemos a linha digitável.
@@ -8291,3 +8339,5 @@ setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bb
 
 
 // V166 — Corrige caracteres incompatíveis com WinAnsi na Impressão Normal; PDF único e 2ª via BB preservados.
+
+// V167 — Canhoto destacável (Recibo de Entrega) na Impressão Normal BB, preservando PDF único por parcelamento.
