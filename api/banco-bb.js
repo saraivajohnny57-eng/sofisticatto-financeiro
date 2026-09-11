@@ -6,6 +6,7 @@ const TABELA='integracoes_bancarias_segredos';
 const CNPJ_PADRAO='05451985000195';
 const BB_SCOPE_COBRANCAS='cobrancas.boletos-info cobrancas.boletos-requisicao';
 const BB_CONFIG_PRODUCAO=Object.freeze({numeroConvenio:'3054166',numeroCarteira:'17',numeroVariacaoCarteira:'027',codigoModalidade:1});
+const BB_NOSSO_NUMERO_INICIAL=34113;
 const normalizarAmb=v=>String(v||'producao').toLowerCase()==='teste'?'teste':'producao';
 const soDigitos=v=>String(v||'').replace(/\D/g,'');
 
@@ -191,7 +192,24 @@ function montarNossoNumeroBb(sequencial){
   if(seq==='0000000000')throw new Error('O sequencial do Nosso Número não pode ser zero.');
   return '000'+BB_CONFIG_PRODUCAO.numeroConvenio+seq;
 }
-function prepararBoletoPiloto(amb,entrada={}){
+async function obterProximoSequencialNossoNumero(amb){
+  const reg=await obterRegistro(idRegistro(amb,'nosso_numero'));
+  if(!reg)return String(BB_NOSSO_NUMERO_INICIAL).padStart(10,'0');
+  const dados=descriptografar(reg)||{};
+  const n=Number.parseInt(dados.proximo_sequencial,10);
+  const proximo=Number.isFinite(n)&&n>=BB_NOSSO_NUMERO_INICIAL?n:BB_NOSSO_NUMERO_INICIAL;
+  return String(proximo).padStart(10,'0');
+}
+async function avancarNossoNumero(amb,sequencialEmitido){
+  const atual=await obterProximoSequencialNossoNumero(amb);
+  const emitido=String(sequencialEmitido||'').replace(/\D/g,'');
+  if(atual!==emitido)throw new Error(`O próximo Nosso Número mudou para ${atual}. Não foi possível confirmar esta emissão com segurança.`);
+  const proximo=String(Number.parseInt(atual,10)+1).padStart(10,'0');
+  await salvarRegistro(idRegistro(amb,'nosso_numero'),'bb',amb,'nosso_numero',{proximo_sequencial:proximo},{proximo_sequencial:proximo,ultimo_emitido:atual});
+  return proximo;
+}
+
+async function prepararBoletoPiloto(amb,entrada={}){
   if(amb!=='producao')throw new Error('A emissão piloto desta tela está liberada somente em Produção.');
   const {numeroConvenio:convenio,numeroCarteira:carteira,numeroVariacaoCarteira:variacao,codigoModalidade:modalidade}=BB_CONFIG_PRODUCAO;
   const valor=Number(entrada.valorOriginal||0);
@@ -205,7 +223,10 @@ function prepararBoletoPiloto(amb,entrada={}){
   if(![11,14].includes(doc.length))throw new Error('Informe CPF ou CNPJ válido do pagador.');
   if(!nome||!endereco||!bairro||!cidade||uf.length!==2||cep.length<7)throw new Error('Preencha nome, endereço, bairro, cidade, UF e CEP do pagador.');
   const tipoInscricao=doc.length===11?1:2;
-  const seq=soDigitos(entrada.sequencialNossoNumero);
+  const atual=await obterProximoSequencialNossoNumero(amb);
+  const solicitado=soDigitos(entrada.sequencialNossoNumero);
+  if(solicitado && solicitado!==atual)throw new Error(`O Nosso Número foi atualizado por outra emissão. O próximo disponível agora é ${atual}. Gere a prévia novamente.`);
+  const seq=atual;
   const nossoNumero=montarNossoNumeroBb(seq);
   const seuNumero=texto(entrada.numeroTituloBeneficiario,15).toUpperCase();
   if(!seuNumero)throw new Error('Informe o Nº do Título da cobrança. Use até 15 caracteres, por exemplo o número da NF ou do pedido.');
@@ -231,7 +252,7 @@ function prepararBoletoPiloto(amb,entrada={}){
   };
 }
 async function emitirBoletoPiloto(amb,entrada={}){
-  const preparo=prepararBoletoPiloto(amb,entrada);
+  const preparo=await prepararBoletoPiloto(amb,entrada);
   const payload=preparo.payload;
   const nossoNumero=preparo.numeroTituloCliente;
   const seuNumero=preparo.numeroTituloBeneficiario;
@@ -241,7 +262,8 @@ async function emitirBoletoPiloto(amb,entrada={}){
   const r=await requestHttps({url,method:'POST',headers:{Authorization:`Bearer ${o.token}`,Accept:'application/json','Content-Type':'application/json','Content-Length':Buffer.byteLength(body)},body});
   let data={};try{data=JSON.parse(r.text||'{}')}catch{data={raw:r.text}}
   if(r.status<200||r.status>=300){const detalhe=data?.erros?.[0]?.mensagem||data?.mensagem||data?.message||data?.error_description||data?.error||`API Cobranças v2 HTTP ${r.status}`;throw new Error(detalhe)}
-  return {ok:true,status:r.status,emitido:true,numeroTituloCliente:nossoNumero,numeroTituloBeneficiario:seuNumero,numeroBoletoBB:data.numero||data.numeroBoletoBB||data.numeroTituloCliente||nossoNumero,linhaDigitavel:data.linhaDigitavel||data.linhaDigitavelBoleto||null,codigoBarraNumerico:data.codigoBarraNumerico||data.codigoBarras||null,data};
+  const proximoSequencialNossoNumero=await avancarNossoNumero(amb,preparo.sequencialNossoNumero);
+  return {ok:true,status:r.status,emitido:true,numeroTituloCliente:nossoNumero,numeroTituloBeneficiario:seuNumero,numeroBoletoBB:data.numero||data.numeroBoletoBB||data.numeroTituloCliente||nossoNumero,linhaDigitavel:data.linhaDigitavel||data.linhaDigitavelBoleto||null,codigoBarraNumerico:data.codigoBarraNumerico||data.codigoBarras||null,proximoSequencialNossoNumero,data};
 }
 
 async function testarOAuth(amb){
@@ -300,8 +322,12 @@ module.exports=async function(req,res){
       const teste=await testarApiCobrancas(amb,req.body||{});
       return json(res,200,{ok:true,teste});
     }
+    if(action==='proximo-nosso-numero'){
+      const sequencialNossoNumero=await obterProximoSequencialNossoNumero(amb);
+      return json(res,200,{ok:true,sequencialNossoNumero});
+    }
     if(action==='preparar-piloto'){
-      const preparo=prepararBoletoPiloto(amb,req.body||{});
+      const preparo=await prepararBoletoPiloto(amb,req.body||{});
       const {payload,...seguro}=preparo;
       return json(res,200,{ok:true,preparo:seguro});
     }
