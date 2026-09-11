@@ -6900,7 +6900,7 @@ function renderHistoricoCobrancas(){
   tb.innerHTML=lista.length?lista.map(x=>{
     const emitido=x.status==='aberto'&&x.banco==='bb'&&x.nosso_numero;
     const acoes=emitido
-      ?`<button class="btn azul" onclick="abrirBoletoOficialBbRegistro('${x.id}')">🏦 Boleto oficial BB</button> <button class="btn verde" onclick="abrirBoletoPdfRegistro('${x.id}',true)" title="Fallback local caso o link oficial esteja indisponível">⬇ PDF local</button>`
+      ?`<button class="btn azul" onclick="abrirImpressaoNormalBbRegistro('${x.id}')">🖨 Impressão Normal</button> <button class="btn verde" onclick="abrirBoletoOficialBbRegistro('${x.id}')">🏦 2ª via BB</button>`
       :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`;
     return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span></td><td>${acoes}</td></tr>`;
   }).join(''):'<tr><td colspan="7">Nenhuma cobrança encontrada.</td></tr>';
@@ -7482,7 +7482,7 @@ async function emitirGrupoBoletoRelatorioReal(rows,ctx={}){
   if(st){
     st.innerHTML=`${erro?'⚠️':'✅'} <b>${ok} boleto(s)</b> confirmado(s) pelo Banco do Brasil.${erro?`<br>Falha na próxima parcela: ${escaparHtmlEmail(erro.erro?.message||'Erro desconhecido')}. <b>Não repita as parcelas já confirmadas.</b>`:''}`;
     const emitidos=resultados.filter(x=>x.ok);
-    if(emitidos.length)st.innerHTML+=`<div class="bol-retorno-acoes"><button type="button" class="btn azul" onclick="imprimirResultadosBbUltimaEmissao()">🏦 Abrir boleto oficial BB</button><button type="button" class="btn verde" onclick="salvarResultadosBbUltimaEmissao()">⬇ PDF local (fallback)${emitidos.length>1?'s':''}</button></div>`;
+    if(emitidos.length)st.innerHTML+=`<div class="bol-retorno-acoes"><button type="button" class="btn azul" onclick="imprimirResultadosBbUltimaEmissao()">🖨 Impressão Normal${emitidos.length>1?' • '+emitidos.length+' páginas':''}</button><button type="button" class="btn verde" onclick="abrirSegundasViasBbUltimaEmissao()">🏦 2ª via BB</button></div>`;
   }
   window.__bbUltimosResultados=resultados.filter(x=>x.ok);
   if(erro)alert(`${ok} boleto(s) foram confirmados antes da falha.\n\n${erro.erro?.message||erro.erro}\n\nNão tente novamente sem conferir no BB.`);
@@ -7529,7 +7529,7 @@ async function garantirAssinaturaAtivaBoleto(){
   }catch(e){console.warn("Não foi possível carregar a assinatura para o boleto:",e)}
   return emailAssinaturaAtiva||null;
 }
-async function gerarPdfBoletoBb(d){
+async function gerarPdfBoletoBb(d,opt={}){
   if(!d?.linha_digitavel||!d?.codigo_barras)throw new Error('Ainda não há linha digitável/código de barras salvo. Atualize/consulte o boleto antes de gerar o PDF.');
   await carregarScriptUmaVez('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js','PDFLib');
   const {PDFDocument,StandardFonts,rgb}=PDFLib;
@@ -7598,18 +7598,22 @@ async function gerarPdfBoletoBb(d){
   // CABEÇALHO CORPORATIVO (fora do boleto)
   // ===========================
   let y=817;
-  await drawLogoSofisticatto(L,y-53,172,48);
-  drawTextFit(beneficiario,L+190,y-18,CW-190,7.4,bold);
-  drawTextFit('CNPJ: '+cnpjBen,L+190,y-32,CW-190,6,font);
-  drawTextFit(enderecoBen,L+190,y-45,CW-190,5.5,font);
-  line(L,y-58,L+CW,y-58,.65);
+  // Na Impressão Normal o boleto começa diretamente pelo padrão bancário,
+  // sem logomarca/cabeçalho da Sofisticatto, como no BB Cobrança.
+  if(!opt.impressaoNormal){
+    await drawLogoSofisticatto(L,y-53,172,48);
+    drawTextFit(beneficiario,L+190,y-18,CW-190,7.4,bold);
+    drawTextFit('CNPJ: '+cnpjBen,L+190,y-32,CW-190,6,font);
+    drawTextFit(enderecoBen,L+190,y-45,CW-190,5.5,font);
+    line(L,y-58,L+CW,y-58,.65);
+    y=747;
+  }
 
   // ===========================
   // RECIBO DO PAGADOR
   // Deve conter no mínimo beneficiário/endereço/CNPJ, pagador, nosso número,
   // número do documento, vencimento e valor. Também mantemos a linha digitável.
   // ===========================
-  y=747;
   drawTextFit('Recibo do Pagador',L+CW-120,y+8,120,6.4,bold,'right');
   y=bankHeader(y);
   const reciboTop=y;
@@ -7700,6 +7704,63 @@ async function gerarPdfBoletoBb(d){
   // Isto facilita a validação no Validador de Layout BB.
   return new Blob([await pdf.save()],{type:'application/pdf'});
 }
+
+async function mesclarPdfsBb(blobs){
+  await carregarScriptUmaVez('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js','PDFLib');
+  const out=await PDFLib.PDFDocument.create();
+  for(const blob of blobs){
+    if(!blob)continue;
+    const src=await PDFLib.PDFDocument.load(await blob.arrayBuffer());
+    const pags=await out.copyPages(src,src.getPageIndices());
+    pags.forEach(pg=>out.addPage(pg));
+  }
+  return new Blob([await out.save()],{type:'application/pdf'});
+}
+function registrosGrupoImpressaoNormalBb(reg){
+  const todos=[...(cobrancasBancarias||[]),...(cobrancaMassaPreparadas||[])];
+  const mapa=new Map();
+  for(const x of todos){if(x?.id!=null)mapa.set(String(x.id),x)}
+  const unicos=[...mapa.values()];
+  let grupo=[];
+  if(reg?.relatorio_id!=null&&String(reg.relatorio_id)!==''){
+    grupo=unicos.filter(x=>String(x.relatorio_id)===String(reg.relatorio_id));
+  }
+  if(!grupo.length){
+    const doc=String(reg?.cpf_cnpj||'').replace(/\D/g,''), nf=String(reg?.numero_nf||'').trim();
+    grupo=unicos.filter(x=>String(x?.cpf_cnpj||'').replace(/\D/g,'')===doc&&String(x?.numero_nf||'').trim()===nf);
+  }
+  if(!grupo.length)grupo=[reg];
+  return grupo.filter(x=>codigoBancoCobranca(x?.banco_nome||x?.banco||'bb')==='bb'&&x?.status!=='cancelado')
+    .sort((a,b)=>Number(a.parcela_numero||1)-Number(b.parcela_numero||1));
+}
+async function gerarPdfImpressaoNormalBb(registros){
+  const lista=(registros||[]).filter(Boolean).sort((a,b)=>Number(a.parcela_numero||1)-Number(b.parcela_numero||1));
+  if(!lista.length)throw new Error('Nenhum boleto encontrado para impressão.');
+  const blobs=[];
+  for(const reg of lista){
+    const d=reg?.registroParaVisual||registroParaBoletoVisual(reg,reg?.emissao||{});
+    blobs.push(await gerarPdfBoletoBb(d,{impressaoNormal:true}));
+  }
+  return mesclarPdfsBb(blobs);
+}
+function nomePdfImpressaoNormalBb(registros){
+  const r=(registros||[])[0]||{};
+  const n=String(r.cliente_nome||'CLIENTE').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,' ');
+  const nf=String(r.numero_nf||r.numero_titulo||'BOLETOS').replace(/[^a-zA-Z0-9_-]/g,'');
+  const qtd=(registros||[]).length;
+  return `${n||'CLIENTE'} - ${nf||'BOLETOS'} - Impressao Normal${qtd>1?' - '+qtd+' parcelas':''}.pdf`;
+}
+async function abrirImpressaoNormalBbRegistro(id){
+  const x=(cobrancasBancarias||[]).find(a=>String(a.id)===String(id))||(cobrancaMassaPreparadas||[]).find(a=>String(a.id)===String(id));
+  if(!x)return alert('Cobrança não encontrada.');
+  try{
+    const grupo=registrosGrupoImpressaoNormalBb(x);
+    const blob=await gerarPdfImpressaoNormalBb(grupo);
+    const url=URL.createObjectURL(blob);
+    window.open(url,'_blank');
+    setTimeout(()=>URL.revokeObjectURL(url),120000);
+  }catch(e){alert('Não foi possível gerar a Impressão Normal.\n\n'+e.message)}
+}
 function nomePdfBoletoBb(d){const n=String(d.cliente_nome||'CLIENTE').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,' ');return `${n||'CLIENTE'} - ${d.numero_titulo||d.nosso_numero||'boleto'}.pdf`;}
 function localizarUrlImagemBoletoBb(obj){
   const vistos=new Set();
@@ -7743,15 +7804,51 @@ async function abrirBoletoPdfRegistro(id,baixar=false){
   const x=(cobrancasBancarias||[]).find(a=>String(a.id)===String(id))||(cobrancaMassaPreparadas||[]).find(a=>String(a.id)===String(id));if(!x)return alert('Cobrança não encontrada.');
   try{const d=registroParaBoletoVisual(x);const blob=await gerarPdfBoletoBb(d);const url=URL.createObjectURL(blob);if(baixar){const a=document.createElement('a');a.href=url;a.download=nomePdfBoletoBb(d);a.click();setTimeout(()=>URL.revokeObjectURL(url),5000)}else{window.open(url,'_blank');setTimeout(()=>URL.revokeObjectURL(url),60000)}}catch(e){alert('Não foi possível gerar o boleto para impressão.\n\n'+e.message)}
 }
-async function imprimirResultadosBbUltimaEmissao(){for(const x of (window.__bbUltimosResultados||[])){const reg=x.registro||x.p;try{const url=await obterUrlBoletoOficialBb(reg,x.emissao||{});window.open(url||'https://boleto.apps.bb.com.br/segunda-via-final','_blank')}catch(e){alert('Boleto oficial BB indisponível: '+e.message);break}}}
-async function salvarResultadosBbUltimaEmissao(){for(const x of (window.__bbUltimosResultados||[])){const reg=x.registro||x.p;try{const url=await obterUrlBoletoOficialBb(reg,x.emissao||{});if(url){window.open(url,'_blank');continue;}const d=registroParaBoletoVisual(reg,x.emissao||{});const b=await gerarPdfBoletoBb(d);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=nomePdfBoletoBb(d);a.click()}catch(e){const d=registroParaBoletoVisual(reg,x.emissao||{});try{const b=await gerarPdfBoletoBb(d);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=nomePdfBoletoBb(d);a.click()}catch(e2){alert(e2.message);break}}}}
+async function imprimirResultadosBbUltimaEmissao(){
+  const itens=(window.__bbUltimosResultados||[]).map(x=>{
+    const reg=x.registro||x.p||{};
+    return {...reg,emissao:x.emissao||{},registroParaVisual:registroParaBoletoVisual(reg,x.emissao||{})};
+  });
+  if(!itens.length)return alert('Nenhum boleto disponível para impressão.');
+  try{
+    const blob=await gerarPdfImpressaoNormalBb(itens);
+    const url=URL.createObjectURL(blob);
+    window.open(url,'_blank');
+    setTimeout(()=>URL.revokeObjectURL(url),120000);
+  }catch(e){alert('Não foi possível gerar a Impressão Normal.\n\n'+e.message)}
+}
+async function abrirSegundasViasBbUltimaEmissao(){
+  const itens=(window.__bbUltimosResultados||[]);
+  if(!itens.length)return alert('Nenhum boleto disponível.');
+  // Abre uma página inicial imediatamente para evitar bloqueio de pop-up no primeiro título.
+  for(let i=0;i<itens.length;i++){
+    const x=itens[i],reg=x.registro||x.p;
+    try{
+      const url=await obterUrlBoletoOficialBb(reg,x.emissao||{});
+      if(i===0)window.open(url||'https://boleto.apps.bb.com.br/segunda-via-final','_blank');
+      else if(url)window.open(url,'_blank');
+    }catch(e){alert('2ª via BB indisponível: '+e.message);break}
+  }
+}
+async function salvarResultadosBbUltimaEmissao(){
+  const itens=(window.__bbUltimosResultados||[]).map(x=>{
+    const reg=x.registro||x.p||{};
+    return {...reg,emissao:x.emissao||{},registroParaVisual:registroParaBoletoVisual(reg,x.emissao||{})};
+  });
+  if(!itens.length)return alert('Nenhum boleto disponível.');
+  try{
+    const blob=await gerarPdfImpressaoNormalBb(itens);
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nomePdfImpressaoNormalBb(itens);a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+  }catch(e){alert('Não foi possível salvar a Impressão Normal.\n\n'+e.message)}
+}
 async function emitirBoletoBancoIntegradoV155(p,g){
   const bancoNome=g?.rel?.banco||p?.banco_nome||p?.banco||'';
   if(codigoBancoCobranca(bancoNome)!=='bb')throw new Error('A emissão real do Bradesco ainda está em configuração. Nenhum boleto foi registrado.');
   const r=await emitirParcelaBbReal(p);const reg=r.registro||p;const d=registroParaBoletoVisual(reg,r.emissao||{});
   let urlOficial='';try{urlOficial=await obterUrlBoletoOficialBb(reg,r.emissao||{})}catch{}
-  // Mantém o PDF local apenas como fallback para o salvamento em massa. A visualização padrão usa a 2ª via oficial do BB.
-  const blob=await gerarPdfBoletoBb(d);return {...r.emissao,urlImagemBoleto:urlOficial||r.emissao?.urlImagemBoleto||null,blob,registro:reg};
+  // V165: blob de Impressão Normal, sem logomarca corporativa, para composição em PDF único.
+  const blob=await gerarPdfBoletoBb(d,{impressaoNormal:true});return {...r.emissao,urlImagemBoleto:urlOficial||r.emissao?.urlImagemBoleto||null,blob,registro:reg};
 }
 window.emitirBoletoBancoIntegrado=emitirBoletoBancoIntegradoV155;
 
@@ -7863,14 +7960,23 @@ async function emitirBoletosEmMassa(){
   const resultados=[];
   try{
     for(const g of grupos){
+      const blobsGrupo=[];
+      const okGrupo=[];
       for(const p of g.parcelas){
         try{
           const ret=await window.emitirBoletoBancoIntegrado(p,g);
           let blob=ret?.blob||null;
           if(!blob&&ret?.base64){const bin=atob(String(ret.base64).replace(/^data:application\/pdf;base64,/,''));const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);blob=new Blob([arr],{type:'application/pdf'});}
-          if(blob&&pasta)await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,p),blob);
-          resultados.push({ok:true,g,p,ret,blob});
+          if(blob)blobsGrupo.push(blob);
+          const rr={ok:true,g,p,ret,blob};resultados.push(rr);okGrupo.push(rr);
         }catch(e){resultados.push({ok:false,g,p,erro:e});}
+      }
+      // V165: um único PDF por cliente/pedido, com uma página por parcela na ordem 1/N, 2/N...
+      if(pasta&&blobsGrupo.length){
+        const combinado=await mesclarPdfsBb(blobsGrupo);
+        const nome=nomePdfImpressaoNormalBb(g.parcelas);
+        await salvarBlobNaPastaCobrancaMassa(pasta,nome,combinado);
+        okGrupo.forEach(x=>x.blobCombinado=combinado);
       }
     }
     cobrancaMassaArquivosEmitidos=resultados.filter(x=>x.ok&&x.blob);
@@ -8157,7 +8263,7 @@ async function emitirBoletoPilotoBB(){
   try{
     const j=await bbReq('emitir-piloto',{method:'POST',body});const e=j.emissao||{};
     const avisoExtra=e.aviso?`\n\n⚠️ ${e.aviso}`:'';
-    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ Boleto REAL confirmado pelo BB. HTTP ${e.status||201}. Nº do título: ${e.numeroTituloBeneficiario||body.numeroTituloBeneficiario||'—'} • Nosso número: ${e.numeroTituloCliente||'—'} • Próximo sequencial: ${e.proximoSequencialNossoNumero||'—'}${e.linhaDigitavel?` • Linha digitável: ${e.linhaDigitavel}`:''}.${e.aviso?' ⚠️ '+e.aviso:''}<div class="bol-retorno-acoes"><button class="btn azul" onclick="imprimirResultadosBbUltimaEmissao()">🏦 Abrir boleto oficial BB</button><button class="btn verde" onclick="salvarResultadosBbUltimaEmissao()">⬇ PDF local (fallback)</button></div>`}
+    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ Boleto REAL confirmado pelo BB. HTTP ${e.status||201}. Nº do título: ${e.numeroTituloBeneficiario||body.numeroTituloBeneficiario||'—'} • Nosso número: ${e.numeroTituloCliente||'—'} • Próximo sequencial: ${e.proximoSequencialNossoNumero||'—'}${e.linhaDigitavel?` • Linha digitável: ${e.linhaDigitavel}`:''}.${e.aviso?' ⚠️ '+e.aviso:''}<div class="bol-retorno-acoes"><button class="btn azul" onclick="imprimirResultadosBbUltimaEmissao()">🖨 Impressão Normal</button><button class="btn verde" onclick="abrirSegundasViasBbUltimaEmissao()">🏦 2ª via BB</button></div>`}
     let regPiloto={cliente_nome:body.nome,cpf_cnpj:body.numeroInscricao,endereco:body.endereco,numero:'',bairro:body.bairro,cidade:body.cidade,uf:body.uf,cep:body.cep,email:body.email,banco:'bb',banco_nome:'BANCO DO BRASIL',tipo:'boleto',valor:body.valorOriginal,vencimento:body.dataVencimento,numero_nf:body.numeroTituloBeneficiario,referencia:'PILOTO-'+body.numeroTituloBeneficiario,status:'aberto',origem:'piloto_bb',parcela_numero:1,parcela_total:1,nosso_numero:e.numeroTituloCliente||null,linha_digitavel:e.linhaDigitavel||null,codigo_barras:e.codigoBarraNumerico||null,pdf_url:e.urlImagemBoleto||null,emitido_em:new Date().toISOString(),criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
     try{const sr=await banco.from('cobrancas_bancarias').insert([regPiloto]).select().single();if(!sr.error)regPiloto=sr.data}catch(_){}
     window.__bbUltimosResultados=[{ok:true,p:regPiloto,registro:regPiloto,emissao:e}];
@@ -8171,4 +8277,4 @@ async function emitirBoletoPilotoBB(){
 setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bbPilotoDocumento','bbPilotoNome','bbPilotoEndereco','bbPilotoBairro','bbPilotoCidade','bbPilotoUf','bbPilotoCep','bbPilotoEmail'].forEach(id=>{const el=document.getElementById(id);if(el&&!el.dataset.bbPreviewWatch){el.dataset.bbPreviewWatch='1';el.addEventListener('input',invalidarPreparoPilotoBB);el.addEventListener('change',invalidarPreparoPilotoBB)}});configurarBuscaClientePilotoBB();bbPilotoCarregarProximoNossoNumero()},0);
 
 
-// V162 — Prioriza urlImagemBoleto oficial retornada pela API Cobranças v2; PDF próprio fica apenas como fallback.
+// V165 — Impressão Normal em PDF único por pedido/parcelamento, sem logo Sofisticatto; 2ª via BB permanece separada.
