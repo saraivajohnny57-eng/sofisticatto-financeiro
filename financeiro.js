@@ -7599,7 +7599,7 @@ async function gerarPdfBoletoBb(d){
   let y=805;
   y=await desenharCabecalho(y,'Recibo do Pagador');y-=7;y=await desenharBancoLinha(y);y=blocoPrincipal(y,true);
   drawTextFit('Autenticação Mecânica',L+CW-150,y-14,150,6,font,'right');
-  y-=37;drawTextFit('✂  Corte aqui',L,y+1,70,6,font);line(L+70,y+4,L+CW,y+4,.55,[5,4]);y-=12;
+  y-=37;drawTextFit('Corte aqui',L+12,y+1,58,6,font);line(L,y+4,L+7,y+4,.55);line(L+3.5,y+0.5,L+3.5,y+7.5,.55);line(L+70,y+4,L+CW,y+4,.55,[5,4]);y-=12;
   y=await desenharBancoLinha(y);y=blocoPrincipal(y,false);
   drawTextFit('Ficha de Compensação',L+CW-145,y-14,145,7,bold,'right');drawTextFit('Autenticação Mecânica',L+CW-145,y-27,145,6,font,'right');
   const png=await barcodePngBb(d.codigo_barras);const img=await pdf.embedPng(png);pg.drawImage(img,{x:L+4,y:y-86,width:360,height:54});drawTextFit(String(d.codigo_barras).replace(/\D/g,''),L+4,y-99,360,7,bold);
