@@ -2302,3 +2302,6 @@ html.modo-portal-publico .portal-conteudo{
 .bb-admin-status.erro{background:#fde7e7;color:#9a2d2d}
 .bb-admin-box .bb-admin-row input{min-height:40px}
 @media(max-width:800px){.bb-admin-box-head{display:block}.bb-admin-status{margin-top:8px}}
+
+/* V155 — parcelas no relatório + retorno boleto BB */
+.rel-parcelas-resumo{display:flex;flex-direction:column;gap:3px;min-width:210px;font-size:12px;line-height:1.25}.rel-parcelas-resumo b{font-size:12px}.rel-parcelas-resumo span{white-space:nowrap}.rel-parcelas-vazio{opacity:.6}.bol-retorno-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}

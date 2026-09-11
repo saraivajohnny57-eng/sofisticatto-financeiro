@@ -143,7 +143,7 @@
               <th id="cabecalhoSelecionarBanco" style="display:none;">
                 <input type="checkbox" id="marcarTodosBancos" class="relatorio-check" onchange="alternarTodosBancosRelatorio(this.checked)" title="Selecionar todos">
               </th>
-              <th>Cliente</th><th>Valor</th><th>Banco</th><th>Observação</th><th>Criado por</th><th>Status</th><th id="cabecalhoAcaoRelatorios">Ação</th>
+              <th>Cliente</th><th>Valor</th><th>Banco</th><th>Observação</th><th id="cabecalhoParcelasRelatorios" style="display:none;">Parcelas (Financeiro)</th><th>Criado por</th><th>Status</th><th id="cabecalhoAcaoRelatorios">Ação</th>
             </tr>
           </thead>
           <tbody id="tabela"></tbody>
@@ -2929,7 +2929,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=154-bb-sequencial-atomico"></script>
+<script src="financeiro.js?v=155-bb-emissao-real-pdf"></script>
 <script src="corridas.js?v=143-corrige-abas-entregador"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
@@ -3375,7 +3375,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
       </div>
     </div>
 
-    <div><label>Nº NF / documento</label><input id="bolNumeroNf"></div>
+    <div><label>Nº do Título / NF *</label><input id="bolNumeroNf" maxlength="15" placeholder="Ex.: 55789"></div>
     <div><label>Multa (%)</label><input id="bolMulta" value="2"></div>
     <div><label>Juros ao mês (%)</label><input id="bolJuros" value="5"></div>
     <div class="span2"><label>Descrição</label><textarea id="bolDescricao" rows="2"></textarea></div>
@@ -3419,7 +3419,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <div id="bolModalStatus" class="bol-modal-status"></div>
     <div class="bol-modal-actions">
       <button type="button" class="btn vermelho" onclick="fecharEmissaoBoletoRelatorio()">Cancelar</button>
-      <button type="button" class="btn verde" onclick="salvarPreparacaoBoletoRelatorio()">💳 Preparar / emitir boleto</button>
+      <button type="button" class="btn verde" id="btnBolSalvarEmitir" onclick="salvarPreparacaoBoletoRelatorio()">💳 Salvar parcelas e emitir BB</button>
     </div>
   </div>
 </div>
