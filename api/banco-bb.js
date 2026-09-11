@@ -3,10 +3,13 @@ const forge=require('node-forge');
 const {exigirAdmin,supabaseRest,criptografar,descriptografar}=require('../lib/integracoes/_utils');
 
 const TABELA='integracoes_bancarias_segredos';
+const TABELA_SEQUENCIAS='integracoes_bancarias_sequencias';
 const CNPJ_PADRAO='05451985000195';
 const BB_SCOPE_COBRANCAS='cobrancas.boletos-info cobrancas.boletos-requisicao';
 const BB_CONFIG_PRODUCAO=Object.freeze({numeroConvenio:'3054166',numeroCarteira:'17',numeroVariacaoCarteira:'027',codigoModalidade:1});
-const BB_NOSSO_NUMERO_INICIAL=34113;
+// 34113 foi confirmado como registrado no BB em 11/09/2026.
+// O próximo número seguro para o portal passa a ser 34114.
+const BB_NOSSO_NUMERO_INICIAL=34114;
 const normalizarAmb=v=>String(v||'producao').toLowerCase()==='teste'?'teste':'producao';
 const soDigitos=v=>String(v||'').replace(/\D/g,'');
 
@@ -192,21 +195,60 @@ function montarNossoNumeroBb(sequencial){
   if(seq==='0000000000')throw new Error('O sequencial do Nosso Número não pode ser zero.');
   return '000'+BB_CONFIG_PRODUCAO.numeroConvenio+seq;
 }
-async function obterProximoSequencialNossoNumero(amb){
-  const reg=await obterRegistro(idRegistro(amb,'nosso_numero'));
-  if(!reg)return String(BB_NOSSO_NUMERO_INICIAL).padStart(10,'0');
-  const dados=descriptografar(reg)||{};
-  const n=Number.parseInt(dados.proximo_sequencial,10);
-  const proximo=Number.isFinite(n)&&n>=BB_NOSSO_NUMERO_INICIAL?n:BB_NOSSO_NUMERO_INICIAL;
-  return String(proximo).padStart(10,'0');
+async function obterEstadoNossoNumero(amb){
+  let r;
+  try{
+    r=await supabaseRest(TABELA_SEQUENCIAS,{query:`?banco=eq.bb&ambiente=eq.${encodeURIComponent(amb)}&chave=eq.nosso_numero&select=*`});
+  }catch(e){
+    if(/does not exist|relation|schema cache|Could not find/i.test(String(e.message||''))){
+      throw new Error('Controle automático do Nosso Número ainda não foi criado. Execute o SQL V154_BB_NOSSO_NUMERO_ATOMICO.sql no Supabase antes de emitir outro boleto.');
+    }
+    throw e;
+  }
+  return Array.isArray(r)?r[0]:null;
 }
-async function avancarNossoNumero(amb,sequencialEmitido){
-  const atual=await obterProximoSequencialNossoNumero(amb);
-  const emitido=String(sequencialEmitido||'').replace(/\D/g,'');
-  if(atual!==emitido)throw new Error(`O próximo Nosso Número mudou para ${atual}. Não foi possível confirmar esta emissão com segurança.`);
-  const proximo=String(Number.parseInt(atual,10)+1).padStart(10,'0');
-  await salvarRegistro(idRegistro(amb,'nosso_numero'),'bb',amb,'nosso_numero',{proximo_sequencial:proximo},{proximo_sequencial:proximo,ultimo_emitido:atual});
-  return proximo;
+async function obterProximoSequencialNossoNumero(amb){
+  const reg=await obterEstadoNossoNumero(amb);
+  if(!reg)throw new Error('Controle do Nosso Número não inicializado. Execute o SQL V154 no Supabase.');
+  const n=Number.parseInt(reg.proximo_valor,10);
+  if(!Number.isFinite(n)||n<BB_NOSSO_NUMERO_INICIAL)throw new Error('Sequencial automático do Nosso Número está inválido no Supabase.');
+  return String(n).padStart(10,'0');
+}
+async function reservarNossoNumero(amb,sequencialEsperado,contexto={}){
+  const esperado=soDigitos(sequencialEsperado);
+  for(let tentativa=0;tentativa<4;tentativa++){
+    const reg=await obterEstadoNossoNumero(amb);
+    if(!reg)throw new Error('Controle do Nosso Número não inicializado. Execute o SQL V154 no Supabase.');
+    const atualNum=Number.parseInt(reg.proximo_valor,10);
+    if(!Number.isFinite(atualNum))throw new Error('Sequencial automático do Nosso Número está inválido no Supabase.');
+    const atual=String(atualNum).padStart(10,'0');
+    if(esperado&&esperado!==atual)throw new Error(`O próximo Nosso Número mudou para ${atual}. Gere a prévia novamente antes de emitir.`);
+    const proximoNum=atualNum+1;
+    const body={
+      proximo_valor:proximoNum,
+      ultimo_reservado:atualNum,
+      ultimo_numero_titulo:texto(contexto.numeroTituloBeneficiario||'',15),
+      ultima_reserva_em:new Date().toISOString(),
+      atualizado_em:new Date().toISOString()
+    };
+    const q=`?banco=eq.bb&ambiente=eq.${encodeURIComponent(amb)}&chave=eq.nosso_numero&proximo_valor=eq.${atualNum}`;
+    const alterados=await supabaseRest(TABELA_SEQUENCIAS,{method:'PATCH',query:q,body});
+    if(Array.isArray(alterados)&&alterados.length===1){
+      return {sequencial:atual,proximo:String(proximoNum).padStart(10,'0')};
+    }
+  }
+  throw new Error('Outro usuário reservou o Nosso Número ao mesmo tempo. Gere a prévia novamente.');
+}
+async function marcarReservaEmitida(amb,sequencial,numeroTituloBeneficiario){
+  const n=Number.parseInt(soDigitos(sequencial),10);
+  if(!Number.isFinite(n))return false;
+  try{
+    await supabaseRest(TABELA_SEQUENCIAS,{method:'PATCH',query:`?banco=eq.bb&ambiente=eq.${encodeURIComponent(amb)}&chave=eq.nosso_numero`,body:{ultimo_emitido:n,ultimo_numero_titulo:texto(numeroTituloBeneficiario||'',15),ultimo_emitido_em:new Date().toISOString(),atualizado_em:new Date().toISOString()}});
+    return true;
+  }catch(e){
+    console.error('[BANCO-BB V154] boleto emitido, mas falhou ao marcar ultimo_emitido:',e);
+    return false;
+  }
 }
 
 async function prepararBoletoPiloto(amb,entrada={}){
@@ -252,18 +294,40 @@ async function prepararBoletoPiloto(amb,entrada={}){
   };
 }
 async function emitirBoletoPiloto(amb,entrada={}){
-  const preparo=await prepararBoletoPiloto(amb,entrada);
-  const payload=preparo.payload;
-  const nossoNumero=preparo.numeroTituloCliente;
-  const seuNumero=preparo.numeroTituloBeneficiario;
+  // V154: reserva o sequencial ATOMICAMENTE antes do POST ao BB.
+  // Assim dois usuários nunca conseguem enviar o mesmo Nosso Número.
+  // Se o BB rejeitar, o número reservado é pulado — mais seguro do que reutilizá-lo.
+  const preparoInicial=await prepararBoletoPiloto(amb,entrada);
+  const reserva=await reservarNossoNumero(amb,preparoInicial.sequencialNossoNumero,{numeroTituloBeneficiario:preparoInicial.numeroTituloBeneficiario});
+  // A reserva já avançou o contador; o payload deve usar exatamente o reservado.
+  const payload=preparoInicial.payload;
+  const nossoNumero=preparoInicial.numeroTituloCliente;
+  const seuNumero=preparoInicial.numeroTituloBeneficiario;
   const o=await obterTokenOAuth(amb), base='https://api.bb.com.br';
   const url=`${base}/cobrancas/v2/boletos?gw-dev-app-key=${encodeURIComponent(o.cred.app_key)}`;
   const body=JSON.stringify(payload);
   const r=await requestHttps({url,method:'POST',headers:{Authorization:`Bearer ${o.token}`,Accept:'application/json','Content-Type':'application/json','Content-Length':Buffer.byteLength(body)},body});
   let data={};try{data=JSON.parse(r.text||'{}')}catch{data={raw:r.text}}
-  if(r.status<200||r.status>=300){const detalhe=data?.erros?.[0]?.mensagem||data?.mensagem||data?.message||data?.error_description||data?.error||`API Cobranças v2 HTTP ${r.status}`;throw new Error(detalhe)}
-  const proximoSequencialNossoNumero=await avancarNossoNumero(amb,preparo.sequencialNossoNumero);
-  return {ok:true,status:r.status,emitido:true,numeroTituloCliente:nossoNumero,numeroTituloBeneficiario:seuNumero,numeroBoletoBB:data.numero||data.numeroBoletoBB||data.numeroTituloCliente||nossoNumero,linhaDigitavel:data.linhaDigitavel||data.linhaDigitavelBoleto||null,codigoBarraNumerico:data.codigoBarraNumerico||data.codigoBarras||null,proximoSequencialNossoNumero,data};
+  if(r.status<200||r.status>=300){
+    const detalhe=data?.erros?.[0]?.mensagem||data?.mensagem||data?.message||data?.error_description||data?.error||`API Cobranças v2 HTTP ${r.status}`;
+    const erro=new Error(`${detalhe} O Nosso Número ${reserva.sequencial} foi reservado e não será reutilizado por segurança. Próximo: ${reserva.proximo}.`);
+    erro.sequencialReservado=reserva.sequencial;
+    throw erro;
+  }
+
+  // O BB já confirmou sucesso. Qualquer falha de auditoria daqui para frente NÃO transforma
+  // uma emissão real em erro HTTP 500, evitando a dúvida que ocorreu com o título 55789.
+  const auditoriaOk=await marcarReservaEmitida(amb,reserva.sequencial,seuNumero);
+  return {
+    ok:true,status:r.status,emitido:true,numeroTituloCliente:nossoNumero,numeroTituloBeneficiario:seuNumero,
+    numeroBoletoBB:data.numero||data.numeroBoletoBB||data.numeroTituloCliente||nossoNumero,
+    linhaDigitavel:data.linhaDigitavel||data.linhaDigitavelBoleto||null,
+    codigoBarraNumerico:data.codigoBarraNumerico||data.codigoBarras||null,
+    sequencialReservado:reserva.sequencial,proximoSequencialNossoNumero:reserva.proximo,
+    controleSequencial:{reservadoAntesDoEnvio:true,auditoriaConfirmada:auditoriaOk},
+    aviso:auditoriaOk?null:'Boleto emitido pelo BB, mas a marcação de auditoria local falhou. O próximo sequencial já ficou reservado com segurança.',
+    data
+  };
 }
 
 async function testarOAuth(amb){
@@ -336,5 +400,5 @@ module.exports=async function(req,res){
       return json(res,201,{ok:true,emissao});
     }
     return json(res,400,{ok:false,erro:'Ação inválida.'});
-  }catch(e){console.error('[BANCO-BB V150]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
+  }catch(e){console.error('[BANCO-BB V154]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
 };
