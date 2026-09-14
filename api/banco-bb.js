@@ -4,6 +4,7 @@ const {exigirAdmin,supabaseRest,criptografar,descriptografar}=require('../lib/in
 
 const TABELA='integracoes_bancarias_segredos';
 const TABELA_SEQUENCIAS='integracoes_bancarias_sequencias';
+const TABELA_TITULOS='integracoes_bancarias_titulos';
 const CNPJ_PADRAO='05451985000195';
 const BB_SCOPE_COBRANCAS='cobrancas.boletos-info cobrancas.boletos-requisicao';
 const BB_CONFIG_PRODUCAO=Object.freeze({numeroConvenio:'3054166',numeroCarteira:'17',numeroVariacaoCarteira:'027',codigoModalidade:1});
@@ -12,6 +13,53 @@ const BB_CONFIG_PRODUCAO=Object.freeze({numeroConvenio:'3054166',numeroCarteira:
 const BB_NOSSO_NUMERO_INICIAL=34114;
 const normalizarAmb=v=>String(v||'producao').toLowerCase()==='teste'?'teste':'producao';
 const soDigitos=v=>String(v||'').replace(/\D/g,'');
+const tituloBbNormalizado=v=>texto(v,15).trim().toUpperCase();
+function idTituloBb(amb,titulo){return `bb:${normalizarAmb(amb)}:${tituloBbNormalizado(titulo)}`}
+async function obterReservaTituloBb(amb,titulo){
+  const id=idTituloBb(amb,titulo);
+  const rows=await supabaseRest(TABELA_TITULOS,{query:`?id=eq.${encodeURIComponent(id)}&select=*`});
+  return Array.isArray(rows)?(rows[0]||null):null;
+}
+async function reservarTituloBbUnico(amb,entrada={}){
+  const titulo=tituloBbNormalizado(entrada.numeroTituloBeneficiario);
+  if(!titulo)throw new Error('Nº do Título / NF ausente.');
+  const id=idTituloBb(amb,titulo);
+  const agora=new Date().toISOString();
+  const body={
+    id,banco:'bb',ambiente:normalizarAmb(amb),numero_titulo:titulo,
+    numero_nf:texto(entrada.numero_nf||'',50)||null,
+    parcela_numero:Number(entrada.parcela_numero||1),
+    parcela_total:Number(entrada.parcela_total||1),
+    relatorio_id:entrada.relatorio_id?String(entrada.relatorio_id):null,
+    status:'reservado',criado_em:agora,atualizado_em:agora
+  };
+  try{
+    await supabaseRest(TABELA_TITULOS,{method:'POST',body});
+    return body;
+  }catch(e){
+    const msg=String(e?.message||'');
+    if(/does not exist|relation .*integracoes_bancarias_titulos|schema cache/i.test(msg)){
+      throw new Error('A trava anti-duplicidade V175 ainda não foi instalada no Supabase. Execute o SQL V175 antes de emitir novos boletos.');
+    }
+    if(/duplicate|unique|already exists|violates unique constraint/i.test(msg)){
+      let anterior=null;
+      try{anterior=await obterReservaTituloBb(amb,titulo)}catch{}
+      const nosso=anterior?.nosso_numero?` Nosso Número: ${anterior.nosso_numero}.`:'';
+      const status=anterior?.status?` Status: ${anterior.status}.`:'';
+      throw new Error(`EMISSÃO BLOQUEADA: o Nº do Título / NF ${titulo} já foi reservado ou emitido anteriormente.${nosso}${status} O sistema não enviou um novo boleto ao Banco do Brasil.`);
+    }
+    throw e;
+  }
+}
+async function atualizarReservaTituloBb(id,campos={}){
+  try{
+    await supabaseRest(TABELA_TITULOS,{method:'PATCH',query:`?id=eq.${encodeURIComponent(id)}`,body:{...campos,atualizado_em:new Date().toISOString()}});
+    return true;
+  }catch(e){
+    console.warn('[BANCO-BB V175] falha ao atualizar trava do título:',e.message);
+    return false;
+  }
+}
 
 function idRegistro(amb,tipo){return `bb:${amb}:${tipo}`}
 function json(res,status,data){res.status(status).json(data)}
@@ -318,11 +366,22 @@ async function consultarBoletoBb(amb,nossoNumero,oAuth=null){
 }
 
 async function emitirBoletoPiloto(amb,entrada={}){
+  const preparoInicial=await prepararBoletoPiloto(amb,entrada);
+
+  // V175: trava atômica do Nº do Título / NF ANTES de reservar Nosso Número e ANTES
+  // de chamar a API do BB. Duas abas/usuários nunca conseguem emitir o mesmo título.
+  const travaTitulo=await reservarTituloBbUnico(amb,{...entrada,numeroTituloBeneficiario:preparoInicial.numeroTituloBeneficiario});
+
   // V154: reserva o sequencial ATOMICAMENTE antes do POST ao BB.
   // Assim dois usuários nunca conseguem enviar o mesmo Nosso Número.
   // Se o BB rejeitar, o número reservado é pulado — mais seguro do que reutilizá-lo.
-  const preparoInicial=await prepararBoletoPiloto(amb,entrada);
-  const reserva=await reservarNossoNumero(amb,preparoInicial.sequencialNossoNumero,{numeroTituloBeneficiario:preparoInicial.numeroTituloBeneficiario});
+  let reserva;
+  try{
+    reserva=await reservarNossoNumero(amb,preparoInicial.sequencialNossoNumero,{numeroTituloBeneficiario:preparoInicial.numeroTituloBeneficiario});
+  }catch(e){
+    await atualizarReservaTituloBb(travaTitulo.id,{status:'erro_verificar',erro:texto(e.message,500)});
+    throw e;
+  }
   // A reserva já avançou o contador; o payload deve usar exatamente o reservado.
   const payload=preparoInicial.payload;
   const nossoNumero=preparoInicial.numeroTituloCliente;
@@ -334,7 +393,8 @@ async function emitirBoletoPiloto(amb,entrada={}){
   let data={};try{data=JSON.parse(r.text||'{}')}catch{data={raw:r.text}}
   if(r.status<200||r.status>=300){
     const detalhe=data?.erros?.[0]?.mensagem||data?.mensagem||data?.message||data?.error_description||data?.error||`API Cobranças v2 HTTP ${r.status}`;
-    const erro=new Error(`${detalhe} O Nosso Número ${reserva.sequencial} foi reservado e não será reutilizado por segurança. Próximo: ${reserva.proximo}.`);
+    await atualizarReservaTituloBb(travaTitulo.id,{status:'rejeitado_bb',erro:texto(detalhe,500),nosso_numero:nossoNumero});
+    const erro=new Error(`${detalhe} O Nº do Título ${seuNumero} ficou bloqueado por segurança até conferência, e o Nosso Número ${reserva.sequencial} não será reutilizado. Próximo: ${reserva.proximo}.`);
     erro.sequencialReservado=reserva.sequencial;
     throw erro;
   }
@@ -342,6 +402,7 @@ async function emitirBoletoPiloto(amb,entrada={}){
   // O BB já confirmou sucesso. Qualquer falha de auditoria daqui para frente NÃO transforma
   // uma emissão real em erro HTTP 500, evitando a dúvida que ocorreu com o título 55789.
   const auditoriaOk=await marcarReservaEmitida(amb,reserva.sequencial,seuNumero);
+  const travaTituloOk=await atualizarReservaTituloBb(travaTitulo.id,{status:'emitido',nosso_numero:nossoNumero,emitido_em:new Date().toISOString(),erro:null});
   // A resposta do POST pode variar. Faz uma consulta imediata do título confirmado
   // para obter linha digitável/código de barras quando o POST não os trouxer.
   let consulta=null;
@@ -356,6 +417,7 @@ async function emitirBoletoPiloto(amb,entrada={}){
     numeroBoletoBB,linhaDigitavel:linhaDigitavel||null,codigoBarraNumerico:codigoBarraNumerico||null,urlImagemBoleto:urlImagemBoleto||null,
     sequencialReservado:reserva.sequencial,proximoSequencialNossoNumero:reserva.proximo,
     controleSequencial:{reservadoAntesDoEnvio:true,auditoriaConfirmada:auditoriaOk},
+    travaTitulo:{numeroTituloBeneficiario:seuNumero,registradaAntesDoEnvio:true,auditoriaConfirmada:travaTituloOk},
     aviso:auditoriaOk?null:'Boleto emitido pelo BB, mas a marcação de auditoria local falhou. O próximo sequencial já ficou reservado com segurança.',
     data,consulta:consulta?.data||null
   };
@@ -436,5 +498,5 @@ module.exports=async function(req,res){
       return json(res,200,{ok:true,consulta:consulta.data,status:consulta.status});
     }
     return json(res,400,{ok:false,erro:'Ação inválida.'});
-  }catch(e){console.error('[BANCO-BB V162]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
+  }catch(e){console.error('[BANCO-BB V175]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
 };
