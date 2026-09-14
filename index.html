@@ -109,16 +109,42 @@
     </div>
     <div class="card" id="boxNovoRelatorio">
       <h2>Novo Relatório</h2>
-      <div class="inputs">
-        <div class="sugestoes-relatorio">
-          <input type="text" id="nome" placeholder="Nome do cliente" autocomplete="off"
-            oninput="mostrarSugestoesClienteRelatorio()"
+      <div class="inputs relatorio-novo-grid">
+        <div class="sugestoes-relatorio relatorio-cliente-busca">
+          <input type="text" id="nome" placeholder="Cliente: nome, CNPJ ou CPF" autocomplete="off"
+            oninput="limparClienteSelecionadoRelatorio();mostrarSugestoesClienteRelatorio()"
             onfocus="mostrarSugestoesClienteRelatorio()">
+          <input type="hidden" id="relatorioClienteId">
           <div id="listaSugestoesClienteRelatorio" class="sugestoes-lista"></div>
+          <div id="relatorioClienteSelecionado" class="relatorio-cliente-selecionado">Digite nome, CNPJ ou CPF para localizar o cadastro.</div>
         </div>
-        <input type="text" id="valor" placeholder="Valor" inputmode="decimal" oninput="mascaraValor(this)">
+        <div><label class="relatorio-campo-label">Valor</label><input type="text" id="valor" placeholder="0,00" inputmode="decimal" oninput="mascaraValor(this);atualizarParcelasNovoRelatorio()"></div>
+        <div><label class="relatorio-campo-label">Nº NF / Título</label><input type="text" id="relatorioNumeroNf" maxlength="15" placeholder="Ex.: 55865"></div>
+        <div><label class="relatorio-campo-label">Data base</label><input type="date" id="relatorioDataBase" onchange="atualizarParcelasNovoRelatorio()"></div>
+        <div><label class="relatorio-campo-label">Condição / Parcelas</label>
+          <select id="relatorioCondicaoPagamento" onchange="alternarCondicaoPersonalizadaRelatorio();atualizarParcelasNovoRelatorio()">
+            <option value="">Definir depois</option>
+            <option value="0">À vista</option>
+            <option value="7">7 dias</option>
+            <option value="10">10 dias</option>
+            <option value="14">14 dias</option>
+            <option value="15">15 dias</option>
+            <option value="30">30 dias</option>
+            <option value="45">45 dias</option>
+            <option value="30/45">30/45</option>
+            <option value="30/45/60">30/45/60</option>
+            <option value="30/45/60/75/90/105/120">30/45/60/75/90/105/120</option>
+            <option value="30/40/50/60/70/80/90/100">30/40/50/60/70/80/90/100</option>
+            <option value="personalizado">Personalizado</option>
+          </select>
+        </div>
+        <div id="relatorioCondicaoPersonalizadaBox" style="display:none;"><label class="relatorio-campo-label">Prazos personalizados</label><input type="text" id="relatorioCondicaoPersonalizada" placeholder="Ex.: 20/40/60" oninput="atualizarParcelasNovoRelatorio()"></div>
       </div>
-      <button class="salvar" onclick="salvarRelatorio()">Salvar Relatório</button>
+      <div id="relatorioParcelasPreview" class="relatorio-parcelas-preview">Parcelas: definir depois.</div>
+      <div class="relatorio-novo-acoes">
+        <button class="salvar" onclick="salvarRelatorio()">Salvar Relatório</button>
+        <button type="button" class="btn verde" onclick="abrirEmissaoMassaRelatorios()">💳 Emitir em massa</button>
+      </div>
     </div>
     <div class="card">
       <h2>Relatórios em Andamento</h2>
@@ -2713,7 +2739,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
       </div>
       <div id="bbPilotoClienteBuscaAviso" style="margin-top:10px;padding:9px 12px;border-radius:9px;background:#eef8ff;font-size:12px;color:#28566f;"><b>🔎 Preenchimento automático:</b> digite o <b>nome</b>, <b>CPF</b> ou <b>CNPJ</b> de um cliente já cadastrado. Ao selecionar/encontrar o cadastro, endereço, bairro, cidade, UF, CEP e e-mail são preenchidos automaticamente.</div>
       <div style="margin-top:10px;padding:9px 12px;border-radius:9px;background:#fff7d6;font-size:12px;color:#6d5e21;"><b>Nº do Título:</b> é a identificação interna/comercial da cobrança (máx. 15 caracteres), por exemplo o número da NF ou do pedido. <b>Nosso Número:</b> agora é totalmente automático. O sistema inicia em <b>0000034113</b> e, após cada boleto confirmado pelo Banco do Brasil, avança para o próximo sequencial sem precisar digitar nada.</div>
-      <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn azul" onclick="previsualizarBoletoPilotoBB()">🔎 Pré-visualizar emissão</button><button class="btn verde" id="btnBbEmitirPiloto" onclick="emitirBoletoPilotoBB()" disabled>🧾 Emitir 1 boleto real</button><span style="font-size:12px;color:#766d4d;">A emissão em massa continua bloqueada até este piloto ser conferido.</span></div>
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn azul" onclick="previsualizarBoletoPilotoBB()">🔎 Pré-visualizar emissão</button><button class="btn verde" id="btnBbEmitirPiloto" onclick="emitirBoletoPilotoBB()" disabled>🧾 Emitir 1 boleto real</button><span style="font-size:12px;color:#766d4d;">A emissão em massa está disponível na Fila do Relatório Financeiro.</span></div>
       <div id="bbPilotoResultado" class="bb-cert-aviso" style="margin-top:10px;">Nenhum boleto piloto emitido nesta sessão.</div>
     </div>
   </div>
@@ -2753,7 +2779,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
       <div class="cobranca-linha"><div><label>Nº NF</label><input id="cobNumeroNf"></div><div><label>Referência</label><input id="cobReferencia" placeholder="Automática se vazio"></div></div>
       <div class="cobranca-linha"><div><label>Multa (%)</label><input id="cobMulta" value="2"></div><div><label>Juros ao mês (%)</label><input id="cobJuros" value="5"></div></div>
       <label>Descrição</label><textarea id="cobDescricao" rows="3"></textarea>
-      <div class="cobranca-acoes"><button class="btn azul" onclick="previsualizarCobranca()">👁 Conferir</button><button class="btn verde" onclick="emitirCobrancaBancaria()">💳 Preparar cobrança</button></div><div id="cobStatus" class="cobranca-status-msg"></div>
+      <div class="cobranca-acoes"><button class="btn azul" onclick="previsualizarCobranca()">👁 Conferir</button><button class="btn verde" id="btnCobEmitirManual" onclick="emitirCobrancaBancaria()">💳 Emitir cobrança BB</button></div><div id="cobStatus" class="cobranca-status-msg"></div>
     </div>
     <div class="cobranca-card"><h3>Prévia</h3><div id="cobPreview" class="cobranca-preview"><div class="cobranca-preview-vazio">Preencha os dados para visualizar a cobrança.</div></div></div>
   </div>
@@ -2942,7 +2968,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=176-status-pago-descontado-bb"></script>
+<script src="financeiro.js?v=176-relatorios-parcelas-emissoes-r2"></script>
 <script src="corridas.js?v=143-corrige-abas-entregador"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>

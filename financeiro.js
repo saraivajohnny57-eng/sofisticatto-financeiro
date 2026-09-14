@@ -388,7 +388,13 @@ async function carregarParcelasRelatoriosFinanceiro(){
 }
 function resumoParcelasRelatorioFinanceiro(relatorioId){
   const ps=(parcelasRelatoriosFinanceiro||[]).filter(x=>String(x.relatorio_id)===String(relatorioId)&&x.status!=="cancelado").sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0));
-  if(!ps.length)return '<span class="rel-parcelas-vazio">—</span>';
+  if(!ps.length){
+    const rel=(todosBoletos||[]).find(x=>String(x.id)===String(relatorioId));
+    const prev=Array.isArray(rel?.parcelas_json)?rel.parcelas_json:[];
+    if(!prev.length)return '<span class="rel-parcelas-vazio">—</span>';
+    const cond=rel?.condicao_pagamento||"Personalizado";
+    return `<div class="rel-parcelas-resumo"><b>${escaparHtmlEmail(cond)} • ${prev.length} parcela(s)</b>${prev.map((x,i)=>`<span>${Number(x.numero||i+1)}/${Number(x.total||prev.length)} • ${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'} • ${cobMoeda(x.valor)}</span>`).join('')}</div>`;
+  }
   const cond=ps[0]?.condicao_pagamento||"Personalizado";
   const linhas=ps.map((x,i)=>{
     const dt=x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—';
@@ -1265,48 +1271,65 @@ function obterClientesParaSugestaoRelatorio(){
 }
 
 function mostrarSugestoesClienteRelatorio(){
-  const input = document.getElementById("nome");
-  const lista = document.getElementById("listaSugestoesClienteRelatorio");
-  if(!input || !lista) return;
-
-  const termo = normalizarNomeEmail(input.value);
-  const clientes = obterClientesParaSugestaoRelatorio();
-
-  const encontrados = clientes
-    .filter(item => !termo || normalizarNomeEmail(item.nome).includes(termo))
-    .slice(0,15);
-
-  if(!encontrados.length){
-    lista.classList.remove("ativa");
-    lista.innerHTML = "";
-    return;
-  }
-
-  lista.innerHTML = encontrados.map(item => {
-    const vendedora = emailVendedoras.find(v => v.id === item.vendedora_id);
-    return `<div class="sugestao-item" onmousedown="selecionarSugestaoClienteRelatorio('${encodeURIComponent(item.nome)}')">
-      <b>${escaparHtmlEmail(item.nome)}</b>
-      <small>${escaparHtmlEmail(vendedora?.nome || "")}</small>
-    </div>`;
+  const input=document.getElementById("nome"),lista=document.getElementById("listaSugestoesClienteRelatorio");
+  if(!input||!lista)return;
+  const termo=normalizarNomeEmail(input.value),dig=String(input.value||"").replace(/\D/g,"");
+  const encontrados=obterClientesParaSugestaoRelatorio().filter(item=>{
+    const nome=normalizarNomeEmail(item.nome||item.razao_social||"");
+    const doc=String(item.cpf_cnpj||item.cnpj||item.cpf||"").replace(/\D/g,"");
+    return !termo||nome.includes(termo)||(dig&&doc.includes(dig));
+  }).slice(0,15);
+  if(!encontrados.length){lista.classList.remove("ativa");lista.innerHTML="";return;}
+  lista.innerHTML=encontrados.map(item=>{
+    const vendedora=emailVendedoras.find(v=>v.id===item.vendedora_id);
+    const doc=item.cpf_cnpj||item.cnpj||item.cpf||"Documento não informado";
+    const local=[item.cidade,item.uf].filter(Boolean).join("/");
+    return `<div class="sugestao-item" onmousedown="selecionarSugestaoClienteRelatorio('${String(item.id).replace(/'/g,"\\'")}')"><b>${escaparHtmlEmail(item.nome||item.razao_social||"")}</b><small>${escaparHtmlEmail([doc,local,vendedora?.nome].filter(Boolean).join(" • "))}</small></div>`;
   }).join("");
-
   lista.classList.add("ativa");
 }
-
-function selecionarSugestaoClienteRelatorio(nomeCodificado){
-  const input = document.getElementById("nome");
-  const lista = document.getElementById("listaSugestoesClienteRelatorio");
-  if(!input) return;
-
-  input.value = decodeURIComponent(nomeCodificado);
-  input.focus();
-  input.setSelectionRange(input.value.length,input.value.length);
-
-  if(lista){
-    lista.classList.remove("ativa");
-    lista.innerHTML = "";
-  }
+function limparClienteSelecionadoRelatorio(){
+  const hid=document.getElementById("relatorioClienteId"),box=document.getElementById("relatorioClienteSelecionado");
+  if(hid)hid.value="";if(box){box.classList.remove("ok");box.textContent="Digite nome, CNPJ ou CPF para localizar o cadastro.";}
 }
+function selecionarSugestaoClienteRelatorio(id){
+  const input=document.getElementById("nome"),lista=document.getElementById("listaSugestoesClienteRelatorio"),hid=document.getElementById("relatorioClienteId"),box=document.getElementById("relatorioClienteSelecionado");
+  const c=(emailClientes||[]).find(x=>String(x.id)===String(id));if(!input||!c)return;
+  input.value=c.nome||c.razao_social||"";if(hid)hid.value=c.id||"";
+  if(box){box.classList.add("ok");box.innerHTML=`✓ <b>${escaparHtmlEmail(input.value)}</b> • ${escaparHtmlEmail(c.cpf_cnpj||c.cnpj||c.cpf||"sem CPF/CNPJ")}${c.cidade?` • ${escaparHtmlEmail(c.cidade)}${c.uf?"/"+escaparHtmlEmail(c.uf):""}`:""}`;}
+  if(lista){lista.classList.remove("ativa");lista.innerHTML="";}
+}
+function alternarCondicaoPersonalizadaRelatorio(){
+  const sel=document.getElementById("relatorioCondicaoPagamento"),box=document.getElementById("relatorioCondicaoPersonalizadaBox");
+  if(box)box.style.display=sel?.value==="personalizado"?"block":"none";
+}
+function condicaoNovoRelatorio(){
+  const v=document.getElementById("relatorioCondicaoPagamento")?.value||"";
+  return v==="personalizado"?(document.getElementById("relatorioCondicaoPersonalizada")?.value.trim()||""):v;
+}
+function parcelasNovoRelatorio(){
+  const cond=condicaoNovoRelatorio(),base=document.getElementById("relatorioDataBase")?.value||"",total=valorParaNumero(document.getElementById("valor")?.value||0);
+  const prazos=cond.split("/").map(x=>Number(String(x).replace(/\D/g,""))).filter(x=>Number.isFinite(x)&&x>=0);
+  if(!cond||!base||!(total>0)||!prazos.length)return [];
+  const valores=dividirValorParcelasBoleto(total,prazos.length);
+  return prazos.map((prazo,i)=>({numero:i+1,total:prazos.length,prazo_dias:prazo,vencimento:dataSomadaBoleto(base,prazo),valor:valores[i]}));
+}
+function atualizarParcelasNovoRelatorio(){
+  const box=document.getElementById("relatorioParcelasPreview");if(!box)return;
+  const ps=parcelasNovoRelatorio();
+  if(!ps.length){box.textContent="Parcelas: definir depois.";return;}
+  box.innerHTML=`<b>${escaparHtmlEmail(condicaoNovoRelatorio())} • ${ps.length} parcela(s)</b><br>`+ps.map(p=>`<span class="relatorio-parcela-chip">${p.numero}/${p.total} • ${new Date(p.vencimento+"T12:00:00").toLocaleDateString("pt-BR")} • ${formatarMoeda(p.valor)}</span>`).join("");
+}
+function abrirEmissaoMassaRelatorios(){
+  mostrarSecao("integracaoBancaria");
+  setTimeout(()=>{document.querySelector(".cobranca-massa-card")?.scrollIntoView({behavior:"smooth",block:"start"});carregarFilaCobrancaMassa?.();},120);
+}
+
+document.addEventListener("DOMContentLoaded",()=>{
+  const dt=document.getElementById("relatorioDataBase");
+  if(dt&&!dt.value){const h=new Date();dt.value=`${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,"0")}-${String(h.getDate()).padStart(2,"0")}`;}
+  atualizarParcelasNovoRelatorio?.();
+});
 
 document.addEventListener("click", evento => {
   const box = document.querySelector(".sugestoes-relatorio");
@@ -1318,31 +1341,22 @@ document.addEventListener("click", evento => {
 });
 
 async function salvarRelatorio(){
-  const nome = document.getElementById("nome").value.trim();
-  const valorTexto = document.getElementById("valor").value.trim();
-  const valor = valorParaNumero(valorTexto);
-
-  if(!nome || !valorTexto){ alert("Preencha nome e valor"); return; }
-
-  const resposta=await banco.from("boletos").insert([{
-    nome:nome,
-    valor:valor,
-    status:"Em andamento",
-    banco:"",
-    observacao:"",
-    data_finalizacao:null,
-    criado_por:usuarioLogado.login
-  }]);
-
-  if(resposta.error){
-    alert("Não foi possível salvar o boleto: "+resposta.error.message);
-    return;
-  }
-
-  mostrarBalaoSistema("Boleto lançado","O usuário Banco receberá a notificação.");
-  document.getElementById("nome").value = "";
-  document.getElementById("valor").value = "";
-  carregarRelatorios();
+  const nome=document.getElementById("nome").value.trim(),valorTexto=document.getElementById("valor").value.trim(),valor=valorParaNumero(valorTexto);
+  const clienteId=document.getElementById("relatorioClienteId")?.value||null;
+  const cliente=(emailClientes||[]).find(x=>String(x.id)===String(clienteId))||null;
+  const condicao=condicaoNovoRelatorio(),dataBase=document.getElementById("relatorioDataBase")?.value||null,numeroNf=document.getElementById("relatorioNumeroNf")?.value.trim()||null;
+  const parcelas=parcelasNovoRelatorio();
+  if(!nome||!valorTexto){alert("Preencha cliente e valor");return;}
+  if(clienteId&&!cliente)return alert("O cliente selecionado não foi localizado no cadastro. Pesquise novamente.");
+  if(condicao&&(!dataBase||!parcelas.length))return alert("Informe a data base para gerar as parcelas.");
+  const payload={nome,valor,status:"Em andamento",banco:"",observacao:"",data_finalizacao:null,criado_por:usuarioLogado.login,cliente_id:clienteId,cliente_documento:cliente?.cpf_cnpj||cliente?.cnpj||cliente?.cpf||null,condicao_pagamento:condicao||null,data_base:dataBase,numero_nf:numeroNf,parcelas_json:parcelas.length?parcelas:null};
+  const resposta=await banco.from("boletos").insert([payload]);
+  if(resposta.error){alert("Não foi possível salvar o relatório: "+resposta.error.message+"\n\nSe esta é a primeira publicação desta versão, execute o SQL V176_RELATORIOS_PARCELAS.sql no Supabase.");return;}
+  mostrarBalaoSistema("Relatório lançado",parcelas.length?`${parcelas.length} parcela(s) já definidas. O Banco poderá selecionar o banco e a emissão ficará pronta.`:"O usuário Banco receberá a notificação.");
+  ["nome","valor","relatorioNumeroNf","relatorioClienteId","relatorioCondicaoPersonalizada"].forEach(id=>{const e=document.getElementById(id);if(e)e.value="";});
+  const sel=document.getElementById("relatorioCondicaoPagamento");if(sel)sel.value="";const box=document.getElementById("relatorioCondicaoPersonalizadaBox");if(box)box.style.display="none";
+  const dt=document.getElementById("relatorioDataBase");if(dt){const h=new Date();dt.value=`${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,"0")}-${String(h.getDate()).padStart(2,"0")}`;}
+  limparClienteSelecionadoRelatorio();atualizarParcelasNovoRelatorio();carregarRelatorios();
 }
 
 
@@ -6802,8 +6816,9 @@ function instrucoesPadraoBancoCobranca(codigo){
 }
 function aplicarPadraoBancoCobrancaManual(){
   const cod=document.getElementById("cobBanco")?.value||"bb";
-  const multa=document.getElementById("cobMulta"),juros=document.getElementById("cobJuros");
-  if(cod==="bb"){if(multa)multa.value="2";if(juros)juros.value="5";}
+  const multa=document.getElementById("cobMulta"),juros=document.getElementById("cobJuros"),btn=document.getElementById("btnCobEmitirManual");
+  if(cod==="bb"){if(multa)multa.value="2";if(juros)juros.value="5";if(btn)btn.textContent="💳 Emitir cobrança BB";}
+  else if(btn)btn.textContent="📝 Preparar cobrança";
 }
 function atualizarPainelInstrucoesBancoBoleto(){
   const box=document.getElementById("bolInstrucoesBancoPadrao");if(!box)return;
@@ -6869,19 +6884,29 @@ function previsualizarCobranca(){
 }
 
 async function emitirCobrancaBancaria(){
-  const d=dadosNovaCobranca(), st=document.getElementById('cobStatus');
+  const d=dadosNovaCobranca(),st=document.getElementById('cobStatus'),btn=document.getElementById('btnCobEmitirManual');
   if(!d.cliente_id)return alert('Selecione um cliente cadastrado.');
   if(!d.cpf_cnpj)return alert('O cliente precisa ter CPF/CNPJ.');
   if(!d.cep)return alert('O cliente precisa ter CEP.');
   if(!(d.endereco&&d.numero))return alert('O cliente precisa ter endereço e número.');
   if(!(d.valor>0))return alert('Informe um valor válido.');
   if(!d.vencimento)return alert('Informe o vencimento.');
-  const payload={...d,referencia:d.referencia||`SOF-${Date.now()}`,status:'pendente_integracao',criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
+  if(d.banco==='bb'&&!String(d.numero_nf||'').trim())return alert('Informe o Nº NF/Título para emitir no Banco do Brasil.');
+  if(btn){btn.disabled=true;btn.textContent=d.banco==='bb'?'Emitindo no BB...':'Salvando...';}
   try{
-    const r=await banco.from('cobrancas_bancarias').insert([payload]).select().single(); if(r.error)throw r.error;
-    if(st)st.innerHTML='✅ Cobrança preparada no Portal. <b>Nenhuma cobrança real foi emitida no banco ainda.</b>';
+    if(d.banco==='bb'){
+      const dup=await banco.from('cobrancas_bancarias').select('id,nosso_numero,status').eq('banco','bb').eq('numero_nf',String(d.numero_nf).trim()).neq('status','cancelado').limit(1);
+      if(!dup.error&&dup.data?.length)throw new Error(`Já existe cobrança BB com o Nº NF/Título ${d.numero_nf}. A emissão foi bloqueada para evitar duplicidade.`);
+    }
+    const payload={...d,numero_nf:String(d.numero_nf||'').trim()||null,referencia:d.referencia||`SOF-${Date.now()}`,status:'pendente_integracao',parcela_numero:1,parcela_total:1,condicao_pagamento:'À vista',data_base:new Date().toISOString().slice(0,10),valor_total_grupo:d.valor,origem:'integracao_bancaria_manual',criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
+    let r=await banco.from('cobrancas_bancarias').insert([payload]).select().single();if(r.error)throw r.error;
+    if(d.banco!=='bb'){if(st)st.innerHTML='✅ Cobrança preparada. A emissão real deste banco ainda está em configuração.';await carregarCobrancasBancarias();return;}
+    const ret=await emitirParcelaBbReal(r.data);
+    if(st)st.innerHTML=`✅ Boleto registrado no Banco do Brasil.${ret?.emissao?.numeroTituloCliente?` Nosso Número: <b>${escaparHtmlEmail(ret.emissao.numeroTituloCliente)}</b>.`:''}`;
+    mostrarBalaoSistema?.('Boleto emitido','Cobrança registrada com sucesso no Banco do Brasil.');
     await carregarCobrancasBancarias();
-  }catch(e){ if(st)st.textContent='⚠ '+e.message; alert('Não foi possível salvar: '+e.message); }
+  }catch(e){if(st)st.textContent='⚠ '+(e.message||e);alert('Não foi possível emitir: '+(e.message||e));}
+  finally{if(btn){btn.disabled=false;aplicarPadraoBancoCobrancaManual();}}
 }
 
 let bbStatusSyncEmAndamentoV176=false;
@@ -7040,7 +7065,7 @@ async function abrirEmissaoBoletoRelatorio(relatorioId){
   boletoCobrancaAtual=await procurarCobrancaDoRelatorio(item.id);
 
   const candidatos=localizarClientesDoRelatorio(item.nome);
-  boletoClienteAtual=candidatos[0]||null;
+  boletoClienteAtual=(emailClientes||[]).find(c=>String(c.id)===String(item.cliente_id||""))||candidatos[0]||null;
 
   document.getElementById("bolRelatorioId").value=item.id;
   document.getElementById("bolBanco").value=nomeBancoCobranca(item.banco);
@@ -7048,7 +7073,7 @@ async function abrirEmissaoBoletoRelatorio(relatorioId){
   const btnEmitirModal=document.getElementById("btnBolSalvarEmitir");
   if(btnEmitirModal)btnEmitirModal.textContent=codigoBancoCobranca(item.banco)==="bb"?"💳 Salvar parcelas e emitir BB":"📝 Salvar preparação Bradesco";
   document.getElementById("bolValor").value=valorParaInput(boletoCobrancaAtual?.valor??item.valor??0);
-  document.getElementById("bolNumeroNf").value=boletoCobrancaAtual?.numero_nf||"";
+  document.getElementById("bolNumeroNf").value=boletoCobrancaAtual?.numero_nf||item.numero_nf||"";
   document.getElementById("bolDescricao").value=boletoCobrancaAtual?.descricao||`Cobrança ${item.nome||""}`;
   const bancoCodigoAtual=codigoBancoCobranca(item.banco);
   const multaPadrao=bancoCodigoAtual==="bb"?2:0;
@@ -7061,14 +7086,14 @@ async function abrirEmissaoBoletoRelatorio(relatorioId){
   const bolDataBaseEl=document.getElementById("bolDataBase");
   if(bolDataBaseEl){
     bolDataBaseEl.value=
-      boletoCobrancaAtual?.data_base||
+      boletoCobrancaAtual?.data_base||item.data_base||
       `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,"0")}-${String(hoje.getDate()).padStart(2,"0")}`;
   }
 
   const bolCondicaoEl=document.getElementById("bolCondicaoPagamento");
   const bolCondicaoPersonalizadaEl=document.getElementById("bolCondicaoPersonalizada");
   const bolCondicaoBoxEl=document.getElementById("bolCondicaoPersonalizadaBox");
-  if(bolCondicaoEl)bolCondicaoEl.value=boletoCobrancaAtual?.condicao_pagamento||"";
+  if(bolCondicaoEl)bolCondicaoEl.value=boletoCobrancaAtual?.condicao_pagamento||item.condicao_pagamento||"";
   if(bolCondicaoPersonalizadaEl)bolCondicaoPersonalizadaEl.value="";
   if(bolCondicaoBoxEl)bolCondicaoBoxEl.style.display="none";
 
@@ -7078,12 +7103,12 @@ async function abrirEmissaoBoletoRelatorio(relatorioId){
 
   if(boletoCobrancaAtual?.grupo_id){
     await carregarParcelasExistentesBoleto(boletoCobrancaAtual.grupo_id);
-  }else if(boletoCobrancaAtual?.condicao_pagamento){
+  }else if(Array.isArray(item.parcelas_json)&&item.parcelas_json.length){
+    boletoParcelasAtuais=item.parcelas_json.map((x,i)=>({numero:i+1,total:item.parcelas_json.length,prazo:Number(x.prazo_dias??x.prazo??0),vencimento:x.vencimento,valor:Number(x.valor||0)}));renderParcelasBoleto();
+  }else if(boletoCobrancaAtual?.condicao_pagamento||item.condicao_pagamento){
     gerarParcelasBoleto();
-  }else{
-    boletoParcelasAtuais=[];
-    renderParcelasBoleto();
-  }
+  }else{boletoParcelasAtuais=[];renderParcelasBoleto();}
+
 
   const modal=document.getElementById("modalEmissaoBoletoRelatorio");
   modal.style.display="flex";
@@ -8106,8 +8131,30 @@ let cobrancaMassaPreparadas=[];
 let cobrancaMassaPastaHandle=null;
 let cobrancaMassaArquivosEmitidos=[];
 
+async function prepararRelatorioParaFilaMassaV176(rel){
+  if(!rel||!rel.id||!rel.banco||codigoBancoCobranca(rel.banco)!=='bb')return false;
+  const existentes=(cobrancaMassaPreparadas||[]).filter(x=>String(x.relatorio_id)===String(rel.id)&&x.status!=='cancelado');
+  if(existentes.length)return false;
+  const parcelas=Array.isArray(rel.parcelas_json)?rel.parcelas_json:[];
+  if(!parcelas.length||!rel.cliente_id||!String(rel.numero_nf||'').trim())return false;
+  const cli=(emailClientes||[]).find(c=>String(c.id)===String(rel.cliente_id));
+  if(!cli||!(cli.cpf_cnpj||cli.cnpj||cli.cpf))return false;
+  const numeroNf=String(rel.numero_nf).trim();
+  const ja=await banco.from('cobrancas_bancarias').select('id,relatorio_id,numero_nf,nosso_numero,status').eq('banco','bb').eq('numero_nf',numeroNf).neq('status','cancelado');
+  if(!ja.error&&(ja.data||[]).some(x=>String(x.relatorio_id)!==String(rel.id)))return false;
+  const grupoId=crypto.randomUUID();
+  const comuns={relatorio_id:rel.id,grupo_id:grupoId,cliente_id:cli.id,cliente_nome:cli.nome||rel.nome,cpf_cnpj:cli.cpf_cnpj||cli.cnpj||cli.cpf||'',endereco:cli.endereco||cli.logradouro||'',numero:cli.numero||'',complemento:cli.complemento||'',bairro:cli.bairro||'',cep:cli.cep||'',cidade:cli.cidade||'',uf:cli.uf||'',email:cli.email||'',banco:'bb',banco_nome:rel.banco,tipo:'boleto_pix',numero_nf:numeroNf,descricao:`Cobrança ${rel.nome||''}`,multa_percentual:2,juros_percentual:5,condicao_pagamento:rel.condicao_pagamento||'Personalizado',data_base:rel.data_base||new Date().toISOString().slice(0,10),valor_total_grupo:valorParaNumero(rel.valor||0),status:'pendente_integracao',origem:'relatorio_financeiro',criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
+  const linhas=parcelas.map((x,i)=>({...comuns,valor:Number(x.valor||0),vencimento:x.vencimento,parcela_numero:i+1,parcela_total:parcelas.length,prazo_dias:Number(x.prazo_dias??x.prazo??0),referencia:`REL-${rel.id}-${i+1}DE${parcelas.length}`}));
+  if(linhas.some(x=>!x.vencimento||!(x.valor>0)))return false;
+  const r=await banco.from('cobrancas_bancarias').insert(linhas).select();
+  if(r.error){console.warn('Preparação automática da fila em massa:',r.error);return false;}
+  cobrancaMassaPreparadas.push(...(r.data||[]));
+  return true;
+}
+
 async function carregarFilaCobrancaMassa(){
   const tb=document.getElementById("cobMassaTabela");
+  if(!(emailClientes||[]).length&&typeof carregarClientesEmail==="function"){try{await carregarClientesEmail();}catch(e){console.warn("Clientes para fila em massa:",e)}}
   if(tb)tb.innerHTML='<tr><td colspan="7">Carregando relatório financeiro...</td></tr>';
   try{
     const [rel,prep]=await Promise.all([
@@ -8117,6 +8164,9 @@ async function carregarFilaCobrancaMassa(){
     if(rel.error)throw rel.error;
     cobrancaMassaRelatorios=rel.data||[];
     cobrancaMassaPreparadas=prep.error?[]:(prep.data||[]);
+    // V176 revisão: relatórios criados com cliente + NF + parcelas ficam prontos para emissão em massa
+    // assim que o usuário Banco seleciona Banco do Brasil. Apenas prepara localmente; não emite sem clique.
+    for(const r of cobrancaMassaRelatorios){try{await prepararRelatorioParaFilaMassaV176(r);}catch(e){console.warn('Fila automática:',e)}}
     renderFilaCobrancaMassa();
   }catch(e){
     console.error("Fila cobrança em massa:",e);
@@ -8140,7 +8190,10 @@ function renderFilaCobrancaMassa(){
     if(!g.rel.banco)situacao='<span class="cob-massa-status falta">Banco não definido</span>';
     else if(!bancoSuportaCobrancaIntegrada(g.rel.banco))situacao='<span class="cob-massa-status falta">Banco sem integração</span>';
     else if(!bancoEmissaoRealDisponivel(g.rel.banco))situacao='<span class="cob-massa-status falta">Bradesco • integração em configuração</span>';
-    else if(!g.parcelas.length)situacao='<span class="cob-massa-status preparar">Definir parcelas</span>';
+    else if(!g.parcelas.length){
+      const falt=[];if(!g.rel.cliente_id)falt.push('cliente');if(!g.rel.numero_nf)falt.push('NF/Título');if(!(Array.isArray(g.rel.parcelas_json)&&g.rel.parcelas_json.length))falt.push('parcelas');
+      situacao=`<span class="cob-massa-status preparar">${falt.length?'Completar '+falt.join(', '):'Definir parcelas'}</span>`;
+    }
     else if(g.parcelas.every(p=>p.status==='aberto'))situacao='<span class="cob-massa-status pronto">BB • já emitido</span>';
     else if(g.parcelas.some(p=>p.status!=='pendente_integracao'))situacao='<span class="cob-massa-status falta">BB • lote parcialmente processado</span>';
     else situacao='<span class="cob-massa-status pronto">BB • pronto para emissão real</span>';

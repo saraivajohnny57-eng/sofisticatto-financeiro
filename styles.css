@@ -2312,3 +2312,10 @@ html.modo-portal-publico .portal-conteudo{
 .cobranca-status-tag.bb-parcial{background:#fff0c2;color:#7b5900;margin-left:4px}
 .cobranca-status-tag.bb-detalhe{background:#edf1f7;color:#455064;margin-left:4px}
 .bb-status-meta{font-size:11px;color:#655f77;margin-top:5px;white-space:nowrap}
+
+/* V176 revisão — Relatórios com cliente/documento e parcelas */
+.relatorio-novo-grid{display:grid!important;grid-template-columns:minmax(260px,1.6fr) repeat(2,minmax(150px,1fr));gap:12px;align-items:start}
+.relatorio-novo-grid>div{min-width:0}.relatorio-campo-label{display:block;font-size:12px;font-weight:700;margin:0 0 5px;color:#3f3857}
+.relatorio-cliente-busca{grid-row:span 2}.relatorio-cliente-selecionado{font-size:11px;line-height:1.35;color:#675f7a;margin-top:5px;padding:7px 9px;background:#f6f3ff;border-radius:8px;border:1px solid #e5def8}
+.relatorio-cliente-selecionado.ok{background:#effaf4;border-color:#ccebd8;color:#276c45}.relatorio-parcelas-preview{margin-top:12px;padding:10px 12px;border:1px solid #e2dcf2;border-radius:10px;background:#faf9ff;font-size:12px;color:#51496b;line-height:1.55}.relatorio-parcelas-preview b{color:#29213f}.relatorio-parcela-chip{display:inline-block;margin:3px 6px 3px 0;padding:5px 8px;border-radius:999px;background:#eee9ff;color:#473b80;font-weight:600}.relatorio-novo-acoes{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+@media(max-width:900px){.relatorio-novo-grid{grid-template-columns:1fr!important}.relatorio-cliente-busca{grid-row:auto}}
