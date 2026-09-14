@@ -2635,6 +2635,19 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <button class="btn" onclick="limparChaveAdminBancoBB()">Limpar</button>
       </div>
     </div>
+    <div class="bb-diagnostico-box" style="margin:12px 0 14px;padding:14px;border:1px solid #d9d2ea;border-radius:12px;background:#fbfaff;">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
+        <div><h4 style="margin:0 0 4px;">🩺 Diagnóstico da integração</h4><p class="bb-cert-ajuda" style="margin:0;">Verifica a chave administrativa, a conexão do Supabase, o OAuth e a API Cobranças sem exibir senhas ou tokens.</p></div>
+        <button class="btn azul" id="btnBbDiagnostico" onclick="executarDiagnosticoBancoBB()">🔎 Executar diagnóstico</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px;margin-top:12px;">
+        <div class="bb-diag-item" style="padding:10px;border:1px solid #e3deed;border-radius:10px;background:#fff;"><span style="display:block;font-size:12px;color:#6c6480;">Chave administrativa</span><strong id="bbDiagAdmin">Não testado</strong></div>
+        <div class="bb-diag-item" style="padding:10px;border:1px solid #e3deed;border-radius:10px;background:#fff;"><span style="display:block;font-size:12px;color:#6c6480;">Supabase</span><strong id="bbDiagSupabase">Não testado</strong></div>
+        <div class="bb-diag-item" style="padding:10px;border:1px solid #e3deed;border-radius:10px;background:#fff;"><span style="display:block;font-size:12px;color:#6c6480;">OAuth Banco do Brasil</span><strong id="bbDiagOAuth">Não testado</strong></div>
+        <div class="bb-diag-item" style="padding:10px;border:1px solid #e3deed;border-radius:10px;background:#fff;"><span style="display:block;font-size:12px;color:#6c6480;">API Cobranças v2</span><strong id="bbDiagApi">Não testado</strong></div>
+      </div>
+      <div id="bbDiagDetalhe" style="margin-top:10px;font-size:12px;color:#5f5871;white-space:pre-wrap;">Clique em “Executar diagnóstico”.</div>
+    </div>
     <div id="bbAvisoCertificado" class="bb-cert-aviso">Carregando situação do certificado...</div>
     <div class="bb-cert-kpis">
       <div><span>Ambiente</span><strong id="bbAmbienteResumo">Produção</strong></div>
@@ -2929,7 +2942,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=173-logo-sofisticatto-ampliada"></script>
+<script src="financeiro.js?v=174-diagnostico-integracao-bb"></script>
 <script src="corridas.js?v=143-corrige-abas-entregador"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>

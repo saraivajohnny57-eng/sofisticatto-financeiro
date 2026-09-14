@@ -8173,6 +8173,79 @@ function limparChaveAdminBancoBB(){
   bbAviso('Informe a chave administrativa das integrações para consultar e atualizar o Banco do Brasil.','alerta');
 }
 function bbAmbiente(){return document.getElementById('bbAmbiente')?.value==='teste'?'teste':'producao'}
+function bbDiagSet(id,texto,tipo='pendente'){
+  const e=document.getElementById(id);if(!e)return;
+  e.textContent=texto;
+  e.style.color=tipo==='ok'?'#16794a':tipo==='erro'?'#b3261e':tipo==='aviso'?'#8a6500':'#5f5871';
+}
+async function executarDiagnosticoBancoBB(){
+  const btn=document.getElementById('btnBbDiagnostico');
+  const det=document.getElementById('bbDiagDetalhe');
+  const chave=bbAdminKey();
+  const detalhes=[];
+  if(btn){btn.disabled=true;btn.textContent='⏳ Verificando...';}
+  ['bbDiagAdmin','bbDiagSupabase','bbDiagOAuth','bbDiagApi'].forEach(id=>bbDiagSet(id,'Verificando...','pendente'));
+  try{
+    // 1) Chave administrativa: testa exatamente o cabeçalho usado pelas rotas protegidas.
+    if(!chave){
+      bbDiagSet('bbDiagAdmin','CHAVE NÃO INFORMADA','erro');
+      detalhes.push('• Chave administrativa: informe e valide a INTEGRATIONS_ADMIN_KEY nesta tela.');
+    }else{
+      try{
+        const r=await fetch('/api/integracoes?action=validar-chave',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:'{}'});
+        const x=await r.json().catch(()=>({}));
+        if(!r.ok||x.ok===false)throw new Error(x.erro||`HTTP ${r.status}`);
+        bbDiagSet('bbDiagAdmin','OK','ok');
+        bbSetAdminStatus('Validada','ok');
+        detalhes.push('• Chave administrativa: OK.');
+      }catch(e){
+        bbDiagSet('bbDiagAdmin','ERRO','erro');
+        detalhes.push('• Chave administrativa: '+e.message);
+      }
+    }
+
+    // 2) Supabase: usa o SDK normal do portal (com apikey), não uma URL REST aberta manualmente.
+    try{
+      const cli=await carregarSupabase();
+      const r=await cli.from('email_clientes').select('id').limit(1);
+      if(r.error)throw new Error(r.error.message||'Falha na consulta Supabase.');
+      bbDiagSet('bbDiagSupabase','OK','ok');
+      detalhes.push('• Supabase: OK (SDK e chave pública funcionando).');
+    }catch(e){
+      bbDiagSet('bbDiagSupabase','ERRO','erro');
+      detalhes.push('• Supabase: '+e.message);
+    }
+
+    // Os testes do BB dependem da chave administrativa.
+    if(!chave){
+      bbDiagSet('bbDiagOAuth','AGUARDANDO CHAVE','aviso');
+      bbDiagSet('bbDiagApi','AGUARDANDO CHAVE','aviso');
+    }else{
+      try{
+        const o=await bbReq('testar');
+        if(!o?.teste?.token_recebido)throw new Error('OAuth respondeu sem access_token.');
+        bbDiagSet('bbDiagOAuth','OK','ok');
+        detalhes.push('• OAuth Banco do Brasil: OK.');
+      }catch(e){
+        bbDiagSet('bbDiagOAuth','ERRO','erro');
+        detalhes.push('• OAuth Banco do Brasil: '+e.message);
+      }
+      try{
+        const agencia=String(document.getElementById('bbTesteAgencia')?.value||'03483').replace(/\D/g,'');
+        const conta=String(document.getElementById('bbTesteConta')?.value||'19039').replace(/\D/g,'');
+        const a=await bbReq('testar-api',{method:'POST',body:{agencia,conta}});
+        bbDiagSet('bbDiagApi',`OK • HTTP ${a?.teste?.status||200}`,'ok');
+        detalhes.push(`• API Cobranças v2: OK${a?.teste?.status?' (HTTP '+a.teste.status+')':''}.`);
+      }catch(e){
+        bbDiagSet('bbDiagApi','ERRO','erro');
+        detalhes.push('• API Cobranças v2: '+e.message);
+      }
+    }
+  }finally{
+    if(det)det.textContent=detalhes.join('\n')||'Diagnóstico concluído.';
+    if(btn){btn.disabled=false;btn.textContent='🔎 Executar diagnóstico';}
+  }
+}
 async function bbReq(action,{method='GET',body,raw=false}={}){
   const chave=bbAdminKey();
   if(!chave)throw new Error('Informe a chave administrativa das integrações nesta tela.');
