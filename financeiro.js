@@ -7636,19 +7636,19 @@ async function gerarPdfBoletoBb(d,opt={}){
   // ===========================
   if(opt.impressaoNormal){
     const top=y;
-    const headH=36;
+    const headH=42;
     const rowIdH=27;
     const rowFinH=31;
     const rowRecH=29;
     const payH=33;
     // V172: cabeçalho do canhoto com células independentes para Recibo de Entrega e logo Sofisticatto.
-    const bankW=145, codeW=58, receiptTitleW=82, logoCellW=66;
+    const bankW=140, codeW=56, receiptTitleW=78, logoCellW=92;
     const linhaW=CW-bankW-codeW-receiptTitleW-logoCellW;
 
     rect(L,top-headH,CW,headH,.75);
     let hx=L;
     if(bbLogoAsset){
-      const targetW=126,targetH=23,sc=Math.min(targetW/bbLogoAsset.width,targetH/bbLogoAsset.height);
+      const targetW=122,targetH=24,sc=Math.min(targetW/bbLogoAsset.width,targetH/bbLogoAsset.height);
       pg.drawImage(bbLogoAsset,{x:hx+8,y:top-headH+(headH-bbLogoAsset.height*sc)/2,width:bbLogoAsset.width*sc,height:bbLogoAsset.height*sc});
     }else drawTextFit('BANCO DO BRASIL',hx+8,top-headH+12,bankW-16,11.5,bold);
     hx+=bankW; line(hx,top-headH,hx,top,.75);
@@ -7657,18 +7657,18 @@ async function gerarPdfBoletoBb(d,opt={}){
     drawTextFit(linhaFmt,hx+5,top-headH+12,linhaW-10,9.8,bold,'center');
     hx+=linhaW; line(hx,top-headH,hx,top,.75);
     // Célula exclusiva do título.
-    drawTextFit('Recibo de Entrega',hx+4,top-headH+12,receiptTitleW-8,8.0,bold,'center');
+    drawTextFit('Recibo de Entrega',hx+4,top-headH+14,receiptTitleW-8,8.2,bold,'center');
     hx+=receiptTitleW;
     // Linha vertical solicitada entre o nome do recibo e a identidade Sofisticatto.
     line(hx,top-headH,hx,top,.75);
     if(sofisticattoLogoAsset){
-      const logoW=54, logoH=28;
+      const logoW=82, logoH=36;
       const sc=Math.min(logoW/sofisticattoLogoAsset.width,logoH/sofisticattoLogoAsset.height);
       const iw=sofisticattoLogoAsset.width*sc, ih=sofisticattoLogoAsset.height*sc;
       pg.drawImage(sofisticattoLogoAsset,{x:hx+(logoCellW-iw)/2,y:top-headH+(headH-ih)/2,width:iw,height:ih});
     }else{
-      drawTextFit('Sofisticatto',hx+4,top-headH+15,logoCellW-8,9,bold,'center');
-      drawTextFit('COSMÉTICOS',hx+4,top-headH+6,logoCellW-8,4.5,font,'center');
+      drawTextFit('Sofisticatto',hx+4,top-headH+18,logoCellW-8,11,bold,'center');
+      drawTextFit('COSMÉTICOS',hx+4,top-headH+7,logoCellW-8,5.8,font,'center');
     }
 
     let ry=top-headH;
@@ -8441,3 +8441,5 @@ setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bb
 // V171 — Logo Sofisticatto adicionada exclusivamente ao canhoto da Impressão Normal; boleto bancário preservado.
 
 // V172 — Divisor entre Recibo de Entrega e logo Sofisticatto; grade central do Recibo do Pagador e tipografia reforçada.
+
+// V173 — Logo Sofisticatto ampliada no canhoto, com recorte de margens brancas para melhorar a legibilidade de 'cosméticos'.
