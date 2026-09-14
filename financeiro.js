@@ -7623,99 +7623,107 @@ async function gerarPdfBoletoBb(d,opt={}){
   }
 
   // ===========================
-  // CANHOTO / RECIBO DE ENTREGA (V168)
-  // Refeito para reproduzir a divisão do canhoto da "Impressão Normal"
-  // do BB Cobrança: beneficiário/agência, pagador/nosso número,
-  // vencimento/documento/espécie/moeda/valor, assinatura/data/nome
-  // e faixa inferior de local de pagamento.
+  // CANHOTO / RECIBO DE ENTREGA (V169)
+  // Layout redesenhado para reproduzir a divisão solicitada:
+  // cabeçalho bancário + título dentro da própria moldura,
+  // duas linhas de identificação, linha financeira em 5 colunas,
+  // linha de recebimento/assinatura/data/nome e faixa de pagamento.
   // ===========================
   if(opt.impressaoNormal){
-    const canhotoTituloY=y+8;
-    drawTextFit('Recibo de Entrega',L+CW-120,canhotoTituloY,120,6.4,bold,'right');
-    y=bankHeader(y);
+    const top=y;
+    const headH=36;
+    const rowIdH=27;
+    const rowFinH=31;
+    const rowRecH=29;
+    const payH=33;
+    const bankW=145, codeW=58, titleW=92;
+    const linhaW=CW-bankW-codeW-titleW;
 
-    const ct=y;
-    const bodyH=88;
-    const payH=21;
-    const rightW=205;
-    const leftW=CW-rightW;
-    const xDiv=L+leftW;
-    const yBottom=ct-bodyH;
+    // Cabeçalho completo do canhoto — o título fica dentro da última célula.
+    rect(L,top-headH,CW,headH,.7);
+    let hx=L;
+    if(bbLogoAsset){
+      const targetW=126,targetH=23,sc=Math.min(targetW/bbLogoAsset.width,targetH/bbLogoAsset.height);
+      pg.drawImage(bbLogoAsset,{x:hx+8,y:top-headH+(headH-bbLogoAsset.height*sc)/2,width:bbLogoAsset.width*sc,height:bbLogoAsset.height*sc});
+    }else drawTextFit('BANCO DO BRASIL',hx+8,top-headH+12,bankW-16,11.5,bold);
+    hx+=bankW; line(hx,top-headH,hx,top,.7);
+    drawTextFit('001-9',hx+3,top-headH+11,codeW-6,13.5,bold,'center');
+    hx+=codeW; line(hx,top-headH,hx,top,.7);
+    drawTextFit(linhaFmt,hx+5,top-headH+12,linhaW-10,9.8,bold,'center');
+    hx+=linhaW; line(hx,top-headH,hx,top,.7);
+    drawTextFit('Recibo de Entrega',hx+4,top-headH+12,titleW-8,8.2,bold,'center');
 
-    // moldura principal do canhoto
-    rect(L,yBottom,CW,bodyH,.55);
-    line(xDiv,yBottom,xDiv,ct,.45);
+    let ry=top-headH;
+    const rightIdW=180;
+    const leftIdW=CW-rightIdW;
+    const xId=L+leftIdW;
 
-    // linhas horizontais principais
-    const r1=ct-25;     // fim beneficiário/agência
-    const r2=ct-49;     // fim pagador/nosso número
-    const r3=ct-69;     // fim venc/doc/esp/moeda/valor
-    line(L,r1,L+CW,r1,.45);
-    line(L,r2,L+CW,r2,.45);
-    line(L,r3,L+CW,r3,.45);
+    // Beneficiário / Agência.
+    rect(L,ry-rowIdH,CW,rowIdH,.55);
+    line(xId,ry-rowIdH,xId,ry,.5);
+    drawTextFit('Nome do Beneficiário/CNPJ/CPF',L+6,ry-8,leftIdW-12,4.4,font);
+    drawTextFit(`${beneficiario} - CNPJ: ${cnpjBen}`,L+6,ry-22,leftIdW-12,5.6,font);
+    drawTextFit('Agência / Código do Beneficiário',xId+6,ry-8,rightIdW-12,4.4,font);
+    drawTextFit(agenciaCodigo,xId+6,ry-22,rightIdW-12,6.2,font,'right');
+    ry-=rowIdH;
 
-    // Linha 1 — beneficiário / agência
-    drawTextFit('Nome do Beneficiário/CNPJ/CPF',L+4,ct-7,leftW-8,4.0,font);
-    drawTextFit(`${beneficiario} - CNPJ: ${cnpjBen}`,L+4,ct-19,leftW-8,5.0,bold);
-    drawTextFit('Agência / Código do Beneficiário',xDiv+4,ct-7,rightW-8,4.0,font);
-    drawTextFit(agenciaCodigo,xDiv+4,ct-19,rightW-8,5.8,bold,'right');
+    // Pagador / Nosso-Número.
+    rect(L,ry-rowIdH,CW,rowIdH,.55);
+    line(xId,ry-rowIdH,xId,ry,.5);
+    drawTextFit('Pagador/CNPJ/CPF',L+6,ry-8,leftIdW-12,4.4,font);
+    drawTextFit(`${d.cliente_nome||''} - CNPJ/CPF: ${d.cpf_cnpj||''}`,L+6,ry-22,leftIdW-12,5.8,font);
+    drawTextFit('Nosso-Número',xId+6,ry-8,rightIdW-12,4.4,font);
+    drawTextFit(d.nosso_numero||'—',xId+6,ry-22,rightIdW-12,6.4,font,'right');
+    ry-=rowIdH;
 
-    // Linha 2 — pagador / nosso número
-    drawTextFit('Pagador/CNPJ/CPF',L+4,r1-7,leftW-8,4.0,font);
-    drawTextFit(`${d.cliente_nome||''} - CNPJ/CPF: ${d.cpf_cnpj||''}`,L+4,r1-19,leftW-8,5.0,bold);
-    drawTextFit('Nosso-Número',xDiv+4,r1-7,rightW-8,4.0,font);
-    drawTextFit(d.nosso_numero||'—',xDiv+4,r1-19,rightW-8,5.8,bold,'right');
-
-    // Linha 3 — exatamente dividida como no BB Cobrança
-    const row3Top=r2, row3Bottom=r3, row3H=row3Top-row3Bottom;
-    const wVenc=91, wDoc=98, wEsp=63, wMoeda=61;
-    const wValor=leftW-wVenc-wDoc-wEsp-wMoeda;
-    let cx=L;
-    const colsCanhoto=[
-      [wVenc,'Data de Vencimento',venc,5.1,'center'],
-      [wDoc,'Nr Documento',d.numero_titulo||'—',5.1,'center'],
-      [wEsp,'Espécie','DM',5.1,'center'],
-      [wMoeda,'Moeda','R$',5.1,'center'],
-      [wValor,'Valor do Documento',moeda,5.2,'right']
+    // Linha financeira: 5 células em toda a largura do canhoto.
+    const finWidths=[108,96,66,58,CW-328];
+    const finData=[
+      ['Data de Vencimento',venc],
+      ['Nr Documento',d.numero_titulo||'—'],
+      ['Espécie','DM'],
+      ['Moeda','R$'],
+      ['Valor do Documento',moeda]
     ];
-    colsCanhoto.forEach((c,i)=>{
-      if(i>0) line(cx,row3Bottom,cx,row3Top,.45);
-      drawTextFit(c[1],cx+3,row3Top-7,c[0]-6,3.9,font,'center');
-      drawTextFit(c[2],cx+3,row3Bottom+4,c[0]-6,c[3],i===4?bold:font,c[4]);
-      cx+=c[0];
+    rect(L,ry-rowFinH,CW,rowFinH,.55);
+    let fx=L;
+    finData.forEach((item,i)=>{
+      const w=finWidths[i];
+      if(i>0)line(fx,ry-rowFinH,fx,ry,.5);
+      drawTextFit(item[0],fx+5,ry-9,w-10,4.7,font,i===4?'left':'center');
+      drawTextFit(item[1],fx+5,ry-rowFinH+6,w-10,i===4?8.0:7.0,i===4?bold:font,i===4?'right':'center');
+      fx+=w;
     });
-    // valor principal à direita ocupa a mesma linha 3
-    drawTextFit('Valor do Documento',xDiv+4,row3Top-7,rightW-8,4.0,font);
-    drawTextFit(moeda,xDiv+4,row3Bottom+4,rightW-8,6.1,bold,'right');
+    ry-=rowFinH;
 
-    // Linha 4 — recibo/assinatura à esquerda, data/nome à direita
-    const leftBottomH=r3-yBottom;
-    const assX=L+178;
-    drawTextFit('Recebi(emos) o boleto com essas características.',L+4,yBottom+6,170,3.9,font);
-    line(assX,yBottom,assX,r3,.45);
-    drawTextFit('Assinatura',assX+4,yBottom+6,leftW-(assX-L)-8,3.9,font);
+    // Recebimento / assinatura / data / nome.
+    const recWidths=[188,157,92,CW-437];
+    const recLabels=[
+      'Recebi(emos) o boleto com essas características.',
+      'Assinatura',
+      'Data da Entrega',
+      'Nome'
+    ];
+    rect(L,ry-rowRecH,CW,rowRecH,.55);
+    let rx=L;
+    recLabels.forEach((label,i)=>{
+      const w=recWidths[i];
+      if(i>0)line(rx,ry-rowRecH,rx,ry,.5);
+      drawTextFit(label,rx+6,ry-17,w-12,i===0?5.0:5.2,font,'left');
+      rx+=w;
+    });
+    ry-=rowRecH;
 
-    const dataW=92;
-    line(xDiv+dataW,yBottom,xDiv+dataW,r3,.45);
-    drawTextFit('Data da Entrega',xDiv+4,yBottom+6,dataW-8,3.9,font);
-    drawTextFit('Nome',xDiv+dataW+4,yBottom+6,rightW-dataW-8,3.9,font);
+    // Faixa inferior — Local de Pagamento.
+    rect(L,ry-payH,CW,payH,.55);
+    drawTextFit('Local de Pagamento',L+7,ry-10,CW-14,5.0,font);
+    drawTextFit('Pagável em qualquer banco.',L+7,ry-26,CW-14,7.4,bold);
+    ry-=payH;
 
-    // Faixa inferior — Local de Pagamento
-    y=yBottom;
-    rect(L,y-payH,CW,payH,.55);
-    drawTextFit('Local de Pagamento',L+4,y-7,CW-8,3.9,font);
-    drawTextFit('Pagável em qualquer banco.',L+4,y-18,CW-8,5.7,bold);
-    y-=payH;
-
-    // Marca lateral do canhoto, semelhante ao BB Cobrança
-    try{
-      pg.drawText('Recibo de Entrega',{x:L-10,y:ct-58,size:4.1,font,color:black,rotate:PDFLib.degrees(90)});
-    }catch(_){ }
-
-    // Linha de corte entre canhoto e Recibo do Pagador
-    const cutStubY=y-14;
-    line(L,cutStubY,L+CW,cutStubY,.55,[5,4]);
-    drawTextFit('Corte aqui',L+3,cutStubY+5,58,4.4,font);
+    // Linha de corte — somente abaixo do canhoto, sem texto lateral ou elementos sobrepostos.
+    const cutStubY=ry-14;
+    drawTextFit('Corte aqui',L+4,cutStubY+5,54,4.8,font);
+    line(L+60,cutStubY,L+CW,cutStubY,.55,[6,5]);
     y=cutStubY-18;
   }
 
@@ -8390,4 +8398,5 @@ setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bb
 // V166 — Corrige caracteres incompatíveis com WinAnsi na Impressão Normal; PDF único e 2ª via BB preservados.
 
 // V167 — Canhoto destacável (Recibo de Entrega) na Impressão Normal BB, preservando PDF único por parcelamento.
+// V169 — Canhoto redesenhado em grade limpa: título dentro do cabeçalho, 5 colunas financeiras e campos sem sobreposição.
 // V168 — Canhoto refeito com divisões fiéis ao modelo do BB Cobrança e correção de campos estreitos/desalinhados.
