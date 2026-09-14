@@ -365,6 +365,96 @@ async function consultarBoletoBb(amb,nossoNumero,oAuth=null){
   return {status:r.status,data};
 }
 
+
+function parseDataBbIso(v){
+  const t=String(v||'').trim();
+  if(!t)return null;
+  let m=t.match(/^(\d{2})[./-](\d{2})[./-](\d{4})$/);
+  if(m)return `${m[3]}-${m[2]}-${m[1]}`;
+  m=t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return `${m[1]}-${m[2]}-${m[3]}`;
+  return null;
+}
+function numeroBb(v){
+  if(v===null||v===undefined||String(v).trim()==='')return null;
+  const n=Number(v);
+  return Number.isFinite(n)?n:null;
+}
+function interpretarSituacaoBoletoBb(dados={},registro={}){
+  const estado=Number(acharCampoBb(dados,['codigoEstadoTituloCobranca'])||0);
+  const modalidade=Number(acharCampoBb(dados,['codigoModalidadeTitulo','modalidadeCobranca'])||0);
+  const valorPago=numeroBb(acharCampoBb(dados,['valorPagoSacado']));
+  const valorCredito=numeroBb(acharCampoBb(dados,['valorCreditoCedente']));
+  const valorDesconto=numeroBb(acharCampoBb(dados,['valorDescontoUtilizado']));
+  const tipoLiquidacao=numeroBb(acharCampoBb(dados,['codigoTipoLiquidacao']));
+  const dataCredito=parseDataBbIso(acharCampoBb(dados,['dataCreditoLiquidacao','dataCredito']));
+  const pago=[6,10,11,12,16].includes(estado);
+  const parcial=[18,19].includes(estado);
+  const baixado=estado===7;
+  const protestado=[5,9,13].includes(estado);
+  const descontado=modalidade===6;
+  let statusNovo=String(registro?.status||'aberto');
+  if(pago)statusNovo='pago';
+  else if(['aberto','vencido'].includes(statusNovo)){
+    const venc=String(registro?.vencimento||'');
+    if(venc && venc < new Date().toISOString().slice(0,10))statusNovo='vencido';
+    else statusNovo='aberto';
+  }
+  let detalhe='Em aberto';
+  if(pago)detalhe='Liquidado';
+  else if(parcial)detalhe='Pago parcialmente';
+  else if(baixado)detalhe='Baixado';
+  else if(protestado)detalhe='Protestado';
+  else if(estado===14)detalhe='Em liquidação';
+  else if(estado===15||estado===21)detalhe='Pagamento agendado';
+  else if(estado===17)detalhe='Cheque aguardando liquidação';
+  else if(estado===80)detalhe='Em processamento';
+  if(descontado)detalhe+=(detalhe?' • ':'')+'Descontado';
+  return {
+    statusNovo,estado,modalidade,descontado,pago,parcial,baixado,protestado,
+    valorPago,valorCredito,valorDesconto,tipoLiquidacao,dataCredito,detalhe
+  };
+}
+async function sincronizarStatusBoletosBb(amb,entrada={}){
+  const limite=Math.max(1,Math.min(100,Number(entrada.limite||60)));
+  const rows=await supabaseRest('cobrancas_bancarias',{query:`?status=neq.cancelado&nosso_numero=not.is.null&select=*&order=created_at.desc&limit=${limite}`});
+  const candidatos=(Array.isArray(rows)?rows:[]).filter(r=>String(r.banco||'').toLowerCase()==='bb'||/banco do brasil/i.test(String(r.banco_nome||'')));
+  if(!candidatos.length)return {consultados:0,atualizados:0,pagos:0,descontados:0,parciais:0,erros:[]};
+  const oauth=await obterTokenOAuth(amb);
+  const resumo={consultados:0,atualizados:0,pagos:0,descontados:0,parciais:0,erros:[]};
+  const agora=new Date().toISOString();
+  const processar=async reg=>{
+    try{
+      const q=await consultarBoletoBb(amb,reg.nosso_numero,oauth);
+      const sit=interpretarSituacaoBoletoBb(q.data,reg);
+      const upd={
+        bb_codigo_estado:sit.estado||null,
+        bb_modalidade:sit.modalidade||null,
+        bb_descontado:!!sit.descontado,
+        bb_status_detalhe:sit.detalhe||null,
+        bb_data_credito:sit.dataCredito||null,
+        bb_valor_pago:sit.valorPago,
+        bb_valor_creditado:sit.valorCredito,
+        bb_valor_desconto_utilizado:sit.valorDesconto,
+        bb_tipo_liquidacao:sit.tipoLiquidacao,
+        bb_ultima_consulta:agora,
+        atualizado_em:agora
+      };
+      if(sit.statusNovo && sit.statusNovo!==reg.status)upd.status=sit.statusNovo;
+      await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(reg.id)}`,body:upd});
+      resumo.consultados++;resumo.atualizados++;
+      if(sit.pago)resumo.pagos++;
+      if(sit.descontado)resumo.descontados++;
+      if(sit.parcial)resumo.parciais++;
+    }catch(e){
+      resumo.consultados++;
+      resumo.erros.push({id:reg.id,numero_nf:reg.numero_nf||null,nosso_numero:reg.nosso_numero||null,erro:texto(e.message,220)});
+    }
+  };
+  for(let i=0;i<candidatos.length;i+=5)await Promise.all(candidatos.slice(i,i+5).map(processar));
+  return resumo;
+}
+
 async function emitirBoletoPiloto(amb,entrada={}){
   const preparoInicial=await prepararBoletoPiloto(amb,entrada);
 
@@ -497,6 +587,10 @@ module.exports=async function(req,res){
       const consulta=await consultarBoletoBb(amb,nosso);
       return json(res,200,{ok:true,consulta:consulta.data,status:consulta.status});
     }
+    if(action==='sincronizar-status'){
+      const resumo=await sincronizarStatusBoletosBb(amb,req.body||{});
+      return json(res,200,{ok:true,resumo});
+    }
     return json(res,400,{ok:false,erro:'Ação inválida.'});
-  }catch(e){console.error('[BANCO-BB V175]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
+  }catch(e){console.error('[BANCO-BB V176]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
 };
