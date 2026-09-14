@@ -2305,3 +2305,10 @@ html.modo-portal-publico .portal-conteudo{
 
 /* V155 — parcelas no relatório + retorno boleto BB */
 .rel-parcelas-resumo{display:flex;flex-direction:column;gap:3px;min-width:210px;font-size:12px;line-height:1.25}.rel-parcelas-resumo b{font-size:12px}.rel-parcelas-resumo span{white-space:nowrap}.rel-parcelas-vazio{opacity:.6}.bol-retorno-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+/* V176 — status Banco do Brasil */
+.cob-sync-bb-info{margin:8px 0 12px;color:#5f5a78;font-size:12px}
+.cobranca-status-tag.bb-descontado{background:#e8e4ff;color:#493c92;margin-left:4px}
+.cobranca-status-tag.bb-parcial{background:#fff0c2;color:#7b5900;margin-left:4px}
+.cobranca-status-tag.bb-detalhe{background:#edf1f7;color:#455064;margin-left:4px}
+.bb-status-meta{font-size:11px;color:#655f77;margin-top:5px;white-space:nowrap}

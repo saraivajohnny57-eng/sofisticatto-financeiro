@@ -6884,9 +6884,46 @@ async function emitirCobrancaBancaria(){
   }catch(e){ if(st)st.textContent='⚠ '+e.message; alert('Não foi possível salvar: '+e.message); }
 }
 
+let bbStatusSyncEmAndamentoV176=false;
+let bbStatusUltimaSyncV176=0;
+function bbStatusExtraHtml(x){
+  const extras=[];
+  if(x?.bb_descontado)extras.push('<span class="cobranca-status-tag bb-descontado">Descontado</span>');
+  if([18,19].includes(Number(x?.bb_codigo_estado)))extras.push('<span class="cobranca-status-tag bb-parcial">Pago parcial</span>');
+  if(x?.bb_status_detalhe && !x?.bb_descontado && ![18,19].includes(Number(x?.bb_codigo_estado)) && !['Liquidado','Em aberto'].includes(String(x.bb_status_detalhe))){
+    extras.push(`<span class="cobranca-status-tag bb-detalhe">${escaparHtmlEmail(x.bb_status_detalhe)}</span>`);
+  }
+  return extras.join(' ');
+}
+async function sincronizarStatusBbV176(silencioso=false){
+  if(bbStatusSyncEmAndamentoV176)return;
+  bbStatusSyncEmAndamentoV176=true;
+  const btn=document.getElementById('cobBtnSyncBb'),info=document.getElementById('cobSyncBbInfo');
+  if(btn){btn.disabled=true;btn.textContent='Consultando BB...';}
+  if(info&&!silencioso)info.textContent='Consultando situação dos boletos no Banco do Brasil...';
+  try{
+    const j=await bbReq('sincronizar-status',{method:'POST',body:{limite:80}});
+    const r=j?.resumo||{};
+    bbStatusUltimaSyncV176=Date.now();
+    if(info)info.textContent=`Última consulta BB: ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} • ${r.consultados||0} título(s) • ${r.pagos||0} pago(s) • ${r.descontados||0} descontado(s)${r.parciais?` • ${r.parciais} parcial(is)`:''}${r.erros?.length?` • ${r.erros.length} erro(s)`:''}`;
+    const q=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(1000);
+    if(!q.error)cobrancasBancarias=q.data||[];
+    renderHistoricoCobrancas();
+    if(!silencioso && r.erros?.length)console.warn('Sincronização BB com erros parciais:',r.erros);
+  }catch(e){
+    console.warn('Sincronização de status BB:',e);
+    if(info)info.textContent='Não foi possível consultar o BB agora: '+(e.message||e);
+    if(!silencioso)alert('Não foi possível atualizar os status no Banco do Brasil.\n\n'+(e.message||e));
+  }finally{
+    bbStatusSyncEmAndamentoV176=false;
+    if(btn){btn.disabled=false;btn.textContent='🔄 Consultar BB agora';}
+  }
+}
 async function carregarCobrancasBancarias(){
   const r=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(1000);
   cobrancasBancarias=r.error?[]:(r.data||[]); renderHistoricoCobrancas();
+  const temBbAberto=cobrancasBancarias.some(x=>(String(x.banco||'').toLowerCase()==='bb'||/banco do brasil/i.test(String(x.banco_nome||'')))&&x.nosso_numero&&x.status!=='cancelado');
+  if(temBbAberto && Date.now()-bbStatusUltimaSyncV176>10*60*1000)setTimeout(()=>sincronizarStatusBbV176(true),350);
 }
 function cobStatus(s){return {pendente_integracao:'Pendente integração',aberto:'Aberto',pago:'Pago',vencido:'Vencido',cancelado:'Cancelado'}[s]||s||'—';}
 function renderHistoricoCobrancas(){
@@ -6898,11 +6935,11 @@ function renderHistoricoCobrancas(){
   document.getElementById('cobKpiVencidos').textContent=cobrancasBancarias.filter(x=>x.status==='vencido').length;
   document.getElementById('cobKpiTotal').textContent=cobMoeda(cobrancasBancarias.filter(x=>['aberto','pendente_integracao','vencido'].includes(x.status)).reduce((a,b)=>a+Number(b.valor||0),0));
   tb.innerHTML=lista.length?lista.map(x=>{
-    const emitido=x.status==='aberto'&&x.banco==='bb'&&x.nosso_numero;
+    const emitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bb'&&x.nosso_numero;
     const acoes=emitido
       ?`<button class="btn azul" onclick="abrirImpressaoNormalBbRegistro('${x.id}')">🖨 Impressão Normal</button> <button class="btn verde" onclick="abrirBoletoOficialBbRegistro('${x.id}')">🏦 2ª via BB</button>`
       :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`;
-    return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span></td><td>${acoes}</td></tr>`;
+    return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
   }).join(''):'<tr><td colspan="7">Nenhuma cobrança encontrada.</td></tr>';
 }
 async function editarCobrancaBancaria(id){
@@ -8570,3 +8607,5 @@ setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bb
 // V172 — Divisor entre Recibo de Entrega e logo Sofisticatto; grade central do Recibo do Pagador e tipografia reforçada.
 
 // V173 — Logo Sofisticatto ampliada no canhoto, com recorte de margens brancas para melhorar a legibilidade de 'cosméticos'.
+
+// V176 — Sincronização BB: identifica liquidação/pagamento, pagamento parcial e modalidade descontada pela Cobranças v2.
