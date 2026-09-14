@@ -7321,7 +7321,20 @@ async function carregarParcelasExistentesBoleto(grupoId){
     gerarParcelasBoleto();
   }
 }
+let boletoEmissaoEmAndamentoV175=false;
 async function salvarPreparacaoBoletoRelatorio(){
+  if(boletoEmissaoEmAndamentoV175){
+    alert("A emissão/preparação deste boleto já está em andamento. Aguarde a conclusão para evitar duplicidade.");
+    return;
+  }
+  boletoEmissaoEmAndamentoV175=true;
+  try{
+    return await salvarPreparacaoBoletoRelatorioV175();
+  }finally{
+    boletoEmissaoEmAndamentoV175=false;
+  }
+}
+async function salvarPreparacaoBoletoRelatorioV175(){
   if(!boletoRelatorioAtual)return;
   if(codigoBancoCobranca(boletoRelatorioAtual.banco)==="bb"){
     const ja=await banco.from("cobrancas_bancarias").select("id,nosso_numero,status").eq("relatorio_id",boletoRelatorioAtual.id).eq("status","aberto").limit(1);
@@ -7340,6 +7353,26 @@ async function salvarPreparacaoBoletoRelatorio(){
   const numeroTituloBase=document.getElementById("bolNumeroNf").value.trim();
   if(codigoBancoAtual==="bb" && !numeroTituloBase)return alert("Informe o Nº do Título / NF. Esse número identifica a cobrança no Banco do Brasil.");
   if(numeroTituloBase.length>13 && boletoParcelasAtuais.length>1)return alert("Para cobranças parceladas, use um Nº do Título / NF com no máximo 13 caracteres, pois o sistema acrescentará -1, -2... em cada parcela.");
+
+  // V175: trava preventiva pelo Nº do Título/NF + parcela antes de criar uma nova preparação.
+  // A trava definitiva também existe no backend/SQL para impedir corrida entre usuários/abas.
+  if(codigoBancoAtual==="bb"){
+    const grupoAtual=String(boletoCobrancaAtual?.grupo_id||"");
+    const dup=await banco.from("cobrancas_bancarias")
+      .select("id,grupo_id,numero_nf,parcela_numero,parcela_total,nosso_numero,status,cliente_nome")
+      .eq("banco","bb")
+      .eq("numero_nf",numeroTituloBase)
+      .neq("status","cancelado");
+    if(!dup.error){
+      const conflitos=(dup.data||[]).filter(x=>!grupoAtual || String(x.grupo_id||"")!==grupoAtual);
+      if(conflitos.length){
+        const c=conflitos[0];
+        const titulo=numeroTituloParcelaBb({numero_nf:numeroTituloBase,parcela_numero:c.parcela_numero||1,parcela_total:c.parcela_total||1});
+        const nosso=c.nosso_numero?`\nNosso Número: ${c.nosso_numero}`:"";
+        return alert(`EMISSÃO BLOQUEADA PARA EVITAR DUPLICIDADE.\n\nJá existe uma cobrança do Banco do Brasil usando o Nº do Título / NF ${numeroTituloBase}.\nTítulo/parcela: ${titulo}${nosso}\nStatus local: ${c.status||"—"}.\n\nUse o Histórico para consultar/imprimir o boleto existente.`);
+      }
+    }
+  }
   if(!dataBase)return alert("Informe a data base.");
   if(!condicao)return alert("Selecione uma condição de pagamento.");
   if(!boletoParcelasAtuais.length)return alert("Gere as parcelas antes de continuar.");
@@ -7457,7 +7490,28 @@ async function emitirParcelaBbReal(p){
   if(p.status==='aberto'&&p.nosso_numero)return {jaEmitido:true,emissao:{numeroTituloCliente:p.nosso_numero,numeroTituloBeneficiario:numeroTituloParcelaBb(p),linhaDigitavel:p.linha_digitavel,codigoBarraNumerico:p.codigo_barras,urlImagemBoleto:p.pdf_url||null,status:200}};
   const body=corpoEmissaoBbDaParcela(p);
   if(!body.numeroTituloBeneficiario)throw new Error('Informe o Nº do Título / NF antes de emitir.');
-  const j=await bbReq('emitir-boleto',{method:'POST',body});
+
+  // V175: segunda barreira no navegador. Nunca chama o BB se outro registro local
+  // já tiver o mesmo Nº do Título/NF + parcela com emissão confirmada.
+  try{
+    const q=await banco.from('cobrancas_bancarias')
+      .select('id,numero_nf,parcela_numero,parcela_total,nosso_numero,status,cliente_nome')
+      .eq('banco','bb')
+      .eq('numero_nf',p.numero_nf)
+      .eq('parcela_numero',Number(p.parcela_numero||1))
+      .not('nosso_numero','is',null);
+    if(!q.error){
+      const outro=(q.data||[]).find(x=>String(x.id)!==String(p.id));
+      if(outro){
+        throw new Error(`Boleto já emitido. O Nº do Título ${body.numeroTituloBeneficiario} já está vinculado ao Nosso Número ${outro.nosso_numero}. A nova emissão foi bloqueada.`);
+      }
+    }
+  }catch(e){
+    if(/Boleto já emitido/i.test(String(e?.message||'')))throw e;
+    console.warn('[V175] Não foi possível concluir a pré-checagem local de duplicidade:',e);
+  }
+
+  const j=await bbReq('emitir-boleto',{method:'POST',body:{...body,numero_nf:p.numero_nf||'',parcela_numero:Number(p.parcela_numero||1),parcela_total:Number(p.parcela_total||1),relatorio_id:p.relatorio_id||null}});
   const e=j.emissao||{};
   const upd={status:'aberto',emitido_em:new Date().toISOString(),nosso_numero:e.numeroTituloCliente||e.numeroBoletoBB||null,linha_digitavel:e.linhaDigitavel||null,codigo_barras:e.codigoBarraNumerico||null,pdf_url:e.urlImagemBoleto||null,atualizado_em:new Date().toISOString()};
   let r=await banco.from('cobrancas_bancarias').update(upd).eq('id',p.id).select().single();
