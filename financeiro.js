@@ -7585,6 +7585,11 @@ async function gerarPdfBoletoBb(d,opt={}){
     catch(e){console.warn('Asset boleto não carregado:',path,e);return null}
   }
   const bbLogoAsset=await embedPngAsset('assets/bb-logo.png');
+  async function embedJpgAsset(path){
+    try{const u=new URL(path,window.location.href).href;const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);return await pdf.embedJpg(new Uint8Array(await r.arrayBuffer()));}
+    catch(e){console.warn('Asset boleto não carregado:',path,e);return null}
+  }
+  const sofisticattoLogoAsset=await embedJpgAsset('assets/sofisticatto-logo.jpeg');
   async function drawLogoSofisticatto(x,y,w,h){
     if(logoData){
       try{const bytes=Uint8Array.from(atob(logoData.split(',')[1]),c=>c.charCodeAt(0));const im=logoData.startsWith('data:image/png')?await pdf.embedPng(bytes):await pdf.embedJpg(bytes);const sc=Math.min(w/im.width,h/im.height);pg.drawImage(im,{x:x+(w-im.width*sc)/2,y:y+(h-im.height*sc)/2,width:im.width*sc,height:im.height*sc});return true;}catch(e){console.warn('Logo boleto:',e)}
@@ -7651,7 +7656,16 @@ async function gerarPdfBoletoBb(d,opt={}){
     hx+=codeW; line(hx,top-headH,hx,top,.7);
     drawTextFit(linhaFmt,hx+5,top-headH+12,linhaW-10,9.8,bold,'center');
     hx+=linhaW; line(hx,top-headH,hx,top,.7);
-    drawTextFit('Recibo de Entrega',hx+4,top-headH+12,titleW-8,8.2,bold,'center');
+    // V171: identidade Sofisticatto apenas no canhoto, sem alterar o boleto bancário abaixo.
+    if(sofisticattoLogoAsset){
+      const logoW=42, logoH=26;
+      const sc=Math.min(logoW/sofisticattoLogoAsset.width,logoH/sofisticattoLogoAsset.height);
+      const iw=sofisticattoLogoAsset.width*sc, ih=sofisticattoLogoAsset.height*sc;
+      pg.drawImage(sofisticattoLogoAsset,{x:hx+titleW-iw-5,y:top-headH+(headH-ih)/2,width:iw,height:ih});
+      drawTextFit('Recibo de Entrega',hx+4,top-headH+12,titleW-iw-13,7.2,bold,'center');
+    }else{
+      drawTextFit('Recibo de Entrega',hx+4,top-headH+12,titleW-8,8.2,bold,'center');
+    }
 
     let ry=top-headH;
     const rightIdW=180;
@@ -8400,3 +8414,5 @@ setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bb
 // V167 — Canhoto destacável (Recibo de Entrega) na Impressão Normal BB, preservando PDF único por parcelamento.
 // V169 — Canhoto redesenhado em grade limpa: título dentro do cabeçalho, 5 colunas financeiras e campos sem sobreposição.
 // V168 — Canhoto refeito com divisões fiéis ao modelo do BB Cobrança e correção de campos estreitos/desalinhados.
+
+// V171 — Logo Sofisticatto adicionada exclusivamente ao canhoto da Impressão Normal; boleto bancário preservado.
