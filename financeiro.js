@@ -7641,30 +7641,34 @@ async function gerarPdfBoletoBb(d,opt={}){
     const rowFinH=31;
     const rowRecH=29;
     const payH=33;
-    const bankW=145, codeW=58, titleW=92;
-    const linhaW=CW-bankW-codeW-titleW;
+    // V172: cabeçalho do canhoto com células independentes para Recibo de Entrega e logo Sofisticatto.
+    const bankW=145, codeW=58, receiptTitleW=82, logoCellW=66;
+    const linhaW=CW-bankW-codeW-receiptTitleW-logoCellW;
 
-    // Cabeçalho completo do canhoto — o título fica dentro da última célula.
-    rect(L,top-headH,CW,headH,.7);
+    rect(L,top-headH,CW,headH,.75);
     let hx=L;
     if(bbLogoAsset){
       const targetW=126,targetH=23,sc=Math.min(targetW/bbLogoAsset.width,targetH/bbLogoAsset.height);
       pg.drawImage(bbLogoAsset,{x:hx+8,y:top-headH+(headH-bbLogoAsset.height*sc)/2,width:bbLogoAsset.width*sc,height:bbLogoAsset.height*sc});
     }else drawTextFit('BANCO DO BRASIL',hx+8,top-headH+12,bankW-16,11.5,bold);
-    hx+=bankW; line(hx,top-headH,hx,top,.7);
+    hx+=bankW; line(hx,top-headH,hx,top,.75);
     drawTextFit('001-9',hx+3,top-headH+11,codeW-6,13.5,bold,'center');
-    hx+=codeW; line(hx,top-headH,hx,top,.7);
+    hx+=codeW; line(hx,top-headH,hx,top,.75);
     drawTextFit(linhaFmt,hx+5,top-headH+12,linhaW-10,9.8,bold,'center');
-    hx+=linhaW; line(hx,top-headH,hx,top,.7);
-    // V171: identidade Sofisticatto apenas no canhoto, sem alterar o boleto bancário abaixo.
+    hx+=linhaW; line(hx,top-headH,hx,top,.75);
+    // Célula exclusiva do título.
+    drawTextFit('Recibo de Entrega',hx+4,top-headH+12,receiptTitleW-8,8.0,bold,'center');
+    hx+=receiptTitleW;
+    // Linha vertical solicitada entre o nome do recibo e a identidade Sofisticatto.
+    line(hx,top-headH,hx,top,.75);
     if(sofisticattoLogoAsset){
-      const logoW=42, logoH=26;
+      const logoW=54, logoH=28;
       const sc=Math.min(logoW/sofisticattoLogoAsset.width,logoH/sofisticattoLogoAsset.height);
       const iw=sofisticattoLogoAsset.width*sc, ih=sofisticattoLogoAsset.height*sc;
-      pg.drawImage(sofisticattoLogoAsset,{x:hx+titleW-iw-5,y:top-headH+(headH-ih)/2,width:iw,height:ih});
-      drawTextFit('Recibo de Entrega',hx+4,top-headH+12,titleW-iw-13,7.2,bold,'center');
+      pg.drawImage(sofisticattoLogoAsset,{x:hx+(logoCellW-iw)/2,y:top-headH+(headH-ih)/2,width:iw,height:ih});
     }else{
-      drawTextFit('Recibo de Entrega',hx+4,top-headH+12,titleW-8,8.2,bold,'center');
+      drawTextFit('Sofisticatto',hx+4,top-headH+15,logoCellW-8,9,bold,'center');
+      drawTextFit('COSMÉTICOS',hx+4,top-headH+6,logoCellW-8,4.5,font,'center');
     }
 
     let ry=top-headH;
@@ -7751,28 +7755,47 @@ async function gerarPdfBoletoBb(d,opt={}){
   const reciboTop=y;
   const rightW=150,leftW=CW-rightW;
   const reciboH=151;
-  rect(L,reciboTop-reciboH,CW,reciboH,.55);
-  line(L+leftW,reciboTop-reciboH,L+leftW,reciboTop,.45);
-  drawTextFit('Local de Pagamento',L+4,reciboTop-10,leftW-8,4.6,font);
-  drawTextFit('Pagável em qualquer banco.',L+4,reciboTop-25,leftW-8,7.2,bold);
-  drawTextFit('Nome do Beneficiário/CNPJ/CPF',L+4,reciboTop-43,leftW-8,4.6,font);
-  drawTextFit(`${beneficiario} - CNPJ: ${cnpjBen}`,L+4,reciboTop-58,leftW-8,5.8,bold);
-  drawTextFit('Endereço do Beneficiário',L+4,reciboTop-74,leftW-8,4.6,font);
-  drawTextFit(enderecoBen,L+4,reciboTop-88,leftW-8,5.3,font);
-  drawTextFit('Pagador/CNPJ/CPF',L+4,reciboTop-103,leftW-8,4.6,font);
-  drawTextFit(`${d.cliente_nome||''} - CNPJ/CPF: ${d.cpf_cnpj||''}`,L+4,reciboTop-117,leftW-8,5.7,bold);
-  drawTextFit('Nosso-Número',L+4,reciboTop-136,70,4.6,font);
-  drawTextFit(d.nosso_numero||'—',L+78,reciboTop-137,145,6.3,bold);
-  drawTextFit('Nr Documento',L+228,reciboTop-136,70,4.6,font);
-  drawTextFit(d.numero_titulo||'—',L+300,reciboTop-137,leftW-304,6.3,bold);
-  drawTextFit('Agência / Código do Beneficiário',L+leftW+4,reciboTop-10,rightW-8,4.6,font);
-  drawTextFit(agenciaCodigo,L+leftW+4,reciboTop-27,rightW-8,7.1,bold,'right');
-  drawTextFit('Data de Vencimento',L+leftW+4,reciboTop-52,rightW-8,4.6,font);
-  drawTextFit(venc,L+leftW+4,reciboTop-69,rightW-8,8,bold,'right');
-  drawTextFit('Valor do Documento',L+leftW+4,reciboTop-98,rightW-8,4.6,font);
-  drawTextFit(moeda,L+leftW+4,reciboTop-116,rightW-8,8.4,bold,'right');
-  drawTextFit('Recebi(emos) o boleto com essas características.',L+4,reciboTop-reciboH+7,230,4.5,font);
-  drawTextFit('Assinatura / Data da Entrega / Nome',L+235,reciboTop-reciboH+7,leftW-239,4.4,font,'right');
+  rect(L,reciboTop-reciboH,CW,reciboH,.65);
+  line(L+leftW,reciboTop-reciboH,L+leftW,reciboTop,.55);
+  // V172: linhas horizontais na parte central para separar visualmente cada grupo de informações.
+  const r1=31, r2=37, r3=29, r4=29;
+  [r1,r1+r2,r1+r2+r3,r1+r2+r3+r4].forEach(off=>line(L,reciboTop-off,L+CW,reciboTop-off,.45));
+
+  // Linha 1: pagamento / agência.
+  drawTextFit('Local de Pagamento',L+5,reciboTop-9,leftW-10,5.1,font);
+  drawTextFit('Pagável em qualquer banco.',L+5,reciboTop-24,leftW-10,7.8,bold);
+  drawTextFit('Agência / Código do Beneficiário',L+leftW+5,reciboTop-9,rightW-10,5.0,font);
+  drawTextFit(agenciaCodigo,L+leftW+5,reciboTop-24,rightW-10,7.5,bold,'right');
+
+  // Linha 2: beneficiário / vencimento.
+  const y2=reciboTop-r1;
+  drawTextFit('Nome do Beneficiário/CNPJ/CPF',L+5,y2-9,leftW-10,5.0,font);
+  drawTextFit(`${beneficiario} - CNPJ: ${cnpjBen}`,L+5,y2-25,leftW-10,6.0,bold);
+  drawTextFit('Data de Vencimento',L+leftW+5,y2-9,rightW-10,5.0,font);
+  drawTextFit(venc,L+leftW+5,y2-25,rightW-10,8.2,bold,'right');
+
+  // Linha 3: endereço / valor.
+  const y3=y2-r2;
+  drawTextFit('Endereço do Beneficiário',L+5,y3-9,leftW-10,4.9,font);
+  drawTextFit(enderecoBen,L+5,y3-23,leftW-10,5.5,font);
+  drawTextFit('Valor do Documento',L+leftW+5,y3-9,rightW-10,5.0,font);
+  drawTextFit(moeda,L+leftW+5,y3-24,rightW-10,8.6,bold,'right');
+
+  // Linha 4: pagador / nosso número.
+  const y4=y3-r3;
+  drawTextFit('Pagador/CNPJ/CPF',L+5,y4-9,leftW-10,5.0,font);
+  drawTextFit(`${d.cliente_nome||''} - CNPJ/CPF: ${d.cpf_cnpj||''}`,L+5,y4-23,leftW-10,6.0,bold);
+  drawTextFit('Nosso-Número',L+leftW+5,y4-9,rightW-10,5.0,font);
+  drawTextFit(d.nosso_numero||'—',L+leftW+5,y4-23,rightW-10,6.6,bold,'right');
+
+  // Linha 5: documento + recibo/assinatura.
+  const y5=y4-r4;
+  const docW=190;
+  line(L+docW,y5-(reciboH-r1-r2-r3-r4),L+docW,y5,.45);
+  drawTextFit('Nr Documento',L+5,y5-8,72,4.8,font);
+  drawTextFit(d.numero_titulo||'—',L+78,y5-9,docW-83,6.5,bold);
+  drawTextFit('Recebi(emos) o boleto com essas características.',L+docW+5,y5-8,leftW-docW-10,4.7,font);
+  drawTextFit('Assinatura / Data da Entrega / Nome',L+docW+5,reciboTop-reciboH+5,leftW-docW-10,4.8,font,'right');
   y=reciboTop-reciboH;
   drawTextFit('Autenticação Mecânica',L+CW-140,y-12,140,4.7,font,'right');
 
@@ -8416,3 +8439,5 @@ setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bb
 // V168 — Canhoto refeito com divisões fiéis ao modelo do BB Cobrança e correção de campos estreitos/desalinhados.
 
 // V171 — Logo Sofisticatto adicionada exclusivamente ao canhoto da Impressão Normal; boleto bancário preservado.
+
+// V172 — Divisor entre Recibo de Entrega e logo Sofisticatto; grade central do Recibo do Pagador e tipografia reforçada.
