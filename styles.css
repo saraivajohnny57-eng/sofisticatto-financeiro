@@ -2319,3 +2319,11 @@ html.modo-portal-publico .portal-conteudo{
 .relatorio-cliente-busca{grid-row:span 2}.relatorio-cliente-selecionado{font-size:11px;line-height:1.35;color:#675f7a;margin-top:5px;padding:7px 9px;background:#f6f3ff;border-radius:8px;border:1px solid #e5def8}
 .relatorio-cliente-selecionado.ok{background:#effaf4;border-color:#ccebd8;color:#276c45}.relatorio-parcelas-preview{margin-top:12px;padding:10px 12px;border:1px solid #e2dcf2;border-radius:10px;background:#faf9ff;font-size:12px;color:#51496b;line-height:1.55}.relatorio-parcelas-preview b{color:#29213f}.relatorio-parcela-chip{display:inline-block;margin:3px 6px 3px 0;padding:5px 8px;border-radius:999px;background:#eee9ff;color:#473b80;font-weight:600}.relatorio-novo-acoes{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
 @media(max-width:900px){.relatorio-novo-grid{grid-template-columns:1fr!important}.relatorio-cliente-busca{grid-row:auto}}
+
+/* V177 — organização da Integração Bancária */
+.cobranca-subtabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 12px;padding:8px;background:#f4f1fb;border:1px solid #ddd6ef;border-radius:14px}
+.cobranca-subtab{border:0;border-radius:10px;padding:10px 14px;background:#fff;color:#4d4566;font-weight:700;cursor:pointer;box-shadow:0 1px 3px #00000012}
+.cobranca-subtab.ativa{background:#5a4fa3;color:#fff}
+.cobranca-integracao-aviso{margin:0 0 14px;padding:10px 13px;border-left:4px solid #5a4fa3;background:#faf9ff;border-radius:8px;color:#554d69}
+.cob-filtro-data{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#5e5672}.cob-filtro-data input{min-width:138px}
+@media(max-width:800px){.cobranca-subtabs{display:grid;grid-template-columns:1fr 1fr}.cobranca-subtab{width:100%}.cob-filtro-data{width:100%;justify-content:space-between}.cob-filtro-data input{flex:1}}

@@ -2641,8 +2641,15 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 <div class="cobranca-wrap">
   <div class="cobranca-head"><div><h2>💳 Cobrança Bancária</h2><p>Banco do Brasil e Bradesco • relatório financeiro, emissão em massa e acompanhamento.</p></div><div class="cobranca-status-integracoes"><span id="bbStatusTopo" class="cobranca-bank-status pendente">Banco do Brasil • verificando configuração</span><span class="cobranca-bank-status pendente">Bradesco • Integração em configuração</span></div></div>
+  <div class="cobranca-subtabs" role="tablist" aria-label="Integração bancária">
+    <button id="cobTabHistorico" class="cobranca-subtab ativa" onclick="mostrarAbaIntegracaoBancaria('historico')">📚 Histórico</button>
+    <button id="cobTabEmissao" class="cobranca-subtab" onclick="mostrarAbaIntegracaoBancaria('emissao')">💳 Emissão de boleto</button>
+    <button id="cobTabMassa" class="cobranca-subtab" onclick="mostrarAbaIntegracaoBancaria('massa')">📦 Emissão em massa</button>
+    <button id="cobTabCredenciais" class="cobranca-subtab" onclick="mostrarAbaIntegracaoBancaria('credenciais')">🔐 Credenciais e diagnóstico</button>
+  </div>
+  <div class="cobranca-integracao-aviso"><b>Banco do Brasil:</b> integração ativa. <span>Bradesco permanece bloqueado para emissão até a configuração oficial das credenciais/API.</span></div>
 
-  <div class="cobranca-card bb-cert-card">
+  <div id="cobAbaCredenciais" class="cobranca-card bb-cert-card cobranca-aba-interna" style="display:none;">
     <div class="bb-cert-topo">
       <div><h3>🔐 Banco do Brasil — Credenciais OAuth e certificado A1</h3><p>Configure as credenciais OAuth pelo portal. Para a Cobranças v2 desta aplicação, o Banco do Brasil informou que mTLS não é exigido.</p></div>
       <div class="bb-cert-acoes"><button class="btn azul" onclick="carregarStatusBancoBB(true)">↻ Atualizar status</button><button class="btn verde" onclick="testarConexaoBancoBB()">✅ Testar conexão BB</button></div>
@@ -2744,7 +2751,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
     </div>
   </div>
 
-  <div class="cobranca-card cobranca-massa-card">
+  <div id="cobAbaMassa" class="cobranca-card cobranca-massa-card cobranca-aba-interna" style="display:none;">
     <div class="cobranca-massa-topo">
       <div><h3>📚 Fila do Relatório Financeiro</h3><p>Puxa os lançamentos do relatório. O banco definido pelo usuário Banco é respeitado e as parcelas do mesmo cliente permanecem juntas.</p></div>
       <div class="cobranca-massa-acoes">
@@ -2770,7 +2777,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
       <button class="btn azul" onclick="abrirOrdemImpressaoCobrancaMassa()">👁 Conferir ordem</button>
     </div>
   </div>
-  <div class="cobranca-grid">
+  <div id="cobAbaEmissao" class="cobranca-grid cobranca-aba-interna" style="display:none;">
     <div class="cobranca-card"><h3>Nova cobrança</h3>
       <label>Cliente</label><div class="cobranca-busca-wrap"><input id="cobClienteBusca" placeholder="Nome, CNPJ ou CPF" oninput="buscarClienteCobranca()"><div id="cobClienteResultados" class="cobranca-resultados"></div></div><input type="hidden" id="cobClienteId">
       <div id="cobClienteResumo" class="cobranca-cliente-resumo">Selecione um cliente para carregar os dados automaticamente.</div>
@@ -2783,9 +2790,9 @@ SOFISTICATTO COSMÉTICOS</textarea>
     </div>
     <div class="cobranca-card"><h3>Prévia</h3><div id="cobPreview" class="cobranca-preview"><div class="cobranca-preview-vazio">Preencha os dados para visualizar a cobrança.</div></div></div>
   </div>
-  <div class="cobranca-card cobranca-historico-card"><div class="cobranca-historico-topo"><h3>Histórico</h3><div class="cobranca-filtros"><input id="cobBuscaHistorico" placeholder="Cliente, CNPJ, NF..." oninput="renderHistoricoCobrancas()"><select id="cobFiltroStatus" onchange="renderHistoricoCobrancas()"><option value="">Todos</option><option value="pendente_integracao">Pendente integração</option><option value="aberto">Aberto</option><option value="pago">Pago</option><option value="vencido">Vencido</option><option value="cancelado">Cancelado</option></select><button class="btn azul" onclick="carregarCobrancasBancarias()">Atualizar</button><button id="cobBtnSyncBb" class="btn verde" onclick="sincronizarStatusBbV176(false)">🔄 Consultar BB agora</button></div></div><div id="cobSyncBbInfo" class="cob-sync-bb-info">Status BB: consulta automática a cada 10 minutos enquanto o portal estiver aberto.</div>
+  <div id="cobAbaHistorico" class="cobranca-card cobranca-historico-card cobranca-aba-interna"><div class="cobranca-historico-topo"><h3>Histórico</h3><div class="cobranca-filtros"><input id="cobBuscaHistorico" placeholder="Cliente, CNPJ, NF..." oninput="renderHistoricoCobrancas()"><label class="cob-filtro-data">Emissão de <input id="cobDataEmissaoIni" type="date" onchange="renderHistoricoCobrancas()"></label><label class="cob-filtro-data">até <input id="cobDataEmissaoFim" type="date" onchange="renderHistoricoCobrancas()"></label><button class="btn" onclick="limparFiltroDataEmissaoCobrancas()">Limpar período</button><select id="cobFiltroStatus" onchange="renderHistoricoCobrancas()"><option value="">Todos</option><option value="pendente_integracao">Pendente integração</option><option value="aberto">Aberto</option><option value="pago">Pago</option><option value="vencido">Vencido</option><option value="cancelado">Cancelado</option></select><button class="btn azul" onclick="carregarCobrancasBancarias()">Atualizar</button><button id="cobBtnSyncBb" class="btn verde" onclick="sincronizarStatusBbV176(false)">🔄 Consultar BB agora</button></div></div><div id="cobSyncBbInfo" class="cob-sync-bb-info">Status BB: consulta automática a cada 10 minutos enquanto o portal estiver aberto.</div>
   <div class="cobranca-kpis"><div><strong id="cobKpiAbertos">0</strong><span>Em aberto</span></div><div><strong id="cobKpiPagos">0</strong><span>Pagos</span></div><div><strong id="cobKpiVencidos">0</strong><span>Vencidos</span></div><div><strong id="cobKpiTotal">R$ 0,00</strong><span>Total</span></div></div>
-  <div class="cobranca-table-wrap"><table class="cobranca-table"><thead><tr><th>Cliente</th><th>NF</th><th>Banco</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Ações</th></tr></thead><tbody id="cobHistoricoTabela"><tr><td colspan="7">Nenhuma cobrança cadastrada.</td></tr></tbody></table></div></div>
+  <div class="cobranca-table-wrap"><table class="cobranca-table"><thead><tr><th>Cliente</th><th>NF</th><th>Banco</th><th>Valor</th><th>Emissão</th><th>Vencimento</th><th>Status</th><th>Ações</th></tr></thead><tbody id="cobHistoricoTabela"><tr><td colspan="8">Nenhuma cobrança cadastrada.</td></tr></tbody></table></div></div>
 </div>
     </section>
   </div>

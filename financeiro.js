@@ -6966,10 +6966,20 @@ async function carregarCobrancasBancarias(){
   if(temBbAberto && Date.now()-bbStatusUltimaSyncV176>10*60*1000)setTimeout(()=>sincronizarStatusBbV176(true),350);
 }
 function cobStatus(s){return {pendente_integracao:'Pendente integração',aberto:'Aberto',pago:'Pago',vencido:'Vencido',cancelado:'Cancelado'}[s]||s||'—';}
+function dataEmissaoCobrancaV177(x){return String(x?.emitido_em||x?.created_at||'').slice(0,10);}
+function limparFiltroDataEmissaoCobrancas(){const a=document.getElementById('cobDataEmissaoIni'),b=document.getElementById('cobDataEmissaoFim');if(a)a.value='';if(b)b.value='';renderHistoricoCobrancas();}
+function mostrarAbaIntegracaoBancaria(aba='historico'){
+  const mapa={historico:'cobAbaHistorico',emissao:'cobAbaEmissao',massa:'cobAbaMassa',credenciais:'cobAbaCredenciais'};
+  Object.entries(mapa).forEach(([k,id])=>{const el=document.getElementById(id),bt=document.getElementById('cobTab'+k.charAt(0).toUpperCase()+k.slice(1));if(el)el.style.display=k===aba?(k==='emissao'?'grid':'block'):'none';if(bt)bt.classList.toggle('ativa',k===aba);});
+  if(aba==='historico'&&typeof carregarCobrancasBancarias==='function')carregarCobrancasBancarias();
+  if(aba==='massa'&&typeof carregarFilaCobrancaMassa==='function')carregarFilaCobrancaMassa();
+  if(aba==='credenciais'&&typeof carregarStatusBancoBB==='function')carregarStatusBancoBB(false);
+}
 function renderHistoricoCobrancas(){
   const tb=document.getElementById('cobHistoricoTabela'); if(!tb)return;
   const q=cobNorm(document.getElementById('cobBuscaHistorico')?.value||''), f=document.getElementById('cobFiltroStatus')?.value||'';
-  const lista=(cobrancasBancarias||[]).filter(x=>(!q||cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia].join(' ')).includes(q))&&(!f||x.status===f));
+  const di=document.getElementById('cobDataEmissaoIni')?.value||'', df=document.getElementById('cobDataEmissaoFim')?.value||'';
+  const lista=(cobrancasBancarias||[]).filter(x=>{const de=dataEmissaoCobrancaV177(x);return (!q||cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia].join(' ')).includes(q))&&(!f||x.status===f)&&(!di||de>=di)&&(!df||de<=df);});
   document.getElementById('cobKpiAbertos').textContent=cobrancasBancarias.filter(x=>['aberto','pendente_integracao'].includes(x.status)).length;
   document.getElementById('cobKpiPagos').textContent=cobrancasBancarias.filter(x=>x.status==='pago').length;
   document.getElementById('cobKpiVencidos').textContent=cobrancasBancarias.filter(x=>x.status==='vencido').length;
@@ -6981,8 +6991,8 @@ function renderHistoricoCobrancas(){
       :(x.banco==='bb'&&x.status==='pendente_integracao'
         ?`<button class="btn verde" onclick="verificarConciliarTituloBb('${x.id}')">🔎 Verificar no BB</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
         :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`);
-    return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
-  }).join(''):'<tr><td colspan="7">Nenhuma cobrança encontrada.</td></tr>';
+    return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${dataEmissaoCobrancaV177(x)?new Date(dataEmissaoCobrancaV177(x)+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
+  }).join(''):'<tr><td colspan="8">Nenhuma cobrança encontrada.</td></tr>';
 }
 
 async function verificarConciliarTituloBb(id){
