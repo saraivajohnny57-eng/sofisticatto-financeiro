@@ -6978,10 +6978,61 @@ function renderHistoricoCobrancas(){
     const emitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bb'&&x.nosso_numero;
     const acoes=emitido
       ?`<button class="btn azul" onclick="abrirImpressaoNormalBbRegistro('${x.id}')">🖨 Impressão Normal</button> <button class="btn verde" onclick="abrirBoletoOficialBbRegistro('${x.id}')">🏦 2ª via BB</button>`
-      :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`;
+      :(x.banco==='bb'&&x.status==='pendente_integracao'
+        ?`<button class="btn verde" onclick="verificarConciliarTituloBb('${x.id}')">🔎 Verificar no BB</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
+        :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`);
     return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
   }).join(''):'<tr><td colspan="7">Nenhuma cobrança encontrada.</td></tr>';
 }
+
+async function verificarConciliarTituloBb(id){
+  const reg=(cobrancasBancarias||[]).find(x=>String(x.id)===String(id));
+  if(!reg)return alert('Cobrança pendente não encontrada.');
+  const titulo=numeroTituloParcelaBb(reg);
+  if(!titulo)return alert('Não foi possível montar o Nº do Título/NF desta parcela.');
+  try{
+    const j=await bbReq('verificar-titulo',{method:'POST',body:{numero_titulo:titulo}});
+    if(!j?.confirmado){
+      const msg=j?.inconclusivo
+        ?`⚠️ O título ${titulo} está reservado no portal, mas ainda não há confirmação segura de emissão no Banco do Brasil.
+
+Por segurança, não emita novamente até a situação ser conciliada.`
+        :`❌ O título ${titulo} não foi localizado entre as emissões confirmadas do portal.
+
+${j?.motivo||''}`;
+      return alert(msg);
+    }
+    const consulta=j.consulta||{};
+    const nn=String(j.nosso_numero||localizarCampoBbV176(consulta,['numeroTituloCliente','numeroBoletoBB','nossoNumero'])||'').trim();
+    const linha=localizarCampoBbV176(consulta,['linhaDigitavel','linha_digitavel']);
+    const barra=localizarCampoBbV176(consulta,['codigoBarraNumerico','codigoBarras','codigoBarra']);
+    const url=localizarUrlImagemBoletoBb(consulta)||null;
+    const irmao=(cobrancasBancarias||[]).find(x=>String(x.id)!==String(reg.id)&&x.banco==='bb'&&String(x.numero_nf||'').trim()===String(reg.numero_nf||'').trim()&&Number(x.parcela_numero||1)===Number(reg.parcela_numero||1)&&x.nosso_numero);
+    if(irmao){
+      await banco.from('cobrancas_bancarias').update({status:'cancelado',atualizado_em:new Date().toISOString()}).eq('id',reg.id);
+    }else{
+      const upd={status:'aberto',nosso_numero:nn||reg.nosso_numero||null,linha_digitavel:linha||reg.linha_digitavel||null,codigo_barras:barra||reg.codigo_barras||null,pdf_url:url||reg.pdf_url||null,emitido_em:reg.emitido_em||new Date().toISOString(),atualizado_em:new Date().toISOString()};
+      let r=await banco.from('cobrancas_bancarias').update(upd).eq('id',reg.id);
+      if(r.error&&/pdf_url/i.test(String(r.error.message||''))){delete upd.pdf_url;r=await banco.from('cobrancas_bancarias').update(upd).eq('id',reg.id);}
+      if(r.error)throw r.error;
+    }
+    await carregarCobrancasBancarias();
+    alert(`✅ Confirmado no Banco do Brasil.
+
+Título: ${titulo}
+Nosso Número: ${nn||'confirmado pelo BB'}
+
+${irmao?'A linha pendente duplicada foi conciliada e retirada dos títulos em aberto.':'O registro pendente foi atualizado para Aberto.'}
+Nenhum novo boleto foi emitido.`);
+  }catch(e){
+    alert(`Não foi possível confirmar este título no Banco do Brasil.\n\n${e?.message||e}\n\nNão emita novamente enquanto a situação estiver incerta.`);
+  }
+}
+function localizarCampoBbV176(obj,chaves){
+  const alvo=(chaves||[]).map(x=>String(x).toLowerCase()),vistos=new Set();
+  function rec(v){if(!v||typeof v!=='object'||vistos.has(v))return null;vistos.add(v);for(const [k,val] of Object.entries(v)){if(alvo.includes(String(k).toLowerCase())&&val!=null&&val!=='')return val;}for(const val of Object.values(v)){const r=rec(val);if(r!=null)return r;}return null;}return rec(obj);
+}
+
 async function editarCobrancaBancaria(id){
   const x=cobrancasBancarias.find(a=>String(a.id)===String(id)); if(!x)return;
   const v=prompt('Novo valor:',String(x.valor||'')); if(v===null)return;
