@@ -6975,11 +6975,49 @@ function mostrarAbaIntegracaoBancaria(aba='historico'){
   if(aba==='massa'&&typeof carregarFilaCobrancaMassa==='function')carregarFilaCobrancaMassa();
   if(aba==='credenciais'&&typeof carregarStatusBancoBB==='function')carregarStatusBancoBB(false);
 }
-function renderHistoricoCobrancas(){
-  const tb=document.getElementById('cobHistoricoTabela'); if(!tb)return;
+function cobrancasFiltradasHistoricoV178(){
   const q=cobNorm(document.getElementById('cobBuscaHistorico')?.value||''), f=document.getElementById('cobFiltroStatus')?.value||'';
   const di=document.getElementById('cobDataEmissaoIni')?.value||'', df=document.getElementById('cobDataEmissaoFim')?.value||'';
-  const lista=(cobrancasBancarias||[]).filter(x=>{const de=dataEmissaoCobrancaV177(x);return (!q||cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia].join(' ')).includes(q))&&(!f||x.status===f)&&(!di||de>=di)&&(!df||de<=df);});
+  return (cobrancasBancarias||[]).filter(x=>{
+    const de=dataEmissaoCobrancaV177(x);
+    return (!q||cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia].join(' ')).includes(q))&&(!f||x.status===f)&&(!di||de>=di)&&(!df||de<=df);
+  });
+}
+async function imprimirBoletosFiltradosV178(){
+  const di=document.getElementById('cobDataEmissaoIni')?.value||'', df=document.getElementById('cobDataEmissaoFim')?.value||'';
+  const filtrados=cobrancasFiltradasHistoricoV178();
+  const mapa=new Map();
+  for(const x of filtrados){
+    const bb=codigoBancoCobranca(x?.banco_nome||x?.banco||'')==='bb';
+    const emitido=['aberto','pago','vencido'].includes(String(x?.status||''))&&x?.nosso_numero;
+    if(!bb||!emitido)continue;
+    const chave=String(x.id||x.nosso_numero||`${x.numero_nf||''}|${x.parcela_numero||1}`);
+    if(!mapa.has(chave))mapa.set(chave,x);
+  }
+  const lista=[...mapa.values()].sort((a,b)=>{
+    const ca=cobNorm(a.cliente_nome||''), cb=cobNorm(b.cliente_nome||'');
+    if(ca!==cb)return ca.localeCompare(cb,'pt-BR');
+    const na=String(a.numero_nf||''), nb=String(b.numero_nf||'');
+    if(na!==nb)return na.localeCompare(nb,'pt-BR',{numeric:true});
+    return Number(a.parcela_numero||1)-Number(b.parcela_numero||1);
+  });
+  if(!lista.length)return alert('Nenhum boleto do Banco do Brasil efetivamente emitido foi encontrado nos filtros atuais.\n\nRegistros pendentes, cancelados e Bradesco não entram na impressão.');
+  const fmt=v=>v?new Date(v+'T12:00:00').toLocaleDateString('pt-BR'):'';
+  const periodo=di||df?` entre ${fmt(di)||'o início'} e ${fmt(df)||'hoje'}`:' conforme os filtros atuais';
+  if(!confirm(`Foram encontrados ${lista.length} boleto(s) emitido(s)${periodo}.\n\nDeseja gerar a Impressão Normal de todos em um único PDF?`))return;
+  try{
+    const blob=await gerarPdfImpressaoNormalBb(lista);
+    const url=URL.createObjectURL(blob);
+    const w=window.open(url,'_blank');
+    if(!w){
+      const a=document.createElement('a');a.href=url;a.download=`Boletos BB - ${di||'inicio'} a ${df||'hoje'}.pdf`;a.click();
+    }
+    setTimeout(()=>URL.revokeObjectURL(url),120000);
+  }catch(e){alert('Não foi possível gerar a impressão dos boletos filtrados.\n\n'+(e.message||e));}
+}
+function renderHistoricoCobrancas(){
+  const tb=document.getElementById('cobHistoricoTabela'); if(!tb)return;
+  const lista=cobrancasFiltradasHistoricoV178();
   document.getElementById('cobKpiAbertos').textContent=cobrancasBancarias.filter(x=>['aberto','pendente_integracao'].includes(x.status)).length;
   document.getElementById('cobKpiPagos').textContent=cobrancasBancarias.filter(x=>x.status==='pago').length;
   document.getElementById('cobKpiVencidos').textContent=cobrancasBancarias.filter(x=>x.status==='vencido').length;
@@ -8753,3 +8791,5 @@ setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bb
 // V173 — Logo Sofisticatto ampliada no canhoto, com recorte de margens brancas para melhorar a legibilidade de 'cosméticos'.
 
 // V176 — Sincronização BB: identifica liquidação/pagamento, pagamento parcial e modalidade descontada pela Cobranças v2.
+
+// V178 — Impressão Normal em PDF único de todos os boletos BB efetivamente emitidos no filtro atual do Histórico.
