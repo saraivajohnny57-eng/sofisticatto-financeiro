@@ -587,6 +587,18 @@ module.exports=async function(req,res){
       const consulta=await consultarBoletoBb(amb,nosso);
       return json(res,200,{ok:true,consulta:consulta.data,status:consulta.status});
     }
+    if(action==='verificar-titulo'){
+      const titulo=tituloBbNormalizado(req.body?.numero_titulo||req.query?.numero_titulo||'');
+      if(!titulo)throw new Error('Informe o Nº do Título / NF + parcela para verificar no BB.');
+      const reserva=await obterReservaTituloBb(amb,titulo);
+      if(!reserva)return json(res,200,{ok:true,encontrado:false,confirmado:false,titulo,motivo:'Nenhuma reserva/emissão encontrada no portal para este título.'});
+      const nosso=String(reserva.nosso_numero||'').trim();
+      if(String(reserva.status||'').toLowerCase()!=='emitido'||!nosso){
+        return json(res,200,{ok:true,encontrado:true,confirmado:false,inconclusivo:true,titulo,reserva:{status:reserva.status||'reservado',nosso_numero:nosso||null},motivo:'O título foi reservado, mas não há confirmação local de emissão no BB. Não reemitir automaticamente.'});
+      }
+      const consulta=await consultarBoletoBb(amb,nosso);
+      return json(res,200,{ok:true,encontrado:true,confirmado:true,titulo,nosso_numero:nosso,consulta:consulta.data,status_http:consulta.status});
+    }
     if(action==='sincronizar-status'){
       const resumo=await sincronizarStatusBoletosBb(amb,req.body||{});
       return json(res,200,{ok:true,resumo});
