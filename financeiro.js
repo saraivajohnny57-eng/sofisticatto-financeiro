@@ -1340,23 +1340,38 @@ document.addEventListener("click", evento => {
   }
 });
 
+let salvandoRelatorioAgora=false;
 async function salvarRelatorio(){
+  if(salvandoRelatorioAgora)return;
+  const botao=document.getElementById("btnSalvarRelatorio");
   const nome=document.getElementById("nome").value.trim(),valorTexto=document.getElementById("valor").value.trim(),valor=valorParaNumero(valorTexto);
   const clienteId=document.getElementById("relatorioClienteId")?.value||null;
   const cliente=(emailClientes||[]).find(x=>String(x.id)===String(clienteId))||null;
-  const condicao=condicaoNovoRelatorio(),dataBase=document.getElementById("relatorioDataBase")?.value||null,numeroNf=document.getElementById("relatorioNumeroNf")?.value.trim()||null;
+  const condicao=condicaoNovoRelatorio(),dataBase=document.getElementById("relatorioDataBase")?.value||null,numeroNf=String(document.getElementById("relatorioNumeroNf")?.value||"").trim();
   const parcelas=parcelasNovoRelatorio();
   if(!nome||!valorTexto){alert("Preencha cliente e valor");return;}
+  if(!numeroNf){alert("Informe o Nº da NF/Título. Todos os relatórios precisam de uma numeração para impedir cadastros duplicados.");return;}
   if(clienteId&&!cliente)return alert("O cliente selecionado não foi localizado no cadastro. Pesquise novamente.");
   if(condicao&&(!dataBase||!parcelas.length))return alert("Informe a data base para gerar as parcelas.");
-  const payload={nome,valor,status:"Em andamento",banco:"",observacao:"",data_finalizacao:null,criado_por:usuarioLogado.login,cliente_id:clienteId,cliente_documento:cliente?.cpf_cnpj||cliente?.cnpj||cliente?.cpf||null,condicao_pagamento:condicao||null,data_base:dataBase,numero_nf:numeroNf,parcelas_json:parcelas.length?parcelas:null};
-  const resposta=await banco.from("boletos").insert([payload]);
-  if(resposta.error){alert("Não foi possível salvar o relatório: "+resposta.error.message+"\n\nSe esta é a primeira publicação desta versão, execute o SQL V176_RELATORIOS_PARCELAS.sql no Supabase.");return;}
-  mostrarBalaoSistema("Relatório lançado",parcelas.length?`${parcelas.length} parcela(s) já definidas. O Banco poderá selecionar o banco e a emissão ficará pronta.`:"O usuário Banco receberá a notificação.");
-  ["nome","valor","relatorioNumeroNf","relatorioClienteId","relatorioCondicaoPersonalizada"].forEach(id=>{const e=document.getElementById(id);if(e)e.value="";});
-  const sel=document.getElementById("relatorioCondicaoPagamento");if(sel)sel.value="";const box=document.getElementById("relatorioCondicaoPersonalizadaBox");if(box)box.style.display="none";
-  const dt=document.getElementById("relatorioDataBase");if(dt){const h=new Date();dt.value=`${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,"0")}-${String(h.getDate()).padStart(2,"0")}`;}
-  limparClienteSelecionadoRelatorio();atualizarParcelasNovoRelatorio();carregarRelatorios();
+  salvandoRelatorioAgora=true;if(botao){botao.disabled=true;botao.dataset.textoOriginal=botao.textContent;botao.textContent="Salvando...";}
+  try{
+    const existente=await banco.from("boletos").select("id,nome,numero_nf,status").eq("numero_nf",numeroNf).limit(1);
+    if(existente.error)throw existente.error;
+    if(existente.data?.length){const x=existente.data[0];alert(`RELATÓRIO NÃO SALVO — Nº NF/TÍTULO DUPLICADO.\n\nJá existe um relatório usando o Nº ${numeroNf}.\nCliente: ${x.nome||"—"}\nStatus: ${x.status||"—"}\n\nAbra o relatório existente para editar; o sistema não criará outro com a mesma numeração.`);return;}
+    const payload={nome,valor,status:"Em andamento",banco:"",observacao:"",data_finalizacao:null,criado_por:usuarioLogado.login,cliente_id:clienteId,cliente_documento:cliente?.cpf_cnpj||cliente?.cnpj||cliente?.cpf||null,condicao_pagamento:condicao||null,data_base:dataBase,numero_nf:numeroNf,parcelas_json:parcelas.length?parcelas:null};
+    const resposta=await banco.from("boletos").insert([payload]);
+    if(resposta.error){
+      if(String(resposta.error.code)==="23505"||/duplicate|unique|boletos_numero_nf_unique/i.test(String(resposta.error.message||"")))alert(`RELATÓRIO NÃO SALVO — Nº NF/TÍTULO DUPLICADO.\n\nO Nº ${numeroNf} já está cadastrado no sistema.`);
+      else alert("Não foi possível salvar o relatório: "+resposta.error.message+"\n\nExecute também o SQL V176_TRAVA_DUPLICIDADE_RELATORIOS_NF.sql no Supabase.");
+      return;
+    }
+    mostrarBalaoSistema("Relatório lançado",parcelas.length?`${parcelas.length} parcela(s) já definidas. O Banco poderá selecionar o banco e a emissão ficará pronta.`:"O usuário Banco receberá a notificação.");
+    ["nome","valor","relatorioNumeroNf","relatorioClienteId","relatorioCondicaoPersonalizada"].forEach(id=>{const e=document.getElementById(id);if(e)e.value="";});
+    const sel=document.getElementById("relatorioCondicaoPagamento");if(sel)sel.value="";const box=document.getElementById("relatorioCondicaoPersonalizadaBox");if(box)box.style.display="none";
+    const dt=document.getElementById("relatorioDataBase");if(dt){const h=new Date();dt.value=`${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,"0")}-${String(h.getDate()).padStart(2,"0")}`;}
+    limparClienteSelecionadoRelatorio();atualizarParcelasNovoRelatorio();carregarRelatorios();
+  }catch(e){alert("Não foi possível validar/salvar o relatório: "+(e?.message||e));}
+  finally{salvandoRelatorioAgora=false;if(botao){botao.disabled=false;botao.textContent=botao.dataset.textoOriginal||"Salvar Relatório";}}
 }
 
 
