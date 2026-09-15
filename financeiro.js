@@ -8220,7 +8220,14 @@ function renderFilaCobrancaMassa(){
   atualizarResumoCobrancaMassa();
 }
 function checksCobrancaMassa(){return Array.from(document.querySelectorAll('.cob-massa-check'));}
-function selecionarProntosCobrancaMassa(){checksCobrancaMassa().forEach(c=>c.checked=true);atualizarResumoCobrancaMassa();}
+function selecionarProntosCobrancaMassa(){
+  // V176: selecionar somente bancos com emissão REAL disponível. Bradesco nunca entra no lote enquanto não houver integração própria.
+  checksCobrancaMassa().forEach(c=>{
+    const rel=(cobrancaMassaRelatorios||[]).find(r=>String(r.id)===String(c.dataset.id));
+    c.checked=Boolean(rel&&bancoEmissaoRealDisponivel(rel.banco));
+  });
+  atualizarResumoCobrancaMassa();
+}
 function gruposSelecionadosCobrancaMassa(){
   const ids=new Set(checksCobrancaMassa().filter(c=>c.checked).map(c=>String(c.dataset.id)));
   return (cobrancaMassaRelatorios||[]).filter(r=>ids.has(String(r.id))).map(dadosGrupoCobrancaMassa).filter(g=>g.pronto);
@@ -8261,8 +8268,15 @@ function nomeArquivoBoletoMassa(g,p){
   return `${seguro} - ${parc} - ${Number(p.valor||0).toFixed(2).replace('.',',')}.pdf`;
 }
 async function emitirBoletosEmMassa(){
-  const grupos=ordemCobrancaMassa(gruposSelecionadosCobrancaMassa());
-  if(!grupos.length)return alert('Selecione pelo menos um cliente com parcelas preparadas.');
+  const selecionados=gruposSelecionadosCobrancaMassa();
+  // V176 proteção definitiva: o lote de emissão real aceita exclusivamente Banco do Brasil.
+  // Mesmo que um checkbox seja manipulado pelo navegador, Bradesco não chega ao motor bancário.
+  const bloqueados=selecionados.filter(g=>!bancoEmissaoRealDisponivel(g.rel?.banco));
+  const grupos=ordemCobrancaMassa(selecionados.filter(g=>bancoEmissaoRealDisponivel(g.rel?.banco)));
+  if(bloqueados.length){
+    console.warn('Emissão em massa: bancos sem integração real ignorados',bloqueados.map(g=>({id:g.rel?.id,banco:g.rel?.banco})));
+  }
+  if(!grupos.length)return alert('Não há boletos do Banco do Brasil selecionados e prontos para emissão.\n\nBradesco está com a integração pendente e não será emitido.');
 
   const pasta=await escolherPastaCobrancaMassa();
   if(window.showDirectoryPicker && !pasta)return; // usuário cancelou o seletor
@@ -8295,7 +8309,8 @@ async function emitirBoletosEmMassa(){
     }
     cobrancaMassaArquivosEmitidos=resultados.filter(x=>x.ok&&x.blob);
     const ok=resultados.filter(x=>x.ok).length,erros=resultados.length-ok;
-    mostrarBalaoSistema?.('Emissão em massa concluída',`${ok} boleto(s) emitido(s)${erros?` • ${erros} com erro`:''}.`);
+    const qtdBradesco=(cobrancaMassaRelatorios||[]).filter(r=>codigoBancoCobranca(r.banco)==='bradesco').length;
+    mostrarBalaoSistema?.('Emissão em massa concluída',`${ok} boleto(s) BB emitido(s)${erros?` • ${erros} com erro`:''}${qtdBradesco?` • ${qtdBradesco} relatório(s) Bradesco ignorado(s) (integração pendente)`:''}.`);
     await carregarFilaCobrancaMassa();
   }finally{if(btn){btn.disabled=false;btn.textContent='💳 Emitir em massa';}}
 }
