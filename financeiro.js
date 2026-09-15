@@ -6994,12 +6994,16 @@ async function imprimirBoletosFiltradosV178(){
     const chave=String(x.id||x.nosso_numero||`${x.numero_nf||''}|${x.parcela_numero||1}`);
     if(!mapa.has(chave))mapa.set(chave,x);
   }
+  // V179: somente nesta impressão em lote, a ordem do PDF segue exclusivamente
+  // o vencimento de cada boleto, independentemente de cliente, NF ou parcela.
   const lista=[...mapa.values()].sort((a,b)=>{
-    const ca=cobNorm(a.cliente_nome||''), cb=cobNorm(b.cliente_nome||'');
-    if(ca!==cb)return ca.localeCompare(cb,'pt-BR');
-    const na=String(a.numero_nf||''), nb=String(b.numero_nf||'');
-    if(na!==nb)return na.localeCompare(nb,'pt-BR',{numeric:true});
-    return Number(a.parcela_numero||1)-Number(b.parcela_numero||1);
+    const va=String(a?.vencimento||'9999-12-31').slice(0,10);
+    const vb=String(b?.vencimento||'9999-12-31').slice(0,10);
+    if(va!==vb)return va.localeCompare(vb);
+    // Empate no mesmo vencimento: apenas estabiliza a ordenação sem agrupar por cliente.
+    const ia=String(a?.id||a?.nosso_numero||'');
+    const ib=String(b?.id||b?.nosso_numero||'');
+    return ia.localeCompare(ib,'pt-BR',{numeric:true});
   });
   if(!lista.length)return alert('Nenhum boleto do Banco do Brasil efetivamente emitido foi encontrado nos filtros atuais.\n\nRegistros pendentes, cancelados e Bradesco não entram na impressão.');
   const fmt=v=>v?new Date(v+'T12:00:00').toLocaleDateString('pt-BR'):'';
