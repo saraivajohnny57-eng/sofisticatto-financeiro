@@ -93,7 +93,7 @@ function solicitarTokenMtls(url,cred,mtls){
 
 function consultarPendentesSandbox(token,mtls){
   return new Promise((resolve,reject)=>{
-    const url='https://openapisandbox.prebanco.com.br/boleto/cobranca-pendente/v1/listar';
+    const url='https://openapisandbox.prebanco.com.br:443/boleto/cobranca-pendente/v1/listar';
     const u=new URL(url);
     // Payload demonstrativo publicado pelo próprio Swagger do recurso Sandbox.
     // Ele serve apenas para validar o consumo do recurso; não representa dados da Sofisticatto.
@@ -113,7 +113,8 @@ function consultarPendentesSandbox(token,mtls){
         agent.destroy();let data={};try{data=raw?JSON.parse(raw):{}}catch(_){data={resposta:raw.slice(0,4000)}}
         const result={http_status:r.statusCode,data};
         if(r.statusCode>=200&&r.statusCode<300)return resolve(result);
-        const e=new Error(data?.mensagem||data?.message||data?.erro||`Bradesco respondeu HTTP ${r.statusCode}`);e.http_status=r.statusCode;e.resposta=data;reject(e);
+        const detalhe=data?.mensagem||data?.message||data?.erro||data?.descricao||data?.causa||`Bradesco respondeu HTTP ${r.statusCode}`;
+        const e=new Error(`HTTP ${r.statusCode} — ${typeof detalhe==='string'?detalhe:JSON.stringify(detalhe).slice(0,800)}`);e.http_status=r.statusCode;e.resposta=data;reject(e);
       });
     });
     req.on('timeout',()=>req.destroy(new Error('Tempo esgotado ao consultar títulos pendentes no Bradesco Sandbox.')));
@@ -167,5 +168,11 @@ module.exports=async function(req,res){
       return json(res,200,{ok:true,teste:{autenticacao:true,ambiente:'sandbox',endpoint:'openapisandbox.prebanco.com.br',http_status:teste.http_status,token_type:teste.token_type,expires_in:teste.expires_in,scope:teste.scope},mensagem:'Autenticação mTLS/OAuth do Bradesco Sandbox concluída com sucesso. Nenhum boleto foi consultado, alterado ou emitido.'});
     }
     return json(res,400,{ok:false,erro:'Ação inválida.'});
-  }catch(e){console.error('[BANCO-BRADESCO]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Bradesco.'});}
+  }catch(e){
+    console.error('[BANCO-BRADESCO]',action,e);
+    const upstream=Number(e?.http_status)||0;
+    const statusHttp=(upstream>=400&&upstream<=599)?upstream:500;
+    const resposta=e?.resposta&&typeof e.resposta==='object'?e.resposta:null;
+    return json(res,statusHttp,{ok:false,erro:e.message||'Falha na integração Bradesco.',bradesco_http:upstream||null,detalhe:resposta});
+  }
 };
