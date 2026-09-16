@@ -8649,6 +8649,15 @@ async function validarConfiguracaoBradesco(){
   try{const j=await bradescoReq('validar-configuracao',{method:'POST',body:{}});bradescoAviso('✅ '+j.mensagem+' A emissão real continua bloqueada.','ok');const topo=document.getElementById('bradescoStatusTopo');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Bradesco • Sandbox pronto para teste da API'}}
   catch(e){bradescoAviso('❌ '+e.message,'erro');alert('Validação Bradesco não concluída.\n\n'+e.message)}
 }
+async function testarAutenticacaoBradesco(){
+  if(bradescoAmbiente()!=='sandbox')return alert('O teste externo está liberado somente para o Sandbox.');
+  const out=document.getElementById('bradescoTesteExternoStatus'), btn=document.getElementById('btnTesteExternoBradesco');
+  if(!confirm('Executar somente o teste de autenticação mTLS/OAuth no Bradesco Sandbox?\n\nNenhum boleto será emitido, alterado, baixado ou consultado.'))return;
+  if(out)out.innerHTML='⏳ Conectando ao autorizador do Bradesco Sandbox via mTLS...';if(btn)btn.disabled=true;
+  try{const j=await bradescoReq('testar-autenticacao',{method:'POST',body:{}});const t=j.teste||{};if(out)out.innerHTML=`✅ <b>Autenticação Bradesco Sandbox aprovada.</b><br>HTTP ${t.http_status||200} • Token ${t.token_type||'Bearer'}${t.expires_in?` • validade ${t.expires_in}s`:''}${t.scope?` • escopo ${escaparHtmlEmail(String(t.scope))}`:''}<br><span class="bb-cert-ajuda">Nenhum boleto foi emitido, alterado, baixado ou consultado. O token não é exibido nem enviado ao navegador.</span>`;bradescoAviso('✅ Comunicação mTLS/OAuth com o Bradesco Sandbox validada. Emissão continua bloqueada.','ok');}
+  catch(e){if(out)out.innerHTML=`❌ <b>Falha no teste externo:</b> ${escaparHtmlEmail(e.message)}`;bradescoAviso('❌ O Bradesco Sandbox não autenticou esta configuração. Nenhum boleto foi emitido.','erro');}
+  finally{if(btn)btn.disabled=false}
+}
 
 async function testarApiCobrancasBB(){
   const agencia=String(document.getElementById('bbTesteAgencia')?.value||'').replace(/\D/g,'');
