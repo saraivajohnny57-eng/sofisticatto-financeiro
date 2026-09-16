@@ -1,5 +1,6 @@
 const crypto=require('crypto');
 const https=require('https');
+const forge=require('node-forge');
 const {exigirAdmin,supabaseRest,criptografar,descriptografar}=require('../lib/integracoes/_utils');
 
 const TABELA='integracoes_bradesco_segredos';
@@ -37,29 +38,56 @@ function endpointToken(amb){
     ? 'https://openapisandbox.prebanco.com.br/auth/server-mtls/v2/token'
     : 'https://openapi.bradesco.com.br/auth/server-mtls/v2/token';
 }
+function criarPfxTemporario(certPem,keyPem){
+  // Empacota em PKCS#12 somente em memória. Isso força o runtime TLS a apresentar
+  // o certificado cliente no handshake mTLS, sem gravar chave privada em disco.
+  const cert=forge.pki.certificateFromPem(pemValido(certPem,'cert'));
+  const key=forge.pki.privateKeyFromPem(pemValido(keyPem,'key'));
+  const senha=crypto.randomBytes(24).toString('hex');
+  const asn1=forge.pkcs12.toPkcs12Asn1(key,[cert],senha,{algorithm:'3des'});
+  const der=forge.asn1.toDer(asn1).getBytes();
+  return {pfx:Buffer.from(der,'binary'),passphrase:senha};
+}
 function solicitarTokenMtls(url,cred,mtls){
   return new Promise((resolve,reject)=>{
     const u=new URL(url);
     const form=new URLSearchParams({grant_type:'client_credentials',client_id:cred.client_id,client_secret:cred.client_secret}).toString();
-    const basic=Buffer.from(`${cred.client_id}:${cred.client_secret}`,'utf8').toString('base64');
+    let pacote;
+    try{pacote=criarPfxTemporario(mtls.cert_pem,mtls.key_pem)}catch(e){return reject(new Error('Não foi possível preparar o certificado mTLS para o transporte HTTPS: '+e.message));}
+    const agent=new https.Agent({
+      pfx:pacote.pfx,passphrase:pacote.passphrase,
+      minVersion:'TLSv1.2',rejectUnauthorized:true,keepAlive:false
+    });
     const req=https.request({
-      protocol:u.protocol,hostname:u.hostname,port:u.port||443,path:u.pathname+u.search,method:'POST',
-      cert:mtls.cert_pem,key:mtls.key_pem,minVersion:'TLSv1.2',rejectUnauthorized:true,
-      headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json','Authorization':`Basic ${basic}`,'Content-Length':Buffer.byteLength(form)},
+      protocol:u.protocol,hostname:u.hostname,servername:u.hostname,port:u.port||443,path:u.pathname+u.search,method:'POST',
+      agent,
+      headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json','Content-Length':Buffer.byteLength(form)},
       timeout:20000
     },r=>{
       let raw='';r.setEncoding('utf8');r.on('data',d=>{if(raw.length<200000)raw+=d});
       r.on('end',()=>{
+        agent.destroy();
         let data={};try{data=raw?JSON.parse(raw):{}}catch(_){data={resposta:raw.slice(0,1500)}}
         if(r.statusCode>=200&&r.statusCode<300&&data.access_token){
-          return resolve({http_status:r.statusCode,token_type:data.token_type||'Bearer',expires_in:data.expires_in||null,scope:data.scope||null});
+          return resolve({http_status:r.statusCode,token_type:data.token_type||'Bearer',expires_in:data.expires_in||null,scope:data.scope||null,transporte_mtls:'pkcs12-memory'});
         }
         const detalhe=data.error_description||data.descricaoErro||data.message||data.error||`HTTP ${r.statusCode}`;
-        const e=new Error(`Bradesco recusou a autenticação: ${detalhe}`);e.http_status=r.statusCode;e.resposta=data;reject(e);
+        const sslMsg=/SSL with client authentication is required/i.test(String(detalhe))
+          ? 'O Bradesco não reconheceu o certificado cliente no handshake mTLS. Confirme se o Client ID/Secret pertencem à mesma credencial para a qual este certificado público foi provisionado no Portal Bradesco.'
+          : `Bradesco recusou a autenticação: ${detalhe}`;
+        const e=new Error(sslMsg);e.http_status=r.statusCode;e.resposta=data;reject(e);
+      });
+    });
+    req.on('socket',socket=>{
+      socket.once('secureConnect',()=>{
+        try{
+          const local=typeof socket.getCertificate==='function'?socket.getCertificate():null;
+          if(!local||!Object.keys(local).length)console.warn('[BANCO-BRADESCO] TLS conectado sem certificado cliente local visível no socket.');
+        }catch(_){}
       });
     });
     req.on('timeout',()=>req.destroy(new Error('Tempo esgotado ao conectar ao Bradesco Sandbox.')));
-    req.on('error',reject);req.write(form);req.end();
+    req.on('error',e=>{agent.destroy();reject(e)});req.write(form);req.end();
   });
 }
 module.exports=async function(req,res){
