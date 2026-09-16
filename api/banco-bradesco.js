@@ -69,7 +69,7 @@ function solicitarTokenMtls(url,cred,mtls){
         agent.destroy();
         let data={};try{data=raw?JSON.parse(raw):{}}catch(_){data={resposta:raw.slice(0,1500)}}
         if(r.statusCode>=200&&r.statusCode<300&&data.access_token){
-          return resolve({http_status:r.statusCode,token_type:data.token_type||'Bearer',expires_in:data.expires_in||null,scope:data.scope||null,transporte_mtls:'pkcs12-memory'});
+          return resolve({http_status:r.statusCode,access_token:data.access_token,token_type:data.token_type||'Bearer',expires_in:data.expires_in||null,scope:data.scope||null,transporte_mtls:'pkcs12-memory'});
         }
         const detalhe=data.error_description||data.descricaoErro||data.message||data.error||`HTTP ${r.statusCode}`;
         const sslMsg=/SSL with client authentication is required/i.test(String(detalhe))
@@ -90,6 +90,37 @@ function solicitarTokenMtls(url,cred,mtls){
     req.on('error',e=>{agent.destroy();reject(e)});req.write(form);req.end();
   });
 }
+
+function consultarPendentesSandbox(token,mtls){
+  return new Promise((resolve,reject)=>{
+    const url='https://openapisandbox.prebanco.com.br/boleto/cobranca-pendente/v1/listar';
+    const u=new URL(url);
+    // Payload demonstrativo publicado pelo próprio Swagger do recurso Sandbox.
+    // Ele serve apenas para validar o consumo do recurso; não representa dados da Sofisticatto.
+    const payload={
+      cpfCnpj:{cpfCnpj:'31759488',filial:'0',controle:'55'},
+      produto:'05',negociacao:'38610041000',nossoNumero:'4197000001',
+      cpfCnpjPagador:{cpfCnpj:'31759488',filial:'0',controle:'55'},
+      dataVencimentoDe:'01012022',dataVencimentoAte:'01012022',
+      dataRegistroDe:'1012020',dataRegistroAte:'24052020',
+      valorTituloDe:'0',faixaVencto:'7',paginaAnterior:'0'
+    };
+    const body=JSON.stringify(payload);
+    let pacote;try{pacote=criarPfxTemporario(mtls.cert_pem,mtls.key_pem)}catch(e){return reject(e)}
+    const agent=new https.Agent({pfx:pacote.pfx,passphrase:pacote.passphrase,minVersion:'TLSv1.2',rejectUnauthorized:true,keepAlive:false});
+    const req=https.request({protocol:u.protocol,hostname:u.hostname,servername:u.hostname,port:u.port||443,path:u.pathname,method:'POST',agent,headers:{Authorization:`Bearer ${token}`,'Accept':'application/json','Content-Type':'application/json','Content-Length':Buffer.byteLength(body)},timeout:20000},r=>{
+      let raw='';r.setEncoding('utf8');r.on('data',d=>{if(raw.length<500000)raw+=d});r.on('end',()=>{
+        agent.destroy();let data={};try{data=raw?JSON.parse(raw):{}}catch(_){data={resposta:raw.slice(0,4000)}}
+        const result={http_status:r.statusCode,data};
+        if(r.statusCode>=200&&r.statusCode<300)return resolve(result);
+        const e=new Error(data?.mensagem||data?.message||data?.erro||`Bradesco respondeu HTTP ${r.statusCode}`);e.http_status=r.statusCode;e.resposta=data;reject(e);
+      });
+    });
+    req.on('timeout',()=>req.destroy(new Error('Tempo esgotado ao consultar títulos pendentes no Bradesco Sandbox.')));
+    req.on('error',e=>{agent.destroy();reject(e)});req.write(body);req.end();
+  });
+}
+
 module.exports=async function(req,res){
   if(!exigirAdmin(req,res))return;
   const action=String(req.query?.action||'status'), amb=ambiente(req.query?.ambiente||req.body?.ambiente);
@@ -116,6 +147,16 @@ module.exports=async function(req,res){
       const cred=descriptografar(credReg), mtls=descriptografar(mtlsReg);const meta=validarParMtls(mtls.cert_pem,mtls.key_pem);
       if(!cred.client_id||!cred.client_secret)throw new Error('Credenciais incompletas.');
       return json(res,200,{ok:true,teste:{configuracao_valida:true,mtls_valido:true,credenciais_validas:true,certificado:meta},mensagem:'Configuração local do Bradesco Sandbox validada. Nenhum boleto foi emitido.'});
+    }
+    if(action==='consultar-pendentes'){
+      if(amb!=='sandbox')throw new Error('A consulta de homologação está liberada somente para o Sandbox.');
+      const credReg=await obter(idRegistro(amb,'credenciais')), mtlsReg=await obter(idRegistro(amb,'mtls'));
+      if(!credReg||!mtlsReg)throw new Error('Cadastre as credenciais e o par mTLS antes da consulta.');
+      const cred=descriptografar(credReg), mtls=descriptografar(mtlsReg);validarParMtls(mtls.cert_pem,mtls.key_pem);
+      const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
+      const consulta=await consultarPendentesSandbox(auth.access_token,mtls);
+      const d=consulta.data||{};
+      return json(res,200,{ok:true,consulta:{http_status:consulta.http_status,status:d.status??consulta.http_status,mensagem:d.mensagem||'Operação realizada com sucesso.',causa:d.causa||null,pagina:d.pagina??null,indMaisPagina:d.indMaisPagina??null,qtdeTitulos:d.qtdeTitulos??(Array.isArray(d.titulos)?d.titulos.length:null),vtotTitulos:d.vtotTitulos??null,qtdeOcorr:d.qtdeOcorr??null,titulos:Array.isArray(d.titulos)?d.titulos.slice(0,20):[]},mensagem:'Consulta segura ao recurso de títulos pendentes do Bradesco Sandbox concluída. Nenhum boleto foi registrado, alterado ou baixado.'});
     }
     if(action==='testar-autenticacao'){
       if(amb!=='sandbox')throw new Error('O teste externo está liberado somente para o Sandbox.');
