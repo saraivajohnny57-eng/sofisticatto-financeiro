@@ -6968,6 +6968,19 @@ async function carregarCobrancasBancarias(){
 function cobStatus(s){return {pendente_integracao:'Pendente integração',aberto:'Aberto',pago:'Pago',vencido:'Vencido',cancelado:'Cancelado'}[s]||s||'—';}
 function dataEmissaoCobrancaV177(x){return String(x?.emitido_em||x?.created_at||'').slice(0,10);}
 function limparFiltroDataEmissaoCobrancas(){const a=document.getElementById('cobDataEmissaoIni'),b=document.getElementById('cobDataEmissaoFim');if(a)a.value='';if(b)b.value='';renderHistoricoCobrancas();}
+function mostrarAbaTesteBancario(banco='bb'){
+  const ehBB=banco==='bb';
+  const pBB=document.getElementById('cobTestePainelBB');
+  const pBr=document.getElementById('cobTestePainelBradesco');
+  const tBB=document.getElementById('cobTesteTabBB');
+  const tBr=document.getElementById('cobTesteTabBradesco');
+  if(pBB)pBB.style.display=ehBB?'block':'none';
+  if(pBr)pBr.style.display=ehBB?'none':'block';
+  if(tBB)tBB.classList.toggle('ativa',ehBB);
+  if(tBr)tBr.classList.toggle('ativa',!ehBB);
+  if(ehBB){if(typeof carregarStatusBancoBB==='function')carregarStatusBancoBB(false);}
+  else{if(typeof carregarStatusBradesco==='function')carregarStatusBradesco(false);}
+}
 function mostrarAbaIntegracaoBancaria(aba='historico'){
   const mapa={historico:'cobAbaHistorico',emissao:'cobAbaEmissao',massa:'cobAbaMassa',credenciais:'cobAbaCredenciais'};
   Object.entries(mapa).forEach(([k,id])=>{const el=document.getElementById(id),bt=document.getElementById('cobTab'+k.charAt(0).toUpperCase()+k.slice(1));if(el)el.style.display=k===aba?(k==='emissao'?'grid':'block'):'none';if(bt)bt.classList.toggle('ativa',k===aba);});
