@@ -122,6 +122,31 @@ function consultarPendentesSandbox(token,mtls){
   });
 }
 
+function validarEndpointRegistroSandbox(token,mtls){
+  return new Promise((resolve,reject)=>{
+    const url='https://openapisandbox.prebanco.com.br:443/boleto/cobranca-registro/v1/cobranca';
+    const u=new URL(url);
+    // V185: diagnóstico deliberadamente sem dados de boleto. O objetivo é validar
+    // autorização/mTLS/vínculo do recurso sem risco de registrar um título.
+    const body='{}';
+    let pacote;try{pacote=criarPfxTemporario(mtls.cert_pem,mtls.key_pem)}catch(e){return reject(e)}
+    const agent=new https.Agent({pfx:pacote.pfx,passphrase:pacote.passphrase,minVersion:'TLSv1.2',rejectUnauthorized:true,keepAlive:false});
+    const req=https.request({protocol:u.protocol,hostname:u.hostname,servername:u.hostname,port:u.port||443,path:u.pathname,method:'POST',agent,headers:{Authorization:`Bearer ${token}`,'Accept':'application/json','Content-Type':'application/json','Content-Length':Buffer.byteLength(body)},timeout:20000},r=>{
+      let raw='';r.setEncoding('utf8');r.on('data',d=>{if(raw.length<200000)raw+=d});r.on('end',()=>{
+        agent.destroy();let data={};try{data=raw?JSON.parse(raw):{}}catch(_){data={resposta:raw.slice(0,4000)}}
+        // 400/412 são respostas esperadas para body vazio e comprovam que o endpoint foi alcançado.
+        if([400,412].includes(r.statusCode))return resolve({http_status:r.statusCode,endpoint_alcancado:true,nenhum_boleto_emitido:true,data});
+        // 2xx com body vazio seria comportamento inesperado: não afirmar emissão e bloquear avanço.
+        if(r.statusCode>=200&&r.statusCode<300)return resolve({http_status:r.statusCode,endpoint_alcancado:true,resposta_inesperada:true,nenhum_boleto_emitido:false,data});
+        const detalhe=data?.mensagem||data?.message||data?.erro||data?.descricao||data?.causa||`Bradesco respondeu HTTP ${r.statusCode}`;
+        const e=new Error(`HTTP ${r.statusCode} — ${typeof detalhe==='string'?detalhe:JSON.stringify(detalhe).slice(0,800)}`);e.http_status=r.statusCode;e.resposta=data;reject(e);
+      });
+    });
+    req.on('timeout',()=>req.destroy(new Error('Tempo esgotado ao validar o endpoint de registro do Bradesco Sandbox.')));
+    req.on('error',e=>{agent.destroy();reject(e)});req.write(body);req.end();
+  });
+}
+
 module.exports=async function(req,res){
   if(!exigirAdmin(req,res))return;
   const action=String(req.query?.action||'status'), amb=ambiente(req.query?.ambiente||req.body?.ambiente);
@@ -158,6 +183,17 @@ module.exports=async function(req,res){
       const consulta=await consultarPendentesSandbox(auth.access_token,mtls);
       const d=consulta.data||{};
       return json(res,200,{ok:true,consulta:{http_status:consulta.http_status,status:d.status??consulta.http_status,mensagem:d.mensagem||'Operação realizada com sucesso.',causa:d.causa||null,pagina:d.pagina??null,indMaisPagina:d.indMaisPagina??null,qtdeTitulos:d.qtdeTitulos??(Array.isArray(d.titulos)?d.titulos.length:null),vtotTitulos:d.vtotTitulos??null,qtdeOcorr:d.qtdeOcorr??null,titulos:Array.isArray(d.titulos)?d.titulos.slice(0,20):[]},mensagem:'Consulta segura ao recurso de títulos pendentes do Bradesco Sandbox concluída. Nenhum boleto foi registrado, alterado ou baixado.'});
+    }
+    if(action==='validar-endpoint-registro'){
+      if(amb!=='sandbox')throw new Error('A validação do registro está liberada somente para o Sandbox.');
+      const credReg=await obter(idRegistro(amb,'credenciais')), mtlsReg=await obter(idRegistro(amb,'mtls'));
+      if(!credReg||!mtlsReg)throw new Error('Cadastre as credenciais e o par mTLS antes da validação.');
+      const cred=descriptografar(credReg), mtls=descriptografar(mtlsReg);validarParMtls(mtls.cert_pem,mtls.key_pem);
+      const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
+      const teste=await validarEndpointRegistroSandbox(auth.access_token,mtls);
+      if(teste.resposta_inesperada) return json(res,200,{ok:false,teste,mensagem:'O endpoint respondeu 2xx a um corpo vazio. O sistema bloqueou qualquer avanço automático; revise a resposta antes de continuar.'});
+      const d=teste.data||{};
+      return json(res,200,{ok:true,teste:{http_status:teste.http_status,endpoint_alcancado:true,nenhum_boleto_emitido:true,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Endpoint alcançado e validação de campos acionada.'},mensagem:'Endpoint oficial de registro do Bradesco Sandbox alcançado com mTLS + Bearer. O teste enviou somente {} e não continha dados suficientes para registrar boleto.'});
     }
     if(action==='testar-autenticacao'){
       if(amb!=='sandbox')throw new Error('O teste externo está liberado somente para o Sandbox.');
