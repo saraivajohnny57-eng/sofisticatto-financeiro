@@ -8659,6 +8659,23 @@ async function testarAutenticacaoBradesco(){
   finally{if(btn)btn.disabled=false}
 }
 
+async function consultarPendentesBradescoSandbox(){
+  if(bradescoAmbiente()!=='sandbox')return alert('A consulta está liberada somente para o Sandbox.');
+  const out=document.getElementById('bradescoConsultaPendentesStatus'),btn=document.getElementById('btnConsultarPendentesBradesco');
+  if(!confirm('Consultar o recurso oficial de títulos pendentes no Bradesco Sandbox?\n\nSerá usado o payload demonstrativo publicado pelo próprio Swagger do Sandbox. Nenhum boleto será registrado, alterado ou baixado.'))return;
+  if(out)out.innerHTML='⏳ Autenticando via mTLS/OAuth e consultando POST /boleto/cobranca-pendente/v1/listar...';if(btn)btn.disabled=true;
+  try{
+    const j=await bradescoReq('consultar-pendentes',{method:'POST',body:{}}),c=j.consulta||{};
+    const qtd=c.qtdeTitulos==null?'—':c.qtdeTitulos,valor=c.vtotTitulos==null?'—':c.vtotTitulos;
+    if(out)out.innerHTML=`✅ <b>API Cobrança Bradesco Sandbox respondeu HTTP ${c.http_status||200}.</b><br>${escaparHtmlEmail(String(c.mensagem||'Operação realizada com sucesso.'))}<br>Títulos retornados: <b>${escaparHtmlEmail(String(qtd))}</b> • Valor total informado: <b>${escaparHtmlEmail(String(valor))}</b>${c.pagina!=null?` • Página: ${escaparHtmlEmail(String(c.pagina))}`:''}<br><span class="bb-cert-ajuda">Consulta somente leitura. Nenhum boleto foi registrado, alterado ou baixado.</span>`;
+    bradescoAviso('✅ Autenticação e API de títulos pendentes do Bradesco Sandbox validadas.','ok');
+  }catch(e){
+    let dica='';const m=String(e.message||'');if(/403|proibid|permiss/i.test(m))dica=' Verifique se o recurso “Consulta lista de boletos pendentes de liquidação” está vinculado à aplicação/credencial.';else if(/401|token|mTLS|autentica/i.test(m))dica=' Verifique token, escopo e mTLS.';else if(/412|parâmetro|parametro|inválid|invalid/i.test(m))dica=' O recurso foi alcançado, mas o Bradesco rejeitou algum parâmetro do payload Sandbox.';
+    if(out)out.innerHTML=`❌ <b>Consulta não concluída:</b> ${escaparHtmlEmail(m)}${escaparHtmlEmail(dica)}<br><span class="bb-cert-ajuda">Nenhum boleto foi registrado, alterado ou baixado.</span>`;
+    bradescoAviso('❌ A consulta do recurso de títulos pendentes não foi concluída.','erro');
+  }finally{if(btn)btn.disabled=false}
+}
+
 async function testarApiCobrancasBB(){
   const agencia=String(document.getElementById('bbTesteAgencia')?.value||'').replace(/\D/g,'');
   const conta=String(document.getElementById('bbTesteConta')?.value||'').replace(/\D/g,'');

@@ -2790,7 +2790,9 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <h4 style="margin:0 0 6px;">🔎 Teste externo — Bradesco Sandbox</h4>
           <p class="bb-cert-ajuda" style="margin:0 0 10px;">Teste seguro somente do autorizador mTLS/OAuth do Bradesco Sandbox. Usa Client ID/Secret + certificado/chave já armazenados. <b>Não registra, consulta, altera nem baixa boleto.</b></p>
           <button id="btnTesteExternoBradesco" class="btn verde" onclick="testarAutenticacaoBradesco()">🔐 Testar autenticação Bradesco Sandbox</button>
+          <button id="btnConsultarPendentesBradesco" class="btn azul" onclick="consultarPendentesBradescoSandbox()" style="margin-left:6px;">🔎 Consultar títulos pendentes — Sandbox</button>
           <div id="bradescoTesteExternoStatus" class="bb-cert-aviso" style="margin-top:10px;">Aguardando teste externo de autenticação. O token de acesso nunca será exibido no navegador.</div>
+          <div id="bradescoConsultaPendentesStatus" class="bb-cert-aviso" style="margin-top:10px;">A consulta usa o POST /boleto/cobranca-pendente/v1/listar e o payload demonstrativo publicado pelo Swagger do Bradesco Sandbox. Não registra, altera nem baixa boleto.</div>
         </div>
       </div>
     </div>
