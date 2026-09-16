@@ -8876,3 +8876,18 @@ setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bb
 // V176 — Sincronização BB: identifica liquidação/pagamento, pagamento parcial e modalidade descontada pela Cobranças v2.
 
 // V178 — Impressão Normal em PDF único de todos os boletos BB efetivamente emitidos no filtro atual do Histórico.
+
+// V185 — valida o vínculo/autorização do recurso de registro Bradesco sem dados suficientes para emitir boleto.
+async function validarEndpointRegistroBradescoSandbox(){
+  if(bradescoAmbiente()!=='sandbox')return alert('A validação está liberada somente para o Sandbox.');
+  const out=document.getElementById('bradescoRegistroSandboxStatus'),btn=document.getElementById('btnValidarRegistroBradesco');
+  if(!confirm('Validar o endpoint oficial de REGISTRO do Bradesco Sandbox sem emitir boleto?\n\nO backend enviará somente {}. Não serão enviados pagador, valor, vencimento, Nosso Número nem outros dados capazes de registrar um título.'))return;
+  if(out)out.innerHTML='⏳ Autenticando via mTLS/OAuth e validando o endpoint de registro com corpo vazio...';if(btn)btn.disabled=true;
+  try{
+    const j=await bradescoReq('validar-endpoint-registro',{method:'POST',body:{}}),t=j.teste||{};
+    if(!j.ok)throw new Error(j.mensagem||'Resposta inesperada do endpoint.');
+    if(out)out.innerHTML=`✅ <b>Endpoint de registro Bradesco Sandbox alcançado.</b><br>HTTP ${escaparHtmlEmail(String(t.http_status||''))}${t.codigo?` • Código ${escaparHtmlEmail(String(t.codigo))}`:''}<br>${escaparHtmlEmail(String(t.mensagem||'Validação de campos acionada.'))}<br><span class="bb-cert-ajuda"><b>Nenhum boleto foi emitido.</b> O teste enviou somente {} e não enviou pagador, valor, vencimento ou Nosso Número.</span>`;
+    bradescoAviso('✅ Consulta de pendentes e endpoint de registro do Bradesco Sandbox validados. A emissão continua bloqueada até mapearmos o payload oficial completo.','ok');
+  }catch(e){if(out)out.innerHTML=`❌ <b>Validação do endpoint de registro não concluída:</b> ${escaparHtmlEmail(e.message)}`;bradescoAviso('❌ O endpoint de registro ainda não foi validado. Nenhum boleto foi emitido.','erro');}
+  finally{if(btn)btn.disabled=false;}
+}
