@@ -6973,7 +6973,7 @@ function mostrarAbaIntegracaoBancaria(aba='historico'){
   Object.entries(mapa).forEach(([k,id])=>{const el=document.getElementById(id),bt=document.getElementById('cobTab'+k.charAt(0).toUpperCase()+k.slice(1));if(el)el.style.display=k===aba?(k==='emissao'?'grid':'block'):'none';if(bt)bt.classList.toggle('ativa',k===aba);});
   if(aba==='historico'&&typeof carregarCobrancasBancarias==='function')carregarCobrancasBancarias();
   if(aba==='massa'&&typeof carregarFilaCobrancaMassa==='function')carregarFilaCobrancaMassa();
-  if(aba==='credenciais'&&typeof carregarStatusBancoBB==='function')carregarStatusBancoBB(false);
+  if(aba==='credenciais'){if(typeof carregarStatusBancoBB==='function')carregarStatusBancoBB(false);if(typeof carregarStatusBradesco==='function')carregarStatusBradesco(false);}
 }
 function cobrancasFiltradasHistoricoV178(){
   const q=cobNorm(document.getElementById('cobBuscaHistorico')?.value||''), f=document.getElementById('cobFiltroStatus')?.value||'';
@@ -6994,16 +6994,11 @@ async function imprimirBoletosFiltradosV178(){
     const chave=String(x.id||x.nosso_numero||`${x.numero_nf||''}|${x.parcela_numero||1}`);
     if(!mapa.has(chave))mapa.set(chave,x);
   }
-  // V179: somente nesta impressão em lote, a ordem do PDF segue exclusivamente
-  // o vencimento de cada boleto, independentemente de cliente, NF ou parcela.
+  // V179: SOMENTE na impressão dos boletos filtrados, a ordem é exclusivamente por vencimento.
+  // Não agrupa por cliente/NF/quantidade de parcelas e não altera a ordem do Histórico.
   const lista=[...mapa.values()].sort((a,b)=>{
-    const va=String(a?.vencimento||'9999-12-31').slice(0,10);
-    const vb=String(b?.vencimento||'9999-12-31').slice(0,10);
-    if(va!==vb)return va.localeCompare(vb);
-    // Empate no mesmo vencimento: apenas estabiliza a ordenação sem agrupar por cliente.
-    const ia=String(a?.id||a?.nosso_numero||'');
-    const ib=String(b?.id||b?.nosso_numero||'');
-    return ia.localeCompare(ib,'pt-BR',{numeric:true});
+    const va=String(a.vencimento||'9999-12-31'), vb=String(b.vencimento||'9999-12-31');
+    return va.localeCompare(vb);
   });
   if(!lista.length)return alert('Nenhum boleto do Banco do Brasil efetivamente emitido foi encontrado nos filtros atuais.\n\nRegistros pendentes, cancelados e Bradesco não entram na impressão.');
   const fmt=v=>v?new Date(v+'T12:00:00').toLocaleDateString('pt-BR'):'';
@@ -8595,6 +8590,51 @@ A Cobranças v2 desta aplicação não exige mTLS e este teste não emite boleto
     bbAviso('❌ Falha no teste OAuth com o Banco do Brasil: '+e.message,'erro');
     alert('Teste Banco do Brasil não concluído.\n\n'+e.message+'\n\nAs credenciais não foram apagadas. Confira a mensagem retornada pelo BB e tente novamente.');
   }
+}
+
+
+function bradescoAmbiente(){return document.getElementById('bradescoAmbiente')?.value==='producao'?'producao':'sandbox'}
+function bradescoAviso(texto,tipo=''){const e=document.getElementById('bradescoAviso');if(!e)return;e.className=`bb-cert-aviso ${tipo}`.trim();e.textContent=texto}
+async function bradescoReq(action,{method='GET',body}={}){
+  const chave=bbAdminKey();if(!chave)throw new Error('Informe e valide a chave administrativa das integrações acima.');
+  const amb=bradescoAmbiente();
+  const r=await fetch(`/api/banco-bradesco?action=${encodeURIComponent(action)}&ambiente=${encodeURIComponent(amb)}`,{method,headers:{'x-integrations-admin-key':chave,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify({...body,ambiente:amb}):undefined});
+  const j=await r.json().catch(()=>({}));if(!r.ok||j.ok===false)throw new Error(j.erro||`HTTP ${r.status}`);return j;
+}
+function lerArquivoTexto(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||''));r.onerror=()=>reject(new Error('Não foi possível ler o arquivo.'));r.readAsText(file)})}
+async function carregarStatusBradesco(mostrarErro=false){
+  const topo=document.getElementById('bradescoStatusTopo'),det=document.getElementById('bradescoCertDetalhes');
+  if(!bbAdminKey()){bradescoAviso('Valide a chave administrativa acima para consultar o Bradesco.','alerta');return}
+  try{
+    const j=await bradescoReq('status'), c=j.credenciais||{}, m=j.mtls||{};
+    if(det)det.textContent=m.configurado?`mTLS ARMAZENADO\nValidade: ${bbFmtData(m.valido_de)} até ${bbFmtData(m.valido_ate)}\nDias restantes: ${m.dias_restantes??'—'}\nFingerprint SHA-256: ${m.fingerprint256||'—'}`:'Nenhum par mTLS cadastrado neste ambiente.';
+    if(c.configuradas&&m.configurado){bradescoAviso('✅ Client ID/Secret e par mTLS estão armazenados. Pronto para validar a configuração local.','ok');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Bradesco • Sandbox configurado'}}
+    else {bradescoAviso(`Configuração pendente: ${c.configuradas?'credenciais OK':'salvar Client ID/Secret'} • ${m.configurado?'mTLS OK':'salvar certificado + chave privada'}.`,'alerta');if(topo){topo.className='cobranca-bank-status pendente';topo.textContent='Bradesco • Sandbox em configuração'}}
+  }catch(e){bradescoAviso('Não foi possível consultar o Bradesco: '+e.message,'erro');if(mostrarErro)alert(e.message)}
+}
+async function salvarCredenciaisBradesco(){
+  try{
+    if(bradescoAmbiente()==='producao')return alert('Produção permanece bloqueada até o indicador 175 e a assinatura/credencial de Produção estarem habilitados pelo Bradesco.');
+    const body={client_id:document.getElementById('bradescoClientId')?.value||'',client_secret:document.getElementById('bradescoClientSecret')?.value||''};
+    if(!confirm('Salvar/atualizar Client ID e Client Secret do Bradesco Sandbox?'))return;
+    const j=await bradescoReq('salvar-credenciais',{method:'POST',body});
+    ['bradescoClientId','bradescoClientSecret'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});bradescoAviso('✅ '+j.mensagem,'ok');await carregarStatusBradesco();
+  }catch(e){alert('Não foi possível salvar as credenciais Bradesco.\n\n'+e.message)}
+}
+async function salvarMtlsBradesco(){
+  const cert=document.getElementById('bradescoCertPublico')?.files?.[0], key=document.getElementById('bradescoChavePrivada')?.files?.[0];
+  if(!cert||!key)return alert('Selecione o certificado público e a chave privada correspondente.');
+  if(!confirm('Validar se a chave privada corresponde ao certificado público e armazenar o par mTLS criptografado?'))return;
+  try{
+    const [cert_pem,key_pem]=await Promise.all([lerArquivoTexto(cert),lerArquivoTexto(key)]);const j=await bradescoReq('salvar-mtls',{method:'POST',body:{cert_pem,key_pem}});
+    document.getElementById('bradescoCertPublico').value='';document.getElementById('bradescoChavePrivada').value='';bradescoAviso('✅ '+j.mensagem,'ok');await carregarStatusBradesco();
+  }catch(e){bradescoAviso('❌ O par mTLS não foi alterado. '+e.message,'erro');alert('Não foi possível salvar o mTLS Bradesco.\n\n'+e.message)}
+}
+async function validarConfiguracaoBradesco(){
+  if(bradescoAmbiente()==='producao')return alert('Este teste está liberado somente para o Sandbox neste momento.');
+  bradescoAviso('Validando credenciais armazenadas e correspondência do certificado mTLS...','');
+  try{const j=await bradescoReq('validar-configuracao',{method:'POST',body:{}});bradescoAviso('✅ '+j.mensagem+' A emissão real continua bloqueada.','ok');const topo=document.getElementById('bradescoStatusTopo');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Bradesco • Sandbox pronto para teste da API'}}
+  catch(e){bradescoAviso('❌ '+e.message,'erro');alert('Validação Bradesco não concluída.\n\n'+e.message)}
 }
 
 async function testarApiCobrancasBB(){

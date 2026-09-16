@@ -2640,14 +2640,14 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <section id="emailSubCobrancaBancaria" class="email-subaba ativa">
 
 <div class="cobranca-wrap">
-  <div class="cobranca-head"><div><h2>💳 Cobrança Bancária</h2><p>Banco do Brasil e Bradesco • relatório financeiro, emissão em massa e acompanhamento.</p></div><div class="cobranca-status-integracoes"><span id="bbStatusTopo" class="cobranca-bank-status pendente">Banco do Brasil • verificando configuração</span><span class="cobranca-bank-status pendente">Bradesco • Integração em configuração</span></div></div>
+  <div class="cobranca-head"><div><h2>💳 Cobrança Bancária</h2><p>Banco do Brasil e Bradesco • relatório financeiro, emissão em massa e acompanhamento.</p></div><div class="cobranca-status-integracoes"><span id="bbStatusTopo" class="cobranca-bank-status pendente">Banco do Brasil • verificando configuração</span><span id="bradescoStatusTopo" class="cobranca-bank-status pendente">Bradesco • Sandbox aguardando configuração</span></div></div>
   <div class="cobranca-subtabs" role="tablist" aria-label="Integração bancária">
     <button id="cobTabHistorico" class="cobranca-subtab ativa" onclick="mostrarAbaIntegracaoBancaria('historico')">📚 Histórico</button>
     <button id="cobTabEmissao" class="cobranca-subtab" onclick="mostrarAbaIntegracaoBancaria('emissao')">💳 Emissão de boleto</button>
     <button id="cobTabMassa" class="cobranca-subtab" onclick="mostrarAbaIntegracaoBancaria('massa')">📦 Emissão em massa</button>
     <button id="cobTabCredenciais" class="cobranca-subtab" onclick="mostrarAbaIntegracaoBancaria('credenciais')">🔐 Credenciais e diagnóstico</button>
   </div>
-  <div class="cobranca-integracao-aviso"><b>Banco do Brasil:</b> integração ativa. <span>Bradesco permanece bloqueado para emissão até a configuração oficial das credenciais/API.</span></div>
+  <div class="cobranca-integracao-aviso"><b>Banco do Brasil:</b> integração ativa. <span><b>Bradesco:</b> Sandbox em configuração; emissão real continua bloqueada até os testes e a habilitação de Produção.</span></div>
 
   <div id="cobAbaCredenciais" class="cobranca-card bb-cert-card cobranca-aba-interna" style="display:none;">
     <div class="bb-cert-topo">
@@ -2711,6 +2711,33 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div id="bbCertDetalhes" class="bb-cert-detalhes">Nenhum certificado carregado.</div>
       </div>
     </div>
+    <div class="bb-api-test-box" style="margin-top:18px;padding:16px;border:2px solid #cc092f;border-radius:12px;background:#fffafb;">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
+        <div><h3 style="margin:0 0 4px;">🔴 Bradesco — Cobrança Sandbox (mTLS)</h3><p class="bb-cert-ajuda" style="margin:0;">Cadastre aqui as credenciais que acabaram de ser ativadas no Portal Bradesco Developers. O Client Secret e a chave privada nunca são devolvidos pelo portal.</p></div>
+        <div><button class="btn azul" onclick="carregarStatusBradesco(true)">↻ Atualizar status</button> <button class="btn verde" onclick="validarConfiguracaoBradesco()">✅ Validar configuração</button></div>
+      </div>
+      <div id="bradescoAviso" class="bb-cert-aviso" style="margin-top:12px;">Aguardando consulta da configuração Bradesco.</div>
+      <div class="bb-cert-grid" style="margin-top:12px;">
+        <div class="bb-cert-bloco">
+          <h4>Credenciais Sandbox</h4>
+          <label>Ambiente</label><select id="bradescoAmbiente" onchange="carregarStatusBradesco()"><option value="sandbox">Sandbox</option><option value="producao">Produção (bloqueado até habilitação)</option></select>
+          <label>Client ID</label><input id="bradescoClientId" type="password" autocomplete="off" placeholder="Deixe em branco para manter o atual">
+          <label>Client Secret</label><input id="bradescoClientSecret" type="password" autocomplete="new-password" placeholder="Deixe em branco para manter o atual">
+          <button class="btn roxo" onclick="salvarCredenciaisBradesco()">💾 Salvar credenciais Bradesco</button>
+          <p class="bb-cert-ajuda">Os valores são enviados somente ao backend e armazenados criptografados. Não são gravados no index.html nem no localStorage.</p>
+        </div>
+        <div class="bb-cert-bloco">
+          <h4>Certificado mTLS</h4>
+          <label>Certificado público (.pem/.cer/.crt)</label><input id="bradescoCertPublico" type="file" accept=".pem,.cer,.crt,application/x-pem-file">
+          <label>Chave privada correspondente (.key/.pem)</label><input id="bradescoChavePrivada" type="file" accept=".key,.pem,application/x-pem-file">
+          <button class="btn verde" onclick="salvarMtlsBradesco()">🔐 Validar e salvar mTLS</button>
+          <p class="bb-cert-ajuda">A chave privada deve corresponder exatamente ao certificado público enviado ao Bradesco. Nunca envie a chave privada ao banco e nunca coloque esse arquivo no GitHub.</p>
+          <div id="bradescoCertDetalhes" class="bb-cert-detalhes">Nenhum par mTLS consultado.</div>
+        </div>
+      </div>
+      <p class="bb-cert-ajuda" style="margin:12px 0 0;"><b>Segurança:</b> o botão “Validar configuração” confere localmente credenciais + par mTLS e não registra boleto. O teste externo da API será conectado somente após confirmarmos na documentação do recurso o endpoint de autenticação/registro do Sandbox.</p>
+    </div>
+
     <div class="bb-api-test-box" style="margin-top:14px;padding:14px;border:1px solid #d9d2ea;border-radius:12px;background:#faf9ff;">
       <h4 style="margin:0 0 6px;">🧪 Teste seguro — API Cobranças v2</h4>
       <p class="bb-cert-ajuda" style="margin:0 0 10px;">Faz somente uma consulta GET dos boletos movimentados hoje. Não registra, altera, baixa nem emite boleto.</p>
@@ -2975,7 +3002,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=179"></script>
+<script src="financeiro.js?v=178-impressao-filtrados"></script>
 <script src="corridas.js?v=143-corrige-abas-entregador"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
