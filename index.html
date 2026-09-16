@@ -2792,7 +2792,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <button id="btnTesteExternoBradesco" class="btn verde" onclick="testarAutenticacaoBradesco()">🔐 Testar autenticação Bradesco Sandbox</button>
           <button id="btnConsultarPendentesBradesco" class="btn azul" onclick="consultarPendentesBradescoSandbox()" style="margin-left:6px;">🔎 Consultar títulos pendentes — Sandbox</button>
           <div id="bradescoTesteExternoStatus" class="bb-cert-aviso" style="margin-top:10px;">Aguardando teste externo de autenticação. O token de acesso nunca será exibido no navegador.</div>
-          <div id="bradescoConsultaPendentesStatus" class="bb-cert-aviso" style="margin-top:10px;">A consulta usa o POST /boleto/cobranca-pendente/v1/listar e o payload demonstrativo publicado pelo Swagger do Bradesco Sandbox. Não registra, altera nem baixa boleto.</div>
+          <div id="bradescoConsultaPendentesStatus" class="bb-cert-aviso" style="margin-top:10px;">A consulta usa o POST /boleto/cobranca-pendente/v1/listar com mTLS + Bearer no backend. Não registra, altera nem baixa boleto. O registro Sandbox já foi identificado em POST /boleto/cobranca-registro/v1/cobranca, mas permanece bloqueado até esta consulta ser validada.</div>
         </div>
       </div>
     </div>
@@ -3023,7 +3023,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=181"></script>
+<script src="financeiro.js?v=184"></script>
 <script src="corridas.js?v=143-corrige-abas-entregador"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
