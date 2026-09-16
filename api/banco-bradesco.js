@@ -1,4 +1,5 @@
 const crypto=require('crypto');
+const https=require('https');
 const {exigirAdmin,supabaseRest,criptografar,descriptografar}=require('../lib/integracoes/_utils');
 
 const TABELA='integracoes_bradesco_segredos';
@@ -30,6 +31,37 @@ async function status(amb){
   const cred=await obter(idRegistro(amb,'credenciais')), mtls=await obter(idRegistro(amb,'mtls'));
   return {ambiente:ambiente(amb),credenciais:{configuradas:!!cred,client_id:!!cred,client_secret:!!cred},mtls:{configurado:!!mtls,...(mtls?.metadata||{})},cnpj:CNPJ_PADRAO};
 }
+
+function endpointToken(amb){
+  return ambiente(amb)==='sandbox'
+    ? 'https://openapisandbox.prebanco.com.br/auth/server-mtls/v2/token'
+    : 'https://openapi.bradesco.com.br/auth/server-mtls/v2/token';
+}
+function solicitarTokenMtls(url,cred,mtls){
+  return new Promise((resolve,reject)=>{
+    const u=new URL(url);
+    const form=new URLSearchParams({grant_type:'client_credentials',client_id:cred.client_id,client_secret:cred.client_secret}).toString();
+    const basic=Buffer.from(`${cred.client_id}:${cred.client_secret}`,'utf8').toString('base64');
+    const req=https.request({
+      protocol:u.protocol,hostname:u.hostname,port:u.port||443,path:u.pathname+u.search,method:'POST',
+      cert:mtls.cert_pem,key:mtls.key_pem,minVersion:'TLSv1.2',rejectUnauthorized:true,
+      headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json','Authorization':`Basic ${basic}`,'Content-Length':Buffer.byteLength(form)},
+      timeout:20000
+    },r=>{
+      let raw='';r.setEncoding('utf8');r.on('data',d=>{if(raw.length<200000)raw+=d});
+      r.on('end',()=>{
+        let data={};try{data=raw?JSON.parse(raw):{}}catch(_){data={resposta:raw.slice(0,1500)}}
+        if(r.statusCode>=200&&r.statusCode<300&&data.access_token){
+          return resolve({http_status:r.statusCode,token_type:data.token_type||'Bearer',expires_in:data.expires_in||null,scope:data.scope||null});
+        }
+        const detalhe=data.error_description||data.descricaoErro||data.message||data.error||`HTTP ${r.statusCode}`;
+        const e=new Error(`Bradesco recusou a autenticação: ${detalhe}`);e.http_status=r.statusCode;e.resposta=data;reject(e);
+      });
+    });
+    req.on('timeout',()=>req.destroy(new Error('Tempo esgotado ao conectar ao Bradesco Sandbox.')));
+    req.on('error',reject);req.write(form);req.end();
+  });
+}
 module.exports=async function(req,res){
   if(!exigirAdmin(req,res))return;
   const action=String(req.query?.action||'status'), amb=ambiente(req.query?.ambiente||req.body?.ambiente);
@@ -56,6 +88,14 @@ module.exports=async function(req,res){
       const cred=descriptografar(credReg), mtls=descriptografar(mtlsReg);const meta=validarParMtls(mtls.cert_pem,mtls.key_pem);
       if(!cred.client_id||!cred.client_secret)throw new Error('Credenciais incompletas.');
       return json(res,200,{ok:true,teste:{configuracao_valida:true,mtls_valido:true,credenciais_validas:true,certificado:meta},mensagem:'Configuração local do Bradesco Sandbox validada. Nenhum boleto foi emitido.'});
+    }
+    if(action==='testar-autenticacao'){
+      if(amb!=='sandbox')throw new Error('O teste externo está liberado somente para o Sandbox.');
+      const credReg=await obter(idRegistro(amb,'credenciais')), mtlsReg=await obter(idRegistro(amb,'mtls'));
+      if(!credReg||!mtlsReg)throw new Error('Cadastre as credenciais e o par mTLS antes do teste externo.');
+      const cred=descriptografar(credReg), mtls=descriptografar(mtlsReg);validarParMtls(mtls.cert_pem,mtls.key_pem);
+      const teste=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
+      return json(res,200,{ok:true,teste:{autenticacao:true,ambiente:'sandbox',endpoint:'openapisandbox.prebanco.com.br',http_status:teste.http_status,token_type:teste.token_type,expires_in:teste.expires_in,scope:teste.scope},mensagem:'Autenticação mTLS/OAuth do Bradesco Sandbox concluída com sucesso. Nenhum boleto foi consultado, alterado ou emitido.'});
     }
     return json(res,400,{ok:false,erro:'Ação inválida.'});
   }catch(e){console.error('[BANCO-BRADESCO]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Bradesco.'});}
