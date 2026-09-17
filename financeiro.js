@@ -8917,16 +8917,19 @@ function montarPreviaRegistroBradescoV187(){
 async function diagnosticarPayloadMinimoBradescoV187(){
   if(bradescoAmbiente()!=='sandbox')return alert('O diagnóstico está liberado somente para o Sandbox.');
   const out=document.getElementById('bradescoDiagnosticoMinimoV187'),btn=document.getElementById('btnDiagnosticoMinimoBradesco');
-  if(!confirm('Executar diagnóstico estrutural seguro no Bradesco Sandbox?\n\nOs dados preenchidos na prévia NÃO serão enviados. O backend usará somente os dados sintéticos do diagnóstico e continuará omitindo nuCliente e nuNegociacao.'))return;
+  if(!confirm('Executar diagnóstico completo seguro no Bradesco Sandbox?\n\nOs dados preenchidos na prévia NÃO serão enviados. O backend usará somente dados sintéticos e identificadores bancários deliberadamente inválidos para descobrir as regras do Sandbox.'))return;
   if(out){out.className='bb-cert-aviso';out.textContent='⏳ Lendo a estrutura sanitizada da resposta do Bradesco...'} if(btn)btn.disabled=true;
   try{
     const j=await bradescoReq('diagnosticar-payload-minimo',{method:'POST',body:{}}),d=j.diagnostico||{};
     if(!j.ok)throw new Error(j.mensagem||'Diagnóstico não concluído.');
-    const estrutura=d.estrutura??{};
+    const estrutura=d.estrutura??{}, resumo=d.resumo||{};
     const texto=JSON.stringify(estrutura,null,2);
+    const ausentes=Array.isArray(resumo.campos_ausentes)?resumo.campos_ausentes:[];
+    const regras=Array.isArray(resumo.regras)?resumo.regras:[];
+    const resumoHtml=`<div style="margin-top:10px;padding:10px;background:#f7fff9;border:1px solid #c6e6ce;border-radius:8px;"><b>Resumo V190</b><br>Mensagens únicas: ${Number(resumo.total_unicas||0)}<br><b>Campos ainda ausentes:</b> ${ausentes.length?ausentes.map(x=>escaparHtmlEmail(x)).join('<br>'):'Nenhum entre os itens analisados.'}<br><br><b>Regras/formatos relevantes:</b><br>${regras.length?regras.map(x=>escaparHtmlEmail(x)).join('<br>'):'Nenhuma regra adicional reconhecida.'}</div>`;
     if(out){
       out.className='bb-cert-aviso ok';
-      out.innerHTML=`✅ <b>Estrutura sanitizada recebida — HTTP ${escaparHtmlEmail(String(d.http_status||''))}.</b><br>${d.codigo?`Código: ${escaparHtmlEmail(String(d.codigo))}<br>`:''}${escaparHtmlEmail(String(d.mensagem||'Validação acionada.'))}<div style="margin-top:10px;max-height:420px;overflow:auto;background:#fff;border:1px solid #c6e6ce;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(texto)}</pre></div><span class="bb-cert-ajuda">🔒 V189 limita profundidade/quantidade e remove propriedades sensíveis. Token, Client Secret, Authorization, certificado, chave privada, credenciais e o payload enviado não são retornados ao navegador.</span>`;
+      out.innerHTML=`✅ <b>Estrutura sanitizada recebida — HTTP ${escaparHtmlEmail(String(d.http_status||''))}.</b><br>${d.codigo?`Código: ${escaparHtmlEmail(String(d.codigo))}<br>`:''}${escaparHtmlEmail(String(d.mensagem||'Validação acionada.'))}${resumoHtml}<div style="margin-top:10px;max-height:420px;overflow:auto;background:#fff;border:1px solid #c6e6ce;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(texto)}</pre></div><span class="bb-cert-ajuda">🔒 V190 resume mensagens duplicadas, limita profundidade/quantidade e remove propriedades sensíveis. Token, Client Secret, Authorization, certificado, chave privada, credenciais e o payload enviado não são retornados ao navegador.</span>`;
     }
   }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Diagnóstico não concluído: '+String(e.message||e)}}
   finally{if(btn)btn.disabled=false;}
