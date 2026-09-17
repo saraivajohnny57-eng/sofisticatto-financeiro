@@ -2501,6 +2501,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
       <button id="corridasTab_driver_historico" class="corridas-tab corridas-driver-only" onclick="mostrarAbaCorridas('driver_historico')">Histórico</button>
       <button id="corridasTab_entregadores" class="corridas-tab corridas-admin-only" onclick="mostrarAbaCorridas('entregadores')">Entregadores</button>
       <button id="corridasTab_fechamentos" class="corridas-tab corridas-admin-only" onclick="mostrarAbaCorridas('fechamentos')">Histórico de Fechamentos</button>
+      <button id="corridasTab_autorizacoes" class="corridas-tab corridas-admin-only" onclick="mostrarAbaCorridas('autorizacoes')">📄 Autorizações de Coleta</button>
       <button id="corridasTab_feriados" class="corridas-tab corridas-admin-only" onclick="mostrarAbaCorridas('feriados')">Feriados</button>
     </div>
 
@@ -2620,6 +2621,52 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <p>Cada fechamento reúne as corridas do período. Financeiro pode marcar o pagamento e o entregador parceiro pode confirmar o recebimento pelo próprio acesso.</p>
         <div class="table-wrap"><table><thead><tr><th>Fechamento</th><th>Data</th><th>Entregador</th><th>Período</th><th>Qtd.</th><th>Total</th><th>Situação</th><th>Ações</th></tr></thead><tbody id="tabelaFechamentosCorridas"></tbody></table></div>
       </div>
+    </div>
+
+    <div id="corridasAba_autorizacoes" class="corridas-subsecao corridas-admin-only" style="display:none;">
+      <div class="card">
+        <div class="top"><div><h2>📄 Autorizações de Coleta</h2><p>Monte a autorização, aplique carimbo e assinatura e gere o documento pronto para o entregador.</p></div></div>
+        <div class="corridas-grid">
+          <div class="corridas-campo"><label>Modelo *</label><select id="autModelo" onchange="autCarregarModeloSelecionado()"></select></div>
+          <div class="corridas-campo"><label>Entregador / responsável</label><select id="autEntregador" onchange="autPreencherEntregador()"><option value="">Preencher manualmente</option></select></div>
+          <div class="corridas-campo"><label>Nome do responsável *</label><input id="autResponsavel"></div>
+          <div class="corridas-campo"><label>CPF/CNPJ do responsável</label><input id="autCpf"></div>
+          <div class="corridas-campo"><label>Veículo</label><select id="autVeiculo"><option>Moto</option><option>Carro</option><option>Fiorino</option><option>Van</option><option>Caminhão</option><option>Outro</option></select></div>
+          <div class="corridas-campo"><label>Placa</label><input id="autPlaca"></div>
+          <div class="corridas-campo span2"><label>Transportadora / local de coleta *</label><input id="autTransportadora" value="CAIAPO CARGAS"></div>
+          <div class="corridas-campo"><label>CNPJ da transportadora</label><input id="autCnpjTransportadora" value="05.543.757/0003-07"></div>
+          <div class="corridas-campo"><label>Cidade / UF</label><input id="autCidade" value="Aparecida de Goiânia - GO"></div>
+          <div class="corridas-campo"><label>Pedido / NF</label><input id="autPedido" placeholder="Opcional"></div>
+          <div class="corridas-campo"><label>Data</label><input id="autData" type="date"></div>
+          <div class="corridas-campo span2"><label>Observações adicionais</label><textarea id="autObs" rows="2"></textarea></div>
+        </div>
+        <div class="corridas-actions"><button class="buscar" onclick="autVisualizar()">👁️ Pré-visualizar</button><button class="salvar" onclick="autGerarDocumento()">📄 Gerar PDF / Imprimir</button></div>
+      </div>
+
+      <div class="card">
+        <h2>🖋️ Carimbo e assinatura</h2>
+        <div class="corridas-grid">
+          <div class="corridas-campo"><label>Importar carimbo (PNG/JPG)</label><input id="autCarimboFile" type="file" accept="image/png,image/jpeg,image/webp" onchange="autImportarImagem(event,'carimbo')"></div>
+          <div class="corridas-campo"><label>Tonalidade do carimbo</label><select id="autCarimboCor" onchange="autRecolorirCarimbo()"><option value="original">Original</option><option value="roxo" selected>Roxo mais visível</option><option value="azul">Azul mais visível</option></select></div>
+          <div class="corridas-campo"><label>Importar assinatura (PNG/JPG)</label><input id="autAssinaturaFile" type="file" accept="image/png,image/jpeg,image/webp" onchange="autImportarImagem(event,'assinatura')"></div>
+          <div class="corridas-campo"><label>Aplicar no documento</label><select id="autAplicacao"><option value="ambos" selected>Carimbo + assinatura</option><option value="carimbo">Somente carimbo</option><option value="assinatura">Somente assinatura</option><option value="nenhum">Nenhum</option></select></div>
+        </div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:12px;align-items:flex-end"><div><small>Carimbo</small><div id="autCarimboPreview" class="aut-img-preview">Não importado</div></div><div><small>Assinatura</small><div id="autAssinaturaPreview" class="aut-img-preview">Não importada</div></div></div>
+        <p style="font-size:12px;color:#706884;margin-top:10px;">As imagens ficam salvas neste navegador. Para melhor resultado, use assinatura PNG com fundo transparente.</p>
+      </div>
+
+      <div class="card">
+        <h2>🧩 Modelos de autorização</h2>
+        <div class="corridas-grid">
+          <div class="corridas-campo"><label>Nome do modelo</label><input id="autModeloNome" placeholder="Ex.: Caiapó Cargas"></div>
+          <div class="corridas-campo"><label>Importar modelo</label><input id="autModeloFile" type="file" accept=".txt,.html,.json,text/plain,text/html,application/json" onchange="autImportarModelo(event)"></div>
+          <div class="corridas-campo span2"><label>Texto do modelo</label><textarea id="autModeloTexto" rows="12"></textarea></div>
+        </div>
+        <p style="font-size:12px;color:#706884;">Campos disponíveis: <b>{{empresa}}, {{cnpj_empresa}}, {{responsavel}}, {{cpf}}, {{veiculo}}, {{placa}}, {{transportadora}}, {{cnpj_transportadora}}, {{cidade}}, {{pedido}}, {{data}}, {{observacoes}}</b>.</p>
+        <div class="corridas-actions"><button class="salvar" onclick="autSalvarModelo()">💾 Salvar modelo</button><button class="buscar" onclick="autNovoModelo()">＋ Novo</button><button class="buscar" onclick="autDuplicarModelo()">⧉ Duplicar</button><button class="excluir" onclick="autExcluirModelo()">🗑️ Excluir</button><button class="buscar" onclick="autExportarModelo()">⬇️ Exportar</button></div>
+      </div>
+
+      <div id="autPreviewCard" class="card" style="display:none;"><div class="top"><div><h2>Prévia da autorização</h2></div><button class="buscar" onclick="autGerarDocumento()">📄 Gerar PDF / Imprimir</button></div><div id="autPreviewDoc" class="aut-doc-preview"></div></div>
     </div>
 
     <div id="corridasAba_feriados" class="corridas-subsecao corridas-admin-only" style="display:none;">
@@ -3041,7 +3088,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 
 <script src="financeiro.js?v=190"></script>
-<script src="corridas.js?v=143-corrige-abas-entregador"></script>
+<script src="autorizacoes-corridas.js?v=200"></script>
+<script src="corridas.js?v=200-autorizacoes"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
 <script src="cotacoes.js?v=136-ssw-coleta"></script>

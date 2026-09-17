@@ -5,6 +5,7 @@ let corridasFechamentosCache=[];
 let corridasGraficoAtual=null;
 let corridaEntregadorSelecionado=null;
 let corridasUsuariosEntregadoresCache=[];
+window.obterEntregadoresCorridas=()=>corridasEntregadoresCache;
 
 function usuarioEhEntregador(){ return usuarioLogado?.tipo === 'entregador'; }
 function usuarioPodeAdministrarCorridas(){ return ['admin','financeiro'].includes(usuarioLogado?.tipo); }
@@ -25,7 +26,7 @@ async function carregarModuloCorridas(){
 }
 
 function mostrarAbaCorridas(aba){
-  const permitida=usuarioEhEntregador()?['driver_aberto','driver_aguardando','driver_historico']:['nova','corridas','entregadores','fechamentos','feriados'];
+  const permitida=usuarioEhEntregador()?['driver_aberto','driver_aguardando','driver_historico']:['nova','corridas','entregadores','fechamentos','autorizacoes','feriados'];
   if(!permitida.includes(aba)) aba=usuarioEhEntregador()?'driver_aberto':'nova';
   document.querySelectorAll('.corridas-subsecao').forEach(e=>e.style.display='none');
   document.querySelectorAll('.corridas-tab').forEach(e=>e.classList.remove('ativo'));
@@ -37,6 +38,7 @@ function mostrarAbaCorridas(aba){
   if(aba==='driver_aguardando') montarPortalEntregadorAguardando();
   if(aba==='driver_historico') montarPortalEntregadorHistorico();
   if(aba==='entregadores') montarTabelaEntregadores();
+  if(aba==='autorizacoes') window.autInicializar?.();
 }
 
 async function carregarEntregadoresCorridas(){
