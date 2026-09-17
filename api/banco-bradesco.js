@@ -151,7 +151,7 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
   return new Promise((resolve,reject)=>{
     const url='https://openapisandbox.prebanco.com.br:443/boleto/cobranca-registro/v1/cobranca';
     const u=new URL(url);
-    // V198: consolida a serialização exigida pelo Bradesco para vlNominalTitulo.
+    // V199: consolida a serialização e reconhece o limite do Sandbox por cenários fixos.
     // A API exige número JSON com ponto e duas casas (ex.: 1.00), sem aspas; JSON.stringify(1.00) viraria 1.
     // Remove debitoAutomatico, rejeitado pelo default.json deste endpoint, e inclui os campos
     // sintéticos de Sacador/Avalista e listaMsgs solicitados pelo cenário principal.
@@ -277,7 +277,7 @@ module.exports=async function(req,res){
       if(typeof dOriginal?.resposta==='string'){
         try{const interno=JSON.parse(dOriginal.resposta);if(interno&&typeof interno==='object')d=interno;}catch(_){}
       }
-      // V198: separa o resultado principal (default.json / errors / Error400Response)
+      // V199: separa o resultado principal (default.json / errors / Error400Response)
       // dos cenários internos erro-*.json do Sandbox. Estes cenários não são usados para montar o boleto.
       const mensagensPrincipais=[];
       const mensagensCenarios=[];
@@ -324,7 +324,10 @@ module.exports=async function(req,res){
       }
       // Retorna apenas a resposta do Bradesco sanitizada. O payload enviado nunca é incluído.
       const estrutura=estruturaSegura(d);
-      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',resumo:{total_mensagens:mensagensPrincipais.length,total_unicas:unicas.length,campos_ausentes:ausentes,campos_rejeitados:rejeitados,erros_formato:formato,regras:regras,cenarios_sandbox_ignorados:cenariosUnicos.length},estrutura,total_nos:totalNos},seguranca:'V198 preserva vlNominalTitulo como número JSON com ponto e duas casas decimais, sem aspas, conforme a validação observada no endpoint e exemplos funcionais da API. Mantém o payload diagnóstico sintético e a separação dos cenários erro-*.json. Token, Client Secret, Authorization, certificado, chave privada, credenciais e payload enviado não são devolvidos ao navegador.'});
+      const msgPrincipal=String(d.mensagem||d.message||'Validação do payload acionada.');
+      const sandboxCenarioFixo=teste.http_status===422 && /não atende aos cenários existentes para Sandbox/i.test(msgPrincipal);
+      const validacaoEstruturalConcluida=sandboxCenarioFixo && unicas.length===0 && ausentes.length===0 && rejeitados.length===0 && formato.length===0;
+      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:msgPrincipal,sandbox_cenario_fixo:sandboxCenarioFixo,validacao_estrutural_concluida:validacaoEstruturalConcluida,proximo_passo:validacaoEstruturalConcluida?'Usar os dados bancários reais/homologados do beneficiário fornecidos pelo Bradesco (CPF/CNPJ do beneficiário, carteira/idProduto e nuNegociacao). Não tentar descobrir esses valores por força bruta no Sandbox.':null,resumo:{total_mensagens:mensagensPrincipais.length,total_unicas:unicas.length,campos_ausentes:ausentes,campos_rejeitados:rejeitados,erros_formato:formato,regras:regras,cenarios_sandbox_ignorados:cenariosUnicos.length},estrutura,total_nos:totalNos},seguranca:'V199 reconhece HTTP 422 de cenário fixo do Sandbox como limite da massa sintética quando não há erros estruturais. Mantém vlNominalTitulo com duas casas decimais e não tenta adivinhar dados bancários reais. Token, Client Secret, Authorization, certificado, chave privada, credenciais e payload enviado não são devolvidos ao navegador.'});
     }
     if(action==='validar-endpoint-registro'){
       if(amb!=='sandbox')throw new Error('A validação do registro está liberada somente para o Sandbox.');
