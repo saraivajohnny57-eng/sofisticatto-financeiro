@@ -8900,14 +8900,35 @@ async function validarEndpointRegistroBradescoSandbox(){
   }finally{if(btn)btn.disabled=false;}
 }
 
-function montarPreviaRegistroBradescoV186(){
+function montarPreviaRegistroBradescoV187(){
   const nome=String(document.getElementById('brTesteNome')?.value||'').trim();
   const documento=String(document.getElementById('brTesteDocumento')?.value||'').replace(/\D/g,'');
   const valorTxt=String(document.getElementById('brTesteValor')?.value||'').trim().replace(/\./g,'').replace(',','.');
   const valor=Number(valorTxt), vencimento=String(document.getElementById('brTesteVencimento')?.value||''), seuNumero=String(document.getElementById('brTesteSeuNumero')?.value||'').trim();
-  const out=document.getElementById('bradescoPreviaRegistroV186'), faltas=[];
+  const out=document.getElementById('bradescoPreviaRegistroV187'), faltas=[];
   if(!nome)faltas.push('nome do pagador'); if(![11,14].includes(documento.length))faltas.push('CPF/CNPJ com 11 ou 14 dígitos'); if(!(valor>0))faltas.push('valor maior que zero'); if(!vencimento)faltas.push('vencimento'); if(!seuNumero)faltas.push('seu número/controle');
   if(faltas.length){if(out){out.style.display='block';out.textContent='⚠️ Complete antes da prévia: '+faltas.join(', ')+'.'}return;}
-  const previa={ambiente:'SANDBOX',operacao:'PREVIA_LOCAL_NAO_ENVIADA',pagador:{nome,cpfCnpj:documento},titulo:{valor:Number(valor.toFixed(2)),vencimento,seuNumero},camposBancarios:{produto:'AGUARDANDO_CONFIRMACAO',negociacao:'AGUARDANDO_CONFIRMACAO',nossoNumero:'AGUARDANDO_CONFIRMACAO'},seguranca:'V186 não chama o endpoint de registro com estes dados.'};
+  const previa={ambiente:'SANDBOX',operacao:'PREVIA_LOCAL_NAO_ENVIADA',pagador:{nome,cpfCnpj:documento},titulo:{valor:Number(valor.toFixed(2)),vencimento,seuNumero},camposBancarios:{produto:'AGUARDANDO_CONFIRMACAO',negociacao:'AGUARDANDO_CONFIRMACAO',nossoNumero:'AGUARDANDO_CONFIRMACAO'},seguranca:'V187 mantém esta prévia somente no navegador; estes dados não são enviados ao endpoint de registro.'};
   if(out){out.style.display='block';out.textContent=JSON.stringify(previa,null,2);}
+}
+
+
+// V187 — diagnóstico seguro do Schema de registro Bradesco Sandbox.
+async function diagnosticarPayloadMinimoBradescoV187(){
+  if(bradescoAmbiente()!=='sandbox')return alert('O diagnóstico está liberado somente para o Sandbox.');
+  const out=document.getElementById('bradescoDiagnosticoMinimoV187'),btn=document.getElementById('btnDiagnosticoMinimoBradesco');
+  if(!confirm('Executar diagnóstico seguro dos campos obrigatórios no Bradesco Sandbox?\n\nOs dados preenchidos na prévia NÃO serão enviados. O backend usará dados sintéticos e omitirá nuCliente e nuNegociacao de propósito, impedindo a formação de um pedido completo de registro.'))return;
+  if(out){out.className='bb-cert-aviso';out.textContent='⏳ Enviando payload sintético e incompleto para obter a validação do Bradesco...'} if(btn)btn.disabled=true;
+  try{
+    const j=await bradescoReq('diagnosticar-payload-minimo',{method:'POST',body:{}}),d=j.diagnostico||{};
+    if(!j.ok)throw new Error(j.mensagem||'Diagnóstico não concluído.');
+    let detalhe=''; const ev=d.errosValidacao;
+    if(ev){
+      if(Array.isArray(ev))detalhe=ev.map(x=>[x.campo,x.mensagem||x.tipoRestricao].filter(Boolean).join(': ')).join(' • ');
+      else if(typeof ev==='object')detalhe=[ev.campo,ev.mensagem||ev.tipoRestricao].filter(Boolean).join(': ');
+      else detalhe=String(ev);
+    }
+    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ <b>Diagnóstico recebido do Bradesco Sandbox — HTTP ${escaparHtmlEmail(String(d.http_status||''))}.</b><br>${d.codigo?`Código: ${escaparHtmlEmail(String(d.codigo))}<br>`:''}${escaparHtmlEmail(String(d.mensagem||'Validação acionada.'))}${detalhe?`<br><b>Validação:</b> ${escaparHtmlEmail(detalhe)}`:''}<br><span class="bb-cert-ajuda">Nenhum dado da prévia foi utilizado. nuCliente e nuNegociacao permaneceram ausentes deliberadamente.</span>`}
+  }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Diagnóstico não concluído: '+String(e.message||e)}}
+  finally{if(btn)btn.disabled=false;}
 }

@@ -2796,8 +2796,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <div id="bradescoConsultaPendentesStatus" class="bb-cert-aviso" style="margin-top:10px;">A consulta usa o POST /boleto/cobranca-pendente/v1/listar com mTLS + Bearer no backend. Não registra, altera nem baixa boleto. O registro Sandbox já foi identificado em POST /boleto/cobranca-registro/v1/cobranca, mas permanece bloqueado até esta consulta ser validada.</div>
           <div id="bradescoRegistroSandboxStatus" class="bb-cert-aviso" style="margin-top:10px;">V186: o HTTP 422 retornado pelo Bradesco ao JSON vazio é tratado como confirmação de que o endpoint de registro foi alcançado. Nenhum boleto é emitido por este teste.</div>
           <div style="margin-top:14px;padding:14px;border:1px solid #e5c2c2;border-radius:12px;background:#fff;">
-            <b>🧾 Preparação do primeiro boleto — Bradesco Sandbox</b>
-            <div class="bb-cert-ajuda" style="margin:5px 0 10px;">Preencha somente para montar e revisar uma prévia local. <b>V186 não envia estes dados ao Bradesco.</b> Campos bancários específicos do convênio continuarão bloqueados até serem confirmados no Sandbox.</div>
+            <b>🧾 Preparação e diagnóstico — Bradesco Sandbox</b>
+            <div class="bb-cert-ajuda" style="margin:5px 0 10px;">Preencha somente para montar e revisar uma prévia local. <b>V187 não envia os dados desta prévia ao Bradesco.</b> O diagnóstico usa dados sintéticos separados e omite deliberadamente nuCliente e nuNegociacao, que o Schema marca como obrigatórios.</div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;">
               <label>Nome do pagador<input id="brTesteNome" class="input" placeholder="Cliente de teste"></label>
               <label>CPF/CNPJ<input id="brTesteDocumento" class="input" inputmode="numeric" placeholder="Somente números"></label>
@@ -2805,8 +2805,10 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <label>Vencimento<input id="brTesteVencimento" class="input" type="date"></label>
               <label>Seu número / controle<input id="brTesteSeuNumero" class="input" placeholder="Controle interno"></label>
             </div>
-            <button class="btn" onclick="montarPreviaRegistroBradescoV186()" style="margin-top:10px;background:#6b46c1;color:#fff;">👁️ Montar prévia — não enviar</button>
-            <pre id="bradescoPreviaRegistroV186" style="display:none;white-space:pre-wrap;word-break:break-word;margin-top:10px;padding:10px;background:#f7f5fb;border-radius:8px;max-height:260px;overflow:auto;"></pre>
+            <button class="btn" onclick="montarPreviaRegistroBradescoV187()" style="margin-top:10px;background:#6b46c1;color:#fff;">👁️ Montar prévia — não enviar</button>
+            <button id="btnDiagnosticoMinimoBradesco" class="btn" onclick="diagnosticarPayloadMinimoBradescoV187()" style="margin-top:10px;margin-left:6px;background:#b7791f;color:#fff;">🧪 Diagnosticar campos obrigatórios — sem boleto válido</button>
+            <div id="bradescoDiagnosticoMinimoV187" class="bb-cert-aviso" style="margin-top:10px;">O diagnóstico não usa nome, CPF/CNPJ, valor ou vencimento digitados acima. Ele envia somente dados sintéticos e deixa nuCliente e nuNegociacao ausentes de propósito.</div>
+            <pre id="bradescoPreviaRegistroV187" style="display:none;white-space:pre-wrap;word-break:break-word;margin-top:10px;padding:10px;background:#f7f5fb;border-radius:8px;max-height:260px;overflow:auto;"></pre>
           </div>
         </div>
       </div>
