@@ -2648,11 +2648,11 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div class="corridas-grid">
           <div class="corridas-campo"><label>Carimbo da empresa</label><input id="autCarimboFile" type="file" accept="image/png,image/jpeg,image/webp" onchange="autImportarImagem(event,'carimbo')"><button type="button" class="buscar" style="margin-top:8px" onclick="autUsarCarimboPadrao()">↺ Restaurar carimbo padrão</button></div>
           <div class="corridas-campo"><label>Tonalidade do carimbo</label><select id="autCarimboCor" onchange="autRecolorirCarimbo()"><option value="original">Original</option><option value="roxo" selected>Roxo mais visível</option><option value="azul">Azul mais visível</option></select></div>
-          <div class="corridas-campo"><label>Importar assinatura (PNG/JPG)</label><input id="autAssinaturaFile" type="file" accept="image/png,image/jpeg,image/webp" onchange="autImportarImagem(event,'assinatura')"></div>
+          <div class="corridas-campo"><label>Assinatura do responsável</label><input id="autAssinaturaFile" type="file" accept="image/png,image/jpeg,image/webp" onchange="autImportarImagem(event,'assinatura')"><button type="button" class="buscar" style="margin-top:8px" onclick="autUsarAssinaturaPadrao()">↺ Restaurar assinatura padrão</button></div>
           <div class="corridas-campo"><label>Aplicar no documento</label><select id="autAplicacao"><option value="ambos" selected>Carimbo + assinatura</option><option value="carimbo">Somente carimbo</option><option value="assinatura">Somente assinatura</option><option value="nenhum">Nenhum</option></select></div>
         </div>
         <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:12px;align-items:flex-end"><div><small>Carimbo</small><div id="autCarimboPreview" class="aut-img-preview">Não importado</div></div><div><small>Assinatura</small><div id="autAssinaturaPreview" class="aut-img-preview">Não importada</div></div></div>
-        <p style="font-size:12px;color:#706884;margin-top:10px;">O carimbo oficial da Sofisticatto já vem pronto no sistema, com moldura quadrada e tonalidade roxo/azulada mais visível. Você ainda pode importar outro carimbo. A assinatura pode ser importada em PNG/JPG; para melhor resultado, prefira PNG com fundo transparente.</p>
+        <p style="font-size:12px;color:#706884;margin-top:10px;">O carimbo oficial da Sofisticatto já vem pronto no sistema, com moldura quadrada e tonalidade roxo/azulada mais visível. Você ainda pode importar outro carimbo. A assinatura enviada também já vem pronta no sistema, recortada e com fundo transparente para sobrepor ao carimbo. Você ainda pode importar outra assinatura quando precisar.</p>
       </div>
 
       <div class="card">
