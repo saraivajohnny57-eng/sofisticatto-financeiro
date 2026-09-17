@@ -151,7 +151,8 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
   return new Promise((resolve,reject)=>{
     const url='https://openapisandbox.prebanco.com.br:443/boleto/cobranca-registro/v1/cobranca';
     const u=new URL(url);
-    // V197: corrige dataLimiteDesconto1 conforme validação real retornada pela API (DD.MM.AAAA).
+    // V198: consolida a serialização exigida pelo Bradesco para vlNominalTitulo.
+    // A API exige número JSON com ponto e duas casas (ex.: 1.00), sem aspas; JSON.stringify(1.00) viraria 1.
     // Remove debitoAutomatico, rejeitado pelo default.json deste endpoint, e inclui os campos
     // sintéticos de Sacador/Avalista e listaMsgs solicitados pelo cenário principal.
     // Negociação/beneficiário continuam deliberadamente sintéticos para impedir registro real.
@@ -165,7 +166,7 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
       nuCliente:'55999',
       dtEmissaoTitulo:'17.09.2026',
       dtVencimentoTitulo:'30.09.2026',
-      vlNominalTitulo:'1',
+      vlNominalTitulo:'1.00',
       cdEspecieTitulo:'01',
       cindcdAceitSacdo:'N',
       percentualJuros:'0',
@@ -203,7 +204,11 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
       foneSacadorAvalista:'99999999999',
       listaMsgs:[{mensagem:'DIAGNOSTICO SANDBOX 1'},{mensagem:'DIAGNOSTICO SANDBOX 2'}]
     };
-    const body=JSON.stringify(payload);
+    // Serializa normalmente e, somente no campo monetário validado pelo Bradesco,
+    // remove as aspas preservando exatamente as duas casas decimais.
+    // Resultado transmitido: "vlNominalTitulo":1.00 (não 1 e não "1.00").
+    let body=JSON.stringify(payload);
+    body=body.replace(/"vlNominalTitulo":"(-?\d+\.\d{2})"/, '"vlNominalTitulo":$1');
     let pacote;try{pacote=criarPfxTemporario(mtls.cert_pem,mtls.key_pem)}catch(e){return reject(e)}
     const agent=new https.Agent({pfx:pacote.pfx,passphrase:pacote.passphrase,minVersion:'TLSv1.2',rejectUnauthorized:true,keepAlive:false});
     const req=https.request({protocol:u.protocol,hostname:u.hostname,servername:u.hostname,port:u.port||443,path:u.pathname,method:'POST',agent,headers:{Authorization:`Bearer ${token}`,'Accept':'application/json','Content-Type':'application/json','Content-Length':Buffer.byteLength(body)},timeout:20000},r=>{
@@ -272,7 +277,7 @@ module.exports=async function(req,res){
       if(typeof dOriginal?.resposta==='string'){
         try{const interno=JSON.parse(dOriginal.resposta);if(interno&&typeof interno==='object')d=interno;}catch(_){}
       }
-      // V197: separa o resultado principal (default.json / errors / Error400Response)
+      // V198: separa o resultado principal (default.json / errors / Error400Response)
       // dos cenários internos erro-*.json do Sandbox. Estes cenários não são usados para montar o boleto.
       const mensagensPrincipais=[];
       const mensagensCenarios=[];
@@ -319,7 +324,7 @@ module.exports=async function(req,res){
       }
       // Retorna apenas a resposta do Bradesco sanitizada. O payload enviado nunca é incluído.
       const estrutura=estruturaSegura(d);
-      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',resumo:{total_mensagens:mensagensPrincipais.length,total_unicas:unicas.length,campos_ausentes:ausentes,campos_rejeitados:rejeitados,erros_formato:formato,regras:regras,cenarios_sandbox_ignorados:cenariosUnicos.length},estrutura,total_nos:totalNos},seguranca:'V197 mantém o payload refinado da V195 e corrige dataLimiteDesconto1 para o formato DD.MM.AAAA exigido pela API. Cenários erro-*.json continuam separados. Token, Client Secret, Authorization, certificado, chave privada, credenciais e payload enviado não são devolvidos ao navegador.'});
+      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',resumo:{total_mensagens:mensagensPrincipais.length,total_unicas:unicas.length,campos_ausentes:ausentes,campos_rejeitados:rejeitados,erros_formato:formato,regras:regras,cenarios_sandbox_ignorados:cenariosUnicos.length},estrutura,total_nos:totalNos},seguranca:'V198 preserva vlNominalTitulo como número JSON com ponto e duas casas decimais, sem aspas, conforme a validação observada no endpoint e exemplos funcionais da API. Mantém o payload diagnóstico sintético e a separação dos cenários erro-*.json. Token, Client Secret, Authorization, certificado, chave privada, credenciais e payload enviado não são devolvidos ao navegador.'});
     }
     if(action==='validar-endpoint-registro'){
       if(amb!=='sandbox')throw new Error('A validação do registro está liberada somente para o Sandbox.');
