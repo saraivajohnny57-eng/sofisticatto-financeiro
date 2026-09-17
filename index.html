@@ -2648,11 +2648,15 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div class="corridas-grid">
           <div class="corridas-campo"><label>Carimbo da empresa</label><input id="autCarimboFile" type="file" accept="image/png,image/jpeg,image/webp" onchange="autImportarImagem(event,'carimbo')"><button type="button" class="buscar" style="margin-top:8px" onclick="autUsarCarimboPadrao()">↺ Restaurar carimbo padrão</button></div>
           <div class="corridas-campo"><label>Tonalidade do carimbo</label><select id="autCarimboCor" onchange="autRecolorirCarimbo()"><option value="original">Original</option><option value="roxo" selected>Roxo mais visível</option><option value="azul">Azul mais visível</option></select></div>
-          <div class="corridas-campo"><label>Assinatura do responsável</label><input id="autAssinaturaFile" type="file" accept="image/png,image/jpeg,image/webp" onchange="autImportarImagem(event,'assinatura')"><button type="button" class="buscar" style="margin-top:8px" onclick="autUsarAssinaturaPadrao()">↺ Restaurar assinatura padrão</button></div>
-          <div class="corridas-campo"><label>Aplicar no documento</label><select id="autAplicacao"><option value="ambos" selected>Carimbo + assinatura</option><option value="carimbo">Somente carimbo</option><option value="assinatura">Somente assinatura</option><option value="nenhum">Nenhum</option></select></div>
+          <div class="corridas-campo"><label>Assinatura por imagem (opcional)</label><input id="autAssinaturaFile" type="file" accept="image/png,image/jpeg,image/webp" onchange="autImportarImagem(event,'assinatura')"><button type="button" class="buscar" style="margin-top:8px" onclick="autUsarAssinaturaPadrao()">↺ Restaurar assinatura padrão</button></div>
+          <div class="corridas-campo"><label>Tipo de assinatura</label><select id="autTipoAssinatura" onchange="autAtualizarAssinaturaDigitada()"><option value="digitada" selected>Nome digitado com efeito manuscrito</option><option value="imagem">Imagem importada</option></select></div>
+          <div class="corridas-campo"><label>Nome para assinatura</label><input id="autAssinaturaNome" value="Johnny Saraiva O. Nascimento" placeholder="Digite o nome" oninput="autAtualizarAssinaturaDigitada()"></div>
+          <div class="corridas-campo"><label>Estilo de escrita</label><select id="autAssinaturaFonte" onchange="autAtualizarAssinaturaDigitada()"><option value="lucida">Lucida Handwriting</option><option value="edwardian">Edwardian Script ITC</option><option value="vladimir">Vladimir Script</option><option value="segoe">Segoe Script</option><option value="bradley">Bradley Hand ITC</option></select></div>
+          <div class="corridas-campo"><label>Cor da assinatura</label><select id="autAssinaturaCor" onchange="autAtualizarAssinaturaDigitada()"><option value="#3f51a3" selected>Azul caneta</option><option value="#5146a6">Roxo azulado</option><option value="#1f3f8f">Azul escuro</option><option value="#111111">Preto</option></select></div>
+          <div class="corridas-campo"><label>Aplicar no documento</label><select id="autAplicacao" onchange="autAtualizarAssinaturaDigitada()"><option value="ambos" selected>Carimbo + assinatura</option><option value="carimbo">Somente carimbo</option><option value="assinatura">Somente assinatura</option><option value="nenhum">Nenhum</option></select></div>
         </div>
         <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:12px;align-items:flex-end"><div><small>Carimbo</small><div id="autCarimboPreview" class="aut-img-preview">Não importado</div></div><div><small>Assinatura</small><div id="autAssinaturaPreview" class="aut-img-preview">Não importada</div></div></div>
-        <p style="font-size:12px;color:#706884;margin-top:10px;">O carimbo oficial da Sofisticatto já vem pronto no sistema, com moldura quadrada e tonalidade roxo/azulada mais visível. Você ainda pode importar outro carimbo. A assinatura enviada também já vem pronta no sistema, recortada e com fundo transparente para sobrepor ao carimbo. Você ainda pode importar outra assinatura quando precisar.</p>
+        <p style="font-size:12px;color:#706884;margin-top:10px;">O carimbo oficial da Sofisticatto já vem pronto no sistema, com moldura quadrada e tonalidade roxo/azulada mais visível. Você ainda pode importar outro carimbo. A assinatura pode ser feita pelo nome digitado com efeito manuscrito ou por uma imagem importada. No PDF, assinatura e carimbo ficam em áreas separadas para não ficarem um por cima do outro.</p>
       </div>
 
       <div class="card">
@@ -3088,8 +3092,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 
 <script src="financeiro.js?v=190"></script>
-<script src="autorizacoes-corridas.js?v=201"></script>
-<script src="corridas.js?v=201-autorizacoes"></script>
+<script src="autorizacoes-corridas.js?v=203"></script>
+<script src="corridas.js?v=203-autorizacoes"></script>
 <script src="clientes.js?v=13.4"></script>
 <script src="transportadoras.js?v=13.5"></script>
 <script src="cotacoes.js?v=136-ssw-coleta"></script>
