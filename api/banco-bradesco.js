@@ -151,17 +151,24 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
   return new Promise((resolve,reject)=>{
     const url='https://openapisandbox.prebanco.com.br:443/boleto/cobranca-registro/v1/cobranca';
     const u=new URL(url);
-    // V187: payload sintético e deliberadamente incompleto. nuCliente e nuNegociacao,
-    // ambos obrigatórios no Schema oficial, NÃO são enviados. Assim este diagnóstico
-    // serve apenas para obter a validação do Bradesco e não para registrar um título.
+    // V190: payload diagnóstico COMPLETO, baseado nos nomes de campos do Example Value
+    // oficial do Bradesco. Todos os valores são sintéticos e os identificadores bancários
+    // são deliberadamente inválidos para impedir que este diagnóstico forme um boleto válido.
+    // O payload nunca é devolvido ao navegador.
     const payload={
-      idProduto:'ZZ',dtEmissaoTitulo:'17.09.2026',cepPagador:'99999',
-      ctrlCPFCNPJ:'00',cdEspecieTitulo:'01',municipioPagador:'TESTE',
-      complementoCepPagador:'999',vlNominalTitulo:'100',filialCPFCNPJ:'0000',
-      bairroPagador:'TESTE',ufPagador:'SP',nuCPFCNPJ:'000000000',
-      nomePagador:'DIAGNOSTICO SANDBOX',logradouroPagador:'RUA TESTE',
-      nuLogradouroPagador:'0',dtVencimentoTitulo:'30.09.2026',
-      nuCpfcnpjPagador:'00000000000'
+      qtdeDiasJuros:'0',nomeSacadorAvalista:'DIAGNOSTICO SANDBOX',vlBonificacao:'0',indicadorMoeda:'0',qtdePagamentoParcial:'0',
+      nuLogradouroPagador:'0',idProduto:'ZZ',dtEmissaoTitulo:'17.09.2026',cepPagador:'99999',complementoLogradouroSacadorAvalista:'SEM COMPLEMENTO',
+      controleParticipante:'DIAGNOSTICO-V190',razaoDoDebAutomatico:'0',complementoCepSacadorAvalista:'999',vlJuros:'0',listaMsgs:[{mensagem:'DIAGNOSTICO SANDBOX'},{mensagem:'DIAGNOSTICO SANDBOX'}],
+      ctrlCPFCNPJ:'00',bancoDoDebAutomatico:'000',ufSacadorAvalista:'SP',debitoAutomatico:'N',enderecoSacadorAvalista:'RUA DIAGNOSTICO',cdEspecieTitulo:'01',
+      complementoLogradouroPagador:'SEM COMPLEMENTO',bairroSacadorAvalista:'CENTRO',nuTitulo:'0',logradouroSacadorAvalista:'RUA DIAGNOSTICO',dtLimiteBonificacao:'17.09.2026',
+      nuCpfcnpjSacadorAvalista:'00000000000',percentualBonificacao:'0',cdIndCpfcnpjSacadorAvalista:'1',tipoPrazoDecursoTres:'0',endEletronicoPagador:'diagnostico@example.invalid',
+      foneSacado:'000000000',municipioPagador:'SAO PAULO',complementoCepPagador:'999',cepSacadorAvalista:'99999',vlDesconto3:'0',cdIndCpfcnpjPagador:'1',vlMulta:'0',vlAbatimento:'0',
+      vlDesconto1:'0',vlDesconto2:'0',municipioSacadorAvalista:'SAO PAULO',vlNominalTitulo:'1',prazoProtestoAutomaticoNegativacao:'0',percentualDesconto3:'0',filialCPFCNPJ:'0000',
+      percentualDesconto2:'0',percentualDesconto1:'0',percentualMulta:'0',agenciaDoProtesto:'00000',digitoAgenciaDoDebAutomat:'0',bairroPagador:'CENTRO',cindcdAceitSacdo:'N',
+      agenciaDoDebAutomatico:'00000',dddFoneSacadorAvalista:'000',contaDoDebAutomatico:'0',nuLogradouroSacadorAvalista:'0',vlIOF:'0',ufPagador:'SP',foneSacadorAvalista:'000000000',
+      percentualJuros:'0',codBancoDoProtesto:'000',nuCliente:'DIAGNOSTICO_INVALIDO',nuCPFCNPJ:'000000000',qmoedaNegocTitlo:'0',dataLimiteDesconto3:'17.09.2026',nomePagador:'DIAGNOSTICO SANDBOX',
+      qtdeDiasMulta:'0',dataLimiteDesconto2:'17.09.2026',dataLimiteDesconto1:'17.09.2026',logradouroPagador:'RUA DIAGNOSTICO',nuNegociacao:'000000000000000000',cdPagamentoParcial:'N',
+      dddFoneSacado:'000',prazoBonificacao:'0',tpProtestoAutomaticoNegativacao:'0',dtVencimentoTitulo:'30.09.2026',nuCpfcnpjPagador:'00000000000'
     };
     const body=JSON.stringify(payload);
     let pacote;try{pacote=criarPfxTemporario(mtls.cert_pem,mtls.key_pem)}catch(e){return reject(e)}
@@ -169,14 +176,13 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
     const req=https.request({protocol:u.protocol,hostname:u.hostname,servername:u.hostname,port:u.port||443,path:u.pathname,method:'POST',agent,headers:{Authorization:`Bearer ${token}`,'Accept':'application/json','Content-Type':'application/json','Content-Length':Buffer.byteLength(body)},timeout:20000},r=>{
       let raw='';r.setEncoding('utf8');r.on('data',d=>{if(raw.length<200000)raw+=d});r.on('end',()=>{
         agent.destroy();let data={};try{data=raw?JSON.parse(raw):{}}catch(_){data={resposta:raw.slice(0,4000)}}
-        // Apenas 4xx é considerado resultado seguro deste diagnóstico. Qualquer 2xx é bloqueado/alertado.
         if(r.statusCode>=400&&r.statusCode<500)return resolve({http_status:r.statusCode,diagnostico_seguro:true,data});
         if(r.statusCode>=200&&r.statusCode<300)return resolve({http_status:r.statusCode,diagnostico_seguro:false,resposta_inesperada:true,data});
         const detalhe=data?.mensagem||data?.message||data?.erro||data?.descricao||data?.causa||`Bradesco respondeu HTTP ${r.statusCode}`;
         const e=new Error(`HTTP ${r.statusCode} — ${typeof detalhe==='string'?detalhe:JSON.stringify(detalhe).slice(0,800)}`);e.http_status=r.statusCode;e.resposta=data;reject(e);
       });
     });
-    req.on('timeout',()=>req.destroy(new Error('Tempo esgotado no diagnóstico do payload mínimo Bradesco Sandbox.')));
+    req.on('timeout',()=>req.destroy(new Error('Tempo esgotado no diagnóstico completo Bradesco Sandbox.')));
     req.on('error',e=>{agent.destroy();reject(e)});req.write(body);req.end();
   });
 }
@@ -227,7 +233,15 @@ module.exports=async function(req,res){
       const teste=await diagnosticarPayloadMinimoRegistroSandbox(auth.access_token,mtls);
       if(teste.resposta_inesperada)return json(res,200,{ok:false,teste:{http_status:teste.http_status},mensagem:'Resposta 2xx inesperada. O sistema interrompeu o diagnóstico e não fará novas tentativas automáticas.'});
       const d=teste.data||{};
-      // V189: revela a ESTRUTURA sanitizada da resposta 4xx, sem adivinhar o formato de errosValidacao.
+      // V190: resume erros retornados pelos arquivos de validação do Sandbox.
+      const mensagens=[];
+      if(Array.isArray(d.errosValidacao)) for(const bloco of d.errosValidacao){
+        if(Array.isArray(bloco?.erros)) for(const msg of bloco.erros){ if(typeof msg==='string') mensagens.push(msg); }
+      }
+      const unicas=[...new Set(mensagens)];
+      const ausentes=unicas.filter(x=>/não foi enviado na requisição/i.test(x)).slice(0,30);
+      const regras=unicas.filter(x=>!/não foi enviado na requisição/i.test(x)).slice(0,30);
+      // V189/V190: revela a ESTRUTURA sanitizada da resposta 4xx, sem expor segredos. da resposta 4xx, sem adivinhar o formato de errosValidacao.
       // A lista abaixo bloqueia por nome qualquer propriedade potencialmente sensível.
       const CHAVE_SENSIVEL=/(authorization|bearer|token|secret|client.?secret|private|privada|key|chave|certificate|certificado|senha|password|pfx|pkcs|credential|credencial|access.?token|refresh.?token)/i;
       let totalNos=0;
@@ -253,7 +267,7 @@ module.exports=async function(req,res){
       }
       // Retorna apenas a resposta do Bradesco sanitizada. O payload enviado nunca é incluído.
       const estrutura=estruturaSegura(d);
-      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',estrutura,total_nos:totalNos},seguranca:'V189 mostra somente a estrutura sanitizada da resposta do Bradesco. Token, Client Secret, Authorization, certificado, chave privada, credenciais e payload enviado não são devolvidos ao navegador.'});
+      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',resumo:{total_mensagens:mensagens.length,total_unicas:unicas.length,campos_ausentes:ausentes,regras:regras},estrutura,total_nos:totalNos},seguranca:'V190 usa payload diagnóstico completo com identificadores bancários deliberadamente inválidos. Token, Client Secret, Authorization, certificado, chave privada, credenciais e payload enviado não são devolvidos ao navegador.'});
     }
     if(action==='validar-endpoint-registro'){
       if(amb!=='sandbox')throw new Error('A validação do registro está liberada somente para o Sandbox.');
