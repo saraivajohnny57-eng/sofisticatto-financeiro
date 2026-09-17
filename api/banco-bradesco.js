@@ -147,6 +147,40 @@ function validarEndpointRegistroSandbox(token,mtls){
   });
 }
 
+function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
+  return new Promise((resolve,reject)=>{
+    const url='https://openapisandbox.prebanco.com.br:443/boleto/cobranca-registro/v1/cobranca';
+    const u=new URL(url);
+    // V187: payload sintético e deliberadamente incompleto. nuCliente e nuNegociacao,
+    // ambos obrigatórios no Schema oficial, NÃO são enviados. Assim este diagnóstico
+    // serve apenas para obter a validação do Bradesco e não para registrar um título.
+    const payload={
+      idProduto:'ZZ',dtEmissaoTitulo:'17.09.2026',cepPagador:'99999',
+      ctrlCPFCNPJ:'00',cdEspecieTitulo:'01',municipioPagador:'TESTE',
+      complementoCepPagador:'999',vlNominalTitulo:'100',filialCPFCNPJ:'0000',
+      bairroPagador:'TESTE',ufPagador:'SP',nuCPFCNPJ:'000000000',
+      nomePagador:'DIAGNOSTICO SANDBOX',logradouroPagador:'RUA TESTE',
+      nuLogradouroPagador:'0',dtVencimentoTitulo:'30.09.2026',
+      nuCpfcnpjPagador:'00000000000'
+    };
+    const body=JSON.stringify(payload);
+    let pacote;try{pacote=criarPfxTemporario(mtls.cert_pem,mtls.key_pem)}catch(e){return reject(e)}
+    const agent=new https.Agent({pfx:pacote.pfx,passphrase:pacote.passphrase,minVersion:'TLSv1.2',rejectUnauthorized:true,keepAlive:false});
+    const req=https.request({protocol:u.protocol,hostname:u.hostname,servername:u.hostname,port:u.port||443,path:u.pathname,method:'POST',agent,headers:{Authorization:`Bearer ${token}`,'Accept':'application/json','Content-Type':'application/json','Content-Length':Buffer.byteLength(body)},timeout:20000},r=>{
+      let raw='';r.setEncoding('utf8');r.on('data',d=>{if(raw.length<200000)raw+=d});r.on('end',()=>{
+        agent.destroy();let data={};try{data=raw?JSON.parse(raw):{}}catch(_){data={resposta:raw.slice(0,4000)}}
+        // Apenas 4xx é considerado resultado seguro deste diagnóstico. Qualquer 2xx é bloqueado/alertado.
+        if(r.statusCode>=400&&r.statusCode<500)return resolve({http_status:r.statusCode,diagnostico_seguro:true,data});
+        if(r.statusCode>=200&&r.statusCode<300)return resolve({http_status:r.statusCode,diagnostico_seguro:false,resposta_inesperada:true,data});
+        const detalhe=data?.mensagem||data?.message||data?.erro||data?.descricao||data?.causa||`Bradesco respondeu HTTP ${r.statusCode}`;
+        const e=new Error(`HTTP ${r.statusCode} — ${typeof detalhe==='string'?detalhe:JSON.stringify(detalhe).slice(0,800)}`);e.http_status=r.statusCode;e.resposta=data;reject(e);
+      });
+    });
+    req.on('timeout',()=>req.destroy(new Error('Tempo esgotado no diagnóstico do payload mínimo Bradesco Sandbox.')));
+    req.on('error',e=>{agent.destroy();reject(e)});req.write(body);req.end();
+  });
+}
+
 module.exports=async function(req,res){
   if(!exigirAdmin(req,res))return;
   const action=String(req.query?.action||'status'), amb=ambiente(req.query?.ambiente||req.body?.ambiente);
@@ -183,6 +217,17 @@ module.exports=async function(req,res){
       const consulta=await consultarPendentesSandbox(auth.access_token,mtls);
       const d=consulta.data||{};
       return json(res,200,{ok:true,consulta:{http_status:consulta.http_status,status:d.status??consulta.http_status,mensagem:d.mensagem||'Operação realizada com sucesso.',causa:d.causa||null,pagina:d.pagina??null,indMaisPagina:d.indMaisPagina??null,qtdeTitulos:d.qtdeTitulos??(Array.isArray(d.titulos)?d.titulos.length:null),vtotTitulos:d.vtotTitulos??null,qtdeOcorr:d.qtdeOcorr??null,titulos:Array.isArray(d.titulos)?d.titulos.slice(0,20):[]},mensagem:'Consulta segura ao recurso de títulos pendentes do Bradesco Sandbox concluída. Nenhum boleto foi registrado, alterado ou baixado.'});
+    }
+    if(action==='diagnosticar-payload-minimo'){
+      if(amb!=='sandbox')throw new Error('O diagnóstico está liberado somente para o Sandbox.');
+      const credReg=await obter(idRegistro(amb,'credenciais')), mtlsReg=await obter(idRegistro(amb,'mtls'));
+      if(!credReg||!mtlsReg)throw new Error('Cadastre as credenciais e o par mTLS antes do diagnóstico.');
+      const cred=descriptografar(credReg), mtls=descriptografar(mtlsReg);validarParMtls(mtls.cert_pem,mtls.key_pem);
+      const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
+      const teste=await diagnosticarPayloadMinimoRegistroSandbox(auth.access_token,mtls);
+      if(teste.resposta_inesperada)return json(res,200,{ok:false,teste:{http_status:teste.http_status},mensagem:'Resposta 2xx inesperada. O sistema interrompeu o diagnóstico e não fará novas tentativas automáticas.'});
+      const d=teste.data||{}, ev=d.errosValidacao||null;
+      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',errosValidacao:ev},seguranca:'Payload sintético e deliberadamente incompleto: nuCliente e nuNegociacao não foram enviados. Nenhum dado digitado na prévia local foi utilizado.'});
     }
     if(action==='validar-endpoint-registro'){
       if(amb!=='sandbox')throw new Error('A validação do registro está liberada somente para o Sandbox.');
