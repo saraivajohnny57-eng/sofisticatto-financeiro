@@ -134,8 +134,8 @@ function validarEndpointRegistroSandbox(token,mtls){
     const req=https.request({protocol:u.protocol,hostname:u.hostname,servername:u.hostname,port:u.port||443,path:u.pathname,method:'POST',agent,headers:{Authorization:`Bearer ${token}`,'Accept':'application/json','Content-Type':'application/json','Content-Length':Buffer.byteLength(body)},timeout:20000},r=>{
       let raw='';r.setEncoding('utf8');r.on('data',d=>{if(raw.length<200000)raw+=d});r.on('end',()=>{
         agent.destroy();let data={};try{data=raw?JSON.parse(raw):{}}catch(_){data={resposta:raw.slice(0,4000)}}
-        // 400/412 são respostas esperadas para body vazio e comprovam que o endpoint foi alcançado.
-        if([400,412].includes(r.statusCode))return resolve({http_status:r.statusCode,endpoint_alcancado:true,nenhum_boleto_emitido:true,data});
+        // 400/412/422 são respostas esperadas para body vazio e comprovam que o endpoint foi alcançado.
+        if([400,412,422].includes(r.statusCode))return resolve({http_status:r.statusCode,endpoint_alcancado:true,nenhum_boleto_emitido:true,data});
         // 2xx com body vazio seria comportamento inesperado: não afirmar emissão e bloquear avanço.
         if(r.statusCode>=200&&r.statusCode<300)return resolve({http_status:r.statusCode,endpoint_alcancado:true,resposta_inesperada:true,nenhum_boleto_emitido:false,data});
         const detalhe=data?.mensagem||data?.message||data?.erro||data?.descricao||data?.causa||`Bradesco respondeu HTTP ${r.statusCode}`;
