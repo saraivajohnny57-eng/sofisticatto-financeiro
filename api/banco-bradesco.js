@@ -227,7 +227,27 @@ module.exports=async function(req,res){
       const teste=await diagnosticarPayloadMinimoRegistroSandbox(auth.access_token,mtls);
       if(teste.resposta_inesperada)return json(res,200,{ok:false,teste:{http_status:teste.http_status},mensagem:'Resposta 2xx inesperada. O sistema interrompeu o diagnóstico e não fará novas tentativas automáticas.'});
       const d=teste.data||{}, ev=d.errosValidacao||null;
-      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',errosValidacao:ev},seguranca:'Payload sintético e deliberadamente incompleto: nuCliente e nuNegociacao não foram enviados. Nenhum dado digitado na prévia local foi utilizado.'});
+      // V188: devolve somente metadados seguros de validação do Schema.
+      // Nunca devolve token, Client Secret, certificado, chave privada ou payload enviado.
+      const CAMPOS_VALIDACAO_SEGUROS=['campo','tipoRestricao','mensagem','tamanhoMinimoEsperado','tamanhoMaximoPermitido','valorMinimoEsperado','valorMaximoPermitido'];
+      const normalizarErroValidacao=(item)=>{
+        if(item==null)return null;
+        if(typeof item==='string')return {mensagem:item.slice(0,1000)};
+        if(typeof item!=='object')return {mensagem:String(item).slice(0,1000)};
+        const limpo={};
+        for(const k of CAMPOS_VALIDACAO_SEGUROS){
+          if(item[k]!==undefined&&item[k]!==null&&item[k]!=='')limpo[k]=String(item[k]).slice(0,1000);
+        }
+        return Object.keys(limpo).length?limpo:{mensagem:'O Bradesco retornou uma validação sem detalhes públicos reconhecidos.'};
+      };
+      let validacoes=[];
+      if(Array.isArray(ev))validacoes=ev.map(normalizarErroValidacao).filter(Boolean).slice(0,50);
+      else if(ev&&typeof ev==='object'){
+        // O Swagger documenta errosValidacao como objeto; alguns gateways podem devolver mapa/lista.
+        const unico=normalizarErroValidacao(ev);
+        if(unico)validacoes=[unico];
+      }else if(ev!=null){const unico=normalizarErroValidacao(ev);if(unico)validacoes=[unico];}
+      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',validacoes},seguranca:'V188 retorna somente campo, restrição, mensagem e limites de validação. Credenciais, Bearer, certificado, chave privada e payload não são devolvidos ao navegador.'});
     }
     if(action==='validar-endpoint-registro'){
       if(amb!=='sandbox')throw new Error('A validação do registro está liberada somente para o Sandbox.');
