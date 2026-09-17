@@ -151,9 +151,10 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
   return new Promise((resolve,reject)=>{
     const url='https://openapisandbox.prebanco.com.br:443/boleto/cobranca-registro/v1/cobranca';
     const u=new URL(url);
-    // V193: payload diagnóstico baseado no BoletoRequestDTO fornecido na documentação.
-    // Envia apenas os campos-base obrigatórios do DTO. idProduto é numérico, como exige o schema.
-    // nuNegociacao e dados do beneficiário continuam sintéticos/inválidos para impedir registro real.
+    // V194: payload diagnóstico baseado no BoletoRequestDTO fornecido na documentação.
+    // Inclui os campos-base que o default.json acusou como ausentes, mas mantém negociação/beneficiário
+    // deliberadamente sintéticos para impedir registro real. Campos de Sacador/Avalista e listaMsgs
+    // permanecem fora do payload: o diagnóstico passa a separar exigências do cenário default.json das regras do DTO.
     // O payload nunca é devolvido ao navegador.
     const payload={
       nuCPFCNPJ:'000000000',
@@ -161,11 +162,22 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
       ctrlCPFCNPJ:'00',
       idProduto:'99',
       nuNegociacao:'000000000000000000',
-      nuCliente:'DIAGNOSTICO-V193',
+      nuCliente:'DIAGNOSTICO-V194',
       dtEmissaoTitulo:'17.09.2026',
       dtVencimentoTitulo:'30.09.2026',
       vlNominalTitulo:'1',
       cdEspecieTitulo:'01',
+      cindcdAceitSacdo:'N',
+      percentualJuros:'0',
+      vlJuros:'0',
+      qtdeDiasJuros:'0',
+      percentualMulta:'0',
+      vlMulta:'0',
+      qtdeDiasMulta:'0',
+      percentualDesconto1:'0',
+      vlDesconto1:'0',
+      dataLimiteDesconto1:'',
+      debitoAutomatico:'N',
       nomePagador:'DIAGNOSTICO SANDBOX',
       logradouroPagador:'RUA DIAGNOSTICO',
       nuLogradouroPagador:'0',
@@ -173,7 +185,9 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
       complementoCepPagador:'999',
       bairroPagador:'CENTRO',
       municipioPagador:'SAO PAULO',
-      ufPagador:'SP'
+      ufPagador:'SP',
+      cdIndCpfcnpjPagador:'1',
+      nuCpfcnpjPagador:'99999999999'
     };
     const body=JSON.stringify(payload);
     let pacote;try{pacote=criarPfxTemporario(mtls.cert_pem,mtls.key_pem)}catch(e){return reject(e)}
@@ -244,22 +258,27 @@ module.exports=async function(req,res){
       if(typeof dOriginal?.resposta==='string'){
         try{const interno=JSON.parse(dOriginal.resposta);if(interno&&typeof interno==='object')d=interno;}catch(_){}
       }
-      const mensagens=[];
-      // V193: o Bradesco pode retornar mensagens tanto em `errors` quanto em `errosValidacao`.
-      if(Array.isArray(d.errors)) for(const msg of d.errors){ if(typeof msg==='string') mensagens.push(msg); }
+      // V194: separa o resultado principal (default.json / errors / Error400Response)
+      // dos cenários internos erro-*.json do Sandbox. Estes cenários não são usados para montar o boleto.
+      const mensagensPrincipais=[];
+      const mensagensCenarios=[];
+      if(Array.isArray(d.errors)) for(const msg of d.errors){ if(typeof msg==='string') mensagensPrincipais.push(msg); }
       if(Array.isArray(d.errosValidacao)) for(const bloco of d.errosValidacao){
-        if(typeof bloco==='string') mensagens.push(bloco);
-        if(typeof bloco?.mensagem==='string') mensagens.push(bloco.mensagem);
-        if(Array.isArray(bloco?.erros)) for(const msg of bloco.erros){ if(typeof msg==='string') mensagens.push(msg); }
+        if(typeof bloco==='string'){ mensagensPrincipais.push(bloco); continue; }
+        const nome=String(bloco?.nomeDoArquivo||'');
+        const destino=(nome && nome.toLowerCase()!=='default.json')?mensagensCenarios:mensagensPrincipais;
+        if(typeof bloco?.mensagem==='string') destino.push(bloco.mensagem);
+        if(Array.isArray(bloco?.erros)) for(const msg of bloco.erros){ if(typeof msg==='string') destino.push(msg); }
       }
       if(d.errosValidacao && !Array.isArray(d.errosValidacao) && typeof d.errosValidacao==='object'){
-        if(typeof d.errosValidacao.mensagem==='string') mensagens.push(d.errosValidacao.mensagem);
+        if(typeof d.errosValidacao.mensagem==='string') mensagensPrincipais.push(d.errosValidacao.mensagem);
       }
-      const unicas=[...new Set(mensagens)];
-      const ausentes=unicas.filter(x=>/não foi enviado na requisição/i.test(x)).slice(0,30);
-      const rejeitados=unicas.filter(x=>/argumento .+ não existe no arquivo/i.test(x)).slice(0,30);
-      const formato=unicas.filter(x=>/(formato|inválid|invalido|tamanho|quantidade|deve ser|permitid|valor)/i.test(x)&&!/não existe no arquivo/i.test(x)).slice(0,30);
-      const regras=unicas.filter(x=>!ausentes.includes(x)&&!rejeitados.includes(x)&&!formato.includes(x)).slice(0,30);
+      const unicas=[...new Set(mensagensPrincipais)];
+      const cenariosUnicos=[...new Set(mensagensCenarios)];
+      const ausentes=unicas.filter(x=>/não foi enviado na requisição/i.test(x)).slice(0,40);
+      const rejeitados=unicas.filter(x=>/argumento .+ não existe no arquivo/i.test(x)).slice(0,40);
+      const formato=unicas.filter(x=>/(formato|inválid|invalido|tamanho|quantidade|deve ser|permitid|não bateu|valor)/i.test(x)&&!/não existe no arquivo/i.test(x)).slice(0,40);
+      const regras=unicas.filter(x=>!ausentes.includes(x)&&!rejeitados.includes(x)&&!formato.includes(x)).slice(0,40);
       // V189/V190: revela a ESTRUTURA sanitizada da resposta 4xx, sem expor segredos. da resposta 4xx, sem adivinhar o formato de errosValidacao.
       // A lista abaixo bloqueia por nome qualquer propriedade potencialmente sensível.
       const CHAVE_SENSIVEL=/(authorization|bearer|token|secret|client.?secret|private|privada|key|chave|certificate|certificado|senha|password|pfx|pkcs|credential|credencial|access.?token|refresh.?token)/i;
@@ -286,7 +305,7 @@ module.exports=async function(req,res){
       }
       // Retorna apenas a resposta do Bradesco sanitizada. O payload enviado nunca é incluído.
       const estrutura=estruturaSegura(d);
-      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',resumo:{total_mensagens:mensagens.length,total_unicas:unicas.length,campos_ausentes:ausentes,campos_rejeitados:rejeitados,erros_formato:formato,regras:regras},estrutura,total_nos:totalNos},seguranca:'V193 usa o BoletoRequestDTO como referência e um payload mínimo com identificadores sintéticos deliberadamente inválidos. Token, Client Secret, Authorization, certificado, chave privada, credenciais e payload enviado não são devolvidos ao navegador.'});
+      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',resumo:{total_mensagens:mensagensPrincipais.length,total_unicas:unicas.length,campos_ausentes:ausentes,campos_rejeitados:rejeitados,erros_formato:formato,regras:regras,cenarios_sandbox_ignorados:cenariosUnicos.length},estrutura,total_nos:totalNos},seguranca:'V194 usa o BoletoRequestDTO como referência, separa default.json dos cenários erro-*.json e mantém identificadores sintéticos deliberadamente inválidos. Token, Client Secret, Authorization, certificado, chave privada, credenciais e payload enviado não são devolvidos ao navegador.'});
     }
     if(action==='validar-endpoint-registro'){
       if(amb!=='sandbox')throw new Error('A validação do registro está liberada somente para o Sandbox.');
