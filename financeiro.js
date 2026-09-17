@@ -8877,7 +8877,7 @@ setTimeout(()=>{['bbPilotoNumeroTitulo','bbPilotoValor','bbPilotoVencimento','bb
 
 // V178 — Impressão Normal em PDF único de todos os boletos BB efetivamente emitidos no filtro atual do Histórico.
 
-// V185 — valida o vínculo/autorização do recurso de registro Bradesco sem dados suficientes para emitir boleto.
+// V186 — valida o vínculo/autorização do recurso de registro Bradesco sem dados suficientes para emitir boleto.
 async function validarEndpointRegistroBradescoSandbox(){
   if(bradescoAmbiente()!=='sandbox')return alert('A validação está liberada somente para o Sandbox.');
   const out=document.getElementById('bradescoRegistroSandboxStatus'),btn=document.getElementById('btnValidarRegistroBradesco');
@@ -8887,7 +8887,27 @@ async function validarEndpointRegistroBradescoSandbox(){
     const j=await bradescoReq('validar-endpoint-registro',{method:'POST',body:{}}),t=j.teste||{};
     if(!j.ok)throw new Error(j.mensagem||'Resposta inesperada do endpoint.');
     if(out)out.innerHTML=`✅ <b>Endpoint de registro Bradesco Sandbox alcançado.</b><br>HTTP ${escaparHtmlEmail(String(t.http_status||''))}${t.codigo?` • Código ${escaparHtmlEmail(String(t.codigo))}`:''}<br>${escaparHtmlEmail(String(t.mensagem||'Validação de campos acionada.'))}<br><span class="bb-cert-ajuda"><b>Nenhum boleto foi emitido.</b> O teste enviou somente {} e não enviou pagador, valor, vencimento ou Nosso Número.</span>`;
-    bradescoAviso('✅ Consulta de pendentes e endpoint de registro do Bradesco Sandbox validados. A emissão continua bloqueada até mapearmos o payload oficial completo.','ok');
-  }catch(e){if(out)out.innerHTML=`❌ <b>Validação do endpoint de registro não concluída:</b> ${escaparHtmlEmail(e.message)}`;bradescoAviso('❌ O endpoint de registro ainda não foi validado. Nenhum boleto foi emitido.','erro');}
-  finally{if(btn)btn.disabled=false;}
+    bradescoAviso('✅ Endpoint de registro do Bradesco Sandbox validado. HTTP 422 é esperado para o teste sem dados.','ok');
+  }catch(e){
+    const m=String(e.message||'');
+    if(/HTTP\s*422/i.test(m)){
+      if(out)out.innerHTML=`✅ <b>Endpoint de registro Bradesco Sandbox alcançado.</b><br>HTTP 422 • O Bradesco recusou o corpo vazio como esperado.<br><span class="bb-cert-ajuda"><b>Nenhum boleto foi emitido.</b> mTLS + Bearer chegaram ao recurso e a validação negocial foi acionada.</span>`;
+      bradescoAviso('✅ Endpoint de registro do Bradesco Sandbox alcançado. HTTP 422 esperado para o teste sem dados.','ok');
+    }else{
+      if(out)out.innerHTML=`❌ <b>Validação do endpoint de registro não concluída:</b> ${escaparHtmlEmail(m)}`;
+      bradescoAviso('❌ O endpoint de registro ainda não foi validado. Nenhum boleto foi emitido.','erro');
+    }
+  }finally{if(btn)btn.disabled=false;}
+}
+
+function montarPreviaRegistroBradescoV186(){
+  const nome=String(document.getElementById('brTesteNome')?.value||'').trim();
+  const documento=String(document.getElementById('brTesteDocumento')?.value||'').replace(/\D/g,'');
+  const valorTxt=String(document.getElementById('brTesteValor')?.value||'').trim().replace(/\./g,'').replace(',','.');
+  const valor=Number(valorTxt), vencimento=String(document.getElementById('brTesteVencimento')?.value||''), seuNumero=String(document.getElementById('brTesteSeuNumero')?.value||'').trim();
+  const out=document.getElementById('bradescoPreviaRegistroV186'), faltas=[];
+  if(!nome)faltas.push('nome do pagador'); if(![11,14].includes(documento.length))faltas.push('CPF/CNPJ com 11 ou 14 dígitos'); if(!(valor>0))faltas.push('valor maior que zero'); if(!vencimento)faltas.push('vencimento'); if(!seuNumero)faltas.push('seu número/controle');
+  if(faltas.length){if(out){out.style.display='block';out.textContent='⚠️ Complete antes da prévia: '+faltas.join(', ')+'.'}return;}
+  const previa={ambiente:'SANDBOX',operacao:'PREVIA_LOCAL_NAO_ENVIADA',pagador:{nome,cpfCnpj:documento},titulo:{valor:Number(valor.toFixed(2)),vencimento,seuNumero},camposBancarios:{produto:'AGUARDANDO_CONFIRMACAO',negociacao:'AGUARDANDO_CONFIRMACAO',nossoNumero:'AGUARDANDO_CONFIRMACAO'},seguranca:'V186 não chama o endpoint de registro com estes dados.'};
+  if(out){out.style.display='block';out.textContent=JSON.stringify(previa,null,2);}
 }
