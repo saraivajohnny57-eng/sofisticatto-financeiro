@@ -151,23 +151,23 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
   return new Promise((resolve,reject)=>{
     const url='https://openapisandbox.prebanco.com.br:443/boleto/cobranca-registro/v1/cobranca';
     const u=new URL(url);
-    // V190: payload diagnóstico COMPLETO, baseado nos nomes de campos do Example Value
+    // V191: payload diagnóstico refinado, baseado nos nomes de campos do Example Value
     // oficial do Bradesco. Todos os valores são sintéticos e os identificadores bancários
     // são deliberadamente inválidos para impedir que este diagnóstico forme um boleto válido.
     // O payload nunca é devolvido ao navegador.
     const payload={
       qtdeDiasJuros:'0',nomeSacadorAvalista:'DIAGNOSTICO SANDBOX',vlBonificacao:'0',indicadorMoeda:'0',qtdePagamentoParcial:'0',
       nuLogradouroPagador:'0',idProduto:'ZZ',dtEmissaoTitulo:'17.09.2026',cepPagador:'99999',complementoLogradouroSacadorAvalista:'SEM COMPLEMENTO',
-      controleParticipante:'DIAGNOSTICO-V190',razaoDoDebAutomatico:'0',complementoCepSacadorAvalista:'999',vlJuros:'0',listaMsgs:[{mensagem:'DIAGNOSTICO SANDBOX'},{mensagem:'DIAGNOSTICO SANDBOX'}],
-      ctrlCPFCNPJ:'00',bancoDoDebAutomatico:'000',ufSacadorAvalista:'SP',debitoAutomatico:'N',enderecoSacadorAvalista:'RUA DIAGNOSTICO',cdEspecieTitulo:'01',
-      complementoLogradouroPagador:'SEM COMPLEMENTO',bairroSacadorAvalista:'CENTRO',nuTitulo:'0',logradouroSacadorAvalista:'RUA DIAGNOSTICO',dtLimiteBonificacao:'17.09.2026',
+      controleParticipante:'DIAGNOSTICO-V191',razaoDoDebAutomatico:'0',complementoCepSacadorAvalista:'999',vlJuros:'0',listaMsgs:[{mensagem:'DIAGNOSTICO SANDBOX'},{mensagem:'DIAGNOSTICO SANDBOX'}],
+      ctrlCPFCNPJ:'00',ufSacadorAvalista:'SP',debitoAutomatico:'N',enderecoSacadorAvalista:'RUA DIAGNOSTICO',cdEspecieTitulo:'01',
+      bairroSacadorAvalista:'CENTRO',nuTitulo:'0',logradouroSacadorAvalista:'RUA DIAGNOSTICO',dtLimiteBonificacao:'17.09.2026',
       nuCpfcnpjSacadorAvalista:'00000000000',percentualBonificacao:'0',cdIndCpfcnpjSacadorAvalista:'1',tipoPrazoDecursoTres:'0',endEletronicoPagador:'diagnostico@example.invalid',
       foneSacado:'000000000',municipioPagador:'SAO PAULO',complementoCepPagador:'999',cepSacadorAvalista:'99999',vlDesconto3:'0',cdIndCpfcnpjPagador:'1',vlMulta:'0',vlAbatimento:'0',
       vlDesconto1:'0',vlDesconto2:'0',municipioSacadorAvalista:'SAO PAULO',vlNominalTitulo:'1',prazoProtestoAutomaticoNegativacao:'0',percentualDesconto3:'0',filialCPFCNPJ:'0000',
-      percentualDesconto2:'0',percentualDesconto1:'0',percentualMulta:'0',agenciaDoProtesto:'00000',digitoAgenciaDoDebAutomat:'0',bairroPagador:'CENTRO',cindcdAceitSacdo:'N',
-      agenciaDoDebAutomatico:'00000',dddFoneSacadorAvalista:'000',contaDoDebAutomatico:'0',nuLogradouroSacadorAvalista:'0',vlIOF:'0',ufPagador:'SP',foneSacadorAvalista:'000000000',
-      percentualJuros:'0',codBancoDoProtesto:'000',nuCliente:'DIAGNOSTICO_INVALIDO',nuCPFCNPJ:'000000000',qmoedaNegocTitlo:'0',dataLimiteDesconto3:'17.09.2026',nomePagador:'DIAGNOSTICO SANDBOX',
-      qtdeDiasMulta:'0',dataLimiteDesconto2:'17.09.2026',dataLimiteDesconto1:'17.09.2026',logradouroPagador:'RUA DIAGNOSTICO',nuNegociacao:'000000000000000000',cdPagamentoParcial:'N',
+      percentualDesconto2:'0',percentualDesconto1:'0',percentualMulta:'0',digitoAgenciaDoDebAutomat:'0',bairroPagador:'CENTRO',cindcdAceitSacdo:'N',
+      dddFoneSacadorAvalista:'000',contaDoDebAutomatico:'0',nuLogradouroSacadorAvalista:'0',vlIOF:'0',ufPagador:'SP',foneSacadorAvalista:'000000000',
+      percentualJuros:'0',nuCliente:'DIAGNOSTICO_INVALIDO',nuCPFCNPJ:'000000000',qmoedaNegocTitlo:'0',dataLimiteDesconto3:'17.09.2026',nomePagador:'DIAGNOSTICO SANDBOX',
+      qtdeDiasMulta:'0',dataLimiteDesconto2:'17.09.2026',dataLimiteDesconto1:'17.09.2026',logradouroPagador:'RUA DIAGNOSTICO',nuNegociacao:'000000000000000000',
       dddFoneSacado:'000',prazoBonificacao:'0',tpProtestoAutomaticoNegativacao:'0',dtVencimentoTitulo:'30.09.2026',nuCpfcnpjPagador:'00000000000'
     };
     const body=JSON.stringify(payload);
@@ -232,15 +232,22 @@ module.exports=async function(req,res){
       const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
       const teste=await diagnosticarPayloadMinimoRegistroSandbox(auth.access_token,mtls);
       if(teste.resposta_inesperada)return json(res,200,{ok:false,teste:{http_status:teste.http_status},mensagem:'Resposta 2xx inesperada. O sistema interrompeu o diagnóstico e não fará novas tentativas automáticas.'});
-      const d=teste.data||{};
-      // V190: resume erros retornados pelos arquivos de validação do Sandbox.
+      const dOriginal=teste.data||{};
+      // V191: algumas respostas do Bradesco chegam em uma segunda camada JSON dentro de `resposta`.
+      // Desserializa somente essa camada para que os erros de validação sejam classificados corretamente.
+      let d=dOriginal;
+      if(typeof dOriginal?.resposta==='string'){
+        try{const interno=JSON.parse(dOriginal.resposta);if(interno&&typeof interno==='object')d=interno;}catch(_){}
+      }
       const mensagens=[];
       if(Array.isArray(d.errosValidacao)) for(const bloco of d.errosValidacao){
         if(Array.isArray(bloco?.erros)) for(const msg of bloco.erros){ if(typeof msg==='string') mensagens.push(msg); }
       }
       const unicas=[...new Set(mensagens)];
       const ausentes=unicas.filter(x=>/não foi enviado na requisição/i.test(x)).slice(0,30);
-      const regras=unicas.filter(x=>!/não foi enviado na requisição/i.test(x)).slice(0,30);
+      const rejeitados=unicas.filter(x=>/argumento .+ não existe no arquivo/i.test(x)).slice(0,30);
+      const formato=unicas.filter(x=>/(formato|inválid|invalido|tamanho|quantidade|deve ser|permitid|valor)/i.test(x)&&!/não existe no arquivo/i.test(x)).slice(0,30);
+      const regras=unicas.filter(x=>!ausentes.includes(x)&&!rejeitados.includes(x)&&!formato.includes(x)).slice(0,30);
       // V189/V190: revela a ESTRUTURA sanitizada da resposta 4xx, sem expor segredos. da resposta 4xx, sem adivinhar o formato de errosValidacao.
       // A lista abaixo bloqueia por nome qualquer propriedade potencialmente sensível.
       const CHAVE_SENSIVEL=/(authorization|bearer|token|secret|client.?secret|private|privada|key|chave|certificate|certificado|senha|password|pfx|pkcs|credential|credencial|access.?token|refresh.?token)/i;
@@ -267,7 +274,7 @@ module.exports=async function(req,res){
       }
       // Retorna apenas a resposta do Bradesco sanitizada. O payload enviado nunca é incluído.
       const estrutura=estruturaSegura(d);
-      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',resumo:{total_mensagens:mensagens.length,total_unicas:unicas.length,campos_ausentes:ausentes,regras:regras},estrutura,total_nos:totalNos},seguranca:'V190 usa payload diagnóstico completo com identificadores bancários deliberadamente inválidos. Token, Client Secret, Authorization, certificado, chave privada, credenciais e payload enviado não são devolvidos ao navegador.'});
+      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',resumo:{total_mensagens:mensagens.length,total_unicas:unicas.length,campos_ausentes:ausentes,campos_rejeitados:rejeitados,erros_formato:formato,regras:regras},estrutura,total_nos:totalNos},seguranca:'V191 usa payload diagnóstico refinado com identificadores bancários deliberadamente inválidos. Token, Client Secret, Authorization, certificado, chave privada, credenciais e payload enviado não são devolvidos ao navegador.'});
     }
     if(action==='validar-endpoint-registro'){
       if(amb!=='sandbox')throw new Error('A validação do registro está liberada somente para o Sandbox.');
