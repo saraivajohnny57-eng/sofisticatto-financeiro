@@ -151,10 +151,10 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
   return new Promise((resolve,reject)=>{
     const url='https://openapisandbox.prebanco.com.br:443/boleto/cobranca-registro/v1/cobranca';
     const u=new URL(url);
-    // V194: payload diagnóstico baseado no BoletoRequestDTO fornecido na documentação.
-    // Inclui os campos-base que o default.json acusou como ausentes, mas mantém negociação/beneficiário
-    // deliberadamente sintéticos para impedir registro real. Campos de Sacador/Avalista e listaMsgs
-    // permanecem fora do payload: o diagnóstico passa a separar exigências do cenário default.json das regras do DTO.
+    // V195: payload diagnóstico refinado a partir do resultado principal default.json da V194.
+    // Remove debitoAutomatico, rejeitado pelo default.json deste endpoint, e inclui os campos
+    // sintéticos de Sacador/Avalista e listaMsgs solicitados pelo cenário principal.
+    // Negociação/beneficiário continuam deliberadamente sintéticos para impedir registro real.
     // O payload nunca é devolvido ao navegador.
     const payload={
       nuCPFCNPJ:'000000000',
@@ -162,7 +162,7 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
       ctrlCPFCNPJ:'00',
       idProduto:'99',
       nuNegociacao:'000000000000000000',
-      nuCliente:'DIAGNOSTICO-V194',
+      nuCliente:'DIAGNOSTICO-V195',
       dtEmissaoTitulo:'17.09.2026',
       dtVencimentoTitulo:'30.09.2026',
       vlNominalTitulo:'1',
@@ -177,7 +177,6 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
       percentualDesconto1:'0',
       vlDesconto1:'0',
       dataLimiteDesconto1:'',
-      debitoAutomatico:'N',
       nomePagador:'DIAGNOSTICO SANDBOX',
       logradouroPagador:'RUA DIAGNOSTICO',
       nuLogradouroPagador:'0',
@@ -187,7 +186,22 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
       municipioPagador:'SAO PAULO',
       ufPagador:'SP',
       cdIndCpfcnpjPagador:'1',
-      nuCpfcnpjPagador:'99999999999'
+      nuCpfcnpjPagador:'99999999999',
+      nomeSacadorAvalista:'SACADOR DIAGNOSTICO',
+      logradouroSacadorAvalista:'RUA TESTE',
+      nuLogradouroSacadorAvalista:'1',
+      complementoLogradouroSacadorAvalista:'SEM COMPLEMENTO',
+      cepSacadorAvalista:'99999',
+      complementoCepSacadorAvalista:'999',
+      bairroSacadorAvalista:'CENTRO',
+      municipioSacadorAvalista:'SAO PAULO',
+      ufSacadorAvalista:'SP',
+      cdIndCpfcnpjSacadorAvalista:'1',
+      nuCpfcnpjSacadorAvalista:'99999999999',
+      enderecoSacadorAvalista:'RUA TESTE 1',
+      dddFoneSacadorAvalista:'011',
+      foneSacadorAvalista:'99999999999',
+      listaMsgs:[{mensagem:'DIAGNOSTICO SANDBOX 1'},{mensagem:'DIAGNOSTICO SANDBOX 2'}]
     };
     const body=JSON.stringify(payload);
     let pacote;try{pacote=criarPfxTemporario(mtls.cert_pem,mtls.key_pem)}catch(e){return reject(e)}
@@ -258,7 +272,7 @@ module.exports=async function(req,res){
       if(typeof dOriginal?.resposta==='string'){
         try{const interno=JSON.parse(dOriginal.resposta);if(interno&&typeof interno==='object')d=interno;}catch(_){}
       }
-      // V194: separa o resultado principal (default.json / errors / Error400Response)
+      // V195: separa o resultado principal (default.json / errors / Error400Response)
       // dos cenários internos erro-*.json do Sandbox. Estes cenários não são usados para montar o boleto.
       const mensagensPrincipais=[];
       const mensagensCenarios=[];
@@ -305,7 +319,7 @@ module.exports=async function(req,res){
       }
       // Retorna apenas a resposta do Bradesco sanitizada. O payload enviado nunca é incluído.
       const estrutura=estruturaSegura(d);
-      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',resumo:{total_mensagens:mensagensPrincipais.length,total_unicas:unicas.length,campos_ausentes:ausentes,campos_rejeitados:rejeitados,erros_formato:formato,regras:regras,cenarios_sandbox_ignorados:cenariosUnicos.length},estrutura,total_nos:totalNos},seguranca:'V194 usa o BoletoRequestDTO como referência, separa default.json dos cenários erro-*.json e mantém identificadores sintéticos deliberadamente inválidos. Token, Client Secret, Authorization, certificado, chave privada, credenciais e payload enviado não são devolvidos ao navegador.'});
+      return json(res,200,{ok:true,diagnostico:{http_status:teste.http_status,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Validação do payload acionada.',resumo:{total_mensagens:mensagensPrincipais.length,total_unicas:unicas.length,campos_ausentes:ausentes,campos_rejeitados:rejeitados,erros_formato:formato,regras:regras,cenarios_sandbox_ignorados:cenariosUnicos.length},estrutura,total_nos:totalNos},seguranca:'V195 refina o cenário principal default.json: remove debitoAutomatico rejeitado neste endpoint e inclui Sacador/Avalista e listaMsgs sintéticos solicitados no diagnóstico. Cenários erro-*.json continuam separados. Token, Client Secret, Authorization, certificado, chave privada, credenciais e payload enviado não são devolvidos ao navegador.'});
     }
     if(action==='validar-endpoint-registro'){
       if(amb!=='sandbox')throw new Error('A validação do registro está liberada somente para o Sandbox.');
