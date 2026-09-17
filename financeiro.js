@@ -8917,18 +8917,24 @@ function montarPreviaRegistroBradescoV187(){
 async function diagnosticarPayloadMinimoBradescoV187(){
   if(bradescoAmbiente()!=='sandbox')return alert('O diagnóstico está liberado somente para o Sandbox.');
   const out=document.getElementById('bradescoDiagnosticoMinimoV187'),btn=document.getElementById('btnDiagnosticoMinimoBradesco');
-  if(!confirm('Executar diagnóstico seguro dos campos obrigatórios no Bradesco Sandbox?\n\nOs dados preenchidos na prévia NÃO serão enviados. O backend usará dados sintéticos e omitirá nuCliente e nuNegociacao de propósito, impedindo a formação de um pedido completo de registro.'))return;
-  if(out){out.className='bb-cert-aviso';out.textContent='⏳ Enviando payload sintético e incompleto para obter a validação do Bradesco...'} if(btn)btn.disabled=true;
+  if(!confirm('Executar diagnóstico seguro dos campos obrigatórios no Bradesco Sandbox?\n\nOs dados preenchidos na prévia NÃO serão enviados. O backend usará dados sintéticos e omitirá nuCliente e nuNegociacao de propósito.'))return;
+  if(out){out.className='bb-cert-aviso';out.textContent='⏳ Obtendo os detalhes seguros da validação do Bradesco...'} if(btn)btn.disabled=true;
   try{
     const j=await bradescoReq('diagnosticar-payload-minimo',{method:'POST',body:{}}),d=j.diagnostico||{};
     if(!j.ok)throw new Error(j.mensagem||'Diagnóstico não concluído.');
-    let detalhe=''; const ev=d.errosValidacao;
-    if(ev){
-      if(Array.isArray(ev))detalhe=ev.map(x=>[x.campo,x.mensagem||x.tipoRestricao].filter(Boolean).join(': ')).join(' • ');
-      else if(typeof ev==='object')detalhe=[ev.campo,ev.mensagem||ev.tipoRestricao].filter(Boolean).join(': ');
-      else detalhe=String(ev);
-    }
-    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ <b>Diagnóstico recebido do Bradesco Sandbox — HTTP ${escaparHtmlEmail(String(d.http_status||''))}.</b><br>${d.codigo?`Código: ${escaparHtmlEmail(String(d.codigo))}<br>`:''}${escaparHtmlEmail(String(d.mensagem||'Validação acionada.'))}${detalhe?`<br><b>Validação:</b> ${escaparHtmlEmail(detalhe)}`:''}<br><span class="bb-cert-ajuda">Nenhum dado da prévia foi utilizado. nuCliente e nuNegociacao permaneceram ausentes deliberadamente.</span>`}
+    const vals=Array.isArray(d.validacoes)?d.validacoes:[];
+    const linhas=vals.map((v,i)=>{
+      const partes=[];
+      if(v.campo)partes.push(`<b>Campo:</b> ${escaparHtmlEmail(String(v.campo))}`);
+      if(v.tipoRestricao)partes.push(`<b>Restrição:</b> ${escaparHtmlEmail(String(v.tipoRestricao))}`);
+      if(v.mensagem)partes.push(`<b>Mensagem:</b> ${escaparHtmlEmail(String(v.mensagem))}`);
+      if(v.tamanhoMinimoEsperado)partes.push(`<b>Tamanho mínimo:</b> ${escaparHtmlEmail(String(v.tamanhoMinimoEsperado))}`);
+      if(v.tamanhoMaximoPermitido)partes.push(`<b>Tamanho máximo:</b> ${escaparHtmlEmail(String(v.tamanhoMaximoPermitido))}`);
+      if(v.valorMinimoEsperado)partes.push(`<b>Valor mínimo:</b> ${escaparHtmlEmail(String(v.valorMinimoEsperado))}`);
+      if(v.valorMaximoPermitido)partes.push(`<b>Valor máximo:</b> ${escaparHtmlEmail(String(v.valorMaximoPermitido))}`);
+      return partes.length?`<div style="margin-top:8px;padding:8px;border:1px solid #c6e6ce;border-radius:8px;">${partes.join('<br>')}</div>`:'';
+    }).join('');
+    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ <b>Diagnóstico recebido do Bradesco Sandbox — HTTP ${escaparHtmlEmail(String(d.http_status||''))}.</b><br>${d.codigo?`Código: ${escaparHtmlEmail(String(d.codigo))}<br>`:''}${escaparHtmlEmail(String(d.mensagem||'Validação acionada.'))}${linhas||'<br><b>Detalhes:</b> o Bradesco não devolveu campo/restrição em formato reconhecido.'}<br><span class="bb-cert-ajuda">🔒 V188 exibe somente metadados seguros de validação. Token, Client Secret, certificado, chave privada e payload não são retornados ao navegador.</span>`}
   }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Diagnóstico não concluído: '+String(e.message||e)}}
   finally{if(btn)btn.disabled=false;}
 }
