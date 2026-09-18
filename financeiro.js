@@ -8684,6 +8684,7 @@ async function carregarStatusBradesco(mostrarErro=false){
   if(!bbAdminKey()){bradescoAviso('Valide a chave administrativa acima para consultar o Bradesco.','alerta');return}
   try{
     const j=await bradescoReq('status'), c=j.credenciais||{}, m=j.mtls||{};
+    carregarDadosBancariosBradesco(false).catch(()=>{});
     if(det)det.textContent=m.configurado?`mTLS ARMAZENADO\nValidade: ${bbFmtData(m.valido_de)} até ${bbFmtData(m.valido_ate)}\nDias restantes: ${m.dias_restantes??'—'}\nFingerprint SHA-256: ${m.fingerprint256||'—'}`:'Nenhum par mTLS cadastrado neste ambiente.';
     if(c.configuradas&&m.configurado){bradescoAviso('✅ Client ID/Secret e par mTLS estão armazenados. Pronto para validar a configuração local.','ok');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Bradesco • Sandbox configurado'}}
     else {bradescoAviso(`Configuração pendente: ${c.configuradas?'credenciais OK':'salvar Client ID/Secret'} • ${m.configurado?'mTLS OK':'salvar certificado + chave privada'}.`,'alerta');if(topo){topo.className='cobranca-bank-status pendente';topo.textContent='Bradesco • Sandbox em configuração'}}
@@ -8697,6 +8698,28 @@ async function salvarCredenciaisBradesco(){
     const j=await bradescoReq('salvar-credenciais',{method:'POST',body});
     ['bradescoClientId','bradescoClientSecret'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});bradescoAviso('✅ '+j.mensagem,'ok');await carregarStatusBradesco();
   }catch(e){alert('Não foi possível salvar as credenciais Bradesco.\n\n'+e.message)}
+}
+function bradescoDadosAviso(texto,tipo=''){const e=document.getElementById('bradescoDadosAviso');if(!e)return;e.className=`bb-cert-aviso ${tipo}`.trim();e.textContent=texto}
+async function carregarDadosBancariosBradesco(mostrarErro=false){
+  if(!bbAdminKey()){bradescoDadosAviso('Valide a chave administrativa para consultar os dados bancários.','alerta');return}
+  try{
+    const j=await bradescoReq('obter-dados-bancarios'),d=j.dados_bancarios||{},c=d.campos||{};
+    const nomes={cnpj:'CNPJ',agencia:'Agência',conta:'Conta',carteira:'Carteira',cedente:'Cedente',negociacao:'Negociação'};
+    const resumo=Object.entries(c).filter(([,v])=>v).map(([k,v])=>`${nomes[k]||k}: ${v}`).join(' • ');
+    bradescoDadosAviso(d.configurados?`✅ Dados bancários configurados no backend. ${resumo}`:`Configuração bancária ainda incompleta. ${resumo}`.trim(),d.configurados?'ok':'alerta');
+  }catch(e){bradescoDadosAviso('❌ Não foi possível consultar: '+e.message,'erro');if(mostrarErro)alert(e.message)}
+}
+async function salvarDadosBancariosBradesco(){
+  if(!bbAdminKey())return alert('Valide a chave administrativa antes de salvar.');
+  const get=id=>document.getElementById(id)?.value||'';
+  const body={cnpj:get('bradescoCfgCnpj'),agencia:get('bradescoCfgAgencia'),conta:get('bradescoCfgConta'),carteira:get('bradescoCfgCarteira'),cedente:get('bradescoCfgCedente'),negociacao:get('bradescoCfgNegociacao')};
+  if(!confirm('Salvar/atualizar os dados bancários do contrato Bradesco no backend?'))return;
+  try{
+    const j=await bradescoReq('salvar-dados-bancarios',{method:'POST',body});
+    ['bradescoCfgCnpj','bradescoCfgAgencia','bradescoCfgConta','bradescoCfgCarteira','bradescoCfgCedente','bradescoCfgNegociacao'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});
+    bradescoDadosAviso('✅ '+j.mensagem+' Os campos foram limpos por segurança.','ok');
+    await carregarDadosBancariosBradesco();
+  }catch(e){bradescoDadosAviso('❌ Os dados não foram alterados. '+e.message,'erro');alert('Não foi possível salvar os dados bancários Bradesco.\n\n'+e.message)}
 }
 async function salvarMtlsBradesco(){
   const cert=document.getElementById('bradescoCertPublico')?.files?.[0], key=document.getElementById('bradescoChavePrivada')?.files?.[0];

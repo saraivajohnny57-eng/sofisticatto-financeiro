@@ -2839,6 +2839,26 @@ SOFISTICATTO COSMÉTICOS</textarea>
         </div>
       </div>
       <p class="bb-cert-ajuda" style="margin:12px 0 0;"><b>Segurança:</b> o botão “Validar configuração” confere localmente credenciais + par mTLS. O teste externo abaixo valida somente a autenticação mTLS/OAuth do Sandbox e não registra boleto.</p>
+
+      <div style="margin-top:16px;padding:14px;border:1px solid #e5c8cf;border-radius:12px;background:#fff;">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
+          <div><h4 style="margin:0 0 4px;">🏦 Dados bancários do contrato Bradesco</h4><p class="bb-cert-ajuda" style="margin:0;">Cadastre pelo portal os dados reais fornecidos pelo Bradesco. Eles são enviados ao backend e armazenados criptografados; depois da gravação o navegador recebe apenas valores mascarados.</p></div>
+          <button class="btn azul" onclick="carregarDadosBancariosBradesco(true)">↻ Consultar configuração</button>
+        </div>
+        <div id="bradescoDadosAviso" class="bb-cert-aviso" style="margin-top:10px;">Aguardando consulta dos dados bancários.</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px;margin-top:10px;">
+          <label>CNPJ do beneficiário<input id="bradescoCfgCnpj" class="input" inputmode="numeric" autocomplete="off" placeholder="Somente números"></label>
+          <label>Agência<input id="bradescoCfgAgencia" class="input" inputmode="numeric" autocomplete="off" placeholder="Agência"></label>
+          <label>Conta<input id="bradescoCfgConta" class="input" inputmode="numeric" autocomplete="off" placeholder="Conta"></label>
+          <label>Carteira / produto<input id="bradescoCfgCarteira" class="input" inputmode="numeric" autocomplete="off" placeholder="Ex.: 09"></label>
+          <label>Cedente<input id="bradescoCfgCedente" class="input" autocomplete="off" placeholder="Código do cedente"></label>
+          <label>Nº negociação<input id="bradescoCfgNegociacao" class="input" inputmode="numeric" autocomplete="off" placeholder="Se fornecido pelo Bradesco"></label>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+          <button class="btn roxo" onclick="salvarDadosBancariosBradesco()">💾 Salvar dados bancários</button>
+          <span class="bb-cert-ajuda">Campos em branco mantêm o valor já salvo. Client Secret, certificado e chave privada continuam separados nesta tela.</span>
+        </div>
+      </div>
     </div>
 
         <div class="bb-api-test-box" style="margin-top:14px;padding:14px;border:1px solid #e5c8cf;border-radius:12px;background:#fffafb;">
