@@ -4,7 +4,6 @@ const forge=require('node-forge');
 const {exigirAdmin,supabaseRest,criptografar,descriptografar}=require('../lib/integracoes/_utils');
 
 const TABELA='integracoes_bradesco_segredos';
-const CNPJ_PADRAO='05451985000195';
 const AMBIENTE_PADRAO='sandbox';
 function json(res,status,data){res.status(status).json(data)}
 function ambiente(v){return String(v||AMBIENTE_PADRAO).toLowerCase()==='producao'?'producao':'sandbox'}
@@ -28,9 +27,22 @@ function validarParMtls(certPem,keyPem){
   if(agora>ate)throw new Error('O certificado está vencido.');
   return {subject:cert.subject,issuer:cert.issuer,valido_de:de.toISOString(),valido_ate:ate.toISOString(),dias_restantes:Math.ceil((ate-agora)/86400000),fingerprint256:cert.fingerprint256};
 }
+function mascarar(v,inicio=2,fim=2){
+  const s=String(v||''); if(!s)return ''; if(s.length<=inicio+fim)return '•'.repeat(s.length);
+  return s.slice(0,inicio)+'•'.repeat(Math.min(10,s.length-inicio-fim))+s.slice(-fim);
+}
+async function dadosBancariosStatus(amb){
+  const reg=await obter(idRegistro(amb,'dados-bancarios'));
+  if(!reg)return {configurados:false,campos:{}};
+  const d=descriptografar(reg)||{};
+  return {configurados:!!(d.cnpj&&d.agencia&&d.conta&&d.carteira&&d.cedente),campos:{
+    cnpj:mascarar(d.cnpj,2,2),agencia:mascarar(d.agencia,1,1),conta:mascarar(d.conta,1,1),
+    carteira:mascarar(d.carteira,0,1),cedente:mascarar(d.cedente,1,1),negociacao:mascarar(d.negociacao,2,2)
+  },presentes:{cnpj:!!d.cnpj,agencia:!!d.agencia,conta:!!d.conta,carteira:!!d.carteira,cedente:!!d.cedente,negociacao:!!d.negociacao}};
+}
 async function status(amb){
   const cred=await obter(idRegistro(amb,'credenciais')), mtls=await obter(idRegistro(amb,'mtls'));
-  return {ambiente:ambiente(amb),credenciais:{configuradas:!!cred,client_id:!!cred,client_secret:!!cred},mtls:{configurado:!!mtls,...(mtls?.metadata||{})},cnpj:CNPJ_PADRAO};
+  return {ambiente:ambiente(amb),credenciais:{configuradas:!!cred,client_id:!!cred,client_secret:!!cred},mtls:{configurado:!!mtls,...(mtls?.metadata||{})},dados_bancarios:await dadosBancariosStatus(amb)};
 }
 
 function endpointToken(amb){
@@ -238,10 +250,33 @@ module.exports=async function(req,res){
       await salvar(idRegistro(amb,'credenciais'),amb,'credenciais',{client_id,client_secret},{client_id_configurado:true});
       return json(res,200,{ok:true,mensagem:'Credenciais Bradesco salvas com criptografia no backend.'});
     }
+    if(action==='obter-dados-bancarios'){
+      return json(res,200,{ok:true,dados_bancarios:await dadosBancariosStatus(amb)});
+    }
+    if(action==='salvar-dados-bancarios'){
+      const reg=await obter(idRegistro(amb,'dados-bancarios'));
+      let anterior={}; if(reg)anterior=descriptografar(reg)||{};
+      const somenteDigitos=v=>String(v||'').replace(/\D/g,'');
+      const entrada=req.body||{};
+      const dados={
+        cnpj:somenteDigitos(entrada.cnpj)||anterior.cnpj||'',
+        agencia:somenteDigitos(entrada.agencia)||anterior.agencia||'',
+        conta:somenteDigitos(entrada.conta)||anterior.conta||'',
+        carteira:somenteDigitos(entrada.carteira)||anterior.carteira||'',
+        cedente:String(entrada.cedente||'').trim()||anterior.cedente||'',
+        negociacao:somenteDigitos(entrada.negociacao)||anterior.negociacao||''
+      };
+      if(dados.cnpj && dados.cnpj.length!==14)throw new Error('O CNPJ deve conter 14 números.');
+      if(dados.carteira && dados.carteira.length>2)throw new Error('A carteira/produto deve conter no máximo 2 números.');
+      if(dados.negociacao && dados.negociacao.length>18)throw new Error('O número de negociação deve conter no máximo 18 números.');
+      if(!dados.cnpj||!dados.agencia||!dados.conta||!dados.carteira||!dados.cedente)throw new Error('Na primeira configuração informe CNPJ, agência, conta, carteira/produto e cedente.');
+      await salvar(idRegistro(amb,'dados-bancarios'),amb,'dados-bancarios',dados,{campos_configurados:Object.keys(dados).filter(k=>!!dados[k])});
+      return json(res,200,{ok:true,mensagem:'Dados bancários Bradesco salvos com criptografia no backend.',dados_bancarios:await dadosBancariosStatus(amb)});
+    }
     if(action==='salvar-mtls'){
       const certPem=pemValido(req.body?.cert_pem,'cert'), keyPem=pemValido(req.body?.key_pem,'key');
       const meta=validarParMtls(certPem,keyPem);
-      await salvar(idRegistro(amb,'mtls'),amb,'mtls',{cert_pem:certPem,key_pem:keyPem},{...meta,cnpj:CNPJ_PADRAO});
+      await salvar(idRegistro(amb,'mtls'),amb,'mtls',{cert_pem:certPem,key_pem:keyPem},{...meta});
       return json(res,200,{ok:true,mensagem:'Par mTLS validado e armazenado com criptografia no backend.',certificado:meta});
     }
     if(action==='validar-configuracao'){
