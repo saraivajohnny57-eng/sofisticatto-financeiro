@@ -8256,11 +8256,62 @@ let cobrancaMassaRelatorios=[];
 let cobrancaMassaPreparadas=[];
 let cobrancaMassaPastaHandle=null;
 let cobrancaMassaArquivosEmitidos=[];
+// V209 — trava contra preparação duplicada da fila em massa.
+// carregarFilaCobrancaMassa pode ser chamado por mais de um fluxo da tela; sem esta trava,
+// duas execuções simultâneas podiam consultar "zero parcelas" e inserir o mesmo lote duas vezes.
+const cobrancaMassaPreparandoRelatoriosV209=new Set();
+
+function chaveParcelaMassaV209(x){
+  const rel=String(x?.relatorio_id||'');
+  const n=Number(x?.parcela_numero||0);
+  const venc=String(x?.vencimento||'');
+  const valor=Math.round(Number(x?.valor||0)*100);
+  return `${rel}|${n}|${venc}|${valor}`;
+}
+function deduplicarParcelasMassaV209(rows){
+  const vistos=new Set();
+  return (rows||[]).filter(x=>{
+    const k=chaveParcelaMassaV209(x);
+    if(vistos.has(k))return false;
+    vistos.add(k);return true;
+  });
+}
+async function limparDuplicidadesPendentesMassaV209(rows){
+  // Remove SOMENTE cópias locais ainda não emitidas, sem nosso número.
+  // Nunca toca em boleto confirmado/aberto/cancelado.
+  const grupos=new Map();
+  for(const x of (rows||[])){
+    if(x?.status!=='pendente_integracao'||x?.nosso_numero)continue;
+    const k=chaveParcelaMassaV209(x);
+    if(!grupos.has(k))grupos.set(k,[]);
+    grupos.get(k).push(x);
+  }
+  const apagar=[];
+  for(const arr of grupos.values()){
+    if(arr.length<2)continue;
+    arr.sort((a,b)=>String(a.criado_em||a.created_at||a.id||'').localeCompare(String(b.criado_em||b.created_at||b.id||'')));
+    apagar.push(...arr.slice(1).map(x=>x.id).filter(Boolean));
+  }
+  if(!apagar.length)return 0;
+  for(const id of apagar){
+    const r=await banco.from('cobrancas_bancarias').delete().eq('id',id).eq('status','pendente_integracao');
+    if(r.error)console.warn('V209: não foi possível remover cópia pendente',id,r.error);
+  }
+  return apagar.length;
+}
 
 async function prepararRelatorioParaFilaMassaV176(rel){
   if(!rel||!rel.id||!rel.banco||codigoBancoCobranca(rel.banco)!=='bb')return false;
+  const trava=String(rel.id);
+  if(cobrancaMassaPreparandoRelatoriosV209.has(trava))return false;
+  cobrancaMassaPreparandoRelatoriosV209.add(trava);
+  try{
   const existentes=(cobrancaMassaPreparadas||[]).filter(x=>String(x.relatorio_id)===String(rel.id)&&x.status!=='cancelado');
   if(existentes.length)return false;
+  // V209: confirma novamente no Supabase imediatamente antes de preparar.
+  // Isso evita duplicação quando a fila é recarregada enquanto outra chamada ainda está inserindo.
+  const conf=await banco.from('cobrancas_bancarias').select('id,relatorio_id,status').eq('relatorio_id',rel.id).neq('status','cancelado').limit(1);
+  if(!conf.error&&conf.data?.length)return false;
   const parcelas=Array.isArray(rel.parcelas_json)?rel.parcelas_json:[];
   if(!parcelas.length||!rel.cliente_id||!String(rel.numero_nf||'').trim())return false;
   const cli=(emailClientes||[]).find(c=>String(c.id)===String(rel.cliente_id));
@@ -8276,6 +8327,9 @@ async function prepararRelatorioParaFilaMassaV176(rel){
   if(r.error){console.warn('Preparação automática da fila em massa:',r.error);return false;}
   cobrancaMassaPreparadas.push(...(r.data||[]));
   return true;
+  }finally{
+    cobrancaMassaPreparandoRelatoriosV209.delete(trava);
+  }
 }
 
 async function carregarFilaCobrancaMassa(){
@@ -8290,6 +8344,16 @@ async function carregarFilaCobrancaMassa(){
     if(rel.error)throw rel.error;
     cobrancaMassaRelatorios=rel.data||[];
     cobrancaMassaPreparadas=prep.error?[]:(prep.data||[]);
+    // V209: corrige duplicidades antigas somente quando são cópias pendentes idênticas.
+    // Depois, a tela trabalha com uma única ocorrência de cada parcela.
+    if(!prep.error){
+      const removidas=await limparDuplicidadesPendentesMassaV209(cobrancaMassaPreparadas);
+      if(removidas){
+        const novo=await banco.from('cobrancas_bancarias').select('*').neq('status','cancelado').order('parcela_numero',{ascending:true});
+        if(!novo.error)cobrancaMassaPreparadas=novo.data||[];
+      }
+      cobrancaMassaPreparadas=deduplicarParcelasMassaV209(cobrancaMassaPreparadas);
+    }
     // V176 revisão: relatórios criados com cliente + NF + parcelas ficam prontos para emissão em massa
     // assim que o usuário Banco seleciona Banco do Brasil. Apenas prepara localmente; não emite sem clique.
     for(const r of cobrancaMassaRelatorios){try{await prepararRelatorioParaFilaMassaV176(r);}catch(e){console.warn('Fila automática:',e)}}
@@ -8300,7 +8364,7 @@ async function carregarFilaCobrancaMassa(){
   }
 }
 function parcelasDoRelatorioMassa(id){
-  return (cobrancaMassaPreparadas||[]).filter(x=>String(x.relatorio_id)===String(id)&&x.status!=="cancelado").sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0));
+  return deduplicarParcelasMassaV209((cobrancaMassaPreparadas||[]).filter(x=>String(x.relatorio_id)===String(id)&&x.status!=="cancelado")).sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0));
 }
 function dadosGrupoCobrancaMassa(rel){
   const parcelas=parcelasDoRelatorioMassa(rel.id);
