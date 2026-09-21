@@ -9043,6 +9043,31 @@ async function diagnosticarPayloadMinimoBradescoV187(){
   finally{if(btn)btn.disabled=false;}
 }
 
+
+// V224 — busca inteligente de cliente para a homologação Bradesco.
+// Pesquisa localmente a lista já carregada por nome, CPF ou CNPJ e preenche o endereço cadastrado.
+function somenteDigitosClienteBradesco(v){return String(v||'').replace(/\D/g,'');}
+function documentoClienteBradesco(c){return c?.cpf_cnpj||c?.cnpj||c?.cpf||c?.documento||'';}
+function buscarClienteBradescoInteligente(termo){
+  const box=document.getElementById('brClienteSugestoes'); if(!box)return;
+  const q=String(termo||'').trim().toLocaleLowerCase('pt-BR'), qd=somenteDigitosClienteBradesco(termo);
+  const lista=(emailClientes||[]).filter(c=>{
+    const nome=String(c?.nome||'').toLocaleLowerCase('pt-BR'), doc=somenteDigitosClienteBradesco(documentoClienteBradesco(c));
+    return !q || nome.includes(q) || (qd && doc.includes(qd));
+  }).slice(0,20);
+  if(!lista.length){box.innerHTML='<div style="padding:10px;color:#6b6680;">Nenhum cliente encontrado.</div>';box.style.display='block';return;}
+  box.innerHTML=lista.map(c=>{const doc=somenteDigitosClienteBradesco(documentoClienteBradesco(c));return `<button type="button" onclick="selecionarClienteBradesco('${String(c.id).replace(/'/g,"\\'")}')" style="display:block;width:100%;text-align:left;padding:9px 11px;border:0;border-bottom:1px solid #eee;background:#fff;cursor:pointer;"><b>${escaparHtmlEmail(String(c.nome||''))}</b><br><small>${escaparHtmlEmail(doc||'Sem CPF/CNPJ cadastrado')}</small></button>`}).join('');
+  box.style.display='block';
+}
+function selecionarClienteBradesco(id){
+  const c=(emailClientes||[]).find(x=>String(x.id)===String(id)); if(!c)return;
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v??''};
+  set('brTesteNome',c.nome||''); set('brTesteDocumento',somenteDigitosClienteBradesco(documentoClienteBradesco(c)));
+  set('brTesteCep',somenteDigitosClienteBradesco(c.cep||'')); set('brTesteLogradouro',c.endereco||c.logradouro||''); set('brTesteNumero',c.numero||''); set('brTesteComplemento',c.complemento||''); set('brTesteBairro',c.bairro||''); set('brTesteMunicipio',c.cidade||c.municipio||''); set('brTesteUf',String(c.uf||'').toUpperCase());
+  const box=document.getElementById('brClienteSugestoes');if(box)box.style.display='none';
+}
+document.addEventListener('click',e=>{const box=document.getElementById('brClienteSugestoes'),inp=document.getElementById('brTesteNome');if(box&&inp&&!box.contains(e.target)&&e.target!==inp)box.style.display='none';});
+
 // V222 — preparação controlada de homologação Bradesco.
 // Usa os dados reais do contrato armazenados no backend, mas NÃO chama o endpoint de registro.
 async function prepararHomologacaoControladaBradesco(){
@@ -9067,7 +9092,7 @@ async function prepararHomologacaoControladaBradesco(){
     const body={nome,documento,valor,vencimento,seuNumero,cep:String(get('brTesteCep')).replace(/\D/g,''),logradouro:String(get('brTesteLogradouro')).trim(),numero:String(get('brTesteNumero')).trim(),complemento:String(get('brTesteComplemento')).trim(),bairro:String(get('brTesteBairro')).trim(),municipio:String(get('brTesteMunicipio')).trim(),uf:String(get('brTesteUf')).trim().toUpperCase(),especie:String(get('brTesteEspecie')).trim()||'01',mensagem:String(get('brTesteMensagem')).trim()};
     const j=await bradescoReq('preparar-homologacao-controlada',{method:'POST',body});
     const p=j.previa||{};
-    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ <b>Prévia controlada pronta — NENHUM BOLETO ENVIADO.</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #c6e6ce;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(p,null,2))}</pre></div><span class="bb-cert-ajuda">🔒 V223: contrato e documentos sensíveis permanecem mascarados. O payload sanitizado é somente para revisão; o endpoint de registro continua bloqueado. Se houver pendências de endereço, elas aparecerão no resultado.</span>`}
+    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ <b>Prévia controlada pronta — NENHUM BOLETO ENVIADO.</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #c6e6ce;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(p,null,2))}</pre></div><span class="bb-cert-ajuda">🔒 V224: contrato e documentos sensíveis permanecem mascarados. O payload sanitizado é somente para revisão; o endpoint de registro continua bloqueado. Se houver pendências de endereço, elas aparecerão no resultado.</span>`}
     bradescoAviso('✅ Prévia de homologação preparada com o contrato armazenado. Nenhum boleto foi enviado.','ok');
   }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Não foi possível preparar a homologação: '+String(e.message||e)};alert('Preparação Bradesco não concluída.\n\n'+String(e.message||e));}
   finally{if(btn)btn.disabled=false;}
