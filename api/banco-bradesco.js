@@ -27,6 +27,14 @@ function validarParMtls(certPem,keyPem){
   if(agora>ate)throw new Error('O certificado está vencido.');
   return {subject:cert.subject,issuer:cert.issuer,valido_de:de.toISOString(),valido_ate:ate.toISOString(),dias_restantes:Math.ceil((ate-agora)/86400000),fingerprint256:cert.fingerprint256};
 }
+function gerarNuNegociacao(agencia,conta){
+  const dig=v=>String(v||'').replace(/\D/g,'');
+  const ag=dig(agencia), ct=dig(conta);
+  if(!ag||!ct)return '';
+  if(ag.length>4)throw new Error('Para gerar o número de negociação automaticamente, informe a agência sem dígito verificador, com até 4 números.');
+  if(ct.length>7)throw new Error('Para gerar o número de negociação automaticamente, informe a conta sem dígito verificador, com até 7 números.');
+  return ag.padStart(4,'0')+'0000000'+ct.padStart(7,'0');
+}
 function mascarar(v,inicio=2,fim=2){
   const s=String(v||''); if(!s)return ''; if(s.length<=inicio+fim)return '•'.repeat(s.length);
   return s.slice(0,inicio)+'•'.repeat(Math.min(10,s.length-inicio-fim))+s.slice(-fim);
@@ -35,10 +43,10 @@ async function dadosBancariosStatus(amb){
   const reg=await obter(idRegistro(amb,'dados-bancarios'));
   if(!reg)return {configurados:false,campos:{}};
   const d=descriptografar(reg)||{};
-  return {configurados:!!(d.cnpj&&d.agencia&&d.conta&&d.carteira&&d.cedente),campos:{
+  return {configurados:!!(d.cnpj&&d.agencia&&d.conta&&d.carteira&&d.cedente&&d.negociacao),campos:{
     cnpj:mascarar(d.cnpj,2,2),agencia:mascarar(d.agencia,1,1),conta:mascarar(d.conta,1,1),
     carteira:mascarar(d.carteira,0,1),cedente:mascarar(d.cedente,1,1),negociacao:mascarar(d.negociacao,2,2)
-  },presentes:{cnpj:!!d.cnpj,agencia:!!d.agencia,conta:!!d.conta,carteira:!!d.carteira,cedente:!!d.cedente,negociacao:!!d.negociacao}};
+  },presentes:{cnpj:!!d.cnpj,agencia:!!d.agencia,conta:!!d.conta,carteira:!!d.carteira,cedente:!!d.cedente,negociacao:!!d.negociacao},negociacao_origem:d.negociacao_origem||null};
 }
 async function status(amb){
   const cred=await obter(idRegistro(amb,'credenciais')), mtls=await obter(idRegistro(amb,'mtls'));
@@ -264,14 +272,32 @@ module.exports=async function(req,res){
         conta:somenteDigitos(entrada.conta)||anterior.conta||'',
         carteira:somenteDigitos(entrada.carteira)||anterior.carteira||'',
         cedente:String(entrada.cedente||'').trim()||anterior.cedente||'',
-        negociacao:somenteDigitos(entrada.negociacao)||anterior.negociacao||''
+        negociacao:'',
+        negociacao_origem:''
       };
+      const negociacaoManual=somenteDigitos(entrada.negociacao);
+      if(negociacaoManual){
+        if(negociacaoManual.length!==18)throw new Error('O número de negociação informado manualmente deve conter exatamente 18 números.');
+        dados.negociacao=negociacaoManual;
+        dados.negociacao_origem='manual';
+      }else{
+        // V221: regra Bradesco: agência (4) + 7 zeros + conta (7), sempre sem DV.
+        // Recalcula quando agência/conta são enviados; se a edição não mexeu neles, preserva o valor salvo.
+        const alterouAgenciaConta=!!(somenteDigitos(entrada.agencia)||somenteDigitos(entrada.conta));
+        if(alterouAgenciaConta||!anterior.negociacao){
+          dados.negociacao=gerarNuNegociacao(dados.agencia,dados.conta);
+          dados.negociacao_origem='automatico_agencia_conta';
+        }else{
+          dados.negociacao=anterior.negociacao||'';
+          dados.negociacao_origem=anterior.negociacao_origem||'salvo_anteriormente';
+        }
+      }
       if(dados.cnpj && dados.cnpj.length!==14)throw new Error('O CNPJ deve conter 14 números.');
       if(dados.carteira && dados.carteira.length>2)throw new Error('A carteira/produto deve conter no máximo 2 números.');
-      if(dados.negociacao && dados.negociacao.length>18)throw new Error('O número de negociação deve conter no máximo 18 números.');
+      if(dados.negociacao && dados.negociacao.length!==18)throw new Error('O número de negociação deve conter exatamente 18 números.');
       if(!dados.cnpj||!dados.agencia||!dados.conta||!dados.carteira||!dados.cedente)throw new Error('Na primeira configuração informe CNPJ, agência, conta, carteira/produto e cedente.');
       await salvar(idRegistro(amb,'dados-bancarios'),amb,'dados-bancarios',dados,{campos_configurados:Object.keys(dados).filter(k=>!!dados[k])});
-      return json(res,200,{ok:true,mensagem:'Dados bancários Bradesco salvos com criptografia no backend.',dados_bancarios:await dadosBancariosStatus(amb)});
+      return json(res,200,{ok:true,mensagem:`Dados bancários Bradesco salvos com criptografia no backend. Nº negociação ${dados.negociacao_origem==='automatico_agencia_conta'?'gerado automaticamente pela agência + 7 zeros + conta.':'mantido conforme configuração.'}`,dados_bancarios:await dadosBancariosStatus(amb)});
     }
     if(action==='salvar-mtls'){
       const certPem=pemValido(req.body?.cert_pem,'cert'), keyPem=pemValido(req.body?.key_pem,'key');
