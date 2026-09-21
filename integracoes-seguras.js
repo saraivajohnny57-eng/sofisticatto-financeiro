@@ -490,6 +490,21 @@ async function prepararBraspressRapidoV213(){
   return convite;
 }
 
+async function garantirBraspressFreteV214(){
+  if(!banco) await carregarSupabase();
+  const busca=await banco.from("frete_transportadoras").select("id,nome,ativa").ilike("nome","%Braspress%").limit(1);
+  if(busca.error)throw new Error("Credenciais salvas, mas não foi possível verificar a Braspress na Cotação: "+busca.error.message);
+  if((busca.data||[]).length){
+    const atual=busca.data[0];
+    if(atual.ativa===false) await banco.from("frete_transportadoras").update({ativa:true}).eq("id",atual.id);
+    return atual;
+  }
+  const r=await banco.from("frete_transportadoras").insert([{nome:"Braspress Transportes Urgentes",ativa:true,observacao:"API Braspress integrada automaticamente — V214"}]).select().single();
+  if(r.error)throw new Error("Credenciais salvas, mas não foi possível incluir a Braspress na lista de cotações: "+r.error.message);
+  if(typeof carregarTransportadorasFrete==="function") await carregarTransportadorasFrete();
+  return r.data;
+}
+
 async function salvarBraspressRapido(){
   const usuario=document.getElementById("braspressRapidoUsuario")?.value.trim()||"";
   const senha=document.getElementById("braspressRapidoSenha")?.value||"";
@@ -509,6 +524,14 @@ async function salvarBraspressRapido(){
       })
     });
     document.getElementById("braspressRapidoSenha").value="";
+    const campoUsuario=document.getElementById("braspressRapidoUsuario");
+    if(campoUsuario){
+      const limpo=String(usuario||"");
+      campoUsuario.value="";
+      campoUsuario.placeholder=limpo.length>8 ? limpo.slice(0,4)+"••••••"+limpo.slice(-4) : "••••••••";
+      campoUsuario.dataset.salvo="1";
+    }
+    await garantirBraspressFreteV214();
     if(status){status.textContent="✓ Braspress cadastrada";status.className="integracao-chave-status ok";}
     const box=document.getElementById("braspressRapidoResultado");
     if(box){box.className="integracao-resultado-teste sucesso";box.textContent="Credenciais Braspress salvas com segurança em "+new Date(resposta.atualizado_em).toLocaleString("pt-BR")+". Agora clique em ‘Testar conexão’.";}

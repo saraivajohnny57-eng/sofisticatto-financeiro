@@ -622,6 +622,38 @@ async function cotarAutomaticamenteSSW(transportadoraId,tipoFrete){
   }catch(e){console.error("Cotação automática SSW:",e);alert(`Não foi possível gerar a cotação automática de ${tr?.nome||"SSW"}:\n\n${e.message||e}`);}finally{if(botao){botao.disabled=false;botao.textContent=original;}}
 }
 
+async function cotarAutomaticamenteBraspress(transportadoraId,tipoFrete){
+  const dados=dadosFormularioFrete();
+  const chave=chaveRespostaFrete(transportadoraId,tipoFrete);
+  const botao=document.getElementById(`btnBraspress_${chave}`);
+  const documento=String(dados.cpf_cnpj_destino||"").replace(/\D/g,"");
+  const cep=String(dados.cep_destino||"").replace(/\D/g,"");
+  if(![11,14].includes(documento.length)||cep.length!==8)return alert("Para cotar na Braspress, informe CPF/CNPJ e CEP válidos do destino.");
+  if(!Number(dados.valor_nf||0)||!Number(dados.peso_total||0)||!Number(dados.volumes||0))return alert("Informe valor da NF, peso total e volumes para cotar na Braspress.");
+  const medidas=typeof extrairMedidasRodonaves==="function"?extrairMedidasRodonaves(dados.medidas):{};
+  const original=botao?.textContent||"🚚 Cotar Braspress automaticamente";
+  if(botao){botao.disabled=true;botao.textContent="Consultando Braspress...";}
+  try{
+    const adm=await obterChaveIntegracoesCotacao(); if(!adm)throw new Error("Chave administrativa não informada.");
+    const salva=await salvarCotacaoFrete("rascunho"); if(!salva)throw new Error("Não foi possível salvar a cotação antes da consulta.");
+    const convite=(window.integracoesTransportadoras||integracoesTransportadoras||[]).find(i=>/braspress/i.test(String(i.transportadora_nome||"")));
+    if(!convite)throw new Error("A configuração Braspress não foi localizada. Salve novamente o cadastro rápido na Central de Integrações.");
+    const r=await fetch("/api/integracoes?action=cotar-braspress",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":adm},body:JSON.stringify({
+      convite_id:convite.id,ambiente:"producao",cnpjDestinatario:documento,cepDestino:cep,vlrMercadoria:Number(dados.valor_nf),peso:Number(dados.peso_total),volumes:Number(dados.volumes),
+      modal:"R",tipoFrete:tipoFrete==="FOB"?"2":"1",altura_cm:medidas.altura_cm||10,largura_cm:medidas.largura_cm||10,comprimento_cm:medidas.comprimento_cm||10
+    })});
+    const d=await r.json().catch(()=>({})); if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);
+    const valor=Number(d.cotacao?.totalFrete||0), prazo=d.cotacao?.prazo??"", numero=d.cotacao?.id??"";
+    if(!valor)throw new Error("A Braspress respondeu, mas não retornou valor de frete.");
+    freteCampo(`freteRespNumero_${chave}`).value=numero;
+    freteCampo(`freteRespValor_${chave}`).value=valor.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+    freteCampo(`freteRespPrazo_${chave}`).value=prazo?`${prazo} dia(s)`:"";
+    await registrarRespostaFrete(transportadoraId,tipoFrete);
+    mostrarBalaoSistema("Cotação Braspress recebida",`${moedaFrete(valor)}${prazo?` • ${prazo} dia(s)`:""}`);
+  }catch(e){console.error("Cotação Braspress:",e);alert("Não foi possível cotar na Braspress:\n\n"+(e.message||e));}
+  finally{if(botao){botao.disabled=false;botao.textContent=original;}}
+}
+
 async function cotarAutomaticamenteCorreios(transportadoraId,tipoFrete){
   const dados=dadosFormularioFrete();
   const chave=chaveRespostaFrete(transportadoraId,tipoFrete);
@@ -825,6 +857,8 @@ function gerarCotacoesFrete(){
               ? `<button class="btn roxo" id="btnAlfa_${chave}" onclick="cotarAutomaticamenteAlfa('${id}','${tipoResposta}')">⚡ Cotar Alfa automaticamente</button>` : ""}
             ${/(accert|tg\s+transportes|tgtransportes)/i.test(transportadora?.nome||"")
               ? `<button class="btn roxo" id="btnSSW_${chave}" onclick="cotarAutomaticamenteSSW('${id}','${tipoResposta}')">⚡ Cotar SSW automaticamente</button>` : ""}
+            ${/braspress/i.test(transportadora?.nome||"")
+              ? `<button class="btn roxo" id="btnBraspress_${chave}" onclick="cotarAutomaticamenteBraspress('${id}','${tipoResposta}')">🚚 Cotar Braspress automaticamente</button>` : ""}
             ${/(correios|coreios)/i.test(transportadora?.nome||"")
               ? `<button class="btn roxo" id="btnCorreios_${chave}" onclick="cotarAutomaticamenteCorreios('${id}','${tipoResposta}')">📮 Cotar Correios automaticamente</button>` : ""}
             <button class="btn azul" onclick="copiarTextoFrete('${chave}')">Copiar solicitação</button>
