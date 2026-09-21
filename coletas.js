@@ -2485,7 +2485,9 @@ async function atualizarRastreioIntegrado(id,botao=null){
       if(!nf)throw new Error("Informe o número da NF para consultar a Braspress.");
       const chave=await chaveAdminColeta();
       if(!chave)throw new Error("Informe a chave administrativa.");
+      const conviteBraspress=(window.integracoesTransportadoras||window.integracoesTransportadorasCache||[]).find(i=>/braspress/i.test(String(i.transportadora_nome||i.nome||"")));
       const params=new URLSearchParams({action:"consultar-rastreio-braspress",registro_id:String(id),nfe:nf});
+      if(conviteBraspress?.id||conviteBraspress?.convite_id)params.set("convite_id",String(conviteBraspress.id||conviteBraspress.convite_id));
       const resposta=await fetch(`/api/integracoes?${params.toString()}`,{headers:{"x-integrations-admin-key":chave}});
       const dados=await resposta.json().catch(()=>({}));
       if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
