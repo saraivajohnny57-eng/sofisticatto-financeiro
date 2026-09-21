@@ -34,6 +34,9 @@ const documentosCorreios = require("../lib/integracoes/documentos-correios");
 const criarPrepostagemCorreios = require("../lib/integracoes/criar-prepostagem-correios");
 const buscarCepCorreios = require("../lib/integracoes/buscar-cep-correios");
 const verificarCobertura = require("../lib/integracoes/verificar-cobertura");
+const testarBraspressAuth = require("../lib/integracoes/testar-braspress-auth");
+const cotarBraspress = require("../lib/integracoes/cotar-braspress");
+const rastrearBraspress = require("../lib/integracoes/rastrear-braspress");
 
 const ROTAS = Object.freeze({
   "validar-chave": validarChave,
@@ -65,6 +68,9 @@ const ROTAS = Object.freeze({
   "criar-prepostagem-correios": criarPrepostagemCorreios,
   "buscar-cep-correios": buscarCepCorreios,
   "verificar-cobertura": verificarCobertura,
+  "testar-braspress-auth": testarBraspressAuth,
+  "cotar-braspress": cotarBraspress,
+  "rastrear-braspress": rastrearBraspress,
 });
 
 function responder(res, status, body) {
