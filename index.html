@@ -2256,6 +2256,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 </div>
               </label>
               <label><span>CNPJ usado no rastreio SSW</span><input id="integracaoCredCnpjRastreioSSW" autocomplete="off" placeholder="Padrão: 05.451.985/0001-95"></label>
+              <label><span>CNPJ Braspress (tomador/remetente)</span><input id="integracaoCredCnpjBraspress" autocomplete="off" placeholder="Somente números"></label>
+              <label><span>CEP origem Braspress</span><input id="integracaoCredCepOrigemBraspress" autocomplete="off" placeholder="Somente números"></label>
               <label><span>Código de mercadoria SSW</span><input id="integracaoCredMercadoriaSSW" autocomplete="off" placeholder="Padrão: 1"></label>
               <label><span>Bearer Token</span>
                 <div class="integracao-campo-senha">
@@ -2303,11 +2305,32 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <button class="btn azul" onclick="salvarConfiguracaoIntegracao()">Salvar configuração</button>
               <button class="btn verde" onclick="testarHomologacaoIntegracao()">Testar endpoint genérico</button>
               <button class="btn verde" onclick="testarAutenticacaoRodonaves()">Testar login Rodonaves</button>
+              <button class="btn verde" onclick="testarAutenticacaoBraspress()">Testar Braspress</button>
               <button class="btn roxo" onclick="aprovarHomologacaoIntegracao()">Aprovar homologação</button>
             </div>
             <div id="integracaoResultadoTeste" class="integracao-resultado-teste">
               Nenhum teste realizado.
             </div>
+          </div>
+
+          <div class="integracao-segura-bloco" style="margin-top:14px;">
+            <h3>🚚 Braspress — cotação e rastreamento</h3>
+            <p>Usa as credenciais protegidas acima. A senha e o cabeçalho Basic nunca são enviados ao navegador.</p>
+            <div class="integracao-segura-form">
+              <label><span>CNPJ destinatário</span><input id="braspressTesteCnpjDest" placeholder="CNPJ/CPF do destinatário"></label>
+              <label><span>CEP destino</span><input id="braspressTesteCepDest" placeholder="Somente números"></label>
+              <label><span>Valor mercadoria (R$)</span><input id="braspressTesteValor" type="number" step="0.01" value="100"></label>
+              <label><span>Peso total (kg)</span><input id="braspressTestePeso" type="number" step="0.001" value="1"></label>
+              <label><span>Volumes</span><input id="braspressTesteVolumes" type="number" min="1" value="1"></label>
+              <label><span>Modal</span><select id="braspressTesteModal"><option value="R">Rodoviário</option><option value="A">Aéreo</option></select></label>
+              <label><span>Tipo de frete</span><select id="braspressTesteTipoFrete"><option value="1">CIF</option><option value="2">FOB</option><option value="3">Consignado</option></select></label>
+              <label><span>NF para rastrear</span><input id="braspressTesteNf" placeholder="Número da nota fiscal"></label>
+            </div>
+            <div class="email-acoes">
+              <button class="btn azul" onclick="testarCotacaoBraspress()">Testar cotação Braspress</button>
+              <button class="btn roxo" onclick="testarRastreioBraspress()">Testar rastreamento V3</button>
+            </div>
+            <div id="braspressResultadoTeste" class="integracao-resultado-teste">Nenhum teste Braspress realizado.</div>
           </div>
         </div>
       </div>

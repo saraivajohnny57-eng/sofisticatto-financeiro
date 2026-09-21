@@ -242,6 +242,8 @@ function credenciaisTelaIntegracao(){
     password:document.getElementById("integracaoCredSenha").value,
     ssw_senha_rastreio:document.getElementById("integracaoCredSenhaRastreioSSW")?.value||"",
     ssw_cnpj_rastreio:document.getElementById("integracaoCredCnpjRastreioSSW")?.value.trim()||"",
+    braspress_cnpj:document.getElementById("integracaoCredCnpjBraspress")?.value.trim()||"",
+    braspress_cep_origem:document.getElementById("integracaoCredCepOrigemBraspress")?.value.trim()||"",
     ssw_mercadoria:document.getElementById("integracaoCredMercadoriaSSW")?.value.trim()||"",
     token:document.getElementById("integracaoCredToken").value,
     api_key:document.getElementById("integracaoCredApiKey").value,
@@ -405,4 +407,44 @@ async function testarAutenticacaoRodonaves(){
     resultado.className="integracao-resultado-teste erro";
     resultado.textContent="FALHA NA AUTENTICAÇÃO RODONAVES\n\n"+erro.message;
   }
+}
+
+
+async function testarAutenticacaoBraspress(){
+  if(!chaveAdminIntegracoes())return alert("Valide a chave administrativa primeiro.");
+  const conviteId=document.getElementById("integracaoSeguraConviteId").value;
+  const ambiente=document.getElementById("integracaoAmbiente").value;
+  const resultado=document.getElementById("braspressResultadoTeste")||document.getElementById("integracaoResultadoTeste");
+  resultado.className="integracao-resultado-teste"; resultado.textContent="Testando credenciais Braspress...";
+  try{
+    const r=await requisicaoIntegracoes("/api/integracoes?action=testar-braspress-auth",{method:"POST",body:JSON.stringify({convite_id:conviteId,ambiente})});
+    resultado.className="integracao-resultado-teste sucesso";
+    resultado.textContent=`BRASPRESS: CONEXÃO OK\
+HTTP: ${r.http_status}\
+Tempo: ${r.tempo_ms} ms\
+Endpoint oficial alcançado com Basic Auth.`;
+  }catch(e){resultado.className="integracao-resultado-teste erro";resultado.textContent="FALHA BRASPRESS\
+\
+"+e.message;}
+}
+async function testarCotacaoBraspress(){
+  if(!chaveAdminIntegracoes())return alert("Valide a chave administrativa primeiro.");
+  const convite_id=document.getElementById("integracaoSeguraConviteId").value, ambiente=document.getElementById("integracaoAmbiente").value;
+  const resultado=document.getElementById("braspressResultadoTeste"); resultado.className="integracao-resultado-teste";resultado.textContent="Consultando cotação Braspress...";
+  const payload={cnpjDestinatario:document.getElementById("braspressTesteCnpjDest").value,cepDestino:document.getElementById("braspressTesteCepDest").value,vlrMercadoria:Number(document.getElementById("braspressTesteValor").value),peso:Number(document.getElementById("braspressTestePeso").value),volumes:Number(document.getElementById("braspressTesteVolumes").value),modal:document.getElementById("braspressTesteModal").value,tipoFrete:document.getElementById("braspressTesteTipoFrete").value};
+  try{const r=await requisicaoIntegracoes("/api/integracoes?action=cotar-braspress",{method:"POST",body:JSON.stringify({convite_id,ambiente,...payload})});resultado.className="integracao-resultado-teste sucesso";resultado.textContent=["COTAÇÃO BRASPRESS: OK",`ID: ${r.cotacao?.id??"-"}`,`Prazo: ${r.cotacao?.prazo??"-"} dia(s)`,`Frete: R$ ${Number(r.cotacao?.totalFrete||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}`].join("\
+");}catch(e){resultado.className="integracao-resultado-teste erro";resultado.textContent="FALHA NA COTAÇÃO BRASPRESS\
+\
+"+e.message;}
+}
+async function testarRastreioBraspress(){
+  if(!chaveAdminIntegracoes())return alert("Valide a chave administrativa primeiro.");
+  const convite_id=document.getElementById("integracaoSeguraConviteId").value, ambiente=document.getElementById("integracaoAmbiente").value, notaFiscal=document.getElementById("braspressTesteNf").value.trim();
+  if(!notaFiscal)return alert("Informe o número da NF para testar o rastreamento.");
+  const resultado=document.getElementById("braspressResultadoTeste");resultado.className="integracao-resultado-teste";resultado.textContent="Consultando rastreamento Braspress V3...";
+  try{const r=await requisicaoIntegracoes("/api/integracoes?action=rastrear-braspress",{method:"POST",body:JSON.stringify({convite_id,ambiente,notaFiscal})});resultado.className="integracao-resultado-teste sucesso";resultado.textContent="RASTREAMENTO BRASPRESS V3: OK\
+\
+"+JSON.stringify(r.resultado,null,2);}catch(e){resultado.className="integracao-resultado-teste erro";resultado.textContent="FALHA NO RASTREAMENTO BRASPRESS\
+\
+"+e.message;}
 }
