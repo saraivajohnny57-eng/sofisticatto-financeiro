@@ -8719,7 +8719,7 @@ async function salvarDadosBancariosBradesco(){
     ['bradescoCfgCnpj','bradescoCfgAgencia','bradescoCfgConta','bradescoCfgCarteira','bradescoCfgCedente','bradescoCfgNegociacao'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});
     bradescoDadosAviso('✅ '+j.mensagem+' Os campos foram limpos por segurança.','ok');
     await carregarDadosBancariosBradesco();
-  }catch(e){bradescoDadosAviso('❌ Os dados não foram alterados. '+e.message,'erro');alert('Não foi possível salvar os dados bancários Bradesco.\n\n'+e.message)}
+  }catch(e){bradescoDadosAviso('❌ '+e.message,'erro');alert('Não foi possível salvar os dados bancários Bradesco.\n\n'+e.message)}
 }
 async function salvarMtlsBradesco(){
   const cert=document.getElementById('bradescoCertPublico')?.files?.[0], key=document.getElementById('bradescoChavePrivada')?.files?.[0];
