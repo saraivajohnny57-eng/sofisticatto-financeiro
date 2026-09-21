@@ -2921,18 +2921,27 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <div id="bradescoRegistroSandboxStatus" class="bb-cert-aviso" style="margin-top:10px;">V186: o HTTP 422 retornado pelo Bradesco ao JSON vazio é tratado como confirmação de que o endpoint de registro foi alcançado. Nenhum boleto é emitido por este teste.</div>
           <div style="margin-top:14px;padding:14px;border:1px solid #e5c2c2;border-radius:12px;background:#fff;">
             <b>🧾 Preparação e diagnóstico — Bradesco Sandbox</b>
-            <div class="bb-cert-ajuda" style="margin:5px 0 10px;">Preencha os dados abaixo para revisar a cobrança. <b>V222 possui uma preparação controlada no backend usando os dados bancários reais já armazenados, mas não envia nada ao endpoint de registro.</b> O diagnóstico sintético antigo continua separado e seguro.</div>
+            <div class="bb-cert-ajuda" style="margin:5px 0 10px;">Preencha os dados abaixo para revisar a cobrança. <b>V223 monta uma prévia ampliada do payload no backend com contrato, pagador, endereço, título e regras financeiras zeradas, sem enviar nada ao endpoint de registro.</b> O diagnóstico sintético antigo continua separado e seguro.</div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;">
               <label>Nome do pagador<input id="brTesteNome" class="input" placeholder="Cliente de teste"></label>
               <label>CPF/CNPJ<input id="brTesteDocumento" class="input" inputmode="numeric" placeholder="Somente números"></label>
               <label>Valor (R$)<input id="brTesteValor" class="input" inputmode="decimal" placeholder="0,00"></label>
               <label>Vencimento<input id="brTesteVencimento" class="input" type="date"></label>
               <label>Seu número / controle<input id="brTesteSeuNumero" class="input" placeholder="Controle interno"></label>
+              <label>CEP do pagador<input id="brTesteCep" class="input" inputmode="numeric" maxlength="9" placeholder="00000-000"></label>
+              <label>Logradouro<input id="brTesteLogradouro" class="input" placeholder="Rua / Avenida"></label>
+              <label>Número<input id="brTesteNumero" class="input" placeholder="Nº"></label>
+              <label>Complemento<input id="brTesteComplemento" class="input" placeholder="Opcional"></label>
+              <label>Bairro<input id="brTesteBairro" class="input" placeholder="Bairro"></label>
+              <label>Município<input id="brTesteMunicipio" class="input" placeholder="Cidade"></label>
+              <label>UF<input id="brTesteUf" class="input" maxlength="2" placeholder="GO"></label>
+              <label>Espécie do título<input id="brTesteEspecie" class="input" inputmode="numeric" maxlength="2" value="01" placeholder="01"></label>
+              <label style="grid-column:1/-1;">Mensagem do boleto<input id="brTesteMensagem" class="input" maxlength="80" placeholder="COBRANCA SOFISTICATTO"></label>
             </div>
             <button class="btn" onclick="montarPreviaRegistroBradescoV187()" style="margin-top:10px;background:#6b46c1;color:#fff;">👁️ Montar prévia — não enviar</button>
             <button id="btnPrepararHomologacaoBradesco" class="btn verde" onclick="prepararHomologacaoControladaBradesco()" style="margin-top:10px;margin-left:6px;">🛡️ Preparar homologação com contrato — NÃO ENVIAR</button>
             <button id="btnDiagnosticoMinimoBradesco" class="btn" onclick="diagnosticarPayloadMinimoBradescoV187()" style="margin-top:10px;margin-left:6px;background:#b7791f;color:#fff;">🧪 Diagnóstico sintético antigo</button>
-            <div id="bradescoHomologacaoControladaStatus" class="bb-cert-aviso" style="margin-top:10px;">V222: a preparação controlada lê CNPJ/agência/conta/carteira/cedente/Nº negociação do cofre no backend e devolve somente uma prévia mascarada. <b>Não existe chamada ao endpoint de registro nesta etapa.</b></div>
+            <div id="bradescoHomologacaoControladaStatus" class="bb-cert-aviso" style="margin-top:10px;">V223: a preparação controlada lê o contrato do cofre e monta o payload sanitizado para revisão. Campos de Sacador/Avalista não são inventados. <b>Não existe chamada ao endpoint de registro nesta etapa.</b></div>
             <div id="bradescoDiagnosticoMinimoV187" class="bb-cert-aviso" style="margin-top:10px;">O diagnóstico antigo continua usando somente dados sintéticos e identificadores deliberadamente inválidos.</div>
             <pre id="bradescoPreviaRegistroV187" style="display:none;white-space:pre-wrap;word-break:break-word;margin-top:10px;padding:10px;background:#f7f5fb;border-radius:8px;max-height:260px;overflow:auto;"></pre>
           </div>
