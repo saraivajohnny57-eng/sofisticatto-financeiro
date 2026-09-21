@@ -37,6 +37,7 @@ const verificarCobertura = require("../lib/integracoes/verificar-cobertura");
 const testarBraspressAuth = require("../lib/integracoes/testar-braspress-auth");
 const cotarBraspress = require("../lib/integracoes/cotar-braspress");
 const rastrearBraspress = require("../lib/integracoes/rastrear-braspress");
+const consultarRastreioBraspress = require("../lib/integracoes/consultar-rastreio-braspress");
 
 const ROTAS = Object.freeze({
   "validar-chave": validarChave,
@@ -71,6 +72,7 @@ const ROTAS = Object.freeze({
   "testar-braspress-auth": testarBraspressAuth,
   "cotar-braspress": cotarBraspress,
   "rastrear-braspress": rastrearBraspress,
+  "consultar-rastreio-braspress": consultarRastreioBraspress,
 });
 
 function responder(res, status, body) {
