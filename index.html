@@ -1825,6 +1825,32 @@ SOFISTICATTO COSMÉTICOS</textarea>
         </div>
       </div>
 
+      <div id="braspressCadastroRapido" class="card" style="border:2px solid #2f9b63;margin-bottom:16px;">
+        <div class="top">
+          <div>
+            <h2>🚚 Braspress — cadastro rápido</h2>
+            <p>Área preparada para o Financeiro. Informe somente o usuário e a senha da API fornecidos pela Braspress.</p>
+          </div>
+          <span id="braspressRapidoStatus" class="integracao-chave-status">Aguardando cadastro</span>
+        </div>
+        <div class="integracao-segura-form" style="margin-top:12px;">
+          <label><span>Usuário da API Braspress</span><input id="braspressRapidoUsuario" autocomplete="off" placeholder="Usuário recebido da Braspress"></label>
+          <label><span>Senha da API Braspress</span>
+            <div class="integracao-campo-senha">
+              <input id="braspressRapidoSenha" type="password" autocomplete="new-password" placeholder="Senha recebida da Braspress">
+              <button type="button" onclick="alternarSenhaIntegracao('braspressRapidoSenha')">👁</button>
+            </div>
+          </label>
+        </div>
+        <div class="email-acoes" style="margin-top:12px;">
+          <button class="btn verde" onclick="salvarBraspressRapido()">💾 Salvar Braspress</button>
+          <button class="btn azul" onclick="testarBraspressRapido()">🔌 Testar conexão</button>
+          <button class="btn roxo" onclick="abrirBraspressAvancado()">⚙️ Configuração avançada</button>
+        </div>
+        <p style="margin-top:10px;font-size:12px;color:#6d6780;">CNPJ e CEP de origem da Sofisticatto já ficam preenchidos internamente. A senha é enviada somente ao backend e armazenada criptografada.</p>
+        <div id="braspressRapidoResultado" class="integracao-resultado-teste" style="margin-top:10px;">Nenhum teste realizado.</div>
+      </div>
+
       <div id="integracoesKpis" class="integracoes-kpis">
         <div><span>Convites</span><b>0</b></div>
         <div><span>Em preenchimento</span><b>0</b></div>
@@ -3149,7 +3175,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="notificacoes.js?v=11"></script>
 <script src="painel-logistico.js?v=11.6"></script>
 <script src="portal-integracoes.js?v=15"></script>
-<script src="integracoes-seguras.js?v=24"></script>
+<script src="integracoes-seguras.js?v=25"></script>
 <script src="motor-integracoes.js?v=34"></script>
 <script src="coletas.js?v=130"></script>
 

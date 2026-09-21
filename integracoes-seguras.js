@@ -448,3 +448,91 @@ async function testarRastreioBraspress(){
 \
 "+e.message;}
 }
+
+
+/* =========================================================
+   BRASPRESS — CADASTRO RÁPIDO V213
+   Financeiro informa somente usuário e senha.
+   Dados operacionais públicos da Sofisticatto ficam padronizados.
+   ========================================================= */
+const BRASPRESS_PADRAO_V213={
+  nome:"Braspress Transportes Urgentes",
+  cnpjRemetente:"05451985000195",
+  cepOrigem:"74550470"
+};
+
+async function garantirConviteBraspressV213(){
+  if(!banco) await carregarSupabase();
+  if(!Array.isArray(integracoesTransportadoras)||!integracoesTransportadoras.length){
+    await carregarIntegracoesTransportadoras();
+  }
+  let convite=(integracoesTransportadoras||[]).find(i=>/braspress/i.test(String(i.transportadora_nome||"")));
+  if(convite)return convite;
+  const agora=new Date().toISOString();
+  const dados={
+    token:typeof gerarTokenIntegracao==="function"?gerarTokenIntegracao():crypto.randomUUID().replaceAll("-",""),
+    transportadora_nome:BRASPRESS_PADRAO_V213.nome,
+    status:"aprovado",progresso:100,
+    criado_por:window.usuarioLogado?.login||null,
+    atualizado_em:agora
+  };
+  const r=await banco.from("integracao_convites").insert([dados]).select().single();
+  if(r.error)throw new Error("Não foi possível ativar a Braspress na Central de Integrações: "+r.error.message);
+  await carregarIntegracoesTransportadoras();
+  return r.data;
+}
+
+async function prepararBraspressRapidoV213(){
+  const convite=await garantirConviteBraspressV213();
+  integracaoSeguraAtual=convite;
+  const hidden=document.getElementById("integracaoSeguraConviteId"); if(hidden)hidden.value=convite.id;
+  const ambiente=document.getElementById("integracaoAmbiente"); if(ambiente)ambiente.value="producao";
+  return convite;
+}
+
+async function salvarBraspressRapido(){
+  const usuario=document.getElementById("braspressRapidoUsuario")?.value.trim()||"";
+  const senha=document.getElementById("braspressRapidoSenha")?.value||"";
+  if(!usuario||!senha)return alert("Informe o usuário e a senha da API Braspress.");
+  if(!chaveAdminIntegracoes()){
+    return alert("Por segurança, valide a chave administrativa uma vez nesta sessão. Clique em ‘Configuração avançada’, valide a chave e depois volte ao cadastro rápido.");
+  }
+  const status=document.getElementById("braspressRapidoStatus");
+  try{
+    const convite=await prepararBraspressRapidoV213();
+    const resposta=await requisicaoIntegracoes("/api/integracoes?action=salvar-credenciais",{
+      method:"POST",
+      body:JSON.stringify({
+        convite_id:convite.id,
+        ambiente:"producao",
+        credenciais:{username:usuario,password:senha,braspress_cnpj:BRASPRESS_PADRAO_V213.cnpjRemetente,braspress_cep_origem:BRASPRESS_PADRAO_V213.cepOrigem}
+      })
+    });
+    document.getElementById("braspressRapidoSenha").value="";
+    if(status){status.textContent="✓ Braspress cadastrada";status.className="integracao-chave-status ok";}
+    const box=document.getElementById("braspressRapidoResultado");
+    if(box){box.className="integracao-resultado-teste sucesso";box.textContent="Credenciais Braspress salvas com segurança em "+new Date(resposta.atualizado_em).toLocaleString("pt-BR")+". Agora clique em ‘Testar conexão’.";}
+  }catch(e){
+    if(status){status.textContent="Falha ao salvar";status.className="integracao-chave-status erro";}
+    const box=document.getElementById("braspressRapidoResultado");if(box){box.className="integracao-resultado-teste erro";box.textContent=e.message;}
+  }
+}
+
+async function testarBraspressRapido(){
+  if(!chaveAdminIntegracoes())return alert("Valide a chave administrativa nesta sessão antes do teste.");
+  const box=document.getElementById("braspressRapidoResultado");
+  try{
+    const convite=await prepararBraspressRapidoV213();
+    if(box){box.className="integracao-resultado-teste";box.textContent="Testando autenticação Braspress...";}
+    const r=await requisicaoIntegracoes("/api/integracoes?action=testar-braspress-auth",{method:"POST",body:JSON.stringify({convite_id:convite.id,ambiente:"producao"})});
+    if(box){box.className="integracao-resultado-teste sucesso";box.textContent="✓ BRASPRESS CONECTADA\nHTTP: "+(r.http_status??r.status??"OK")+"\nAs credenciais foram aceitas pelo serviço da Braspress.";}
+    const status=document.getElementById("braspressRapidoStatus");if(status){status.textContent="✓ Conectada";status.className="integracao-chave-status ok";}
+  }catch(e){if(box){box.className="integracao-resultado-teste erro";box.textContent="Falha no teste Braspress:\n"+e.message;}}
+}
+
+async function abrirBraspressAvancado(){
+  try{
+    const convite=await garantirConviteBraspressV213();
+    await abrirIntegracaoSegura(convite.id);
+  }catch(e){alert(e.message);}
+}
