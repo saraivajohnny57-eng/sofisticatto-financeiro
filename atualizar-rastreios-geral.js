@@ -23,6 +23,7 @@ function tipoIntegracao(nome,integracoes){
   if(/rodonaves/.test(n))return'rodonaves';
   if(/correios/.test(n))return'correios';
   if(/(^| )alfa( |$)/.test(n))return'alfa';
+  if(/braspress/.test(n))return'braspress';
   const i=(integracoes||[]).find(x=>matchNome(nome,x.transportadora_nome));
   if(i&&(String(i.integracao_tipo||'').toLowerCase()==='webservice'||/ssw/i.test(String(i.api_versao||''))))return'ssw';
   if(/accert|(^| )tg( |$)/.test(n))return'ssw';
@@ -191,10 +192,12 @@ module.exports=async function(req,res){
       if(tipo==='alfa')action='consultar-rastreio-alfa';
       if(tipo==='correios')action='consultar-rastreio-correios';
       if(tipo==='ssw')action='consultar-rastreio-ssw';
+      if(tipo==='braspress')action='consultar-rastreio-braspress';
       const qp=new URLSearchParams({action,registro_id:String(item.id)});
       // A consulta Rodonaves não resolve os identificadores apenas pelo ID interno.
       // Na sincronização em lote precisamos enviar os mesmos campos usados pelo botão
       // individual, caso contrário ela responde "Informe protocolo/NF/CT-e/chave".
+      if(tipo==='braspress'&&item.numero_nfe)qp.set('nfe',String(item.numero_nfe));
       if(tipo==='rodonaves'){
         if(item.protocolo_rastreio)qp.set('protocolo',String(item.protocolo_rastreio));
         if(item.numero_cte)qp.set('cte',String(item.numero_cte));

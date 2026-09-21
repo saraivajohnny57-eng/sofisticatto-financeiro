@@ -101,7 +101,7 @@
         const nome = r.frete_transportadoras?.nome || "";
         const tipo = tipoIntegracaoNome(nome);
 
-        if(/rodonaves/i.test(nome) || /alfa/i.test(nome)){
+        if(/rodonaves/i.test(nome) || /alfa/i.test(nome) || /braspress/i.test(nome)){
           if(typeof atualizarOriginal === "function") return atualizarOriginal(id, botao);
         }
 
