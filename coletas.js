@@ -2477,6 +2477,25 @@ async function sincronizarRastreiosSSWLocais(){
 async function atualizarRastreioIntegrado(id,botao=null){
   const rastro=await obterRastreamentoPorId(id); if(!rastro)return alert("Rastreio não encontrado.");
   const nome=rastro.frete_transportadoras?.nome||"";
+  if(/braspress/i.test(nome)){
+    const original=botao?.textContent||"Atualizar rastreio";
+    if(botao){botao.disabled=true;botao.textContent="Consultando Braspress...";}
+    try{
+      const nf=String(rastro.numero_nfe||"").replace(/\D/g,"");
+      if(!nf)throw new Error("Informe o número da NF para consultar a Braspress.");
+      const chave=await chaveAdminColeta();
+      if(!chave)throw new Error("Informe a chave administrativa.");
+      const params=new URLSearchParams({action:"consultar-rastreio-braspress",registro_id:String(id),nfe:nf});
+      const resposta=await fetch(`/api/integracoes?${params.toString()}`,{headers:{"x-integrations-admin-key":chave}});
+      const dados=await resposta.json().catch(()=>({}));
+      if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
+      await carregarRastreamentosLogistica(rastro.sentido||"saida");
+      await carregarRastreamentosEntregues();
+      alert(`Rastreio Braspress atualizado.\n\nNF: ${nf}\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${dados.previsaoEntrega?`\nPrevisão: ${new Date(dados.previsaoEntrega+"T12:00:00").toLocaleDateString("pt-BR")}`:""}${dados.numeroCte?`\nCT-e: ${dados.numeroCte}`:""}${dados.ultimaOcorrencia?`\nÚltima ocorrência: ${dados.ultimaOcorrencia}`:""}`);
+    }catch(e){alert("Não foi possível atualizar o rastreio Braspress: "+e.message);}
+    finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
+    return;
+  }
   if(/rodonaves/i.test(nome))return atualizarRastreioRodonaves(id,botao);
   if(/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome)){
     const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Atualizando...";}
@@ -2914,7 +2933,7 @@ function transportadoraConhecidaPorConsultaDireta(nome){
   const n=nomeNormalizadoTransportadora(nome);
   // ACCERT e TG usam o SSW. Mesmo que o cadastro antigo da integração esteja
   // incompleto, elas devem aparecer como rastreáveis e tentar a WebAPI SSW.
-  return /rodonaves/.test(n)||/(^| )alfa( |$)/.test(n)||/correios/.test(n)||/accert/.test(n)||/(^| )tg( |$)/.test(n);
+  return /rodonaves/.test(n)||/(^| )alfa( |$)/.test(n)||/correios/.test(n)||/braspress/.test(n)||/accert/.test(n)||/(^| )tg( |$)/.test(n);
 }
 function transportadoraTemRastreamentoIntegrado(nome){
   const n=nomeNormalizadoTransportadora(nome);
