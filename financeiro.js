@@ -9042,3 +9042,32 @@ async function diagnosticarPayloadMinimoBradescoV187(){
   }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Diagnóstico não concluído: '+String(e.message||e)}}
   finally{if(btn)btn.disabled=false;}
 }
+
+// V222 — preparação controlada de homologação Bradesco.
+// Usa os dados reais do contrato armazenados no backend, mas NÃO chama o endpoint de registro.
+async function prepararHomologacaoControladaBradesco(){
+  if(bradescoAmbiente()!=='sandbox')return alert('A preparação controlada está liberada somente para o Sandbox.');
+  const get=id=>document.getElementById(id)?.value||'';
+  const nome=String(get('brTesteNome')).trim();
+  const documento=String(get('brTesteDocumento')).replace(/\D/g,'');
+  const valorTxt=String(get('brTesteValor')).trim().replace(/\./g,'').replace(',','.');
+  const valor=Number(valorTxt),vencimento=String(get('brTesteVencimento')).trim(),seuNumero=String(get('brTesteSeuNumero')).trim();
+  const faltas=[];
+  if(!nome)faltas.push('nome do pagador');
+  if(![11,14].includes(documento.length))faltas.push('CPF/CNPJ com 11 ou 14 dígitos');
+  if(!(valor>0))faltas.push('valor maior que zero');
+  if(!vencimento)faltas.push('vencimento');
+  if(!seuNumero)faltas.push('seu número/controle');
+  if(faltas.length)return alert('Complete antes da preparação: '+faltas.join(', ')+'.');
+  if(!confirm('Montar no backend uma prévia de homologação usando os dados bancários reais já armazenados?\n\nIMPORTANTE: esta ação NÃO envia a cobrança ao Bradesco e NÃO registra boleto.'))return;
+  const out=document.getElementById('bradescoHomologacaoControladaStatus'),btn=document.getElementById('btnPrepararHomologacaoBradesco');
+  if(out){out.className='bb-cert-aviso';out.textContent='⏳ Montando a prévia controlada no backend, sem chamar o endpoint de registro...'}
+  if(btn)btn.disabled=true;
+  try{
+    const j=await bradescoReq('preparar-homologacao-controlada',{method:'POST',body:{nome,documento,valor,vencimento,seuNumero}});
+    const p=j.previa||{};
+    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ <b>Prévia controlada pronta — NENHUM BOLETO ENVIADO.</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #c6e6ce;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(p,null,2))}</pre></div><span class="bb-cert-ajuda">🔒 Os identificadores sensíveis do contrato são mascarados. A V222 apenas confirma estrutura, origem e tamanho do Nº negociação e carteira/produto. O endpoint de registro permanece bloqueado.</span>`}
+    bradescoAviso('✅ Prévia de homologação preparada com o contrato armazenado. Nenhum boleto foi enviado.','ok');
+  }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Não foi possível preparar a homologação: '+String(e.message||e)};alert('Preparação Bradesco não concluída.\n\n'+String(e.message||e));}
+  finally{if(btn)btn.disabled=false;}
+}
