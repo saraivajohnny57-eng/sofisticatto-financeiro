@@ -363,23 +363,40 @@ module.exports=async function(req,res){
       const negociacao=somenteDigitos(banco.negociacao);
       if(negociacao.length!==18)throw new Error('O Nº negociação armazenado não possui 18 dígitos. Revise os dados bancários.');
       const fmtData=v=>{const m=String(v||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}.${m[2]}.${m[1]}`:String(v||'')};
-      const cep8=somenteDigitos(req.body?.cep), endereco={logradouro:String(req.body?.logradouro||'').trim(),numero:String(req.body?.numero||'').trim(),complemento:String(req.body?.complemento||'').trim(),bairro:String(req.body?.bairro||'').trim(),municipio:String(req.body?.municipio||'').trim(),uf:String(req.body?.uf||'').trim().toUpperCase(),cep:cep8};
+      const cep8=somenteDigitos(req.body?.cep);
+      const endereco={logradouro:String(req.body?.logradouro||'').trim(),numero:String(req.body?.numero||'').trim(),complemento:String(req.body?.complemento||'').trim(),bairro:String(req.body?.bairro||'').trim(),municipio:String(req.body?.municipio||'').trim(),uf:String(req.body?.uf||'').trim().toUpperCase(),cep:cep8};
+      // V226: muitos cadastros antigos trazem o número embutido no logradouro e S/N no campo próprio.
+      // Ex.: "RUA TRAVESSA MOJU N 98" + "S/N" -> logradouro "RUA TRAVESSA MOJU" + número "98".
+      let enderecoNormalizadoAutomaticamente=false;
+      if(!endereco.numero || /^S\/?N$/i.test(endereco.numero)){
+        const m=endereco.logradouro.match(/^(.*?)(?:\s+(?:N[º°]?|NÚMERO|NUMERO)\s*[.:#-]?\s*|,\s*)(\d+[A-Z0-9\/-]*)\s*$/i);
+        if(m && m[1].trim() && m[2]){endereco.logradouro=m[1].trim();endereco.numero=m[2].trim();enderecoNormalizadoAutomaticamente=true;}
+      }
       const emissao=new Date().toISOString().slice(0,10);
+      const especieNum=Number(String(req.body?.especie||'2').replace(/\D/g,''));
+      const cpfCnpjApi=documento.length===11?documento.padStart(14,'0'):documento;
       const payloadCompleto={
-        nuCPFCNPJ:somenteDigitos(banco.cnpj).slice(0,9),filialCPFCNPJ:somenteDigitos(banco.cnpj).slice(8,12),ctrlCPFCNPJ:somenteDigitos(banco.cnpj).slice(-2),
-        idProduto:carteira,nuNegociacao:negociacao,nuCliente:seuNumero,dtEmissaoTitulo:fmtData(emissao),dtVencimentoTitulo:fmtData(vencimento),vlNominalTitulo:Number(valor.toFixed(2)),
-        cdEspecieTitulo:String(req.body?.especie||'01').replace(/\D/g,'').padStart(2,'0').slice(-2),cindcdAceitSacdo:'N',percentualJuros:'0',vlJuros:'0',qtdeDiasJuros:'0',percentualMulta:'0',vlMulta:'0',qtdeDiasMulta:'0',percentualDesconto1:'0',vlDesconto1:'0',dataLimiteDesconto1:fmtData(emissao),
-        nomePagador:nome,logradouroPagador:endereco.logradouro,nuLogradouroPagador:endereco.numero,complementoLogradouroPagador:endereco.complemento,cepPagador:cep8.slice(0,5),complementoCepPagador:cep8.slice(5,8),bairroPagador:endereco.bairro,municipioPagador:endereco.municipio,ufPagador:endereco.uf,cdIndCpfcnpjPagador:documento.length===11?'1':'2',nuCpfcnpjPagador:documento,
+        nuCPFCNPJ:Number(somenteDigitos(banco.cnpj).slice(0,8)),filialCPFCNPJ:Number(somenteDigitos(banco.cnpj).slice(8,12)),ctrlCPFCNPJ:Number(somenteDigitos(banco.cnpj).slice(-2)),
+        idProduto:Number(carteira),nuNegociacao:Number(negociacao),nuCliente:seuNumero,dtEmissaoTitulo:fmtData(emissao),dtVencimentoTitulo:fmtData(vencimento),tpVencimento:0,vlNominalTitulo:Number(valor.toFixed(2)),
+        cdEspecieTitulo:especieNum,cindcdAceitSacdo:'N',percentualJuros:0,vlJuros:0,qtdeDiasJuros:0,percentualMulta:0,vlMulta:0,qtdeDiasMulta:0,percentualDesconto1:0,vlDesconto1:0,dataLimiteDesconto1:'',
+        nomePagador:nome,logradouroPagador:endereco.logradouro,nuLogradouroPagador:endereco.numero,complementoLogradouroPagador:endereco.complemento,cepPagador:Number(cep8.slice(0,5)||0),complementoCepPagador:Number(cep8.slice(5,8)||0),bairroPagador:endereco.bairro,municipioPagador:endereco.municipio,ufPagador:endereco.uf,cdIndCpfcnpjPagador:documento.length===11?1:2,nuCpfcnpjPagador:Number(cpfCnpjApi),
         listaMsgs:[{mensagem:String(req.body?.mensagem||'').trim()||'COBRANCA SOFISTICATTO'}]
       };
-      const pendencias=[];
+      const pendencias=[], alertas=[];
       if(cep8.length!==8)pendencias.push('CEP do pagador deve ter 8 dígitos'); if(!endereco.logradouro)pendencias.push('logradouro do pagador'); if(!endereco.numero)pendencias.push('número do endereço do pagador'); if(!endereco.bairro)pendencias.push('bairro do pagador'); if(!endereco.municipio)pendencias.push('município do pagador'); if(!/^[A-Z]{2}$/.test(endereco.uf))pendencias.push('UF do pagador com 2 letras');
-      const payloadSanitizado={...payloadCompleto,nuCPFCNPJ:mascarar(payloadCompleto.nuCPFCNPJ,2,2),filialCPFCNPJ:mascarar(payloadCompleto.filialCPFCNPJ,1,1),ctrlCPFCNPJ:'••',nuNegociacao:mascarar(negociacao,4,4),nuCpfcnpjPagador:mascarar(documento,3,2)};
-      const previa={ambiente:'SANDBOX',versao:'V225',modo:'PAYLOAD_COMPLETO_CONTROLADO_SEM_ENVIO',envio_ao_bradesco:false,bloqueio_registro:true,
+      if(!/^\d{2}\.\d{2}\.\d{4}$/.test(payloadCompleto.dtEmissaoTitulo))pendencias.push('data de emissão fora do formato DD.MM.AAAA');
+      if(!/^\d{2}\.\d{2}\.\d{4}$/.test(payloadCompleto.dtVencimentoTitulo))pendencias.push('data de vencimento fora do formato DD.MM.AAAA');
+      if(new Date(vencimento+'T12:00:00')<=new Date(emissao+'T12:00:00'))pendencias.push('vencimento deve ser posterior à data de emissão');
+      if(!Number.isInteger(especieNum)||especieNum<1||especieNum>99)pendencias.push('espécie do título inválida');
+      if(seuNumero.length>10)alertas.push('O manual legado consultado descreve nuCliente com 10 posições; o número operacional informado por você possui '+seuNumero.length+' dígitos. A V226 preserva o número real e sinaliza esta diferença para validação no Sandbox.');
+      if(enderecoNormalizadoAutomaticamente)alertas.push('Número do endereço separado automaticamente do logradouro para o payload Bradesco.');
+      const payloadSanitizado={...payloadCompleto,nuCPFCNPJ:mascarar(String(payloadCompleto.nuCPFCNPJ),2,2),filialCPFCNPJ:mascarar(String(payloadCompleto.filialCPFCNPJ),1,1),ctrlCPFCNPJ:'••',nuNegociacao:mascarar(negociacao,4,4),nuCpfcnpjPagador:mascarar(cpfCnpjApi,3,2)};
+      const previa={ambiente:'SANDBOX',versao:'V226',modo:'PAYLOAD_COMPLETO_CONTROLADO_SEM_ENVIO',envio_ao_bradesco:false,bloqueio_registro:true,
         contrato:{cnpj_beneficiario:mascarar(somenteDigitos(banco.cnpj),2,2),agencia:mascarar(somenteDigitos(banco.agencia),1,1),conta:mascarar(somenteDigitos(banco.conta),1,1),idProduto:carteira,cedente:mascarar(banco.cedente,1,1),nuNegociacao:mascarar(negociacao,4,4),nuNegociacao_digitos:negociacao.length,nuNegociacao_origem:banco.negociacao_origem||'configurado'},
         pagador:{nome,cpfCnpj:mascarar(documento,3,2),tipo_documento:documento.length===11?'CPF':'CNPJ',endereco},titulo:{valor:Number(valor.toFixed(2)),vencimento,seuNumero,especie:payloadCompleto.cdEspecieTitulo},
-        validacoes:{contrato_completo:true,idProduto_preenchido:!!carteira,nuNegociacao_18_digitos:negociacao.length===18,pagador_valido:true,endereco_pagador_completo:pendencias.length===0,payload_pronto_para_teste:pendencias.length===0},pendencias,payload_sanitizado:payloadSanitizado,
-        observacao:'V225 monta o payload completo no backend para revisão. NÃO executa POST no endpoint de registro. Campos de Sacador/Avalista não são inventados: só serão adicionados quando houver confirmação de que se aplicam ao contrato/cenário.'};
+        normalizacoes:{endereco_numero_separado:enderecoNormalizadoAutomaticamente,cpf_api_14_posicoes:cpfCnpjApi},
+        validacoes:{contrato_completo:true,idProduto_preenchido:!!carteira,nuNegociacao_18_digitos:negociacao.length===18,pagador_valido:true,endereco_pagador_completo:pendencias.length===0,formato_datas_dd_mm_aaaa:true,desconto_sem_data_limite:payloadCompleto.dataLimiteDesconto1==='',payload_pronto_para_teste:pendencias.length===0},pendencias,alertas,payload_sanitizado:payloadSanitizado,
+        observacao:'V226 faz a pré-validação final conforme o layout Bradesco consultado: datas DD.MM.AAAA, desconto zerado sem data-limite, campos numéricos tipados, CPF com 14 posições no envio e separação automática do número do endereço. NÃO executa POST no endpoint de registro.'};
       return json(res,200,{ok:true,previa,mensagem:'Payload completo de homologação preparado no backend para revisão. Nenhum dado foi enviado ao endpoint de registro do Bradesco.'});
     }
     if(action==='diagnosticar-payload-minimo'){
