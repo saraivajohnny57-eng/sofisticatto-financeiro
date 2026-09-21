@@ -2927,7 +2927,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <label>CPF/CNPJ<input id="brTesteDocumento" class="input" inputmode="numeric" placeholder="Somente números"></label>
               <label>Valor (R$)<input id="brTesteValor" class="input" inputmode="decimal" placeholder="0,00"></label>
               <label>Vencimento<input id="brTesteVencimento" class="input" type="date"></label>
-              <label>Seu número / controle<input id="brTesteSeuNumero" class="input" placeholder="Controle interno"></label>
+              <label>Seu número / controle<input id="brTesteSeuNumero" class="input" inputmode="numeric" placeholder="Carregando próximo número..."><small id="brSeuNumeroAjuda" class="bb-cert-ajuda">O sistema consulta o próximo número no Supabase. A prévia não consome a sequência.</small></label>
               <label>CEP do pagador<input id="brTesteCep" class="input" inputmode="numeric" maxlength="9" placeholder="00000-000"></label>
               <label>Logradouro<input id="brTesteLogradouro" class="input" placeholder="Rua / Avenida"></label>
               <label>Número<input id="brTesteNumero" class="input" placeholder="Nº"></label>
@@ -2943,7 +2943,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <button class="btn" onclick="montarPreviaRegistroBradescoV187()" style="margin-top:10px;background:#6b46c1;color:#fff;">👁️ Montar prévia — não enviar</button>
             <button id="btnPrepararHomologacaoBradesco" class="btn verde" onclick="prepararHomologacaoControladaBradesco()" style="margin-top:10px;margin-left:6px;">🛡️ Preparar homologação com contrato — NÃO ENVIAR</button>
             <button id="btnDiagnosticoMinimoBradesco" class="btn" onclick="diagnosticarPayloadMinimoBradescoV187()" style="margin-top:10px;margin-left:6px;background:#b7791f;color:#fff;">🧪 Diagnóstico sintético antigo</button>
-            <div id="bradescoHomologacaoControladaStatus" class="bb-cert-aviso" style="margin-top:10px;">V224: inclui busca inteligente de clientes por nome/CPF/CNPJ e lista identificada de espécies de título. A preparação controlada lê o contrato do cofre e monta o payload sanitizado para revisão. Campos de Sacador/Avalista não são inventados. <b>Não existe chamada ao endpoint de registro nesta etapa.</b></div>
+            <div id="bradescoHomologacaoControladaStatus" class="bb-cert-aviso" style="margin-top:10px;">V225: inclui sequencial automático do Seu Número a partir de 13625803775, além de busca inteligente de clientes por nome/CPF/CNPJ e lista identificada de espécies de título. A preparação controlada lê o contrato do cofre e monta o payload sanitizado para revisão. Campos de Sacador/Avalista não são inventados. <b>Não existe chamada ao endpoint de registro nesta etapa.</b></div>
             <div id="bradescoDiagnosticoMinimoV187" class="bb-cert-aviso" style="margin-top:10px;">O diagnóstico antigo continua usando somente dados sintéticos e identificadores deliberadamente inválidos.</div>
             <pre id="bradescoPreviaRegistroV187" style="display:none;white-space:pre-wrap;word-break:break-word;margin-top:10px;padding:10px;background:#f7f5fb;border-radius:8px;max-height:260px;overflow:auto;"></pre>
           </div>
