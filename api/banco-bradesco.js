@@ -359,11 +359,11 @@ module.exports=async function(req,res){
       const pendencias=[];
       if(cep8.length!==8)pendencias.push('CEP do pagador deve ter 8 dígitos'); if(!endereco.logradouro)pendencias.push('logradouro do pagador'); if(!endereco.numero)pendencias.push('número do endereço do pagador'); if(!endereco.bairro)pendencias.push('bairro do pagador'); if(!endereco.municipio)pendencias.push('município do pagador'); if(!/^[A-Z]{2}$/.test(endereco.uf))pendencias.push('UF do pagador com 2 letras');
       const payloadSanitizado={...payloadCompleto,nuCPFCNPJ:mascarar(payloadCompleto.nuCPFCNPJ,2,2),filialCPFCNPJ:mascarar(payloadCompleto.filialCPFCNPJ,1,1),ctrlCPFCNPJ:'••',nuNegociacao:mascarar(negociacao,4,4),nuCpfcnpjPagador:mascarar(documento,3,2)};
-      const previa={ambiente:'SANDBOX',versao:'V223',modo:'PAYLOAD_COMPLETO_CONTROLADO_SEM_ENVIO',envio_ao_bradesco:false,bloqueio_registro:true,
+      const previa={ambiente:'SANDBOX',versao:'V224',modo:'PAYLOAD_COMPLETO_CONTROLADO_SEM_ENVIO',envio_ao_bradesco:false,bloqueio_registro:true,
         contrato:{cnpj_beneficiario:mascarar(somenteDigitos(banco.cnpj),2,2),agencia:mascarar(somenteDigitos(banco.agencia),1,1),conta:mascarar(somenteDigitos(banco.conta),1,1),idProduto:carteira,cedente:mascarar(banco.cedente,1,1),nuNegociacao:mascarar(negociacao,4,4),nuNegociacao_digitos:negociacao.length,nuNegociacao_origem:banco.negociacao_origem||'configurado'},
         pagador:{nome,cpfCnpj:mascarar(documento,3,2),tipo_documento:documento.length===11?'CPF':'CNPJ',endereco},titulo:{valor:Number(valor.toFixed(2)),vencimento,seuNumero,especie:payloadCompleto.cdEspecieTitulo},
         validacoes:{contrato_completo:true,idProduto_preenchido:!!carteira,nuNegociacao_18_digitos:negociacao.length===18,pagador_valido:true,endereco_pagador_completo:pendencias.length===0,payload_pronto_para_teste:false},pendencias,payload_sanitizado:payloadSanitizado,
-        observacao:'V223 monta o payload completo no backend para revisão. NÃO executa POST no endpoint de registro. Campos de Sacador/Avalista não são inventados: só serão adicionados quando houver confirmação de que se aplicam ao contrato/cenário.'};
+        observacao:'V224 monta o payload completo no backend para revisão. NÃO executa POST no endpoint de registro. Campos de Sacador/Avalista não são inventados: só serão adicionados quando houver confirmação de que se aplicam ao contrato/cenário.'};
       return json(res,200,{ok:true,previa,mensagem:'Payload completo de homologação preparado no backend para revisão. Nenhum dado foi enviado ao endpoint de registro do Bradesco.'});
     }
     if(action==='diagnosticar-payload-minimo'){
