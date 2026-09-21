@@ -8709,10 +8709,27 @@ async function carregarDadosBancariosBradesco(mostrarErro=false){
     bradescoDadosAviso(d.configurados?`✅ Dados bancários configurados no backend. ${resumo}`:`Configuração bancária ainda incompleta. ${resumo}`.trim(),d.configurados?'ok':'alerta');
   }catch(e){bradescoDadosAviso('❌ Não foi possível consultar: '+e.message,'erro');if(mostrarErro)alert(e.message)}
 }
+function preverNegociacaoBradesco(){
+  const dig=v=>String(v||'').replace(/\D/g,'');
+  const ag=dig(document.getElementById('bradescoCfgAgencia')?.value||'');
+  const ct=dig(document.getElementById('bradescoCfgConta')?.value||'');
+  const manual=dig(document.getElementById('bradescoCfgNegociacao')?.value||'');
+  const out=document.getElementById('bradescoNegociacaoPreview'); if(!out)return;
+  if(manual){out.textContent=manual.length===18?'Nº negociação: será usado o valor manual de 18 dígitos.':`Nº negociação manual: ${manual.length}/18 dígitos.`;return;}
+  if(!ag&&!ct){out.textContent='Nº negociação será gerado automaticamente no backend quando agência e conta forem informadas.';return;}
+  if(ag.length>4||ct.length>7){out.textContent='⚠ Agência deve ter até 4 números e conta até 7, ambas sem dígito verificador.';return;}
+  if(!ag||!ct){out.textContent='Informe agência e conta, sem DV, para visualizar a composição.';return;}
+  const n=ag.padStart(4,'0')+'0000000'+ct.padStart(7,'0');
+  out.textContent=`Prévia: ${ag.padStart(4,'0')} + 0000000 + ${ct.padStart(7,'0')} = ${n} (18 dígitos)`;
+}
 async function salvarDadosBancariosBradesco(){
   if(!bbAdminKey())return alert('Valide a chave administrativa antes de salvar.');
   const get=id=>document.getElementById(id)?.value||'';
   const body={cnpj:get('bradescoCfgCnpj'),agencia:get('bradescoCfgAgencia'),conta:get('bradescoCfgConta'),carteira:get('bradescoCfgCarteira'),cedente:get('bradescoCfgCedente'),negociacao:get('bradescoCfgNegociacao')};
+  const ag=String(body.agencia||'').replace(/\D/g,''),ct=String(body.conta||'').replace(/\D/g,''),neg=String(body.negociacao||'').replace(/\D/g,'');
+  if(ag&&ag.length>4)return alert('Agência: informe somente os números sem o dígito verificador (máximo 4).');
+  if(ct&&ct.length>7)return alert('Conta: informe somente os números sem o dígito verificador (máximo 7).');
+  if(neg&&neg.length!==18)return alert('Se preencher Nº negociação manualmente, informe exatamente 18 números. Caso contrário, deixe vazio para o sistema gerar automaticamente.');
   if(!confirm('Salvar/atualizar os dados bancários do contrato Bradesco no backend?'))return;
   try{
     const j=await bradescoReq('salvar-dados-bancarios',{method:'POST',body});

@@ -2897,15 +2897,15 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div id="bradescoDadosAviso" class="bb-cert-aviso" style="margin-top:10px;">Aguardando consulta dos dados bancários.</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px;margin-top:10px;">
           <label>CNPJ do beneficiário<input id="bradescoCfgCnpj" class="input" inputmode="numeric" autocomplete="off" placeholder="Somente números"></label>
-          <label>Agência<input id="bradescoCfgAgencia" class="input" inputmode="numeric" autocomplete="off" placeholder="Agência"></label>
-          <label>Conta<input id="bradescoCfgConta" class="input" inputmode="numeric" autocomplete="off" placeholder="Conta"></label>
+          <label>Agência (sem DV)<input id="bradescoCfgAgencia" class="input" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="4 números, sem DV" oninput="preverNegociacaoBradesco()"></label>
+          <label>Conta (sem DV)<input id="bradescoCfgConta" class="input" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="Até 7 números, sem DV" oninput="preverNegociacaoBradesco()"></label>
           <label>Carteira / produto<input id="bradescoCfgCarteira" class="input" inputmode="numeric" autocomplete="off" placeholder="Ex.: 09"></label>
           <label>Cedente<input id="bradescoCfgCedente" class="input" autocomplete="off" placeholder="Código do cedente"></label>
-          <label>Nº negociação<input id="bradescoCfgNegociacao" class="input" inputmode="numeric" autocomplete="off" placeholder="Se fornecido pelo Bradesco"></label>
+          <label>Nº negociação (opcional)<input id="bradescoCfgNegociacao" class="input" inputmode="numeric" autocomplete="off" maxlength="18" placeholder="Gerado automaticamente" oninput="preverNegociacaoBradesco()"></label>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
           <button class="btn roxo" onclick="salvarDadosBancariosBradesco()">💾 Salvar dados bancários</button>
-          <span class="bb-cert-ajuda">Campos em branco mantêm o valor já salvo. Client Secret, certificado e chave privada continuam separados nesta tela.</span>
+          <span class="bb-cert-ajuda">V221: se Nº negociação ficar vazio, o backend gera automaticamente: Agência (4, sem DV) + 0000000 + Conta (7, sem DV). Se o Bradesco fornecer um número específico, informe os 18 dígitos para sobrescrever. Campos em branco mantêm os demais valores já salvos.</span><div id="bradescoNegociacaoPreview" class="bb-cert-ajuda" style="flex-basis:100%;margin-top:4px;"></div>
         </div>
       </div>
     </div>
