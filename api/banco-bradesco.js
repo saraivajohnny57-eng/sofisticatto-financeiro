@@ -323,6 +323,51 @@ module.exports=async function(req,res){
       const d=consulta.data||{};
       return json(res,200,{ok:true,consulta:{http_status:consulta.http_status,status:d.status??consulta.http_status,mensagem:d.mensagem||'Operação realizada com sucesso.',causa:d.causa||null,pagina:d.pagina??null,indMaisPagina:d.indMaisPagina??null,qtdeTitulos:d.qtdeTitulos??(Array.isArray(d.titulos)?d.titulos.length:null),vtotTitulos:d.vtotTitulos??null,qtdeOcorr:d.qtdeOcorr??null,titulos:Array.isArray(d.titulos)?d.titulos.slice(0,20):[]},mensagem:'Consulta segura ao recurso de títulos pendentes do Bradesco Sandbox concluída. Nenhum boleto foi registrado, alterado ou baixado.'});
     }
+    if(action==='preparar-homologacao-controlada'){
+      if(amb!=='sandbox')throw new Error('A preparação controlada está liberada somente para o Sandbox.');
+      const reg=await obter(idRegistro(amb,'dados-bancarios'));
+      if(!reg)throw new Error('Cadastre os dados bancários do contrato Bradesco antes de preparar a homologação.');
+      const banco=descriptografar(reg)||{};
+      const faltam=['cnpj','agencia','conta','carteira','cedente','negociacao'].filter(k=>!String(banco[k]||'').trim());
+      if(faltam.length)throw new Error('Configuração bancária incompleta: '+faltam.join(', ')+'.');
+      const somenteDigitos=v=>String(v||'').replace(/\D/g,'');
+      const nome=String(req.body?.nome||'').trim();
+      const documento=somenteDigitos(req.body?.documento);
+      const valor=Number(req.body?.valor);
+      const vencimento=String(req.body?.vencimento||'').trim();
+      const seuNumero=String(req.body?.seuNumero||'').trim();
+      const erros=[];
+      if(!nome)erros.push('nome do pagador');
+      if(![11,14].includes(documento.length))erros.push('CPF/CNPJ do pagador com 11 ou 14 dígitos');
+      if(!(valor>0))erros.push('valor maior que zero');
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(vencimento))erros.push('vencimento válido');
+      if(!seuNumero)erros.push('seu número/controle');
+      if(erros.length)throw new Error('Complete a prévia: '+erros.join(', ')+'.');
+      const carteira=somenteDigitos(banco.carteira).padStart(2,'0');
+      const negociacao=somenteDigitos(banco.negociacao);
+      if(negociacao.length!==18)throw new Error('O Nº negociação armazenado não possui 18 dígitos. Revise os dados bancários.');
+      const previa={
+        ambiente:'SANDBOX',
+        modo:'PREPARACAO_CONTROLADA_SEM_ENVIO',
+        envio_ao_bradesco:false,
+        bloqueio_registro:true,
+        contrato:{
+          cnpj_beneficiario:mascarar(somenteDigitos(banco.cnpj),2,2),
+          agencia:mascarar(somenteDigitos(banco.agencia),1,1),
+          conta:mascarar(somenteDigitos(banco.conta),1,1),
+          idProduto:carteira,
+          cedente:mascarar(banco.cedente,1,1),
+          nuNegociacao:mascarar(negociacao,4,4),
+          nuNegociacao_digitos:negociacao.length,
+          nuNegociacao_origem:banco.negociacao_origem||'configurado'
+        },
+        pagador:{nome,cpfCnpj:mascarar(documento,3,2),tipo_documento:documento.length===11?'CPF':'CNPJ'},
+        titulo:{valor:Number(valor.toFixed(2)),vencimento,seuNumero},
+        validacoes:{contrato_completo:true,idProduto_preenchido:!!carteira,nuNegociacao_18_digitos:negociacao.length===18,pagador_valido:true},
+        observacao:'Esta prévia foi montada no backend com os dados reais do contrato já armazenados, mas NÃO executa POST no endpoint de registro e NÃO pode emitir boleto.'
+      };
+      return json(res,200,{ok:true,previa,mensagem:'Prévia controlada de homologação montada no backend. Nenhum dado foi enviado ao endpoint de registro do Bradesco.'});
+    }
     if(action==='diagnosticar-payload-minimo'){
       if(amb!=='sandbox')throw new Error('O diagnóstico está liberado somente para o Sandbox.');
       const credReg=await obter(idRegistro(amb,'credenciais')), mtlsReg=await obter(idRegistro(amb,'mtls'));
