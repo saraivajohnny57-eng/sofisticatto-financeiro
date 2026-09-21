@@ -389,6 +389,11 @@ module.exports=async function(req,res){
     const upstream=Number(e?.http_status)||0;
     const statusHttp=(upstream>=400&&upstream<=599)?upstream:500;
     const resposta=e?.resposta&&typeof e.resposta==='object'?e.resposta:null;
-    return json(res,statusHttp,{ok:false,erro:e.message||'Falha na integração Bradesco.',bradesco_http:upstream||null,detalhe:resposta});
+    const msg=String(e?.message||'Falha na integração Bradesco.');
+    const precisaMigracao=/integracoes_bradesco_segredos_tipo_check|violates check constraint/i.test(msg);
+    const erroPublico=precisaMigracao
+      ? 'O banco de dados precisa da atualização SQL V211 para aceitar o cadastro dos dados bancários Bradesco. Nenhum dado foi alterado.'
+      : msg;
+    return json(res,statusHttp,{ok:false,erro:erroPublico,codigo:precisaMigracao?'BRADESCO_SQL_V211_PENDENTE':null,bradesco_http:upstream||null,detalhe:precisaMigracao?null:resposta});
   }
 };
