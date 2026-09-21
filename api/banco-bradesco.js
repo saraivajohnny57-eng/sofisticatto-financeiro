@@ -431,10 +431,13 @@ module.exports=async function(req,res){
       };
       const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
       const retorno=await enviarRegistroCobrancaSandbox(auth.access_token,mtls,payload);
-      const aceito=retorno.http_status>=200&&retorno.http_status<300;
+      const http2xx=retorno.http_status>=200&&retorno.http_status<300;
       const d=retorno.data||{};
-      // Não há repetição automática. Em 2xx, devolvemos a resposta do banco para identificar Nosso Nº e demais dados.
-      return json(res,200,{ok:aceito,registro:{ambiente:'SANDBOX',versao:'V228',http_status:retorno.http_status,enviado_ao_bradesco:true,aceito_pelo_endpoint:aceito,seuNumero,nuTitulo_enviado:false,nossoNumero_retornado:d.nuTitulo??d.nossoNumero??d.numeroTitulo??null,resposta_bradesco:d},mensagem:aceito?'Bradesco Sandbox respondeu com sucesso ao registro. Confira o Nosso Nº e os demais dados retornados.':'O Bradesco Sandbox recebeu a tentativa, mas não confirmou o registro. Nenhuma nova tentativa foi feita automaticamente.'});
+      const nossoNumero=d.nuTitulo??d.nossoNumero??d.numeroTitulo??d?.titulo?.nuTitulo??null;
+      // V229: a rota interna sempre responde ok:true quando conseguiu conversar com o Bradesco.
+      // O status do Bradesco fica em registro.http_status. Assim o frontend não perde o body quando
+      // o banco responde 4xx/422, nem confunde HTTP da rota Vercel (200) com HTTP do Bradesco.
+      return json(res,200,{ok:true,registro:{ambiente:'SANDBOX',versao:'V229',http_status:retorno.http_status,enviado_ao_bradesco:true,http_2xx_bradesco:http2xx,confirmado_pelo_bradesco:false,status_negocio:'NAO_CONFIRMADO',seuNumero,nuTitulo_enviado:false,nossoNumero_retornado:nossoNumero,resposta_bradesco:d},mensagem:http2xx?'O Bradesco respondeu HTTP 2xx. O sistema preservou a resposta completa, mas não marca o título como confirmado apenas pelo HTTP. Analise os campos retornados antes de novo envio.':'O Bradesco respondeu HTTP '+retorno.http_status+'. A resposta completa foi preservada abaixo. Nenhuma nova tentativa foi feita automaticamente.'});
     }
     if(action==='diagnosticar-payload-minimo'){
       if(amb!=='sandbox')throw new Error('O diagnóstico está liberado somente para o Sandbox.');
