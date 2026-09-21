@@ -5,6 +5,17 @@ const {exigirAdmin,supabaseRest,criptografar,descriptografar}=require('../lib/in
 
 const TABELA='integracoes_bradesco_segredos';
 const AMBIENTE_PADRAO='sandbox';
+
+const SEQ_TABELA='bradesco_sequencial_titulos';
+const SEQ_INICIAL=13625803775;
+async function obterSequencialBradesco(amb){
+  const a=ambiente(amb);
+  const r=await supabaseRest(SEQ_TABELA,{query:`?ambiente=eq.${encodeURIComponent(a)}&select=ambiente,proximo_numero,ultimo_confirmado,atualizado_em&limit=1`});
+  const row=Array.isArray(r)?r[0]:null;
+  if(!row)throw new Error('Sequencial Bradesco ainda não inicializado. Execute o SQL V225 no Supabase.');
+  return {ambiente:a,proximo_numero:Number(row.proximo_numero),ultimo_confirmado:row.ultimo_confirmado==null?null:Number(row.ultimo_confirmado),atualizado_em:row.atualizado_em||null};
+}
+
 function json(res,status,data){res.status(status).json(data)}
 function ambiente(v){return String(v||AMBIENTE_PADRAO).toLowerCase()==='producao'?'producao':'sandbox'}
 function idRegistro(amb,tipo){return `bradesco:${ambiente(amb)}:${tipo}`}
@@ -323,6 +334,10 @@ module.exports=async function(req,res){
       const d=consulta.data||{};
       return json(res,200,{ok:true,consulta:{http_status:consulta.http_status,status:d.status??consulta.http_status,mensagem:d.mensagem||'Operação realizada com sucesso.',causa:d.causa||null,pagina:d.pagina??null,indMaisPagina:d.indMaisPagina??null,qtdeTitulos:d.qtdeTitulos??(Array.isArray(d.titulos)?d.titulos.length:null),vtotTitulos:d.vtotTitulos??null,qtdeOcorr:d.qtdeOcorr??null,titulos:Array.isArray(d.titulos)?d.titulos.slice(0,20):[]},mensagem:'Consulta segura ao recurso de títulos pendentes do Bradesco Sandbox concluída. Nenhum boleto foi registrado, alterado ou baixado.'});
     }
+    if(action==='proximo-seu-numero'){
+      const seq=await obterSequencialBradesco(amb);
+      return json(res,200,{ok:true,sequencial:seq,mensagem:`Próximo Seu Número Bradesco: ${seq.proximo_numero}. A consulta não consome o número.`});
+    }
     if(action==='preparar-homologacao-controlada'){
       if(amb!=='sandbox')throw new Error('A preparação controlada está liberada somente para o Sandbox.');
       const reg=await obter(idRegistro(amb,'dados-bancarios'));
@@ -335,7 +350,8 @@ module.exports=async function(req,res){
       const documento=somenteDigitos(req.body?.documento);
       const valor=Number(req.body?.valor);
       const vencimento=String(req.body?.vencimento||'').trim();
-      const seuNumero=String(req.body?.seuNumero||'').trim();
+      let seuNumero=String(req.body?.seuNumero||'').trim();
+      if(!seuNumero){const seq=await obterSequencialBradesco(amb);seuNumero=String(seq.proximo_numero);}
       const erros=[];
       if(!nome)erros.push('nome do pagador');
       if(![11,14].includes(documento.length))erros.push('CPF/CNPJ do pagador com 11 ou 14 dígitos');
@@ -359,11 +375,11 @@ module.exports=async function(req,res){
       const pendencias=[];
       if(cep8.length!==8)pendencias.push('CEP do pagador deve ter 8 dígitos'); if(!endereco.logradouro)pendencias.push('logradouro do pagador'); if(!endereco.numero)pendencias.push('número do endereço do pagador'); if(!endereco.bairro)pendencias.push('bairro do pagador'); if(!endereco.municipio)pendencias.push('município do pagador'); if(!/^[A-Z]{2}$/.test(endereco.uf))pendencias.push('UF do pagador com 2 letras');
       const payloadSanitizado={...payloadCompleto,nuCPFCNPJ:mascarar(payloadCompleto.nuCPFCNPJ,2,2),filialCPFCNPJ:mascarar(payloadCompleto.filialCPFCNPJ,1,1),ctrlCPFCNPJ:'••',nuNegociacao:mascarar(negociacao,4,4),nuCpfcnpjPagador:mascarar(documento,3,2)};
-      const previa={ambiente:'SANDBOX',versao:'V224',modo:'PAYLOAD_COMPLETO_CONTROLADO_SEM_ENVIO',envio_ao_bradesco:false,bloqueio_registro:true,
+      const previa={ambiente:'SANDBOX',versao:'V225',modo:'PAYLOAD_COMPLETO_CONTROLADO_SEM_ENVIO',envio_ao_bradesco:false,bloqueio_registro:true,
         contrato:{cnpj_beneficiario:mascarar(somenteDigitos(banco.cnpj),2,2),agencia:mascarar(somenteDigitos(banco.agencia),1,1),conta:mascarar(somenteDigitos(banco.conta),1,1),idProduto:carteira,cedente:mascarar(banco.cedente,1,1),nuNegociacao:mascarar(negociacao,4,4),nuNegociacao_digitos:negociacao.length,nuNegociacao_origem:banco.negociacao_origem||'configurado'},
         pagador:{nome,cpfCnpj:mascarar(documento,3,2),tipo_documento:documento.length===11?'CPF':'CNPJ',endereco},titulo:{valor:Number(valor.toFixed(2)),vencimento,seuNumero,especie:payloadCompleto.cdEspecieTitulo},
-        validacoes:{contrato_completo:true,idProduto_preenchido:!!carteira,nuNegociacao_18_digitos:negociacao.length===18,pagador_valido:true,endereco_pagador_completo:pendencias.length===0,payload_pronto_para_teste:false},pendencias,payload_sanitizado:payloadSanitizado,
-        observacao:'V224 monta o payload completo no backend para revisão. NÃO executa POST no endpoint de registro. Campos de Sacador/Avalista não são inventados: só serão adicionados quando houver confirmação de que se aplicam ao contrato/cenário.'};
+        validacoes:{contrato_completo:true,idProduto_preenchido:!!carteira,nuNegociacao_18_digitos:negociacao.length===18,pagador_valido:true,endereco_pagador_completo:pendencias.length===0,payload_pronto_para_teste:pendencias.length===0},pendencias,payload_sanitizado:payloadSanitizado,
+        observacao:'V225 monta o payload completo no backend para revisão. NÃO executa POST no endpoint de registro. Campos de Sacador/Avalista não são inventados: só serão adicionados quando houver confirmação de que se aplicam ao contrato/cenário.'};
       return json(res,200,{ok:true,previa,mensagem:'Payload completo de homologação preparado no backend para revisão. Nenhum dado foi enviado ao endpoint de registro do Bradesco.'});
     }
     if(action==='diagnosticar-payload-minimo'){
