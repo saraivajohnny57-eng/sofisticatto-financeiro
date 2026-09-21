@@ -9001,7 +9001,7 @@ async function validarEndpointRegistroBradescoSandbox(){
       if(out)out.innerHTML=`❌ <b>Validação do endpoint de registro não concluída:</b> ${escaparHtmlEmail(m)}`;
       bradescoAviso('❌ O endpoint de registro ainda não foi validado. Nenhum boleto foi emitido.','erro');
     }
-  }finally{if(btn)btn.disabled=false;}
+  }finally{/* V229: após uma tentativa, o botão permanece bloqueado nesta tela para evitar reenvio acidental. */}
 }
 
 function montarPreviaRegistroBradescoV187(){
@@ -9089,8 +9089,10 @@ async function testarRegistroBradescoSandboxV228(){
   if(out){out.className='bb-cert-aviso';out.textContent='⏳ Enviando UMA tentativa ao endpoint de registro do Bradesco Sandbox. Aguarde...';} if(btn)btn.disabled=true;
   try{
     const j=await bradescoReq('registrar-cobranca-sandbox-controlada',{method:'POST',body:{...body,confirmacao:'TESTAR_SANDBOX'}}),r=j.registro||{};
-    if(out){out.className='bb-cert-aviso '+(r.aceito_pelo_endpoint?'ok':'alerta');out.innerHTML=`${r.aceito_pelo_endpoint?'✅':'⚠️'} <b>Teste de registro concluído — HTTP ${escaparHtmlEmail(String(r.http_status??''))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r,null,2))}</pre></div><span class="bb-cert-ajuda">V228: uma única tentativa; sem repetição automática. Produção continua bloqueada.</span>`;}
-    bradescoAviso(r.aceito_pelo_endpoint?'✅ O Sandbox respondeu com sucesso ao registro. Confira o retorno abaixo.':'⚠️ O Sandbox recebeu a tentativa, mas não confirmou o registro. Confira o retorno abaixo.',r.aceito_pelo_endpoint?'ok':'alerta');
+    // V229: nunca considerar o título confirmado somente por HTTP 2xx. Exibir sempre a resposta do Bradesco.
+    if(out){out.className='bb-cert-aviso alerta';out.innerHTML=`⚠️ <b>Resposta do Bradesco recebida — HTTP BRADESCO ${escaparHtmlEmail(String(r.http_status??'—'))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<br><b>Status do título:</b> NÃO CONFIRMADO AUTOMATICAMENTE<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r,null,2))}</pre></div><span class="bb-cert-ajuda">V229: o HTTP acima é o retornado pelo Bradesco, não o HTTP da rota Vercel. Não clique novamente com o mesmo Seu Nº até analisar esta resposta. Produção continua bloqueada.</span>`;}
+    bradescoAviso(`⚠️ Resposta recebida do Bradesco (HTTP ${r.http_status??'—'}). O título NÃO foi marcado como confirmado automaticamente. Confira o JSON abaixo antes de qualquer novo envio.`,'alerta');
+    if(btn){btn.disabled=true;btn.title='V229: tentativa já realizada nesta tela. Recarregue somente após analisar o retorno.';}
   }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Teste de registro não concluído: '+String(e.message||e)};alert('Teste Bradesco Sandbox não concluído.\n\n'+String(e.message||e));}
   finally{if(btn)btn.disabled=false;}
 }
