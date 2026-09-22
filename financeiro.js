@@ -236,7 +236,10 @@ function configurarInterfacePorPerfil(){
   if(btnDoc) btnDoc.style.display=(usuarioLogado?.tipo==="financeiro"||comercial)?"block":"none";
   if(entregador) return;
   if(!comercial) return;
+  // V236: a gerente de vendas também pode acessar o Relatório de Faturas dos Correios.
+  // Vendedoras continuam sem acesso à aba Correios.
   const permitidas=new Set(["Coletas","Preparar","Clientes","Historico"]);
+  if(usuarioEhGerenteRastreio()) permitidas.add("Correios");
   ["Logistica","Preparar","Gerador","Etiquetas","Correios","CobrancaBancaria","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(n=>{
     const b=document.getElementById("emailAba"+n); if(b)b.style.display=permitidas.has(n)?"inline-flex":"none";
   });
