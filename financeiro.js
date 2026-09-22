@@ -9075,9 +9075,11 @@ function dadosFormularioRegistroBradesco(){
   const valorTxt=String(get('brTesteValor')).trim().replace(/\./g,'').replace(',','.');
   return {nome:String(get('brTesteNome')).trim(),documento:String(get('brTesteDocumento')).replace(/\D/g,''),valor:Number(valorTxt),vencimento:String(get('brTesteVencimento')).trim(),seuNumero:String(get('brTesteSeuNumero')).trim(),cep:String(get('brTesteCep')).replace(/\D/g,''),logradouro:String(get('brTesteLogradouro')).trim(),numero:String(get('brTesteNumero')).trim(),complemento:String(get('brTesteComplemento')).trim(),bairro:String(get('brTesteBairro')).trim(),municipio:String(get('brTesteMunicipio')).trim(),uf:String(get('brTesteUf')).trim().toUpperCase(),especie:String(get('brTesteEspecie')).trim()||'2',mensagem:String(get('brTesteMensagem')).trim()};
 }
-async function testarRegistroBradescoSandboxV228(){
+const bradescoSandboxSeuNumerosTentadosV230 = new Set();
+async function testarRegistroBradescoSandboxV230(){
   if(bradescoAmbiente()!=='sandbox')return alert('Este botão é exclusivo do Sandbox. Produção permanece bloqueada.');
   const body=dadosFormularioRegistroBradesco(), faltas=[];
+  if(bradescoSandboxSeuNumerosTentadosV230.has(String(body.seuNumero||'').trim())) return alert('Este Seu Nº já teve uma tentativa de registro nesta tela. Use outro pedido/NF ou recarregue somente depois de analisar o retorno do Bradesco.');
   if(!body.nome)faltas.push('nome do pagador');if(![11,14].includes(body.documento.length))faltas.push('CPF/CNPJ');if(!(body.valor>0))faltas.push('valor');if(!body.vencimento)faltas.push('vencimento');if(!body.seuNumero||body.seuNumero.length>10)faltas.push('Seu Nº (NF/pedido, até 10 caracteres)');
   if(faltas.length)return alert('Complete antes do teste: '+faltas.join(', ')+'.');
   const doc=body.documento.length===11?body.documento.replace(/^(\d{3})\d+(\d{2})$/,'$1••••••$2'):body.documento.replace(/^(\d{2})\d+(\d{2})$/,'$1••••••••$2');
@@ -9085,14 +9087,15 @@ async function testarRegistroBradescoSandboxV228(){
   if(!confirm(resumo))return;
   const palavra=prompt('Confirmação final de segurança.\n\nDigite exatamente TESTAR SANDBOX para enviar esta cobrança ao endpoint de registro do Bradesco Sandbox:');
   if(String(palavra||'').trim().toUpperCase()!=='TESTAR SANDBOX')return alert('Teste cancelado. Nenhum dado foi enviado ao endpoint de registro.');
-  const out=document.getElementById('bradescoRegistroRealV228Status'),btn=document.getElementById('btnRegistrarSandboxBradescoV228');
+  const out=document.getElementById('bradescoRegistroRealV230Status'),btn=document.getElementById('btnRegistrarSandboxBradescoV230');
   if(out){out.className='bb-cert-aviso';out.textContent='⏳ Enviando UMA tentativa ao endpoint de registro do Bradesco Sandbox. Aguarde...';} if(btn)btn.disabled=true;
   try{
+    bradescoSandboxSeuNumerosTentadosV230.add(String(body.seuNumero).trim());
     const j=await bradescoReq('registrar-cobranca-sandbox-controlada',{method:'POST',body:{...body,confirmacao:'TESTAR_SANDBOX'}}),r=j.registro||{};
     // V229: nunca considerar o título confirmado somente por HTTP 2xx. Exibir sempre a resposta do Bradesco.
     if(out){out.className='bb-cert-aviso alerta';out.innerHTML=`⚠️ <b>Resposta do Bradesco recebida — HTTP BRADESCO ${escaparHtmlEmail(String(r.http_status??'—'))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<br><b>Status do título:</b> NÃO CONFIRMADO AUTOMATICAMENTE<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r,null,2))}</pre></div><span class="bb-cert-ajuda">V229: o HTTP acima é o retornado pelo Bradesco, não o HTTP da rota Vercel. Não clique novamente com o mesmo Seu Nº até analisar esta resposta. Produção continua bloqueada.</span>`;}
     bradescoAviso(`⚠️ Resposta recebida do Bradesco (HTTP ${r.http_status??'—'}). O título NÃO foi marcado como confirmado automaticamente. Confira o JSON abaixo antes de qualquer novo envio.`,'alerta');
-    if(btn){btn.disabled=true;btn.title='V229: tentativa já realizada nesta tela. Recarregue somente após analisar o retorno.';}
+    if(btn){btn.title='V230: outro Seu Nº pode ser testado; o mesmo Seu Nº fica bloqueado nesta sessão.';}
   }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Teste de registro não concluído: '+String(e.message||e)};alert('Teste Bradesco Sandbox não concluído.\n\n'+String(e.message||e));}
   finally{if(btn)btn.disabled=false;}
 }
