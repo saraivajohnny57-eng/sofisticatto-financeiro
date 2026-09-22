@@ -2865,14 +2865,14 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div style="padding:10px 12px;border-radius:10px;background:#fff1f4;margin-bottom:12px;"><b>Banco Bradesco — Sandbox mTLS</b><br><span class="bb-cert-ajuda">Área exclusiva do Bradesco. A emissão de produção permanece bloqueada. O teste externo ficará separado do Banco do Brasil.</span></div>
     <div class="bb-api-test-box" style="margin-top:18px;padding:16px;border:2px solid #cc092f;border-radius:12px;background:#fffafb;">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
-        <div><h3 style="margin:0 0 4px;">🔴 Bradesco — Cobrança Sandbox (mTLS)</h3><p class="bb-cert-ajuda" style="margin:0;">Cadastre aqui as credenciais que acabaram de ser ativadas no Portal Bradesco Developers. O Client Secret e a chave privada nunca são devolvidos pelo portal.</p></div>
+        <div><h3 style="margin:0 0 4px;">🔴 Bradesco — Cobrança (Sandbox / Produção)</h3><p class="bb-cert-ajuda" style="margin:0;">Cadastre aqui as credenciais que acabaram de ser ativadas no Portal Bradesco Developers. O Client Secret e a chave privada nunca são devolvidos pelo portal.</p></div>
         <div><button class="btn azul" onclick="carregarStatusBradesco(true)">↻ Atualizar status</button> <button class="btn verde" onclick="validarConfiguracaoBradesco()">✅ Validar configuração</button></div>
       </div>
       <div id="bradescoAviso" class="bb-cert-aviso" style="margin-top:12px;">Aguardando consulta da configuração Bradesco.</div>
       <div class="bb-cert-grid" style="margin-top:12px;">
         <div class="bb-cert-bloco">
-          <h4>Credenciais Sandbox</h4>
-          <label>Ambiente</label><select id="bradescoAmbiente" onchange="carregarStatusBradesco()"><option value="sandbox">Sandbox</option><option value="producao">Produção (bloqueado até habilitação)</option></select>
+          <h4>Credenciais OAuth por ambiente</h4>
+          <label>Ambiente</label><select id="bradescoAmbiente" onchange="carregarStatusBradesco()"><option value="sandbox">Sandbox</option><option value="producao">Produção — configuração/teste OAuth (emissão bloqueada)</option></select>
           <label>Client ID</label><input id="bradescoClientId" type="password" autocomplete="off" placeholder="Deixe em branco para manter o atual">
           <label>Client Secret</label><input id="bradescoClientSecret" type="password" autocomplete="new-password" placeholder="Deixe em branco para manter o atual">
           <button class="btn roxo" onclick="salvarCredenciaisBradesco()">💾 Salvar credenciais Bradesco</button>
@@ -2887,7 +2887,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <div id="bradescoCertDetalhes" class="bb-cert-detalhes">Nenhum par mTLS consultado.</div>
         </div>
       </div>
-      <p class="bb-cert-ajuda" style="margin:12px 0 0;"><b>Segurança:</b> o botão “Validar configuração” confere localmente credenciais + par mTLS. O teste externo abaixo valida somente a autenticação mTLS/OAuth do Sandbox e não registra boleto.</p>
+      <p class="bb-cert-ajuda" style="margin:12px 0 0;"><b>Segurança:</b> o botão “Validar configuração” confere localmente credenciais + par mTLS. O teste externo abaixo valida somente a autenticação mTLS/OAuth do ambiente selecionado e não registra boleto. Em Produção, somente o endpoint de token é chamado.</p>
 
       <div style="margin-top:16px;padding:14px;border:1px solid #e5c8cf;border-radius:12px;background:#fff;">
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
@@ -2911,12 +2911,12 @@ SOFISTICATTO COSMÉTICOS</textarea>
     </div>
 
         <div class="bb-api-test-box" style="margin-top:14px;padding:14px;border:1px solid #e5c8cf;border-radius:12px;background:#fffafb;">
-          <h4 style="margin:0 0 6px;">🔎 Teste externo — Bradesco Sandbox</h4>
-          <p class="bb-cert-ajuda" style="margin:0 0 10px;">Teste seguro somente do autorizador mTLS/OAuth do Bradesco Sandbox. Usa Client ID/Secret + certificado/chave já armazenados. <b>Não registra, consulta, altera nem baixa boleto.</b></p>
-          <button id="btnTesteExternoBradesco" class="btn verde" onclick="testarAutenticacaoBradesco()">🔐 Testar autenticação Bradesco Sandbox</button>
+          <h4 style="margin:0 0 6px;">🔎 Teste seguro de autenticação — ambiente selecionado</h4>
+          <p class="bb-cert-ajuda" style="margin:0 0 10px;">Teste seguro do autorizador mTLS/OAuth do ambiente selecionado. Em Produção, chama somente o endpoint de token. <b>Não registra, consulta, altera nem baixa boleto.</b></p>
+          <button id="btnTesteExternoBradesco" class="btn verde" onclick="testarAutenticacaoBradesco()">🔐 Testar autenticação OAuth/mTLS — NÃO EMITIR</button>
           <button id="btnConsultarPendentesBradesco" class="btn azul" onclick="consultarPendentesBradescoSandbox()" style="margin-left:6px;">🔎 Consultar títulos pendentes — Sandbox</button>
           <button id="btnValidarRegistroBradesco" class="btn" onclick="validarEndpointRegistroBradescoSandbox()" style="margin-left:6px;background:#b42318;color:#fff;">🧪 Validar endpoint de registro — sem emitir</button>
-          <div id="bradescoTesteExternoStatus" class="bb-cert-aviso" style="margin-top:10px;">Aguardando teste externo de autenticação. O token de acesso nunca será exibido no navegador.</div>
+          <div id="bradescoTesteExternoStatus" class="bb-cert-aviso" style="margin-top:10px;">Aguardando teste de autenticação do ambiente selecionado. O token de acesso nunca será exibido no navegador.</div>
           <div id="bradescoConsultaPendentesStatus" class="bb-cert-aviso" style="margin-top:10px;">A consulta usa o POST /boleto/cobranca-pendente/v1/listar com mTLS + Bearer no backend. Não registra, altera nem baixa boleto. O registro Sandbox já foi identificado em POST /boleto/cobranca-registro/v1/cobranca, mas permanece bloqueado até esta consulta ser validada.</div>
           <div id="bradescoRegistroSandboxStatus" class="bb-cert-aviso" style="margin-top:10px;">V186: o HTTP 422 retornado pelo Bradesco ao JSON vazio é tratado como confirmação de que o endpoint de registro foi alcançado. Nenhum boleto é emitido por este teste.</div>
           <div style="margin-top:14px;padding:14px;border:1px solid #e5c2c2;border-radius:12px;background:#fff;">
@@ -2943,12 +2943,12 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <button id="btnPrepararHomologacaoBradesco" class="btn verde" onclick="prepararHomologacaoControladaBradesco()" style="margin-top:10px;margin-left:6px;">🛡️ Preparar homologação com contrato — NÃO ENVIAR</button>
             <button id="btnDiagnosticoMinimoBradesco" class="btn" onclick="diagnosticarPayloadMinimoBradescoV187()" style="margin-top:10px;margin-left:6px;background:#b7791f;color:#fff;">🧪 Diagnóstico sintético antigo</button>
             <button id="btnRegistrarSandboxBradescoV230" class="btn" onclick="testarRegistroBradescoSandboxV230()" style="margin-top:10px;margin-left:6px;background:#b42318;color:#fff;">🚨 TESTAR REGISTRO NO SANDBOX</button>
-            <div id="bradescoHomologacaoControladaStatus" class="bb-cert-aviso" style="margin-top:10px;">V232: payload realinhado ao layout revisado. <b>tpVencimento = 0</b> voltou ao payload; <b>complementoLogradouroPagador</b> é enviado somente quando o complemento estiver preenchido. Seu Nº (nuCliente) e Nosso Nº (nuTitulo) continuam separados. O Sandbox é tratado como ambiente de cenários e não será usado para inventar campos de Sacador/Avalista. <b>A preparação não envia boleto.</b></div>
+            <div id="bradescoHomologacaoControladaStatus" class="bb-cert-aviso" style="margin-top:10px;">V233: payload realinhado ao layout revisado. <b>tpVencimento = 0</b> voltou ao payload; <b>complementoLogradouroPagador</b> é enviado somente quando o complemento estiver preenchido. Seu Nº (nuCliente) e Nosso Nº (nuTitulo) continuam separados. O Sandbox é tratado como ambiente de cenários e não será usado para inventar campos de Sacador/Avalista. <b>A preparação não envia boleto.</b></div>
             <div id="bradescoRegistroRealV230Status" class="bb-cert-aviso" style="margin-top:10px;background:#fff3f2;border-color:#f0b8b2;"><b>🚨 Registro Sandbox:</b> este botão faz POST real no endpoint de registro do Sandbox. Exige duas confirmações, envia somente uma tentativa e não funciona em Produção.</div>
             <div id="bradescoDiagnosticoMinimoV187" class="bb-cert-aviso" style="margin-top:10px;">O diagnóstico antigo continua usando somente dados sintéticos e identificadores deliberadamente inválidos.</div>
             <div style="margin-top:14px;padding:12px;border:1px solid #b7d5c4;border-radius:10px;background:#f5fff8;">
               <b>🏦 Transição para emissão real — Produção</b>
-              <div class="bb-cert-ajuda" style="margin:5px 0 9px;">A V232 verifica se credenciais OAuth, mTLS e contrato de Produção estão configurados. <b>Este botão não registra boleto e não chama o endpoint de cobrança de Produção.</b></div>
+              <div class="bb-cert-ajuda" style="margin:5px 0 9px;">A V233 verifica se credenciais OAuth, mTLS e contrato de Produção estão configurados. <b>Este botão não registra boleto e não chama o endpoint de cobrança de Produção.</b></div><div class="bb-cert-ajuda" style="margin:5px 0 9px;"><b>V233:</b> selecione “Produção” no campo Ambiente acima para cadastrar Client ID/Secret, certificado/chave mTLS e contrato específicos de Produção. Depois use o botão de teste OAuth/mTLS. A emissão real permanece bloqueada.</div>
               <button id="btnProntidaoProducaoBradescoV232" class="btn verde" onclick="verificarProntidaoProducaoBradescoV232()">🔐 Verificar prontidão para Produção — NÃO EMITIR</button>
               <div id="bradescoProducaoV232Status" class="bb-cert-aviso" style="margin-top:9px;">Primeira emissão real continua bloqueada. Depois desta verificação, o próximo passo será liberar a emissão com conferência final de cliente, CPF/CNPJ, Seu Nº, valor e vencimento e confirmação explícita.</div>
             </div>

@@ -8686,15 +8686,15 @@ async function carregarStatusBradesco(mostrarErro=false){
     const j=await bradescoReq('status'), c=j.credenciais||{}, m=j.mtls||{};
     carregarDadosBancariosBradesco(false).catch(()=>{});
     if(det)det.textContent=m.configurado?`mTLS ARMAZENADO\nValidade: ${bbFmtData(m.valido_de)} até ${bbFmtData(m.valido_ate)}\nDias restantes: ${m.dias_restantes??'—'}\nFingerprint SHA-256: ${m.fingerprint256||'—'}`:'Nenhum par mTLS cadastrado neste ambiente.';
-    if(c.configuradas&&m.configurado){bradescoAviso('✅ Client ID/Secret e par mTLS estão armazenados. Pronto para validar a configuração local.','ok');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Bradesco • Sandbox configurado'}}
-    else {bradescoAviso(`Configuração pendente: ${c.configuradas?'credenciais OK':'salvar Client ID/Secret'} • ${m.configurado?'mTLS OK':'salvar certificado + chave privada'}.`,'alerta');if(topo){topo.className='cobranca-bank-status pendente';topo.textContent='Bradesco • Sandbox em configuração'}}
+    if(c.configuradas&&m.configurado){bradescoAviso('✅ Client ID/Secret e par mTLS estão armazenados. Pronto para validar a configuração local.','ok');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent=`Bradesco • ${bradescoAmbiente()==='producao'?'Produção':'Sandbox'} configurado`}}
+    else {bradescoAviso(`Configuração pendente: ${c.configuradas?'credenciais OK':'salvar Client ID/Secret'} • ${m.configurado?'mTLS OK':'salvar certificado + chave privada'}.`,'alerta');if(topo){topo.className='cobranca-bank-status pendente';topo.textContent=`Bradesco • ${bradescoAmbiente()==='producao'?'Produção':'Sandbox'} em configuração`}}
   }catch(e){bradescoAviso('Não foi possível consultar o Bradesco: '+e.message,'erro');if(mostrarErro)alert(e.message)}
 }
 async function salvarCredenciaisBradesco(){
   try{
-    if(bradescoAmbiente()==='producao')return alert('Produção permanece bloqueada até o indicador 175 e a assinatura/credencial de Produção estarem habilitados pelo Bradesco.');
+    const amb=bradescoAmbiente();
     const body={client_id:document.getElementById('bradescoClientId')?.value||'',client_secret:document.getElementById('bradescoClientSecret')?.value||''};
-    if(!confirm('Salvar/atualizar Client ID e Client Secret do Bradesco Sandbox?'))return;
+    if(!confirm(`Salvar/atualizar Client ID e Client Secret do Bradesco no ambiente ${amb==='producao'?'PRODUÇÃO':'SANDBOX'}?\n\nOs dados serão armazenados criptografados no backend.`))return;
     const j=await bradescoReq('salvar-credenciais',{method:'POST',body});
     ['bradescoClientId','bradescoClientSecret'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});bradescoAviso('✅ '+j.mensagem,'ok');await carregarStatusBradesco();
   }catch(e){alert('Não foi possível salvar as credenciais Bradesco.\n\n'+e.message)}
@@ -8730,7 +8730,7 @@ async function salvarDadosBancariosBradesco(){
   if(ag&&ag.length>4)return alert('Agência: informe somente os números sem o dígito verificador (máximo 4).');
   if(ct&&ct.length>7)return alert('Conta: informe somente os números sem o dígito verificador (máximo 7).');
   if(neg&&neg.length!==18)return alert('Se preencher Nº negociação manualmente, informe exatamente 18 números. Caso contrário, deixe vazio para o sistema gerar automaticamente.');
-  if(!confirm('Salvar/atualizar os dados bancários do contrato Bradesco no backend?'))return;
+  if(!confirm(`Salvar/atualizar os dados bancários do contrato Bradesco em ${bradescoAmbiente()==='producao'?'PRODUÇÃO':'SANDBOX'}?`))return;
   try{
     const j=await bradescoReq('salvar-dados-bancarios',{method:'POST',body});
     ['bradescoCfgCnpj','bradescoCfgAgencia','bradescoCfgConta','bradescoCfgCarteira','bradescoCfgCedente','bradescoCfgNegociacao'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});
@@ -8741,25 +8741,24 @@ async function salvarDadosBancariosBradesco(){
 async function salvarMtlsBradesco(){
   const cert=document.getElementById('bradescoCertPublico')?.files?.[0], key=document.getElementById('bradescoChavePrivada')?.files?.[0];
   if(!cert||!key)return alert('Selecione o certificado público e a chave privada correspondente.');
-  if(!confirm('Validar se a chave privada corresponde ao certificado público e armazenar o par mTLS criptografado?'))return;
+  if(!confirm(`Validar e armazenar o par mTLS do Bradesco em ${bradescoAmbiente()==='producao'?'PRODUÇÃO':'SANDBOX'}?\n\nA chave privada permanece criptografada no backend e não é devolvida ao navegador.`))return;
   try{
     const [cert_pem,key_pem]=await Promise.all([lerArquivoTexto(cert),lerArquivoTexto(key)]);const j=await bradescoReq('salvar-mtls',{method:'POST',body:{cert_pem,key_pem}});
     document.getElementById('bradescoCertPublico').value='';document.getElementById('bradescoChavePrivada').value='';bradescoAviso('✅ '+j.mensagem,'ok');await carregarStatusBradesco();
   }catch(e){bradescoAviso('❌ O par mTLS não foi alterado. '+e.message,'erro');alert('Não foi possível salvar o mTLS Bradesco.\n\n'+e.message)}
 }
 async function validarConfiguracaoBradesco(){
-  if(bradescoAmbiente()==='producao')return alert('Este teste está liberado somente para o Sandbox neste momento.');
   bradescoAviso('Validando credenciais armazenadas e correspondência do certificado mTLS...','');
   try{const j=await bradescoReq('validar-configuracao',{method:'POST',body:{}});bradescoAviso('✅ '+j.mensagem+' A emissão real continua bloqueada.','ok');const topo=document.getElementById('bradescoStatusTopo');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Bradesco • Sandbox pronto para teste da API'}}
   catch(e){bradescoAviso('❌ '+e.message,'erro');alert('Validação Bradesco não concluída.\n\n'+e.message)}
 }
 async function testarAutenticacaoBradesco(){
-  if(bradescoAmbiente()!=='sandbox')return alert('O teste externo está liberado somente para o Sandbox.');
+  const amb=bradescoAmbiente(), rotulo=amb==='producao'?'Produção':'Sandbox';
   const out=document.getElementById('bradescoTesteExternoStatus'), btn=document.getElementById('btnTesteExternoBradesco');
-  if(!confirm('Executar somente o teste de autenticação mTLS/OAuth no Bradesco Sandbox?\n\nNenhum boleto será emitido, alterado, baixado ou consultado.'))return;
-  if(out)out.innerHTML='⏳ Conectando ao autorizador do Bradesco Sandbox via mTLS...';if(btn)btn.disabled=true;
-  try{const j=await bradescoReq('testar-autenticacao',{method:'POST',body:{}});const t=j.teste||{};if(out)out.innerHTML=`✅ <b>Autenticação Bradesco Sandbox aprovada.</b><br>HTTP ${t.http_status||200} • Token ${t.token_type||'Bearer'}${t.expires_in?` • validade ${t.expires_in}s`:''}${t.scope?` • escopo ${escaparHtmlEmail(String(t.scope))}`:''}<br><span class="bb-cert-ajuda">Nenhum boleto foi emitido, alterado, baixado ou consultado. O token não é exibido nem enviado ao navegador.</span>`;bradescoAviso('✅ Comunicação mTLS/OAuth com o Bradesco Sandbox validada. Emissão continua bloqueada.','ok');}
-  catch(e){if(out)out.innerHTML=`❌ <b>Falha no teste externo:</b> ${escaparHtmlEmail(e.message)}`;bradescoAviso('❌ O Bradesco Sandbox não autenticou esta configuração. Nenhum boleto foi emitido.','erro');}
+  if(!confirm(`Executar somente o teste de autenticação mTLS/OAuth no Bradesco ${rotulo}?\n\nEste teste chama somente o endpoint de token. Nenhum boleto será emitido, alterado, baixado ou consultado.`))return;
+  if(out)out.innerHTML=`⏳ Conectando ao autorizador do Bradesco ${rotulo} via mTLS...`;if(btn)btn.disabled=true;
+  try{const j=await bradescoReq('testar-autenticacao',{method:'POST',body:{}});const t=j.teste||{};if(out)out.innerHTML=`✅ <b>Autenticação Bradesco ${rotulo} aprovada.</b><br>HTTP ${t.http_status||200} • Token ${t.token_type||'Bearer'}${t.expires_in?` • validade ${t.expires_in}s`:''}${t.scope?` • escopo ${escaparHtmlEmail(String(t.scope))}`:''}<br><span class="bb-cert-ajuda">Somente OAuth/mTLS foi testado. Nenhum endpoint de cobrança foi chamado e o token não é exibido no navegador.</span>`;bradescoAviso(`✅ Comunicação mTLS/OAuth com o Bradesco ${rotulo} validada. Emissão continua bloqueada.`,'ok');}
+  catch(e){if(out)out.innerHTML=`❌ <b>Falha no teste externo:</b> ${escaparHtmlEmail(e.message)}`;bradescoAviso(`❌ O Bradesco ${rotulo} não autenticou esta configuração. Nenhum boleto foi emitido.`,'erro');}
   finally{if(btn)btn.disabled=false}
 }
 
@@ -9085,7 +9084,7 @@ async function verificarProntidaoProducaoBradescoV232(){
     const r=await fetch('/api/banco-bradesco?action=verificar-prontidao-producao&ambiente=producao',{headers:{'x-integrations-admin-key':chave}});
     const j=await r.json().catch(()=>({}));if(!r.ok||j.ok===false)throw new Error(j.erro||`HTTP ${r.status}`);
     const p=j.prontidao||{};
-    if(out){out.className=`bb-cert-aviso ${p.pronto_para_configurar_emissao?'ok':'alerta'}`;out.innerHTML=`${p.pronto_para_configurar_emissao?'✅':'⚠️'} <b>Produção — verificação V232</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<div style="margin-top:8px"><pre style="white-space:pre-wrap;word-break:break-word;margin:0">${escaparHtmlEmail(JSON.stringify(p,null,2))}</pre></div><span class="bb-cert-ajuda">A V232 não possui ação de POST de cobrança em Produção. Esta verificação apenas confere configuração/contrato/certificado e mantém a primeira emissão real bloqueada.</span>`;}
+    if(out){out.className=`bb-cert-aviso ${p.pronto_para_configurar_emissao?'ok':'alerta'}`;out.innerHTML=`${p.pronto_para_configurar_emissao?'✅':'⚠️'} <b>Produção — verificação V233</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<div style="margin-top:8px"><pre style="white-space:pre-wrap;word-break:break-word;margin:0">${escaparHtmlEmail(JSON.stringify(p,null,2))}</pre></div><span class="bb-cert-ajuda">A V233 não possui ação de POST de cobrança em Produção. Esta verificação apenas confere configuração/contrato/certificado e mantém a primeira emissão real bloqueada.</span>`;}
   }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Não foi possível verificar a Produção: '+String(e.message||e)};}
   finally{if(btn)btn.disabled=false;}
 }
@@ -9107,9 +9106,9 @@ async function testarRegistroBradescoSandboxV230(){
     bradescoSandboxSeuNumerosTentadosV230.add(String(body.seuNumero).trim());
     const j=await bradescoReq('registrar-cobranca-sandbox-controlada',{method:'POST',body:{...body,confirmacao:'TESTAR_SANDBOX'}}),r=j.registro||{};
     // V231: nunca considerar o título confirmado somente por HTTP 2xx. Exibir sempre a resposta do Bradesco.
-    if(out){out.className='bb-cert-aviso alerta';out.innerHTML=`⚠️ <b>Resposta do Bradesco recebida — HTTP BRADESCO ${escaparHtmlEmail(String(r.http_status??'—'))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<br><b>Status do título:</b> NÃO CONFIRMADO AUTOMATICAMENTE<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r,null,2))}</pre></div><span class="bb-cert-ajuda">V232: o HTTP acima é o retornado pelo Bradesco, não o HTTP da rota Vercel. Não clique novamente com o mesmo Seu Nº até analisar esta resposta. Produção continua bloqueada.</span>`;}
+    if(out){out.className='bb-cert-aviso alerta';out.innerHTML=`⚠️ <b>Resposta do Bradesco recebida — HTTP BRADESCO ${escaparHtmlEmail(String(r.http_status??'—'))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<br><b>Status do título:</b> NÃO CONFIRMADO AUTOMATICAMENTE<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r,null,2))}</pre></div><span class="bb-cert-ajuda">V233: o HTTP acima é o retornado pelo Bradesco, não o HTTP da rota Vercel. Não clique novamente com o mesmo Seu Nº até analisar esta resposta. Produção continua bloqueada.</span>`;}
     bradescoAviso(`⚠️ Resposta recebida do Bradesco (HTTP ${r.http_status??'—'}). O título NÃO foi marcado como confirmado automaticamente. Confira o JSON abaixo antes de qualquer novo envio.`,'alerta');
-    if(btn){btn.title='V232: outro Seu Nº pode ser testado; o mesmo Seu Nº fica bloqueado nesta sessão após uma tentativa.';}
+    if(btn){btn.title='V233: outro Seu Nº pode ser testado; o mesmo Seu Nº fica bloqueado nesta sessão após uma tentativa.';}
   }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Teste de registro não concluído: '+String(e.message||e)};alert('Teste Bradesco Sandbox não concluído.\n\n'+String(e.message||e));}
   finally{if(btn)btn.disabled=false;}
 }
@@ -9138,7 +9137,7 @@ async function prepararHomologacaoControladaBradesco(){
     const body={nome,documento,valor,vencimento,seuNumero,cep:String(get('brTesteCep')).replace(/\D/g,''),logradouro:String(get('brTesteLogradouro')).trim(),numero:String(get('brTesteNumero')).trim(),complemento:String(get('brTesteComplemento')).trim(),bairro:String(get('brTesteBairro')).trim(),municipio:String(get('brTesteMunicipio')).trim(),uf:String(get('brTesteUf')).trim().toUpperCase(),especie:String(get('brTesteEspecie')).trim()||'2',mensagem:String(get('brTesteMensagem')).trim()};
     const j=await bradescoReq('preparar-homologacao-controlada',{method:'POST',body});
     const p=j.previa||{};
-    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ <b>Prévia controlada pronta — NENHUM BOLETO ENVIADO.</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #c6e6ce;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(p,null,2))}</pre></div><span class="bb-cert-ajuda">🔒 V232: Seu Nº e Nosso Nº permanecem separados; contrato e documentos sensíveis permanecem mascarados. O payload sanitizado é somente para revisão; o endpoint de registro continua bloqueado. Se houver pendências de endereço, elas aparecerão no resultado.</span>`}
+    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ <b>Prévia controlada pronta — NENHUM BOLETO ENVIADO.</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #c6e6ce;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(p,null,2))}</pre></div><span class="bb-cert-ajuda">🔒 V233: Seu Nº e Nosso Nº permanecem separados; contrato e documentos sensíveis permanecem mascarados. O payload sanitizado é somente para revisão; o endpoint de registro continua bloqueado. Se houver pendências de endereço, elas aparecerão no resultado.</span>`}
     bradescoAviso('✅ Prévia de homologação preparada com o contrato armazenado. Nenhum boleto foi enviado.','ok');
   }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Não foi possível preparar a homologação: '+String(e.message||e)};alert('Preparação Bradesco não concluída.\n\n'+String(e.message||e));}
   finally{if(btn)btn.disabled=false;}
