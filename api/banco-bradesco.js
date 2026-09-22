@@ -342,6 +342,18 @@ module.exports=async function(req,res){
       const d=consulta.data||{};
       return json(res,200,{ok:true,consulta:{http_status:consulta.http_status,status:d.status??consulta.http_status,mensagem:d.mensagem||'Operação realizada com sucesso.',causa:d.causa||null,pagina:d.pagina??null,indMaisPagina:d.indMaisPagina??null,qtdeTitulos:d.qtdeTitulos??(Array.isArray(d.titulos)?d.titulos.length:null),vtotTitulos:d.vtotTitulos??null,qtdeOcorr:d.qtdeOcorr??null,titulos:Array.isArray(d.titulos)?d.titulos.slice(0,20):[]},mensagem:'Consulta segura ao recurso de títulos pendentes do Bradesco Sandbox concluída. Nenhum boleto foi registrado, alterado ou baixado.'});
     }
+    if(action==='verificar-prontidao-producao'){
+      const prod='producao';
+      const credReg=await obter(idRegistro(prod,'credenciais')), mtlsReg=await obter(idRegistro(prod,'mtls')), bancoReg=await obter(idRegistro(prod,'dados-bancarios'));
+      const pendencias=[];
+      if(!credReg)pendencias.push('credenciais OAuth de Produção');
+      if(!mtlsReg)pendencias.push('certificado/chave mTLS de Produção');
+      if(!bancoReg)pendencias.push('dados bancários/contrato de Produção');
+      let certificado=null, contrato=null;
+      if(mtlsReg){const mtls=descriptografar(mtlsReg)||{};certificado=validarParMtls(mtls.cert_pem,mtls.key_pem);}
+      if(bancoReg){const b=descriptografar(bancoReg)||{};const faltam=['cnpj','agencia','conta','carteira','cedente','negociacao'].filter(k=>!String(b[k]||'').trim());if(faltam.length)pendencias.push('contrato de Produção incompleto: '+faltam.join(', '));contrato={cnpj:mascarar(b.cnpj,2,2),agencia:mascarar(b.agencia,1,1),conta:mascarar(b.conta,1,1),carteira:mascarar(b.carteira,0,1),cedente:mascarar(b.cedente,1,1),negociacao:mascarar(b.negociacao,4,4)};}
+      return json(res,200,{ok:true,prontidao:{versao:'V232',ambiente:'PRODUCAO',pronto_para_configurar_emissao:pendencias.length===0,emissao_real_habilitada:false,post_producao_executado:false,pendencias,certificado:certificado?{valido_ate:certificado.valido_ate,dias_restantes:certificado.dias_restantes}:null,contrato},mensagem:pendencias.length?'Produção ainda possui pendências de configuração. Nenhum boleto foi enviado.':'Configuração de Produção encontrada e validada localmente. A emissão real continua bloqueada nesta V232; nenhum POST de cobrança foi executado.'});
+    }
     if(action==='preparar-homologacao-controlada'){
       if(amb!=='sandbox')throw new Error('A preparação controlada está liberada somente para o Sandbox.');
       const reg=await obter(idRegistro(amb,'dados-bancarios'));
@@ -381,9 +393,9 @@ module.exports=async function(req,res){
       const cpfCnpjApi=documento.length===11?documento.padStart(14,'0'):documento;
       const payloadCompleto={
         nuCPFCNPJ:Number(somenteDigitos(banco.cnpj).slice(0,8)),filialCPFCNPJ:Number(somenteDigitos(banco.cnpj).slice(8,12)),ctrlCPFCNPJ:Number(somenteDigitos(banco.cnpj).slice(-2)),
-        idProduto:carteira,nuNegociacao:negociacao,nuCliente:seuNumero,dtEmissaoTitulo:fmtData(emissao),dtVencimentoTitulo:fmtData(vencimento),vlNominalTitulo:Number(valor.toFixed(2)),
+        idProduto:carteira,nuNegociacao:negociacao,nuCliente:seuNumero,dtEmissaoTitulo:fmtData(emissao),dtVencimentoTitulo:fmtData(vencimento),tpVencimento:0,vlNominalTitulo:Number(valor.toFixed(2)),
         cdEspecieTitulo:especieNum,cindcdAceitSacdo:'N',percentualJuros:0,vlJuros:0,qtdeDiasJuros:0,percentualMulta:0,vlMulta:0,qtdeDiasMulta:0,percentualDesconto1:0,vlDesconto1:0,dataLimiteDesconto1:'',
-        nomePagador:nome,logradouroPagador:endereco.logradouro,nuLogradouroPagador:endereco.numero,cepPagador:Number(cep8.slice(0,5)||0),complementoCepPagador:Number(cep8.slice(5,8)||0),bairroPagador:endereco.bairro,municipioPagador:endereco.municipio,ufPagador:endereco.uf,cdIndCpfcnpjPagador:documento.length===11?1:2,nuCpfcnpjPagador:Number(cpfCnpjApi),
+        nomePagador:nome,logradouroPagador:endereco.logradouro,nuLogradouroPagador:endereco.numero,...(endereco.complemento?{complementoLogradouroPagador:endereco.complemento}:{}),cepPagador:Number(cep8.slice(0,5)||0),complementoCepPagador:Number(cep8.slice(5,8)||0),bairroPagador:endereco.bairro,municipioPagador:endereco.municipio,ufPagador:endereco.uf,cdIndCpfcnpjPagador:documento.length===11?1:2,nuCpfcnpjPagador:Number(cpfCnpjApi),
         listaMsgs:[{mensagem:String(req.body?.mensagem||'').trim()||'COBRANCA SOFISTICATTO'}]
       };
       const pendencias=[], alertas=[];
@@ -395,12 +407,12 @@ module.exports=async function(req,res){
       alertas.push('Nosso Nº (nuTitulo) não é o Seu Nº. Nesta preparação ele não é enviado, pois o layout consultado informa que nuTitulo é opcional e pode ser gerado pelo banco.');
       if(enderecoNormalizadoAutomaticamente)alertas.push('Número do endereço separado automaticamente do logradouro para o payload Bradesco.');
       const payloadSanitizado={...payloadCompleto,nuCPFCNPJ:mascarar(String(payloadCompleto.nuCPFCNPJ),2,2),filialCPFCNPJ:mascarar(String(payloadCompleto.filialCPFCNPJ),1,1),ctrlCPFCNPJ:'••',nuNegociacao:mascarar(negociacao,4,4),nuCpfcnpjPagador:mascarar(cpfCnpjApi,3,2)};
-      const previa={ambiente:'SANDBOX',versao:'V228',modo:'PAYLOAD_COMPLETO_CONTROLADO_SEM_ENVIO',envio_ao_bradesco:false,bloqueio_registro:true,
+      const previa={ambiente:'SANDBOX',versao:'V232',modo:'PAYLOAD_LAYOUT_REVISADO_SEM_ENVIO',envio_ao_bradesco:false,bloqueio_registro:true,
         contrato:{cnpj_beneficiario:mascarar(somenteDigitos(banco.cnpj),2,2),agencia:mascarar(somenteDigitos(banco.agencia),1,1),conta:mascarar(somenteDigitos(banco.conta),1,1),idProduto:carteira,cedente:mascarar(banco.cedente,1,1),nuNegociacao:mascarar(negociacao,4,4),nuNegociacao_digitos:negociacao.length,nuNegociacao_origem:banco.negociacao_origem||'configurado'},
         pagador:{nome,cpfCnpj:mascarar(documento,3,2),tipo_documento:documento.length===11?'CPF':'CNPJ',endereco},titulo:{valor:Number(valor.toFixed(2)),vencimento,seuNumero,identificacao_seu_numero:'nuCliente',nossoNumero:null,identificacao_nosso_numero:'nuTitulo (omitido; geração pelo banco)',especie:payloadCompleto.cdEspecieTitulo},
         normalizacoes:{endereco_numero_separado:enderecoNormalizadoAutomaticamente,cpf_api_14_posicoes:cpfCnpjApi},
         validacoes:{contrato_completo:true,idProduto_preenchido:!!carteira,nuNegociacao_18_digitos:negociacao.length===18,pagador_valido:true,endereco_pagador_completo:pendencias.length===0,formato_datas_dd_mm_aaaa:true,desconto_sem_data_limite:payloadCompleto.dataLimiteDesconto1==='',payload_pronto_para_teste:pendencias.length===0},pendencias,alertas,payload_sanitizado:payloadSanitizado,
-        observacao:'V228 mantém Seu Nº x Nosso Nº separados e prepara o primeiro POST controlado no Sandbox. Na prévia,  nuCliente recebe a referência da Sofisticatto (NF/pedido, até 10 caracteres) e nuTitulo/Nosso Nº fica omitido nesta preparação para geração pelo banco. Mantém datas DD.MM.AAAA, desconto zerado sem data-limite, campos numéricos tipados, CPF com 14 posições e normalização do endereço. NÃO executa POST no endpoint de registro.'};
+        observacao:'V232 realinha o payload ao layout revisado: tpVencimento=0 volta ao payload; complementoLogradouroPagador é enviado somente quando preenchido; Seu Nº (nuCliente) e Nosso Nº (nuTitulo) permanecem separados. O Sandbox continua sendo tratado como validador de cenários. Esta preparação NÃO executa POST.'};
       return json(res,200,{ok:true,previa,mensagem:'Payload completo de homologação preparado no backend para revisão. Nenhum dado foi enviado ao endpoint de registro do Bradesco.'});
     }
     if(action==='registrar-cobranca-sandbox-controlada'){
@@ -424,9 +436,9 @@ module.exports=async function(req,res){
       const emissao=new Date().toISOString().slice(0,10), cpfCnpjApi=documento.length===11?documento.padStart(14,'0'):documento, especie=Number(dig(req.body?.especie)||2);
       const payload={
         nuCPFCNPJ:cnpj.slice(0,8),filialCPFCNPJ:cnpj.slice(8,12),ctrlCPFCNPJ:cnpj.slice(12,14),idProduto:carteira,nuNegociacao:negociacao,nuCliente:seuNumero,
-        dtEmissaoTitulo:fmt(emissao),dtVencimentoTitulo:fmt(vencimento),vlNominalTitulo:Number(valor.toFixed(2)),cdEspecieTitulo:especie,cindcdAceitSacdo:'N',
+        dtEmissaoTitulo:fmt(emissao),dtVencimentoTitulo:fmt(vencimento),tpVencimento:0,vlNominalTitulo:Number(valor.toFixed(2)),cdEspecieTitulo:especie,cindcdAceitSacdo:'N',
         percentualJuros:0,vlJuros:0,qtdeDiasJuros:0,percentualMulta:0,vlMulta:0,qtdeDiasMulta:0,percentualDesconto1:0,vlDesconto1:0,dataLimiteDesconto1:'',
-        nomePagador:nome,logradouroPagador:logradouro,nuLogradouroPagador:numero,cepPagador:cep8.slice(0,5),complementoCepPagador:cep8.slice(5,8),bairroPagador:bairro,municipioPagador:municipio,ufPagador:uf,cdIndCpfcnpjPagador:documento.length===11?1:2,nuCpfcnpjPagador:cpfCnpjApi,
+        nomePagador:nome,logradouroPagador:logradouro,nuLogradouroPagador:numero,...(String(req.body?.complemento||'').trim()?{complementoLogradouroPagador:String(req.body.complemento).trim()}:{}),cepPagador:cep8.slice(0,5),complementoCepPagador:cep8.slice(5,8),bairroPagador:bairro,municipioPagador:municipio,ufPagador:uf,cdIndCpfcnpjPagador:documento.length===11?1:2,nuCpfcnpjPagador:cpfCnpjApi,
         listaMsgs:[{mensagem:String(req.body?.mensagem||'').trim()||'COBRANCA SOFISTICATTO'}]
       };
       const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
@@ -434,10 +446,10 @@ module.exports=async function(req,res){
       const http2xx=retorno.http_status>=200&&retorno.http_status<300;
       const d=retorno.data||{};
       const nossoNumero=d.nuTitulo??d.nossoNumero??d.numeroTitulo??d?.titulo?.nuTitulo??null;
-      // V231: a rota interna sempre responde ok:true quando conseguiu conversar com o Bradesco.
+      // V232: a rota interna sempre responde ok:true quando conseguiu conversar com o Bradesco.
       // O status do Bradesco fica em registro.http_status. Assim o frontend não perde o body quando
       // o banco responde 4xx/422, nem confunde HTTP da rota Vercel (200) com HTTP do Bradesco.
-      return json(res,200,{ok:true,registro:{ambiente:'SANDBOX',versao:'V231',http_status:retorno.http_status,enviado_ao_bradesco:true,http_2xx_bradesco:http2xx,confirmado_pelo_bradesco:false,status_negocio:'NAO_CONFIRMADO',seuNumero,nuTitulo_enviado:false,nossoNumero_retornado:nossoNumero,resposta_bradesco:d},mensagem:http2xx?'O Bradesco respondeu HTTP 2xx. O sistema preservou a resposta completa, mas não marca o título como confirmado apenas pelo HTTP. Analise os campos retornados antes de novo envio.':'O Bradesco respondeu HTTP '+retorno.http_status+'. A resposta completa foi preservada abaixo. Nenhuma nova tentativa foi feita automaticamente.'});
+      return json(res,200,{ok:true,registro:{ambiente:'SANDBOX',versao:'V232',http_status:retorno.http_status,enviado_ao_bradesco:true,http_2xx_bradesco:http2xx,confirmado_pelo_bradesco:false,status_negocio:'NAO_CONFIRMADO',seuNumero,nuTitulo_enviado:false,nossoNumero_retornado:nossoNumero,resposta_bradesco:d},mensagem:http2xx?'O Bradesco respondeu HTTP 2xx. O sistema preservou a resposta completa, mas não marca o título como confirmado apenas pelo HTTP. Analise os campos retornados antes de novo envio.':'O Bradesco respondeu HTTP '+retorno.http_status+'. A resposta completa foi preservada abaixo. Nenhuma nova tentativa foi feita automaticamente.'});
     }
     if(action==='diagnosticar-payload-minimo'){
       if(amb!=='sandbox')throw new Error('O diagnóstico está liberado somente para o Sandbox.');
