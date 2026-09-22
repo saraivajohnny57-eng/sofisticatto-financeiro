@@ -330,7 +330,7 @@ module.exports=async function(req,res){
       if(!mtlsReg)throw new Error('Certificado público e chave privada mTLS ainda não foram cadastrados.');
       const cred=descriptografar(credReg), mtls=descriptografar(mtlsReg);const meta=validarParMtls(mtls.cert_pem,mtls.key_pem);
       if(!cred.client_id||!cred.client_secret)throw new Error('Credenciais incompletas.');
-      return json(res,200,{ok:true,teste:{configuracao_valida:true,mtls_valido:true,credenciais_validas:true,certificado:meta},mensagem:'Configuração local do Bradesco Sandbox validada. Nenhum boleto foi emitido.'});
+      return json(res,200,{ok:true,teste:{configuracao_valida:true,mtls_valido:true,credenciais_validas:true,certificado:meta},mensagem:`Configuração local do Bradesco ${amb==='producao'?'Produção':'Sandbox'} validada. Nenhum boleto foi emitido.`});
     }
     if(action==='consultar-pendentes'){
       if(amb!=='sandbox')throw new Error('A consulta de homologação está liberada somente para o Sandbox.');
@@ -352,7 +352,7 @@ module.exports=async function(req,res){
       let certificado=null, contrato=null;
       if(mtlsReg){const mtls=descriptografar(mtlsReg)||{};certificado=validarParMtls(mtls.cert_pem,mtls.key_pem);}
       if(bancoReg){const b=descriptografar(bancoReg)||{};const faltam=['cnpj','agencia','conta','carteira','cedente','negociacao'].filter(k=>!String(b[k]||'').trim());if(faltam.length)pendencias.push('contrato de Produção incompleto: '+faltam.join(', '));contrato={cnpj:mascarar(b.cnpj,2,2),agencia:mascarar(b.agencia,1,1),conta:mascarar(b.conta,1,1),carteira:mascarar(b.carteira,0,1),cedente:mascarar(b.cedente,1,1),negociacao:mascarar(b.negociacao,4,4)};}
-      return json(res,200,{ok:true,prontidao:{versao:'V232',ambiente:'PRODUCAO',pronto_para_configurar_emissao:pendencias.length===0,emissao_real_habilitada:false,post_producao_executado:false,pendencias,certificado:certificado?{valido_ate:certificado.valido_ate,dias_restantes:certificado.dias_restantes}:null,contrato},mensagem:pendencias.length?'Produção ainda possui pendências de configuração. Nenhum boleto foi enviado.':'Configuração de Produção encontrada e validada localmente. A emissão real continua bloqueada nesta V232; nenhum POST de cobrança foi executado.'});
+      return json(res,200,{ok:true,prontidao:{versao:'V233',ambiente:'PRODUCAO',pronto_para_configurar_emissao:pendencias.length===0,emissao_real_habilitada:false,post_producao_executado:false,pendencias,certificado:certificado?{valido_ate:certificado.valido_ate,dias_restantes:certificado.dias_restantes}:null,contrato},mensagem:pendencias.length?'Produção ainda possui pendências de configuração. Nenhum boleto foi enviado.':'Configuração de Produção encontrada e validada localmente. A emissão real continua bloqueada nesta V233; nenhum POST de cobrança foi executado.'});
     }
     if(action==='preparar-homologacao-controlada'){
       if(amb!=='sandbox')throw new Error('A preparação controlada está liberada somente para o Sandbox.');
@@ -407,7 +407,7 @@ module.exports=async function(req,res){
       alertas.push('Nosso Nº (nuTitulo) não é o Seu Nº. Nesta preparação ele não é enviado, pois o layout consultado informa que nuTitulo é opcional e pode ser gerado pelo banco.');
       if(enderecoNormalizadoAutomaticamente)alertas.push('Número do endereço separado automaticamente do logradouro para o payload Bradesco.');
       const payloadSanitizado={...payloadCompleto,nuCPFCNPJ:mascarar(String(payloadCompleto.nuCPFCNPJ),2,2),filialCPFCNPJ:mascarar(String(payloadCompleto.filialCPFCNPJ),1,1),ctrlCPFCNPJ:'••',nuNegociacao:mascarar(negociacao,4,4),nuCpfcnpjPagador:mascarar(cpfCnpjApi,3,2)};
-      const previa={ambiente:'SANDBOX',versao:'V232',modo:'PAYLOAD_LAYOUT_REVISADO_SEM_ENVIO',envio_ao_bradesco:false,bloqueio_registro:true,
+      const previa={ambiente:'SANDBOX',versao:'V233',modo:'PAYLOAD_LAYOUT_REVISADO_SEM_ENVIO',envio_ao_bradesco:false,bloqueio_registro:true,
         contrato:{cnpj_beneficiario:mascarar(somenteDigitos(banco.cnpj),2,2),agencia:mascarar(somenteDigitos(banco.agencia),1,1),conta:mascarar(somenteDigitos(banco.conta),1,1),idProduto:carteira,cedente:mascarar(banco.cedente,1,1),nuNegociacao:mascarar(negociacao,4,4),nuNegociacao_digitos:negociacao.length,nuNegociacao_origem:banco.negociacao_origem||'configurado'},
         pagador:{nome,cpfCnpj:mascarar(documento,3,2),tipo_documento:documento.length===11?'CPF':'CNPJ',endereco},titulo:{valor:Number(valor.toFixed(2)),vencimento,seuNumero,identificacao_seu_numero:'nuCliente',nossoNumero:null,identificacao_nosso_numero:'nuTitulo (omitido; geração pelo banco)',especie:payloadCompleto.cdEspecieTitulo},
         normalizacoes:{endereco_numero_separado:enderecoNormalizadoAutomaticamente,cpf_api_14_posicoes:cpfCnpjApi},
@@ -449,7 +449,7 @@ module.exports=async function(req,res){
       // V232: a rota interna sempre responde ok:true quando conseguiu conversar com o Bradesco.
       // O status do Bradesco fica em registro.http_status. Assim o frontend não perde o body quando
       // o banco responde 4xx/422, nem confunde HTTP da rota Vercel (200) com HTTP do Bradesco.
-      return json(res,200,{ok:true,registro:{ambiente:'SANDBOX',versao:'V232',http_status:retorno.http_status,enviado_ao_bradesco:true,http_2xx_bradesco:http2xx,confirmado_pelo_bradesco:false,status_negocio:'NAO_CONFIRMADO',seuNumero,nuTitulo_enviado:false,nossoNumero_retornado:nossoNumero,resposta_bradesco:d},mensagem:http2xx?'O Bradesco respondeu HTTP 2xx. O sistema preservou a resposta completa, mas não marca o título como confirmado apenas pelo HTTP. Analise os campos retornados antes de novo envio.':'O Bradesco respondeu HTTP '+retorno.http_status+'. A resposta completa foi preservada abaixo. Nenhuma nova tentativa foi feita automaticamente.'});
+      return json(res,200,{ok:true,registro:{ambiente:'SANDBOX',versao:'V233',http_status:retorno.http_status,enviado_ao_bradesco:true,http_2xx_bradesco:http2xx,confirmado_pelo_bradesco:false,status_negocio:'NAO_CONFIRMADO',seuNumero,nuTitulo_enviado:false,nossoNumero_retornado:nossoNumero,resposta_bradesco:d},mensagem:http2xx?'O Bradesco respondeu HTTP 2xx. O sistema preservou a resposta completa, mas não marca o título como confirmado apenas pelo HTTP. Analise os campos retornados antes de novo envio.':'O Bradesco respondeu HTTP '+retorno.http_status+'. A resposta completa foi preservada abaixo. Nenhuma nova tentativa foi feita automaticamente.'});
     }
     if(action==='diagnosticar-payload-minimo'){
       if(amb!=='sandbox')throw new Error('O diagnóstico está liberado somente para o Sandbox.');
@@ -530,12 +530,13 @@ module.exports=async function(req,res){
       return json(res,200,{ok:true,teste:{http_status:teste.http_status,endpoint_alcancado:true,nenhum_boleto_emitido:true,codigo:d.codigo||null,mensagem:d.mensagem||d.message||'Endpoint alcançado e validação de campos acionada.'},mensagem:'Endpoint oficial de registro do Bradesco Sandbox alcançado com mTLS + Bearer. O teste enviou somente {} e não continha dados suficientes para registrar boleto.'});
     }
     if(action==='testar-autenticacao'){
-      if(amb!=='sandbox')throw new Error('O teste externo está liberado somente para o Sandbox.');
+      // V233: autenticação OAuth/mTLS pode ser testada também em Produção.
+      // Esta ação chama somente o endpoint de token; nunca chama registro/consulta de cobrança.
       const credReg=await obter(idRegistro(amb,'credenciais')), mtlsReg=await obter(idRegistro(amb,'mtls'));
       if(!credReg||!mtlsReg)throw new Error('Cadastre as credenciais e o par mTLS antes do teste externo.');
       const cred=descriptografar(credReg), mtls=descriptografar(mtlsReg);validarParMtls(mtls.cert_pem,mtls.key_pem);
       const teste=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
-      return json(res,200,{ok:true,teste:{autenticacao:true,ambiente:'sandbox',endpoint:'openapisandbox.prebanco.com.br',http_status:teste.http_status,token_type:teste.token_type,expires_in:teste.expires_in,scope:teste.scope},mensagem:'Autenticação mTLS/OAuth do Bradesco Sandbox concluída com sucesso. Nenhum boleto foi consultado, alterado ou emitido.'});
+      return json(res,200,{ok:true,teste:{autenticacao:true,ambiente:amb,endpoint:amb==='producao'?'openapi.bradesco.com.br':'openapisandbox.prebanco.com.br',http_status:teste.http_status,token_type:teste.token_type,expires_in:teste.expires_in,scope:teste.scope,nenhum_post_cobranca:true},mensagem:`Autenticação mTLS/OAuth do Bradesco ${amb==='producao'?'Produção':'Sandbox'} concluída com sucesso. Somente o endpoint de token foi chamado; nenhum boleto foi consultado, alterado ou emitido.`});
     }
     return json(res,400,{ok:false,erro:'Ação inválida.'});
   }catch(e){
