@@ -9076,6 +9076,20 @@ function dadosFormularioRegistroBradesco(){
   return {nome:String(get('brTesteNome')).trim(),documento:String(get('brTesteDocumento')).replace(/\D/g,''),valor:Number(valorTxt),vencimento:String(get('brTesteVencimento')).trim(),seuNumero:String(get('brTesteSeuNumero')).trim(),cep:String(get('brTesteCep')).replace(/\D/g,''),logradouro:String(get('brTesteLogradouro')).trim(),numero:String(get('brTesteNumero')).trim(),complemento:String(get('brTesteComplemento')).trim(),bairro:String(get('brTesteBairro')).trim(),municipio:String(get('brTesteMunicipio')).trim(),uf:String(get('brTesteUf')).trim().toUpperCase(),especie:String(get('brTesteEspecie')).trim()||'2',mensagem:String(get('brTesteMensagem')).trim()};
 }
 const bradescoSandboxSeuNumerosTentadosV230 = new Set();
+async function verificarProntidaoProducaoBradescoV232(){
+  const out=document.getElementById('bradescoProducaoV232Status'),btn=document.getElementById('btnProntidaoProducaoBradescoV232');
+  if(!bbAdminKey())return alert('Informe e valide a chave administrativa das integrações acima.');
+  if(btn)btn.disabled=true;if(out){out.className='bb-cert-aviso';out.textContent='Verificando somente a configuração de Produção... Nenhum boleto será enviado.';}
+  try{
+    const chave=bbAdminKey();
+    const r=await fetch('/api/banco-bradesco?action=verificar-prontidao-producao&ambiente=producao',{headers:{'x-integrations-admin-key':chave}});
+    const j=await r.json().catch(()=>({}));if(!r.ok||j.ok===false)throw new Error(j.erro||`HTTP ${r.status}`);
+    const p=j.prontidao||{};
+    if(out){out.className=`bb-cert-aviso ${p.pronto_para_configurar_emissao?'ok':'alerta'}`;out.innerHTML=`${p.pronto_para_configurar_emissao?'✅':'⚠️'} <b>Produção — verificação V232</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<div style="margin-top:8px"><pre style="white-space:pre-wrap;word-break:break-word;margin:0">${escaparHtmlEmail(JSON.stringify(p,null,2))}</pre></div><span class="bb-cert-ajuda">A V232 não possui ação de POST de cobrança em Produção. Esta verificação apenas confere configuração/contrato/certificado e mantém a primeira emissão real bloqueada.</span>`;}
+  }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Não foi possível verificar a Produção: '+String(e.message||e)};}
+  finally{if(btn)btn.disabled=false;}
+}
+
 async function testarRegistroBradescoSandboxV230(){
   if(bradescoAmbiente()!=='sandbox')return alert('Este botão é exclusivo do Sandbox. Produção permanece bloqueada.');
   const body=dadosFormularioRegistroBradesco(), faltas=[];
@@ -9093,9 +9107,9 @@ async function testarRegistroBradescoSandboxV230(){
     bradescoSandboxSeuNumerosTentadosV230.add(String(body.seuNumero).trim());
     const j=await bradescoReq('registrar-cobranca-sandbox-controlada',{method:'POST',body:{...body,confirmacao:'TESTAR_SANDBOX'}}),r=j.registro||{};
     // V231: nunca considerar o título confirmado somente por HTTP 2xx. Exibir sempre a resposta do Bradesco.
-    if(out){out.className='bb-cert-aviso alerta';out.innerHTML=`⚠️ <b>Resposta do Bradesco recebida — HTTP BRADESCO ${escaparHtmlEmail(String(r.http_status??'—'))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<br><b>Status do título:</b> NÃO CONFIRMADO AUTOMATICAMENTE<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r,null,2))}</pre></div><span class="bb-cert-ajuda">V231: o HTTP acima é o retornado pelo Bradesco, não o HTTP da rota Vercel. Não clique novamente com o mesmo Seu Nº até analisar esta resposta. Produção continua bloqueada.</span>`;}
+    if(out){out.className='bb-cert-aviso alerta';out.innerHTML=`⚠️ <b>Resposta do Bradesco recebida — HTTP BRADESCO ${escaparHtmlEmail(String(r.http_status??'—'))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<br><b>Status do título:</b> NÃO CONFIRMADO AUTOMATICAMENTE<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r,null,2))}</pre></div><span class="bb-cert-ajuda">V232: o HTTP acima é o retornado pelo Bradesco, não o HTTP da rota Vercel. Não clique novamente com o mesmo Seu Nº até analisar esta resposta. Produção continua bloqueada.</span>`;}
     bradescoAviso(`⚠️ Resposta recebida do Bradesco (HTTP ${r.http_status??'—'}). O título NÃO foi marcado como confirmado automaticamente. Confira o JSON abaixo antes de qualquer novo envio.`,'alerta');
-    if(btn){btn.title='V231: outro Seu Nº pode ser testado; o mesmo Seu Nº fica bloqueado nesta sessão após uma tentativa.';}
+    if(btn){btn.title='V232: outro Seu Nº pode ser testado; o mesmo Seu Nº fica bloqueado nesta sessão após uma tentativa.';}
   }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Teste de registro não concluído: '+String(e.message||e)};alert('Teste Bradesco Sandbox não concluído.\n\n'+String(e.message||e));}
   finally{if(btn)btn.disabled=false;}
 }
@@ -9124,7 +9138,7 @@ async function prepararHomologacaoControladaBradesco(){
     const body={nome,documento,valor,vencimento,seuNumero,cep:String(get('brTesteCep')).replace(/\D/g,''),logradouro:String(get('brTesteLogradouro')).trim(),numero:String(get('brTesteNumero')).trim(),complemento:String(get('brTesteComplemento')).trim(),bairro:String(get('brTesteBairro')).trim(),municipio:String(get('brTesteMunicipio')).trim(),uf:String(get('brTesteUf')).trim().toUpperCase(),especie:String(get('brTesteEspecie')).trim()||'2',mensagem:String(get('brTesteMensagem')).trim()};
     const j=await bradescoReq('preparar-homologacao-controlada',{method:'POST',body});
     const p=j.previa||{};
-    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ <b>Prévia controlada pronta — NENHUM BOLETO ENVIADO.</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #c6e6ce;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(p,null,2))}</pre></div><span class="bb-cert-ajuda">🔒 V228: Seu Nº e Nosso Nº permanecem separados; contrato e documentos sensíveis permanecem mascarados. O payload sanitizado é somente para revisão; o endpoint de registro continua bloqueado. Se houver pendências de endereço, elas aparecerão no resultado.</span>`}
+    if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ <b>Prévia controlada pronta — NENHUM BOLETO ENVIADO.</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #c6e6ce;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(p,null,2))}</pre></div><span class="bb-cert-ajuda">🔒 V232: Seu Nº e Nosso Nº permanecem separados; contrato e documentos sensíveis permanecem mascarados. O payload sanitizado é somente para revisão; o endpoint de registro continua bloqueado. Se houver pendências de endereço, elas aparecerão no resultado.</span>`}
     bradescoAviso('✅ Prévia de homologação preparada com o contrato armazenado. Nenhum boleto foi enviado.','ok');
   }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Não foi possível preparar a homologação: '+String(e.message||e)};alert('Preparação Bradesco não concluída.\n\n'+String(e.message||e));}
   finally{if(btn)btn.disabled=false;}
