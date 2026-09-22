@@ -832,26 +832,24 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <div>
           <div class="card">
             <div class="cor-fatura-box" style="margin:0 0 18px;padding:16px;border:2px solid #d9d2ff;border-radius:14px;background:#faf9ff;">
-              <h2 style="margin:0 0 6px;color:#4f459c;">📊 Relatório de Faturas dos Correios</h2>
-              <p style="margin:0 0 12px;color:#6f6799;">Importe o CSV do Portal dos Correios. O sistema cruza o código de rastreio com as coletas/rastreamentos da Sofisticatto para acrescentar cliente, NF/pedido e destino.</p>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                <input id="corFaturaCsv" type="file" accept=".csv,text/csv" style="max-width:360px;">
-                <button type="button" class="btn azul" onclick="importarFaturaCorreiosCsv()">📥 Importar CSV</button>
-                <button type="button" class="btn verde" onclick="imprimirRelatorioFaturaCorreios()">🖨️ Imprimir / PDF</button>
-                <button type="button" class="btn roxo" onclick="exportarRelatorioFaturaCorreiosCsv()">⬇️ Exportar detalhado</button>
+              <h2 style="margin:0 0 6px;color:#4f459c;">📊 Relatório de Faturas dos Correios — V235</h2>
+              <p style="margin:0 0 12px;color:#6f6799;">Consulte a fatura diretamente pela API dos Correios ou, como alternativa, importe o CSV. A V235 ignora totalizações e aceita somente postagens com etiqueta válida.</p>
+              <div style="padding:12px;border:1px solid #d8d3ef;border-radius:10px;background:white;margin-bottom:12px;">
+                <b>🌐 Buscar diretamente nos Correios</b>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px;">
+                  <label>De<br><input id="corFatDataIni" type="date"></label><label>Até<br><input id="corFatDataFim" type="date"></label>
+                  <button type="button" class="btn azul" onclick="consultarFaturasCorreiosApi()">🔎 Consultar faturas</button>
+                </div>
+                <div id="corFaturasApiStatus" style="margin-top:8px;color:#6259a8;font-weight:700;"></div>
+                <div id="corFaturasApiLista" style="margin-top:8px;border:1px solid #eee;border-radius:8px;overflow:hidden;"></div>
               </div>
-              <div id="corFaturaResumo" style="margin-top:12px;color:#51488c;font-weight:700;">Nenhuma fatura importada.</div>
-              <div style="overflow:auto;margin-top:12px;max-height:430px;">
-                <table style="width:100%;min-width:1100px;border-collapse:collapse;font-size:12px;">
-                  <thead><tr style="background:#4f459c;color:white;">
-                    <th style="padding:8px;">Data</th><th>Cliente</th><th>Cidade/UF</th><th>NF/Pedido</th><th>Serviço</th><th>Rastreio</th><th>CEP</th><th>Peso</th><th>Frete</th><th>Declarado</th><th>Identificação</th>
-                  </tr></thead>
-                  <tbody id="corFaturaTabela"><tr><td colspan="11" style="padding:14px;text-align:center;">Importe um CSV dos Correios para começar.</td></tr></tbody>
-                </table>
-              </div>
+              <details><summary style="cursor:pointer;font-weight:700;color:#51488c;">📁 Alternativa: importar CSV manualmente</summary><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;"><input id="corFaturaCsv" type="file" accept=".csv,text/csv"><button type="button" class="btn azul" onclick="importarFaturaCorreiosCsv()">📥 Importar CSV</button></div></details>
+              <div id="corFaturaResumo" style="margin-top:12px;color:#51488c;font-weight:700;">Nenhuma fatura carregada.</div>
+              <style>.cf-kpi{background:white;border:1px solid #ddd7f3;border-radius:9px;padding:8px 12px}.cf-kpi b{color:#4f459c;font-size:16px}.cor-fatura-box table input{width:96%;min-width:110px;border:1px solid #ddd;border-radius:5px;padding:5px}</style>
+              <div style="overflow:auto;margin-top:12px;max-height:460px;"><table style="width:100%;min-width:1050px;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#4f459c;color:white;"><th style="padding:8px">Data</th><th>Cliente</th><th>Cidade/UF</th><th>NF/Pedido</th><th>Serviço</th><th>Rastreio</th><th>CEP</th><th>Peso</th><th>Frete</th><th>Status</th></tr></thead><tbody id="corFaturaTabela"><tr><td colspan="10" style="padding:14px;text-align:center">Consulte uma fatura ou importe um CSV.</td></tr></tbody></table></div>
               <div id="corFaturaPendencias" style="margin-top:10px;"></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button class="btn verde" onclick="imprimirRelatorioFaturaCorreios()">🖨️ Imprimir / PDF</button><button class="btn roxo" onclick="exportarRelatorioFaturaCorreiosCsv()">⬇️ Exportar detalhado</button></div>
             </div>
-
             <h2>Postagem pelos Correios</h2>
             <p style="margin:6px 0 18px;color:#7d73bd;">Os mesmos dados preenchem a etiqueta do destinatário, a etiqueta do remetente e a Declaração de Conteúdo.</p>
 
@@ -3206,7 +3204,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 
 <script src="financeiro.js?v=190"></script>
-<script src="correios-faturas.js?v=234"></script>
+<script src="correios-faturas.js?v=235"></script>
 <script src="autorizacoes-corridas.js?v=208"></script>
 <script src="corridas.js?v=203-autorizacoes"></script>
 <script src="clientes.js?v=13.4"></script>
