@@ -1264,6 +1264,22 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <h2>Transportadoras cadastradas</h2>
             <div class="table-wrap"><table><thead><tr><th>Nome</th><th>Modelo cotação</th><th>Coleta automática</th><th>Contato</th><th>Ativa</th><th>Ações</th></tr></thead><tbody id="freteTabelaTransportadoras"></tbody></table></div>
           </div>
+          <div class="card" style="grid-column:1/-1">
+            <div class="top"><div><h2>📍 Cobertura / Cidades atendidas</h2><p>Cadastre manualmente ou importe Excel. Esta mesma base é usada nas sugestões da cotação.</p></div><button class="btn azul" onclick="baixarModeloCoberturaExcel()">Baixar modelo Excel</button></div>
+            <div class="frete-cadastro-grid">
+              <div class="campo-largo"><label class="relatorio-label">Transportadora</label><select id="coberturaTransportadora" onchange="renderCoberturasCadastro()"><option value="">Selecione</option></select></div>
+              <div><label class="relatorio-label">UF</label><input id="coberturaUf" maxlength="2" placeholder="BA"></div>
+              <div><label class="relatorio-label">Cidade</label><input id="coberturaCidade" placeholder="Guanambi"></div>
+              <div><label class="relatorio-label">CEP inicial (opcional)</label><input id="coberturaCepInicio" placeholder="00000-000"></div>
+              <div><label class="relatorio-label">CEP final (opcional)</label><input id="coberturaCepFim" placeholder="99999-999"></div>
+              <div><label class="relatorio-label">Nível</label><select id="coberturaNivel"><option value="confirmado">Confirmado</option><option value="regional">Regional</option></select></div>
+              <div class="campo-largo"><label class="relatorio-label">Observação / fonte</label><input id="coberturaObs" placeholder="Ex.: tabela enviada pela transportadora"></div>
+            </div>
+            <div class="email-acoes" style="flex-wrap:wrap"><button class="salvar" onclick="adicionarCoberturaManual()">+ Adicionar cidade</button><label class="btn azul" style="cursor:pointer">Importar Excel<input id="coberturaArquivo" type="file" accept=".xlsx,.xls,.csv" hidden onchange="importarCoberturaExcel(this.files[0]);this.value=''"> </label><button class="btn" onclick="carregarCoberturasFrete().then(()=>{renderCoberturasCadastro();atualizarSugestoesTransportadoras(false)})">Atualizar lista</button></div>
+            <div id="coberturaResumo" style="margin:12px 0;color:#655d7a">Selecione uma transportadora.</div>
+            <div style="display:flex;gap:8px;margin-bottom:10px"><input id="coberturaBusca" placeholder="Pesquisar cidade ou UF" oninput="renderCoberturasCadastro()" style="flex:1"><button class="btn vermelho" onclick="excluirCoberturasSelecionadas()">Excluir selecionadas</button></div>
+            <div class="table-wrap" style="max-height:420px;overflow:auto"><table><thead><tr><th></th><th>UF</th><th>Cidade</th><th>CEP</th><th>Nível</th><th>Fonte/observação</th><th>Ação</th></tr></thead><tbody id="coberturaTabela"><tr><td colspan="7">Selecione uma transportadora.</td></tr></tbody></table></div>
+          </div>
         </div>
       </div>
 
@@ -3208,7 +3224,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="autorizacoes-corridas.js?v=208"></script>
 <script src="corridas.js?v=203-autorizacoes"></script>
 <script src="clientes.js?v=13.4"></script>
-<script src="transportadoras.js?v=241-cobertura-fix"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="transportadoras.js?v=242-cobertura-admin"></script>
 <script src="cotacoes.js?v=241-cif-fob"></script>
 <script src="whatsapp.js?v=11"></script>
 <script src="dashboard.js?v=11"></script>
