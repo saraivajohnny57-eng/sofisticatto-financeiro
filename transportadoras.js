@@ -295,7 +295,12 @@ function coberturaDaTransportadora(t,cidade,uf,cep){
   const cid=normCobertura(cidade), estado=normCobertura(uf), cepNum=String(cep||'').replace(/\D/g,'');
   const regras=freteCoberturas.filter(r=>String(r.transportadora_id)===String(t.id));
   if(!regras.length) return {status:'nao_confirmado',texto:'Verificação pendente'};
-  const aplicaveis=regras.filter(r=>{const ufOk=!r.uf||normCobertura(r.uf)===estado;const cidOk=!r.cidade||normCobertura(r.cidade)===cid;const ini=String(r.cep_inicio||'').replace(/\D/g,''),fim=String(r.cep_fim||'').replace(/\D/g,'');const cepOk=!ini||!fim||!cepNum||(cepNum>=ini&&cepNum<=fim);return ufOk&&cidOk&&cepOk;});
+  const baseOk=r=>{const ufOk=!r.uf||normCobertura(r.uf)===estado;const ini=String(r.cep_inicio||'').replace(/\D/g,''),fim=String(r.cep_fim||'').replace(/\D/g,'');const cepOk=!ini||!fim||!cepNum||(cepNum>=ini&&cepNum<=fim);return ufOk&&cepOk;};
+  // V241: prioriza cidade exata. Só depois usa regra regional/estadual/nacional.
+  // Isso evita uma regra regional esconder uma cidade confirmada individualmente.
+  const exatas=regras.filter(r=>baseOk(r)&&r.cidade&&normCobertura(r.cidade)===cid);
+  const amplas=regras.filter(r=>baseOk(r)&&!r.cidade);
+  const aplicaveis=exatas.length?exatas:amplas;
   if(!aplicaveis.length)return {status:'nao_confirmado',texto:'Verificação pendente'};
   const bloqueio=aplicaveis.find(r=>r.atende===false);if(bloqueio)return {status:'nao_atende',texto:'Não atende esta cidade',regra:bloqueio};
   const ok=aplicaveis.find(r=>r.atende!==false);
