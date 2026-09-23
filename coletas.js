@@ -2501,6 +2501,8 @@ async function atualizarRastreioIntegrado(id,botao=null){
   }
   if(/rodonaves/i.test(nome))return atualizarRastreioRodonaves(id,botao);
   if(/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome)){
+    alert("A integração API da Alfa está desativada porque o acesso foi cancelado pela transportadora. O histórico já salvo continua disponível.");
+    return;
     const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Atualizando...";}
     try{const {dados}=await consultarRastreioAlfaRegistro(id);alert(`Rastreio Alfa atualizado.\n\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${dados.previsaoEntrega?`\nPrevisão: ${new Date(dados.previsaoEntrega+"T12:00:00").toLocaleDateString("pt-BR")}`:""}`);await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();if((rastro.sentido||"saida")==="saida")await carregarPainelRodonaves();}
     catch(e){alert("Não foi possível atualizar o rastreio Alfa: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
@@ -3474,6 +3476,11 @@ function dataEventoTimeline(v){
   const m=String(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
   if(!m)return null;let a=Number(m[3]);if(a<100)a+=2000;return new Date(a,Number(m[2])-1,Number(m[1]),Number(m[4]||0),Number(m[5]||0),Number(m[6]||0));
 }
+function formatarDataTimelineBR(v){
+  const d=dataEventoTimeline(v);
+  if(d)return d.toLocaleDateString("pt-BR");
+  return String(v||"—");
+}
 function extrairEventosTimelineGenericos(obj,fonte="API"){
   const out=[];const vistos=new Set();
   const descKeys=["descricao","descrição","description","ocorrencia","ocorrência","evento","event","status","situacao","situação","mensagem","message","detalhe","complemento"];
@@ -3576,7 +3583,7 @@ async function atualizarTimelineAoAbrir(rastro,nome){
     if(/rodonaves/i.test(nome))return (await consultarRastreioRodonavesRegistro(rastro.id,{chave})).dados;
     if(/correios|coreios/i.test(nome))return (await consultarRastreioCorreiosRegistro(rastro.id,{chave})).dados;
     if(transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome))return (await consultarRastreioSSWDiretoRegistro(rastro.id,{chave})).dados;
-    if(/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome))return (await consultarRastreioAlfaRegistro(rastro.id,{chave})).dados;
+    if(/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome))return {erroTimeline:"Integração API da Alfa desativada: acesso cancelado pela transportadora."};
   }catch(e){console.warn("Timeline: consulta ao vivo indisponível",nome,e.message);return {erroTimeline:e.message};}
   return null;
 }
@@ -3632,7 +3639,7 @@ async function abrirLinhaTempoRastreio(id){
     const etapasHtml=`<div class="rast-etapas-box"><div class="rast-etapas-titulo">Etapas da entrega <small style="font-weight:500;color:#77718d">(progressão estimada com base nas ocorrências reais)</small></div><div class="rast-etapas">${etapas.map((x,i)=>`<div class="rast-etapa ${i<atual?'concluida':i===atual?'atual':''}"><div class="rast-etapa-dot">${i<atual?'✓':i===atual?'●':i+1}</div><div>${x}</div></div>`).join("")}</div>${locais.length?`<div class="rast-rota-locais"><b style="font-size:11px;color:#655f77">Locais registrados:</b>${locais.map(l=>`<span class="rast-rota-chip">📍 ${escaparHtmlEmail(l)}</span>`).join("")}</div>`:""}</div>`;
     if(!eventos.length){body.innerHTML=alertas+etapasHtml+'<div class="rast-timeline-vazio">Ainda não há ocorrências detalhadas disponíveis para este pedido.</div>';return;}
     const oficiais=eventos.filter(e=>e.oficial).length;
-    const resumo=/correios|coreios|braspress/i.test(nome)?`<div class="rast-resumo-api"><span>📦 ${oficiais||eventos.length} ocorrência(s) detalhada(s)</span>${rastro.previsao_entrega?`<span>📅 Previsão: ${escaparHtmlEmail(formatarDataBR(rastro.previsao_entrega))}</span>`:""}<span>🔄 Atualizado: ${new Date().toLocaleString("pt-BR")}</span></div>`:"";
+    const resumo=/correios|coreios|braspress/i.test(nome)?`<div class="rast-resumo-api"><span>📦 ${oficiais||eventos.length} ocorrência(s) detalhada(s)</span>${rastro.previsao_entrega?`<span>📅 Previsão: ${escaparHtmlEmail(formatarDataTimelineBR(rastro.previsao_entrega))}</span>`:""}<span>🔄 Atualizado: ${new Date().toLocaleString("pt-BR")}</span></div>`:"";
     const conhecimentosBraspress=/braspress/i.test(nome)&&Array.isArray(vivo?.conhecimentos)?vivo.conhecimentos:[];
     const detalhesBraspress=conhecimentosBraspress.length?`<div class="rast-etapas-box" style="margin-top:12px"><div class="rast-etapas-titulo">Dados do conhecimento Braspress</div>${conhecimentosBraspress.map(c=>`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px 14px;font-size:12px;line-height:1.45"><div><b>Conhecimento/AWB:</b> ${escaparHtmlEmail(c.numero||"—")}</div><div><b>Status:</b> ${escaparHtmlEmail(c.status||"—")}</div><div><b>Origem:</b> ${escaparHtmlEmail(c.origem||[c.cidadeColeta,c.ufColeta].filter(Boolean).join(" / ")||"—")}</div><div><b>Destino:</b> ${escaparHtmlEmail([c.cidade,c.uf].filter(Boolean).join(" / ")||"—")}</div><div><b>Emissão:</b> ${escaparHtmlEmail(c.emissao||"—")}</div><div><b>Previsão:</b> ${escaparHtmlEmail(c.previsaoEntrega||"—")}</div><div><b>Volumes:</b> ${escaparHtmlEmail(c.volumes??"—")}</div><div><b>Peso:</b> ${escaparHtmlEmail(c.peso??"—")}</div><div><b>Valor mercadoria:</b> ${escaparHtmlEmail(c.valorMercantil??"—")}</div><div><b>Frete:</b> ${escaparHtmlEmail(c.totalFrete??"—")}</div><div><b>Última ocorrência:</b> ${escaparHtmlEmail(c.ultimaOcorrencia||"—")}</div><div><b>Data ocorrência:</b> ${escaparHtmlEmail(c.dataOcorrencia||"—")}</div></div>`).join("")}</div>`:"";
     body.innerHTML=alertas+etapasHtml+resumo+detalhesBraspress+`<div class="rast-historico-titulo">Histórico completo das ocorrências (${eventos.length})</div><div class="rast-timeline">${eventos.map((e,i)=>{const detalhes=[];if(e.unidade)detalhes.push(`🏤 Unidade: ${escaparHtmlEmail(e.unidade)}`);if(e.destino)detalhes.push(`➡ Destino: ${escaparHtmlEmail(e.destino)}`);if(e.codigo)detalhes.push(`Código: ${escaparHtmlEmail(e.codigo)}`);if(e.recebedor)detalhes.push(`👤 Recebedor: ${escaparHtmlEmail(e.recebedor)}`);if(e.documentoRecebedor)detalhes.push(`Documento: ${escaparHtmlEmail(e.documentoRecebedor)}`);return `<div class="rast-evento ${i===0?'atual':''}"><div class="rast-evento-titulo">${escaparHtmlEmail(e.titulo||"Ocorrência")}</div><div class="rast-evento-data">${e.data&&dataEventoTimeline(e.data)?dataEventoTimeline(e.data).toLocaleString("pt-BR"):"Data não informada"}</div>${e.descricao&&textoNormalizadoTimeline(e.descricao)!==textoNormalizadoTimeline(e.titulo)?`<div class="rast-evento-desc">${escaparHtmlEmail(e.descricao)}</div>`:""}${e.local?`<div class="rast-evento-local">📍 ${escaparHtmlEmail(e.local)}</div>`:""}${detalhes.length?`<div class="rast-evento-detalhes">${detalhes.map(x=>`<span class="rast-evento-detalhe">${x}</span>`).join("")}</div>`:""}<div class="rast-evento-fonte">Fonte: ${escaparHtmlEmail(e.fonte||"Portal")}</div></div>`}).join("")}</div>`;

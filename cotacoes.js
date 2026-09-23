@@ -853,8 +853,7 @@ function gerarCotacoesFrete(){
                  </button>` : ""}
             ${/rodonaves/i.test(transportadora?.nome||"") && tipoResposta==="FOB"
               ? `<span class="frete-aviso-fob">FOB Rodonaves: manual por WhatsApp ou telefone</span>` : ""}
-            ${/(^|\s)alfa(\s|$)|alfa transportes/i.test(transportadora?.nome||"")
-              ? `<button class="btn roxo" id="btnAlfa_${chave}" onclick="cotarAutomaticamenteAlfa('${id}','${tipoResposta}')">⚡ Cotar Alfa automaticamente</button>` : ""}
+            ${/(^|\s)alfa(\s|$)|alfa transportes/i.test(transportadora?.nome||"") ? `<span class="frete-cobertura-badge nao_confirmado">API Alfa desativada</span>` : ""}
             ${/(accert|tg\s+transportes|tgtransportes)/i.test(transportadora?.nome||"")
               ? `<button class="btn roxo" id="btnSSW_${chave}" onclick="cotarAutomaticamenteSSW('${id}','${tipoResposta}')">⚡ Cotar SSW automaticamente</button>` : ""}
             ${/braspress/i.test(transportadora?.nome||"")

@@ -281,10 +281,13 @@ async function carregarCoberturasFrete(){
 }
 function coberturaNativa(t,cidade,uf,cep){
   const nome=normCobertura(t.nome), estado=normCobertura(uf);
-  // Alfa informa atendimento integral nestas UFs em sua malha comercial vigente.
-  if(nome.includes('ALFA') && ['RS','SC','PR','SP','MG','GO','ES','MS','MT','RJ','DF'].includes(estado)) return {status:'atende',texto:'Atende esta cidade',fonte:'malha Alfa'};
+  // Fonte oficial Braspress: informa atendimento em todo o território nacional.
+  if(nome.includes('BRASPRESS') && estado) return {status:'atende',texto:'Atendimento nacional confirmado',fonte:'site oficial Braspress'};
+  // A API da Alfa foi desativada em 23/09/2026; não presumimos cobertura.
+  if(nome.includes('ALFA')) return {status:'nao_confirmado',texto:'API desativada — confirmar atendimento manualmente',fonte:'acesso API cancelado'};
   return null;
 }
+
 function coberturaDaTransportadora(t,cidade,uf,cep){
   const chave=`${t.id}|${String(cep||'').replace(/\D/g,'')}|${normCobertura(cidade)}|${normCobertura(uf)}`;
   if(freteCoberturaApi.has(chave)) return freteCoberturaApi.get(chave);
@@ -309,9 +312,11 @@ async function consultarCoberturaApis(){
     try{const r=await fetch('/api/integracoes?action=verificar-cobertura',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chaveAdmin},body:JSON.stringify({transportadora_nome:t.nome,cep_destino:cep,cidade_destino:cidade,uf_destino:uf,cpf_cnpj_destino:doc,bairro_destino:bairro,cnpj_remetente:'05451985000195'})});const d=await r.json();const st=d.status||'nao_confirmado';freteCoberturaApi.set(k,{status:st,texto:st==='atende'?'Atende esta cidade':st==='nao_atende'?'Não atende esta cidade':'Não foi possível confirmar',fonte:d.fonte});}catch(e){freteCoberturaApi.set(k,{status:'nao_confirmado',texto:'Não foi possível confirmar'});}
   })); atualizarSugestoesTransportadoras(false);
 }
+function filtrarTransportadorasCotacao(){atualizarSugestoesTransportadoras(false);}
 function atualizarSugestoesTransportadoras(agendarApi=true){
   const cidade=document.getElementById('freteCidade')?.value||'',uf=document.getElementById('freteUf')?.value||'',cep=document.getElementById('freteCep')?.value||'';const box=document.getElementById('freteTransportadorasSelecao');if(!box)return;
-  const ativas=freteTransportadoras.filter(t=>t.ativa!==false),ordem={atende:0,consultando:1,nao_confirmado:2,nao_atende:3};
+  const busca=normCobertura(document.getElementById('freteBuscaTransportadora')?.value||'');
+  const ativas=freteTransportadoras.filter(t=>t.ativa!==false && (!busca||normCobertura(t.nome).includes(busca))),ordem={atende:0,consultando:1,nao_confirmado:2,nao_atende:3};
   const avaliadas=ativas.map(t=>({t,c:coberturaDaTransportadora(t,cidade,uf,cep)})).sort((a,b)=>(ordem[a.c.status]??2)-(ordem[b.c.status]??2)||String(a.t.nome).localeCompare(String(b.t.nome)));
   box.innerHTML=avaliadas.map(({t,c})=>`<label class="frete-check frete-cobertura-${c.status}" title="${escaparHtmlEmail(c.texto)}"><input class="frete-trans-check" type="checkbox" value="${t.id}" ${c.status==='nao_atende'?'data-nao-atende="1"':''}><span><b>${escaparHtmlEmail(t.nome)}</b> <em class="frete-cobertura-badge ${c.status}">${c.status==='atende'?'✓':c.status==='nao_atende'?'✕':c.status==='consultando'?'↻':'?'} ${escaparHtmlEmail(c.texto)}</em><br><small>${escaparHtmlEmail(t.frete_modelos?.nome||'Sem modelo')}</small></span></label>`).join('')||'<div class="texto-vazio">Cadastre transportadoras primeiro.</div>';
   const resumo=document.getElementById('freteSugestaoCobertura');if(resumo){const n=avaliadas.filter(x=>x.c.status==='atende').length;resumo.innerHTML=cidade&&uf?`<b>Sugestão para ${escaparHtmlEmail(cidade)}/${escaparHtmlEmail(uf)}:</b> ${n?n+' transportadora(s) com atendimento confirmado.':'verificando cobertura disponível...'}`:'Preencha cidade/UF para ver as transportadoras sugeridas.';}
