@@ -2327,3 +2327,6 @@ html.modo-portal-publico .portal-conteudo{
 .cobranca-integracao-aviso{margin:0 0 14px;padding:10px 13px;border-left:4px solid #5a4fa3;background:#faf9ff;border-radius:8px;color:#554d69}
 .cob-filtro-data{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#5e5672}.cob-filtro-data input{min-width:138px}
 @media(max-width:800px){.cobranca-subtabs{display:grid;grid-template-columns:1fr 1fr}.cobranca-subtab{width:100%}.cob-filtro-data{width:100%;justify-content:space-between}.cob-filtro-data input{flex:1}}
+
+/* V238 — cobertura regional */
+.frete-cobertura-regional{border-color:#e7b84b!important;background:#fffaf0!important}.frete-cobertura-badge.regional{background:#fff1c2;color:#7a5700;border:1px solid #e7b84b}
