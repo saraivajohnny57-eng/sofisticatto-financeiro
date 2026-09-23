@@ -16,7 +16,20 @@ async function salvar(id,amb,tipo,obj,metadata={}){
   if(atual)return supabaseRest(TABELA,{method:'PATCH',query:`?id=eq.${encodeURIComponent(id)}`,body});
   return supabaseRest(TABELA,{method:'POST',body});
 }
-function pemValido(v,tipo){const s=String(v||'').trim();const marcador=tipo==='cert'?'CERTIFICATE':'PRIVATE KEY';if(!s.includes(`BEGIN ${marcador}`)||!s.includes(`END ${marcador}`))throw new Error(tipo==='cert'?'Certificado público PEM inválido.':'Chave privada PEM inválida.');return s+'\n'}
+function pemValido(v,tipo){const s=String(v||'').trim();if(tipo==='cert'){if(!/-----BEGIN CERTIFICATE-----[\s\S]+-----END CERTIFICATE-----/.test(s))throw new Error('Certificado público PEM inválido.');}else{if(!/-----BEGIN (?:RSA |EC |ENCRYPTED )?PRIVATE KEY-----[\s\S]+-----END (?:RSA |EC |ENCRYPTED )?PRIVATE KEY-----/.test(s))throw new Error('Chave privada PEM inválida.');}return s+'\n'}
+
+function extrairP12Base64(p12Base64,senha){
+  const b64=String(p12Base64||'').replace(/^data:[^,]+,/, '').trim();
+  if(!b64)throw new Error('Selecione o certificado A1 no formato .p12 ou .pfx.');
+  let der;try{der=forge.util.decode64(b64)}catch(_){throw new Error('Arquivo P12/PFX inválido.')}
+  let p12;try{p12=forge.pkcs12.pkcs12FromAsn1(forge.asn1.fromDer(der),false,String(senha||''))}catch(_){throw new Error('Não foi possível abrir o P12/PFX. Confira a senha do certificado.')}
+  let key=null, cert=null;
+  for(const sc of p12.safeContents||[])for(const bag of sc.safeBags||[]){if(!key&&bag.key)key=bag.key;if(!cert&&bag.cert)cert=bag.cert;}
+  if(!key||!cert)throw new Error('O P12/PFX não contém certificado e chave privada utilizáveis.');
+  const certPem=forge.pki.certificateToPem(cert), keyPem=forge.pki.privateKeyToPem(key);
+  return {certPem,keyPem};
+}
+
 function validarParMtls(certPem,keyPem){
   const cert=new crypto.X509Certificate(pemValido(certPem,'cert'));
   const key=crypto.createPrivateKey(pemValido(keyPem,'key'));
@@ -323,6 +336,13 @@ module.exports=async function(req,res){
       const meta=validarParMtls(certPem,keyPem);
       await salvar(idRegistro(amb,'mtls'),amb,'mtls',{cert_pem:certPem,key_pem:keyPem},{...meta});
       return json(res,200,{ok:true,mensagem:'Par mTLS validado e armazenado com criptografia no backend.',certificado:meta});
+    }
+    if(action==='salvar-mtls-p12'){
+      const extraido=extrairP12Base64(req.body?.p12_base64,req.body?.p12_senha);
+      const certPem=pemValido(extraido.certPem,'cert'), keyPem=pemValido(extraido.keyPem,'key');
+      const meta=validarParMtls(certPem,keyPem);
+      await salvar(idRegistro(amb,'mtls'),amb,'mtls',{cert_pem:certPem,key_pem:keyPem},{...meta,origem:'P12/PFX importado pelo portal'});
+      return json(res,200,{ok:true,mensagem:'Certificado A1 P12/PFX validado, convertido em memória e armazenado com criptografia no backend. A senha do P12 não foi armazenada.',certificado:meta});
     }
     if(action==='validar-configuracao'){
       const credReg=await obter(idRegistro(amb,'credenciais')), mtlsReg=await obter(idRegistro(amb,'mtls'));
