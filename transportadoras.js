@@ -284,8 +284,8 @@ async function carregarCoberturasFrete(){
   try{
     const todas=[]; const tamanho=1000;
     for(let inicio=0;;inicio+=tamanho){
-      const r=await banco.from('frete_transportadora_cobertura').select('*').eq('ativo',true).range(inicio,inicio+tamanho-1);
-      if(r.error){console.warn('Coberturas:',r.error.message);freteCoberturas=[];return;}
+      const r=await banco.from('frete_transportadora_cobertura').select('*').or('ativo.eq.true,ativo.is.null').order('id',{ascending:true}).range(inicio,inicio+tamanho-1);
+      if(r.error){console.warn('Coberturas:',r.error.message);freteCoberturas=[];const el=document.getElementById('coberturaResumo');if(el)el.innerHTML='<b>Erro ao carregar cobertura:</b> '+escaparHtmlEmail(r.error.message);return;}
       const lote=r.data||[]; todas.push(...lote); if(lote.length<tamanho)break;
     }
     freteCoberturas=todas;

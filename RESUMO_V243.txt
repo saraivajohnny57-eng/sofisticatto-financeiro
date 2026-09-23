@@ -1,0 +1,23 @@
+V243 - Transportadoras e cobertura
+
+2AE TRANSPORTES: 237 cidades extraídas
+ACCERT: 0 cidades extraídas
+BINHO TRANSPORTES: 0 cidades extraídas
+EXPRESSO DALVA: 373 cidades extraídas
+H&R TRANSPORTES: 0 cidades extraídas
+HI TRANSPORTES: 203 cidades extraídas
+JCL TRANSPORTES: 898 cidades extraídas
+KARIZA-TORRE: 133 cidades extraídas
+RODA LOG: 12 cidades extraídas
+SATÉLITE NORTE: 231 cidades extraídas
+SIGMALOG TRANSPORTES: 0 cidades extraídas
+TEC LOG: 168 cidades extraídas
+TG CARGAS: 1449 cidades extraídas
+TRANSCAJURU: 1178 cidades extraídas
+TRANSUL: 0 cidades extraídas
+UNIÃO TRANSPORTES: 52 cidades extraídas
+VITLOG: 0 cidades extraídas
+X-LOG: 0 cidades extraídas
+
+Total de regras de cidades extraídas: 4934
+Todas as transportadoras do pacote foram vinculadas ao Modelo 1 - Cotação completa.
