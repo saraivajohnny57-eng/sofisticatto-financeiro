@@ -273,53 +273,63 @@ async function excluirTransportadoraFrete(id){
   carregarTransportadorasFrete();
 }
 
-/* V96 — cobertura inteligente: cadastro + API oficial quando disponível */
-let freteCoberturas = [];
+/* V244 — cobertura instantânea: consulta apenas o destino atual no Supabase */
+let freteCoberturas = []; // somente a transportadora aberta na administração
+let freteCoberturaDestino = new Map();
 let freteCoberturaApi = new Map();
 let freteCoberturaTimer = null;
+let freteCoberturaBancoTimer = null;
+let freteCoberturaConsultaSeq = 0;
 function normCobertura(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();}
+
 async function carregarCoberturasFrete(){
-  // V242: Supabase limita consultas REST a 1.000 linhas por resposta.
-  // A base já ultrapassa esse limite (TRF + G5), então carregamos todas as páginas.
-  try{
-    const todas=[]; const tamanho=1000;
-    for(let inicio=0;;inicio+=tamanho){
-      const r=await banco.from('frete_transportadora_cobertura').select('*').or('ativo.eq.true,ativo.is.null').order('id',{ascending:true}).range(inicio,inicio+tamanho-1);
-      if(r.error){console.warn('Coberturas:',r.error.message);freteCoberturas=[];const el=document.getElementById('coberturaResumo');if(el)el.innerHTML='<b>Erro ao carregar cobertura:</b> '+escaparHtmlEmail(r.error.message);return;}
-      const lote=r.data||[]; todas.push(...lote); if(lote.length<tamanho)break;
-    }
-    freteCoberturas=todas;
-    renderCoberturasCadastro();
-  }catch(e){console.warn('Coberturas:',e);freteCoberturas=[];}
+  // V244: não baixa mais milhares de cidades no navegador.
+  // A administração busca somente a transportadora selecionada.
+  await carregarCoberturasTransportadoraSelecionada();
 }
 function coberturaNativa(t,cidade,uf,cep){
   const nome=normCobertura(t.nome), estado=normCobertura(uf);
-  // Fonte oficial Braspress: informa atendimento em todo o território nacional.
   if(nome.includes('BRASPRESS') && estado) return {status:'atende',texto:'Atendimento nacional confirmado',fonte:'site oficial Braspress'};
-  // A API da Alfa foi desativada em 23/09/2026; não presumimos cobertura.
   if(nome.includes('ALFA')) return {status:'nao_confirmado',texto:'API desativada — confirmar atendimento manualmente',fonte:'acesso API cancelado'};
   return null;
 }
-
+function chaveCoberturaDestino(t,cidade,uf,cep){return `${t.id}|${String(cep||'').replace(/\D/g,'')}|${normCobertura(cidade)}|${normCobertura(uf)}`;}
 function coberturaDaTransportadora(t,cidade,uf,cep){
-  const chave=`${t.id}|${String(cep||'').replace(/\D/g,'')}|${normCobertura(cidade)}|${normCobertura(uf)}`;
+  const chave=chaveCoberturaDestino(t,cidade,uf,cep);
   if(freteCoberturaApi.has(chave)) return freteCoberturaApi.get(chave);
   const nativa=coberturaNativa(t,cidade,uf,cep); if(nativa)return nativa;
+  if(freteCoberturaDestino.has(String(t.id))) return freteCoberturaDestino.get(String(t.id));
+  return {status:'nao_confirmado',texto:(cidade&&uf)?'Consultando cobertura...':'Verificação pendente'};
+}
+function avaliarRegrasDestino(regras,cidade,uf,cep){
   const cid=normCobertura(cidade), estado=normCobertura(uf), cepNum=String(cep||'').replace(/\D/g,'');
-  const regras=freteCoberturas.filter(r=>String(r.transportadora_id)===String(t.id));
-  if(!regras.length) return {status:'nao_confirmado',texto:'Verificação pendente'};
   const baseOk=r=>{const ufOk=!r.uf||normCobertura(r.uf)===estado;const ini=String(r.cep_inicio||'').replace(/\D/g,''),fim=String(r.cep_fim||'').replace(/\D/g,'');const cepOk=!ini||!fim||!cepNum||(cepNum>=ini&&cepNum<=fim);return ufOk&&cepOk;};
-  // V241: prioriza cidade exata. Só depois usa regra regional/estadual/nacional.
-  // Isso evita uma regra regional esconder uma cidade confirmada individualmente.
   const exatas=regras.filter(r=>baseOk(r)&&r.cidade&&normCobertura(r.cidade)===cid);
   const amplas=regras.filter(r=>baseOk(r)&&!r.cidade);
   const aplicaveis=exatas.length?exatas:amplas;
-  if(!aplicaveis.length)return {status:'nao_confirmado',texto:'Verificação pendente'};
-  const bloqueio=aplicaveis.find(r=>r.atende===false);if(bloqueio)return {status:'nao_atende',texto:'Não atende esta cidade',regra:bloqueio};
-  const ok=aplicaveis.find(r=>r.atende!==false);
-  if(ok){const nivel=String(ok.nivel_confianca||'confirmado').toLowerCase(); if(nivel==='regional') return {status:'regional',texto:'Cobertura regional informada',regra:ok}; return {status:'atende',texto:'Atendimento confirmado',regra:ok};}
-  return {status:'nao_confirmado',texto:'Verificação pendente'};
+  if(!aplicaveis.length)return null;
+  const bloqueio=aplicaveis.find(r=>r.atende===false); if(bloqueio)return {status:'nao_atende',texto:'Não atende esta cidade',regra:bloqueio};
+  const ok=aplicaveis.find(r=>r.atende!==false); if(!ok)return null;
+  const nivel=String(ok.nivel_confianca||'confirmado').toLowerCase();
+  return nivel==='regional'?{status:'regional',texto:'Cobertura regional informada',regra:ok}:{status:'atende',texto:'Atendimento confirmado',regra:ok};
 }
+async function consultarCoberturaBancoDestino(){
+  const cidade=document.getElementById('freteCidade')?.value?.trim()||'', uf=normCobertura(document.getElementById('freteUf')?.value).slice(0,2), cep=document.getElementById('freteCep')?.value||'';
+  if(!cidade||uf.length!==2){freteCoberturaDestino.clear();atualizarSugestoesTransportadoras(false);return;}
+  const seq=++freteCoberturaConsultaSeq;
+  try{
+    // A função SQL V244 normaliza acentos/espaços no servidor e retorna somente regras aplicáveis ao destino.
+    const r=await banco.rpc('frete_cobertura_destino',{p_cidade:cidade,p_uf:uf,p_cep:String(cep).replace(/\D/g,'')||null});
+    if(seq!==freteCoberturaConsultaSeq)return;
+    if(r.error){console.warn('Cobertura instantânea:',r.error.message);return;}
+    const grupos=new Map();
+    for(const regra of (r.data||[])){const k=String(regra.transportadora_id);if(!grupos.has(k))grupos.set(k,[]);grupos.get(k).push(regra);}
+    freteCoberturaDestino.clear();
+    for(const [id,regras] of grupos){const av=avaliarRegrasDestino(regras,cidade,uf,cep);if(av)freteCoberturaDestino.set(id,av);}
+    atualizarSugestoesTransportadoras(false);
+  }catch(e){console.warn('Cobertura instantânea:',e);}
+}
+function agendarConsultaCoberturaBanco(){clearTimeout(freteCoberturaBancoTimer);freteCoberturaBancoTimer=setTimeout(consultarCoberturaBancoDestino,180);}
 async function consultarCoberturaApis(){
   const cidade=document.getElementById('freteCidade')?.value||'',uf=document.getElementById('freteUf')?.value||'',cep=document.getElementById('freteCep')?.value||'';
   const doc=document.getElementById('freteCpfCnpj')?.value||'',bairro=document.getElementById('freteBairro')?.value||'';
@@ -327,7 +337,7 @@ async function consultarCoberturaApis(){
   const chaveAdmin=sessionStorage.getItem('integrations_admin_key'); if(!chaveAdmin)return;
   const candidatos=freteTransportadoras.filter(t=>t.ativa!==false && /RODONAVES|RTE/i.test(t.nome||''));
   await Promise.all(candidatos.map(async t=>{
-    const k=`${t.id}|${String(cep).replace(/\D/g,'')}|${normCobertura(cidade)}|${normCobertura(uf)}`;
+    const k=chaveCoberturaDestino(t,cidade,uf,cep);
     freteCoberturaApi.set(k,{status:'consultando',texto:'Consultando malha...'}); atualizarSugestoesTransportadoras(false);
     try{const r=await fetch('/api/integracoes?action=verificar-cobertura',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chaveAdmin},body:JSON.stringify({transportadora_nome:t.nome,cep_destino:cep,cidade_destino:cidade,uf_destino:uf,cpf_cnpj_destino:doc,bairro_destino:bairro,cnpj_remetente:'05451985000195'})});const d=await r.json();const st=d.status||'nao_confirmado';freteCoberturaApi.set(k,{status:st,texto:st==='atende'?'Atende esta cidade':st==='nao_atende'?'Não atende esta cidade':'Não foi possível confirmar',fonte:d.fonte});}catch(e){freteCoberturaApi.set(k,{status:'nao_confirmado',texto:'Não foi possível confirmar'});}
   })); atualizarSugestoesTransportadoras(false);
@@ -339,8 +349,8 @@ function atualizarSugestoesTransportadoras(agendarApi=true){
   const ativas=freteTransportadoras.filter(t=>t.ativa!==false && (!busca||normCobertura(t.nome).includes(busca))),ordem={atende:0,regional:1,consultando:2,nao_confirmado:3,nao_atende:4};
   const avaliadas=ativas.map(t=>({t,c:coberturaDaTransportadora(t,cidade,uf,cep)})).sort((a,b)=>(ordem[a.c.status]??2)-(ordem[b.c.status]??2)||String(a.t.nome).localeCompare(String(b.t.nome)));
   box.innerHTML=avaliadas.map(({t,c})=>`<label class="frete-check frete-cobertura-${c.status}" title="${escaparHtmlEmail(c.texto)}"><input class="frete-trans-check" type="checkbox" value="${t.id}" ${c.status==='nao_atende'?'data-nao-atende="1"':''}><span><b>${escaparHtmlEmail(t.nome)}</b> <em class="frete-cobertura-badge ${c.status}">${c.status==='atende'?'✓':c.status==='regional'?'◐':c.status==='nao_atende'?'✕':c.status==='consultando'?'↻':'?'} ${escaparHtmlEmail(c.texto)}</em><br><small>${escaparHtmlEmail(t.frete_modelos?.nome||'Sem modelo')}</small></span></label>`).join('')||'<div class="texto-vazio">Cadastre transportadoras primeiro.</div>';
-  const resumo=document.getElementById('freteSugestaoCobertura');if(resumo){const n=avaliadas.filter(x=>x.c.status==='atende').length, nr=avaliadas.filter(x=>x.c.status==='regional').length;resumo.innerHTML=cidade&&uf?`<b>Sugestão para ${escaparHtmlEmail(cidade)}/${escaparHtmlEmail(uf)}:</b> ${n?n+' confirmada(s)':''}${n&&nr?' • ':''}${nr?nr+' com cobertura regional':''}${!n&&!nr?'verificando cobertura disponível...':''}`:'Preencha cidade/UF para ver as transportadoras sugeridas.';}
-  if(agendarApi){clearTimeout(freteCoberturaTimer);freteCoberturaTimer=setTimeout(consultarCoberturaApis,700);}
+  const resumo=document.getElementById('freteSugestaoCobertura');if(resumo){const n=avaliadas.filter(x=>x.c.status==='atende').length, nr=avaliadas.filter(x=>x.c.status==='regional').length;resumo.innerHTML=cidade&&uf?`<b>Sugestão para ${escaparHtmlEmail(cidade)}/${escaparHtmlEmail(uf)}:</b> ${n?n+' confirmada(s)':''}${n&&nr?' • ':''}${nr?nr+' com cobertura regional':''}${!n&&!nr?'consultando cobertura...':''}`:'Preencha cidade/UF para ver as transportadoras sugeridas.';}
+  if(agendarApi){agendarConsultaCoberturaBanco();clearTimeout(freteCoberturaTimer);freteCoberturaTimer=setTimeout(consultarCoberturaApis,700);}
 }
 function validarCoberturaSelecionada(){
   const ruins=[...document.querySelectorAll('.frete-trans-check:checked[data-nao-atende="1"]')];
@@ -349,41 +359,41 @@ function validarCoberturaSelecionada(){
   alert(`Atenção: ${nomes.join(', ')} ${nomes.length>1?'não atendem':'não atende'} a cidade de destino conforme a cobertura cadastrada.\n\nEscolha outra transportadora ou atualize a cobertura no cadastro.`); return false;
 }
 
-/* =========================================================
-   V242 — ADMINISTRAÇÃO DE COBERTURA / IMPORTAÇÃO EXCEL
-   ========================================================= */
+/* V244 — administração: consulta somente a transportadora selecionada */
 function preencherSelectCoberturaTransportadora(){
   const sel=document.getElementById('coberturaTransportadora'); if(!sel)return;
   const atual=sel.value;
   sel.innerHTML='<option value="">Selecione</option>'+freteTransportadoras.map(t=>`<option value="${t.id}">${escaparHtmlEmail(t.nome)}</option>`).join('');
   if([...sel.options].some(o=>o.value===atual)) sel.value=atual;
 }
-function coberturasDaSelecionada(){
-  const id=document.getElementById('coberturaTransportadora')?.value;
-  return freteCoberturas.filter(r=>String(r.transportadora_id)===String(id));
-}
-function renderCoberturasCadastro(){
+async function carregarCoberturasTransportadoraSelecionada(){
+  const id=document.getElementById('coberturaTransportadora')?.value, resumo=document.getElementById('coberturaResumo');
+  if(!id){freteCoberturas=[];renderCoberturasCadastro(false);return;}
+  if(resumo)resumo.textContent='Carregando cidades...';
+  try{const todas=[],tam=1000;for(let ini=0;;ini+=tam){const r=await banco.from('frete_transportadora_cobertura').select('*').eq('transportadora_id',id).or('ativo.eq.true,ativo.is.null').order('uf',{ascending:true}).order('cidade',{ascending:true}).range(ini,ini+tam-1);if(r.error)throw r.error;const lote=r.data||[];todas.push(...lote);if(lote.length<tam)break;}freteCoberturas=todas;renderCoberturasCadastro(false);}catch(e){freteCoberturas=[];if(resumo)resumo.innerHTML='<b>Erro ao carregar:</b> '+escaparHtmlEmail(e.message||String(e));}}
+function coberturasDaSelecionada(){return freteCoberturas;}
+function renderCoberturasCadastro(recarregar=true){
   preencherSelectCoberturaTransportadora();
   const id=document.getElementById('coberturaTransportadora')?.value, tbody=document.getElementById('coberturaTabela'), resumo=document.getElementById('coberturaResumo');
   if(!tbody)return; if(!id){tbody.innerHTML='<tr><td colspan="7">Selecione uma transportadora.</td></tr>'; if(resumo)resumo.textContent='Selecione uma transportadora.';return;}
+  if(recarregar){carregarCoberturasTransportadoraSelecionada();return;}
   const busca=normCobertura(document.getElementById('coberturaBusca')?.value||'');
-  let rows=coberturasDaSelecionada().filter(r=>!busca||normCobertura(`${r.uf||''} ${r.cidade||''}`).includes(busca));
-  rows.sort((a,b)=>String(a.uf||'').localeCompare(String(b.uf||''))||String(a.cidade||'').localeCompare(String(b.cidade||'')));
-  const total=coberturasDaSelecionada().length; if(resumo)resumo.innerHTML=`<b>${total.toLocaleString('pt-BR')}</b> regra(s) de cobertura cadastrada(s) • exibindo ${rows.length.toLocaleString('pt-BR')}`;
+  let rows=freteCoberturas.filter(r=>!busca||normCobertura(`${r.uf||''} ${r.cidade||''}`).includes(busca));
+  const total=freteCoberturas.length; if(resumo)resumo.innerHTML=`<b>${total.toLocaleString('pt-BR')}</b> regra(s) de cobertura cadastrada(s) • exibindo ${rows.length.toLocaleString('pt-BR')}`;
   tbody.innerHTML=rows.length?rows.map(r=>`<tr><td><input type="checkbox" class="cobertura-check" value="${r.id}"></td><td>${escaparHtmlEmail(r.uf||'TODAS')}</td><td>${escaparHtmlEmail(r.cidade||'Todas do estado/nacional')}</td><td>${escaparHtmlEmail([r.cep_inicio,r.cep_fim].filter(Boolean).join(' a ')||'')}</td><td>${escaparHtmlEmail(r.nivel_confianca||'confirmado')}</td><td>${escaparHtmlEmail(r.observacao||r.fonte||'')}</td><td><button class="btn vermelho" onclick="excluirCobertura('${r.id}')">Excluir</button></td></tr>`).join(''):'<tr><td colspan="7">Nenhuma cidade cadastrada para esta transportadora.</td></tr>';
 }
 async function adicionarCoberturaManual(){
   const transportadora_id=document.getElementById('coberturaTransportadora')?.value, uf=normCobertura(document.getElementById('coberturaUf')?.value).slice(0,2), cidade=(document.getElementById('coberturaCidade')?.value||'').trim();
   if(!transportadora_id||!uf){alert('Selecione a transportadora e informe a UF.');return;}
   const dados={transportadora_id,uf,cidade:cidade||null,cep_inicio:(document.getElementById('coberturaCepInicio')?.value||'').replace(/\D/g,'')||null,cep_fim:(document.getElementById('coberturaCepFim')?.value||'').replace(/\D/g,'')||null,atende:true,ativo:true,nivel_confianca:document.getElementById('coberturaNivel')?.value||'confirmado',fonte:'Cadastro manual no portal',observacao:(document.getElementById('coberturaObs')?.value||'').trim()||null};
-  const existe=freteCoberturas.some(r=>String(r.transportadora_id)===String(transportadora_id)&&normCobertura(r.uf)===uf&&normCobertura(r.cidade)===normCobertura(cidade));
+  const existe=freteCoberturas.some(r=>normCobertura(r.uf)===uf&&normCobertura(r.cidade)===normCobertura(cidade));
   if(existe&&!confirm('Esta cidade/UF já possui uma regra. Deseja cadastrar outra mesmo assim?'))return;
   const r=await banco.from('frete_transportadora_cobertura').insert([dados]); if(r.error){alert('Não foi possível salvar: '+r.error.message);return;}
   ['coberturaCidade','coberturaCepInicio','coberturaCepFim','coberturaObs'].forEach(x=>{const e=document.getElementById(x);if(e)e.value=''});
-  await carregarCoberturasFrete(); renderCoberturasCadastro(); atualizarSugestoesTransportadoras(false);
+  await carregarCoberturasTransportadoraSelecionada();agendarConsultaCoberturaBanco();
 }
-async function excluirCobertura(id){if(!confirm('Excluir esta regra de cobertura?'))return;const r=await banco.from('frete_transportadora_cobertura').delete().eq('id',id);if(r.error){alert(r.error.message);return;}await carregarCoberturasFrete();renderCoberturasCadastro();atualizarSugestoesTransportadoras(false);}
-async function excluirCoberturasSelecionadas(){const ids=[...document.querySelectorAll('.cobertura-check:checked')].map(x=>x.value);if(!ids.length){alert('Selecione pelo menos uma linha.');return;}if(!confirm(`Excluir ${ids.length} regra(s) selecionada(s)?`))return;const r=await banco.from('frete_transportadora_cobertura').delete().in('id',ids);if(r.error){alert(r.error.message);return;}await carregarCoberturasFrete();renderCoberturasCadastro();atualizarSugestoesTransportadoras(false);}
+async function excluirCobertura(id){if(!confirm('Excluir esta regra de cobertura?'))return;const r=await banco.from('frete_transportadora_cobertura').delete().eq('id',id);if(r.error){alert(r.error.message);return;}await carregarCoberturasTransportadoraSelecionada();agendarConsultaCoberturaBanco();}
+async function excluirCoberturasSelecionadas(){const ids=[...document.querySelectorAll('.cobertura-check:checked')].map(x=>x.value);if(!ids.length){alert('Selecione pelo menos uma linha.');return;}if(!confirm(`Excluir ${ids.length} regra(s) selecionada(s)?`))return;const r=await banco.from('frete_transportadora_cobertura').delete().in('id',ids);if(r.error){alert(r.error.message);return;}await carregarCoberturasTransportadoraSelecionada();agendarConsultaCoberturaBanco();}
 function campoPlanilha(obj,...nomes){const mapa={};Object.keys(obj||{}).forEach(k=>mapa[normCobertura(k)]=obj[k]);for(const n of nomes){const v=mapa[normCobertura(n)];if(v!==undefined&&v!==null&&String(v).trim()!=='')return String(v).trim();}return '';}
 async function importarCoberturaExcel(file){
   const transportadora_id=document.getElementById('coberturaTransportadora')?.value;if(!transportadora_id){alert('Selecione primeiro a transportadora que receberá as cidades.');return;}if(!file)return;
@@ -391,11 +401,11 @@ async function importarCoberturaExcel(file){
   try{const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:'array'}),ws=wb.Sheets[wb.SheetNames[0]],linhas=XLSX.utils.sheet_to_json(ws,{defval:''});
     const validas=[],vistos=new Set(); for(const l of linhas){const cidade=campoPlanilha(l,'Cidade','Município','Municipio','Praça','Praca'),uf=normCobertura(campoPlanilha(l,'UF','Estado')).slice(0,2);if(!cidade||uf.length!==2)continue;const key=uf+'|'+normCobertura(cidade);if(vistos.has(key))continue;vistos.add(key);validas.push({transportadora_id,uf,cidade,cep_inicio:campoPlanilha(l,'CEP inicial','CEP Inicio','CEP De').replace(/\D/g,'')||null,cep_fim:campoPlanilha(l,'CEP final','CEP Fim','CEP Até','CEP Ate').replace(/\D/g,'')||null,atende:true,ativo:true,nivel_confianca:'confirmado',fonte:'Planilha importada no portal',observacao:campoPlanilha(l,'Observação','Observacao','Frequência','Frequencia')||null});}
     if(!validas.length){alert('Não encontrei linhas válidas. Use as colunas Cidade e UF ou baixe o modelo Excel.');return;}
-    const existentes=new Set(freteCoberturas.filter(r=>String(r.transportadora_id)===String(transportadora_id)).map(r=>normCobertura(r.uf)+'|'+normCobertura(r.cidade)));
+    const existentes=new Set(freteCoberturas.map(r=>normCobertura(r.uf)+'|'+normCobertura(r.cidade)));
     const novas=validas.filter(x=>!existentes.has(normCobertura(x.uf)+'|'+normCobertura(x.cidade)));if(!novas.length){alert('Todas as cidades da planilha já estão cadastradas.');return;}
     if(!confirm(`Planilha: ${validas.length} cidade(s) válida(s).\nNovas: ${novas.length}.\nDuplicadas ignoradas: ${validas.length-novas.length}.\n\nImportar agora?`))return;
     for(let i=0;i<novas.length;i+=500){const r=await banco.from('frete_transportadora_cobertura').insert(novas.slice(i,i+500));if(r.error)throw r.error;}
-    await carregarCoberturasFrete();renderCoberturasCadastro();atualizarSugestoesTransportadoras(false);alert(`${novas.length} cidade(s) importada(s) com sucesso.`);
+    await carregarCoberturasTransportadoraSelecionada();agendarConsultaCoberturaBanco();alert(`${novas.length} cidade(s) importada(s) com sucesso.`);
   }catch(e){console.error(e);alert('Erro ao importar a planilha: '+(e.message||e));}
 }
 function baixarModeloCoberturaExcel(){
