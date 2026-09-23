@@ -2914,11 +2914,17 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <p class="bb-cert-ajuda">Os valores são enviados somente ao backend e armazenados criptografados. Não são gravados no index.html nem no localStorage.</p>
         </div>
         <div class="bb-cert-bloco">
-          <h4>Certificado mTLS</h4>
-          <label>Certificado público (.pem/.cer/.crt)</label><input id="bradescoCertPublico" type="file" accept=".pem,.cer,.crt,application/x-pem-file">
-          <label>Chave privada correspondente (.key/.pem)</label><input id="bradescoChavePrivada" type="file" accept=".key,.pem,application/x-pem-file">
-          <button class="btn verde" onclick="salvarMtlsBradesco()">🔐 Validar e salvar mTLS</button>
-          <p class="bb-cert-ajuda">A chave privada deve corresponder exatamente ao certificado público enviado ao Bradesco. Nunca envie a chave privada ao banco e nunca coloque esse arquivo no GitHub.</p>
+          <h4>Certificado A1 / mTLS</h4>
+          <div style="padding:10px;border:1px solid #d7eadc;border-radius:9px;background:#f4fff7;margin-bottom:10px;"><b>Recomendado — importar A1 diretamente</b><br><span class="bb-cert-ajuda">Selecione o arquivo .p12/.pfx do certificado A1 e informe a senha somente nesta tela. O backend extrai certificado + chave em memória; <b>a senha não é armazenada</b>.</span></div>
+          <label>Certificado A1 (.p12/.pfx)</label><input id="bradescoP12" type="file" accept=".p12,.pfx,application/x-pkcs12">
+          <label>Senha do certificado A1</label><input id="bradescoP12Senha" type="password" autocomplete="new-password" placeholder="Senha do P12/PFX">
+          <button class="btn verde" onclick="salvarMtlsBradescoP12()">🔐 Importar A1 e salvar mTLS</button>
+          <details style="margin-top:12px;"><summary style="cursor:pointer;font-weight:600;">Opção avançada — PEM separado</summary><div style="margin-top:9px;">
+            <label>Certificado público (.pem/.cer/.crt em PEM)</label><input id="bradescoCertPublico" type="file" accept=".pem,.cer,.crt,application/x-pem-file">
+            <label>Chave privada correspondente (.key/.pem)</label><input id="bradescoChavePrivada" type="file" accept=".key,.pem,application/x-pem-file">
+            <button class="btn" onclick="salvarMtlsBradesco()">Validar e salvar PEM</button>
+          </div></details>
+          <p class="bb-cert-ajuda">O certificado e a chave ficam criptografados no backend. Nunca envie o .p12, a senha ou a chave privada ao banco, GitHub ou chat.</p>
           <div id="bradescoCertDetalhes" class="bb-cert-detalhes">Nenhum par mTLS consultado.</div>
         </div>
       </div>

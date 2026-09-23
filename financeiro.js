@@ -8682,6 +8682,7 @@ async function bradescoReq(action,{method='GET',body}={}){
   const j=await r.json().catch(()=>({}));if(!r.ok||j.ok===false)throw new Error(j.erro||`HTTP ${r.status}`);return j;
 }
 function lerArquivoTexto(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||''));r.onerror=()=>reject(new Error('Não foi possível ler o arquivo.'));r.readAsText(file)})}
+function lerArquivoBase64(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||'').split(',').pop()||'');r.onerror=()=>reject(new Error('Não foi possível ler o arquivo P12/PFX.'));r.readAsDataURL(file)})}
 async function carregarStatusBradesco(mostrarErro=false){
   const topo=document.getElementById('bradescoStatusTopo'),det=document.getElementById('bradescoCertDetalhes');
   if(!bbAdminKey()){bradescoAviso('Valide a chave administrativa acima para consultar o Bradesco.','alerta');return}
@@ -8741,6 +8742,24 @@ async function salvarDadosBancariosBradesco(){
     await carregarDadosBancariosBradesco();
   }catch(e){bradescoDadosAviso('❌ '+e.message,'erro');alert('Não foi possível salvar os dados bancários Bradesco.\n\n'+e.message)}
 }
+async function salvarMtlsBradescoP12(){
+  const file=document.getElementById('bradescoP12')?.files?.[0], senha=document.getElementById('bradescoP12Senha')?.value||'';
+  if(!file)return alert('Selecione o arquivo do certificado A1 (.p12 ou .pfx).');
+  if(!senha)return alert('Informe a senha do certificado A1. Ela será usada somente para abrir o arquivo e não será armazenada.');
+  if(file.size>1024*1024)return alert('O arquivo P12/PFX parece maior que o esperado. Confirme se selecionou o certificado A1 correto.');
+  if(!confirm(`Importar e validar o certificado A1 do Bradesco em ${bradescoAmbiente()==='producao'?'PRODUÇÃO':'SANDBOX'}?\n\nA senha será usada somente nesta operação e não será armazenada.`))return;
+  try{
+    bradescoAviso('⏳ Validando o P12/PFX e conferindo certificado + chave privada...','');
+    const p12_base64=await lerArquivoBase64(file);
+    const j=await bradescoReq('salvar-mtls-p12',{method:'POST',body:{p12_base64,p12_senha:senha}});
+    document.getElementById('bradescoP12').value='';document.getElementById('bradescoP12Senha').value='';
+    bradescoAviso('✅ '+j.mensagem,'ok');await carregarStatusBradesco();
+  }catch(e){
+    const s=document.getElementById('bradescoP12Senha');if(s)s.value='';
+    bradescoAviso('❌ O certificado A1 não foi alterado. '+e.message,'erro');alert('Não foi possível importar o certificado A1 Bradesco.\n\n'+e.message);
+  }
+}
+
 async function salvarMtlsBradesco(){
   const cert=document.getElementById('bradescoCertPublico')?.files?.[0], key=document.getElementById('bradescoChavePrivada')?.files?.[0];
   if(!cert||!key)return alert('Selecione o certificado público e a chave privada correspondente.');
