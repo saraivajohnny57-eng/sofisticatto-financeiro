@@ -8689,7 +8689,7 @@ async function carregarStatusBradesco(mostrarErro=false){
   try{
     const j=await bradescoReq('status'), c=j.credenciais||{}, m=j.mtls||{};
     carregarDadosBancariosBradesco(false).catch(()=>{});
-    if(det)det.textContent=m.configurado?`mTLS ARMAZENADO\nValidade: ${bbFmtData(m.valido_de)} até ${bbFmtData(m.valido_ate)}\nDias restantes: ${m.dias_restantes??'—'}\nFingerprint SHA-256: ${m.fingerprint256||'—'}`:'Nenhum par mTLS cadastrado neste ambiente.';
+    if(det)det.textContent=m.configurado?`mTLS ARMAZENADO\nOrigem: ${m.origem==='P12/PFX importado pelo portal'?'A1 P12/PFX — PEM extraído automaticamente pelo sistema':(m.origem||'PEM cadastrado')}\nValidade: ${bbFmtData(m.valido_de)} até ${bbFmtData(m.valido_ate)}\nDias restantes: ${m.dias_restantes??'—'}\nFingerprint SHA-256: ${m.fingerprint256||'—'}\nPEM: pronto no backend — nenhum arquivo PEM manual é necessário.`:'Nenhum par mTLS cadastrado neste ambiente.';
     if(c.configuradas&&m.configurado){bradescoAviso('✅ Client ID/Secret e par mTLS estão armazenados. Pronto para validar a configuração local.','ok');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent=`Bradesco • ${bradescoAmbiente()==='producao'?'Produção':'Sandbox'} configurado`}}
     else {bradescoAviso(`Configuração pendente: ${c.configuradas?'credenciais OK':'salvar Client ID/Secret'} • ${m.configurado?'mTLS OK':'salvar certificado + chave privada'}.`,'alerta');if(topo){topo.className='cobranca-bank-status pendente';topo.textContent=`Bradesco • ${bradescoAmbiente()==='producao'?'Produção':'Sandbox'} em configuração`}}
   }catch(e){bradescoAviso('Não foi possível consultar o Bradesco: '+e.message,'erro');if(mostrarErro)alert(e.message)}

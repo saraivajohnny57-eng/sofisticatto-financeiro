@@ -2919,10 +2919,15 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <label>Certificado A1 (.p12/.pfx)</label><input id="bradescoP12" type="file" accept=".p12,.pfx,application/x-pkcs12">
           <label>Senha do certificado A1</label><input id="bradescoP12Senha" type="password" autocomplete="new-password" placeholder="Senha do P12/PFX">
           <button class="btn verde" onclick="salvarMtlsBradescoP12()">🔐 Importar A1 e salvar mTLS</button>
-          <details style="margin-top:12px;"><summary style="cursor:pointer;font-weight:600;">Opção avançada — PEM separado</summary><div style="margin-top:9px;">
+          <div id="bradescoPemInfo" style="margin-top:12px;padding:10px;border:1px solid #d7eadc;border-radius:9px;background:#f4fff7;">
+            <b>✅ PEM não é necessário quando o A1 (.p12/.pfx) já foi importado</b><br>
+            <span class="bb-cert-ajuda">O sistema extrai internamente do A1 o certificado público em PEM e a chave privada correspondente, valida o par e guarda ambos criptografados no backend. Você não precisa criar nem enviar arquivos .pem manualmente.</span>
+          </div>
+          <details id="bradescoPemAvancado" style="margin-top:10px;"><summary style="cursor:pointer;font-weight:600;">Opção avançada — usar PEM manualmente (somente se não houver P12/PFX)</summary><div style="margin-top:9px;">
             <label>Certificado público (.pem/.cer/.crt em PEM)</label><input id="bradescoCertPublico" type="file" accept=".pem,.cer,.crt,application/x-pem-file">
             <label>Chave privada correspondente (.key/.pem)</label><input id="bradescoChavePrivada" type="file" accept=".key,.pem,application/x-pem-file">
-            <button class="btn" onclick="salvarMtlsBradesco()">Validar e salvar PEM</button>
+            <button class="btn" onclick="salvarMtlsBradesco()">Validar e salvar PEM manual</button>
+            <p class="bb-cert-ajuda" style="margin-top:8px;">Use esta opção apenas para integrações que já possuam certificado e chave em PEM separados. Ela não é necessária para o A1 importado acima.</p>
           </div></details>
           <p class="bb-cert-ajuda">O certificado e a chave ficam criptografados no backend. Nunca envie o .p12, a senha ou a chave privada ao banco, GitHub ou chat.</p>
           <div id="bradescoCertDetalhes" class="bb-cert-detalhes">Nenhum par mTLS consultado.</div>
