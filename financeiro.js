@@ -9164,3 +9164,39 @@ async function prepararHomologacaoControladaBradesco(){
   }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Não foi possível preparar a homologação: '+String(e.message||e)};alert('Preparação Bradesco não concluída.\n\n'+String(e.message||e));}
   finally{if(btn)btn.disabled=false;}
 }
+
+// V248 — primeira emissão real Bradesco Produção com prévia congelada por hash,
+// duas confirmações e bloqueio de reenvio automático do mesmo Seu Nº no backend.
+let bradescoPreviewProducaoV248=null;
+async function prepararEmissaoProducaoBradescoV248(){
+  if(bradescoAmbiente()!=='producao')return alert('Selecione Produção no campo Ambiente antes de preparar a primeira emissão.');
+  const body=dadosFormularioRegistroBradesco(), faltas=[];
+  if(!body.nome)faltas.push('nome do pagador');if(![11,14].includes(body.documento.length))faltas.push('CPF/CNPJ');if(!(body.valor>0))faltas.push('valor');if(!body.vencimento)faltas.push('vencimento');if(!body.seuNumero||body.seuNumero.length>10)faltas.push('Seu Nº (NF/pedido, até 10 caracteres)');if(!body.cep||body.cep.length!==8)faltas.push('CEP');if(!body.logradouro)faltas.push('logradouro');if(!body.numero)faltas.push('número');if(!body.bairro)faltas.push('bairro');if(!body.municipio)faltas.push('município');if(!/^[A-Z]{2}$/.test(body.uf))faltas.push('UF');
+  if(faltas.length)return alert('Complete os dados antes da conferência: '+faltas.join(', ')+'.');
+  const out=document.getElementById('bradescoEmissaoProducaoV248Status'),btn=document.getElementById('btnPrepararEmissaoProducaoV248'),emit=document.getElementById('btnEmitirProducaoV248');
+  bradescoPreviewProducaoV248=null;if(emit)emit.disabled=true;if(btn)btn.disabled=true;if(out){out.className='bb-cert-aviso';out.textContent='Montando conferência no backend... Nenhum endpoint de cobrança será chamado.';}
+  try{
+    const j=await bradescoReq('preparar-emissao-producao-v248',{method:'POST',body});const p=j.preparacao||{},r=p.resumo||{};
+    bradescoPreviewProducaoV248={hash:p.hash,body};
+    if(out){out.className='bb-cert-aviso alerta';out.innerHTML=`⚠️ <b>CONFERÊNCIA — AINDA NÃO ENVIADO</b><br><b>Cliente:</b> ${escaparHtmlEmail(String(r.pagador||''))}<br><b>CPF/CNPJ:</b> ${escaparHtmlEmail(String(r.documento||''))}<br><b>Seu Nº (NF/Pedido):</b> ${escaparHtmlEmail(String(r.seuNumero||''))}<br><b>Valor:</b> R$ ${Number(r.valor||0).toFixed(2).replace('.',',')}<br><b>Vencimento:</b> ${escaparHtmlEmail(String(r.vencimento||''))}<br><b>Endereço:</b> ${escaparHtmlEmail(String(r.endereco||''))}<br><b>Espécie:</b> ${escaparHtmlEmail(String(r.especie||''))}<br><b>Mensagem:</b> ${escaparHtmlEmail(String(r.mensagem||''))}<br><br><b>Contrato:</b> CNPJ ${escaparHtmlEmail(String(r.contrato?.cnpj||''))} • Carteira ${escaparHtmlEmail(String(r.contrato?.carteira||''))} • Negociação ${escaparHtmlEmail(String(r.contrato?.negociacao||''))}<br><span class="bb-cert-ajuda">Hash da prévia: ${escaparHtmlEmail(String(p.hash||'').slice(0,16))}… Qualquer alteração nos dados invalida esta conferência.</span>`;}
+    if(emit)emit.disabled=false;
+  }catch(e){if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Não foi possível preparar a conferência: '+String(e.message||e)};}
+  finally{if(btn)btn.disabled=false;}
+}
+async function emitirCobrancaProducaoBradescoV248(){
+  const prep=bradescoPreviewProducaoV248;if(!prep)return alert('Primeiro clique em “Conferir primeira emissão — NÃO ENVIAR”.');
+  const atual=dadosFormularioRegistroBradesco();
+  const resumo=`ATENÇÃO — AGORA SERÁ UMA EMISSÃO REAL NO BRADESCO PRODUÇÃO.\n\nCliente: ${atual.nome}\nSeu Nº (NF/Pedido): ${atual.seuNumero}\nValor: R$ ${Number(atual.valor||0).toFixed(2).replace('.',',')}\nVencimento: ${atual.vencimento}\n\nO sistema fará UMA tentativa. Não existe repetição automática.\n\nConfirma os dados acima?`;
+  if(!confirm(resumo))return;
+  const palavra=prompt('CONFIRMAÇÃO FINAL\n\nDigite exatamente EMITIR PRODUCAO para registrar este boleto real no Bradesco:');
+  if(String(palavra||'').trim().toUpperCase()!=='EMITIR PRODUCAO')return alert('Emissão cancelada. Nenhum boleto foi enviado.');
+  const out=document.getElementById('bradescoEmissaoProducaoV248Status'),btn=document.getElementById('btnEmitirProducaoV248'),prepBtn=document.getElementById('btnPrepararEmissaoProducaoV248');
+  if(btn)btn.disabled=true;if(prepBtn)prepBtn.disabled=true;if(out){out.className='bb-cert-aviso';out.textContent='⏳ Enviando UMA tentativa ao Bradesco Produção. Não feche a página e não repita a operação...';}
+  try{
+    const j=await bradescoReq('emitir-cobranca-producao-v248',{method:'POST',body:{...atual,preview_hash:prep.hash,confirmacao:'EMITIR_PRODUCAO'}}),r=j.registro||{};
+    bradescoPreviewProducaoV248=null;
+    const ok=Number(r.http_status)>=200&&Number(r.http_status)<300;
+    if(out){out.className=`bb-cert-aviso ${ok?'ok':'alerta'}`;out.innerHTML=`${ok?'✅':'⚠️'} <b>Resposta do Bradesco Produção — HTTP ${escaparHtmlEmail(String(r.http_status??'—'))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<br><b>Seu Nº:</b> ${escaparHtmlEmail(String(r.seuNumero||''))}<br><b>Nosso Nº retornado:</b> ${escaparHtmlEmail(String(r.nossoNumero_retornado||'não identificado'))}<br><b>Reenvio automático:</b> NÃO<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r.resposta_bradesco||{},null,2))}</pre></div><span class="bb-cert-ajuda">Não faça nova tentativa com o mesmo Seu Nº sem conferir primeiro o retorno e o portal/consulta do Bradesco.</span>`;}
+  }catch(e){bradescoPreviewProducaoV248=null;if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Emissão não concluída: '+String(e.message||e)+' O sistema não fará repetição automática. Confira no Bradesco antes de qualquer nova tentativa.';}alert('A tentativa não foi repetida.\n\n'+String(e.message||e)+'\n\nConfira o Bradesco antes de tentar novamente.');}
+  finally{if(prepBtn)prepBtn.disabled=false;}
+}
