@@ -7030,6 +7030,24 @@ async function imprimirBoletosFiltradosV178(){
     setTimeout(()=>URL.revokeObjectURL(url),120000);
   }catch(e){alert('Não foi possível gerar a impressão dos boletos filtrados.\n\n'+(e.message||e));}
 }
+function bradescoCodigoBarras44DaLinha(linha){
+  const d=String(linha||'').replace(/\D/g,'');
+  if(d.length!==47)return '';
+  // Linha digitável Febraban: campos 1/2/3 com DVs, campo 4 DV geral e campo 5 fator+valor.
+  return d.slice(0,4)+d.slice(32,33)+d.slice(33,47)+d.slice(4,9)+d.slice(10,20)+d.slice(21,31);
+}
+function abrirBoletoBradescoRegistro(id){
+  const x=(cobrancasBancarias||[]).find(r=>String(r.id)===String(id));
+  if(!x)return alert('Boleto Bradesco não encontrado no Histórico.');
+  const linha=String(x.linha_digitavel||'').trim();
+  if(!linha)return alert('Este registro ainda não possui linha digitável armazenada. Não será feita nova emissão.');
+  const barras44=bradescoCodigoBarras44DaLinha(linha);
+  const w=window.open('','_blank'); if(!w)return alert('O navegador bloqueou a janela de impressão. Libere pop-ups para este site.');
+  const esc=v=>String(v??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
+  const venc=x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—';
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Boleto Bradesco ${esc(x.numero_nf||'')}</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#111}.top{display:flex;justify-content:space-between;border-bottom:3px solid #111;padding-bottom:10px}.bank{font-size:24px;font-weight:700}.linha{font-size:18px;font-weight:700;letter-spacing:.4px;margin:18px 0;padding:12px;border:1px solid #999}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px}.c{border-bottom:1px solid #aaa;padding:8px 0}.lbl{font-size:11px;color:#555}.val{font-size:15px;font-weight:600}.bar{margin:24px 0;text-align:center}.obs{font-size:11px;color:#555;margin-top:20px}@media print{button{display:none}body{margin:10mm}}</style><script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script></head><body><div class="top"><div class="bank">BRADESCO</div><div>237</div></div><div class="linha">${esc(linha)}</div><div class="grid"><div class="c"><div class="lbl">Beneficiário</div><div class="val">SOFISTICATTO INDUSTRIA, COMERCIO E EXPORTACAO DE COSMETICOS LTDA</div></div><div class="c"><div class="lbl">Seu Nº / NF / Pedido</div><div class="val">${esc(x.numero_nf||'—')}</div></div><div class="c"><div class="lbl">Pagador</div><div class="val">${esc(x.cliente_nome||'—')}</div></div><div class="c"><div class="lbl">CPF/CNPJ</div><div class="val">${esc(x.cpf_cnpj||'—')}</div></div><div class="c"><div class="lbl">Vencimento</div><div class="val">${esc(venc)}</div></div><div class="c"><div class="lbl">Valor</div><div class="val">${esc(cobMoeda(x.valor))}</div></div><div class="c"><div class="lbl">Identificador retornado pelo Bradesco</div><div class="val">${esc(x.nosso_numero||'—')}</div></div><div class="c"><div class="lbl">Status local</div><div class="val">${esc(cobStatus(x.status))}</div></div></div><div class="bar"><svg id="bc"></svg><div>${esc(barras44)}</div></div><div class="obs">Documento montado com os dados efetivamente retornados pela API do Bradesco e armazenados no Histórico. Não realiza nova emissão.</div><p><button onclick="window.print()">🖨 Imprimir</button></p><script>window.onload=function(){try{if('${barras44}'.length===44)JsBarcode('#bc','${barras44}',{format:'ITF',displayValue:false,height:62,width:1.35,margin:4});}catch(e){}}<\/script></body></html>`);
+  w.document.close();
+}
 function renderHistoricoCobrancas(){
   const tb=document.getElementById('cobHistoricoTabela'); if(!tb)return;
   const lista=cobrancasFiltradasHistoricoV178();
@@ -7039,11 +7057,14 @@ function renderHistoricoCobrancas(){
   document.getElementById('cobKpiTotal').textContent=cobMoeda(cobrancasBancarias.filter(x=>['aberto','pendente_integracao','vencido'].includes(x.status)).reduce((a,b)=>a+Number(b.valor||0),0));
   tb.innerHTML=lista.length?lista.map(x=>{
     const emitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bb'&&x.nosso_numero;
-    const acoes=emitido
+    const bradescoEmitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bradesco'&&x.linha_digitavel;
+    const acoes=bradescoEmitido
+      ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar / Imprimir Bradesco</button>`
+      :(emitido
       ?`<button class="btn azul" onclick="abrirImpressaoNormalBbRegistro('${x.id}')">🖨 Impressão Normal</button> <button class="btn verde" onclick="abrirBoletoOficialBbRegistro('${x.id}')">🏦 2ª via BB</button>`
       :(x.banco==='bb'&&x.status==='pendente_integracao'
         ?`<button class="btn verde" onclick="verificarConciliarTituloBb('${x.id}')">🔎 Verificar no BB</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
-        :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`);
+        :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`));
     return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${dataEmissaoCobrancaV177(x)?new Date(dataEmissaoCobrancaV177(x)+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
   }).join(''):'<tr><td colspan="8">Nenhuma cobrança encontrada.</td></tr>';
 }
@@ -9165,7 +9186,7 @@ async function prepararHomologacaoControladaBradesco(){
   finally{if(btn)btn.disabled=false;}
 }
 
-// V252 — emissão real Bradesco Produção com sanitização de texto e retentativa segura após HTTP 400; resposta persistida e HTTP 2xx copiado para Histórico com prévia congelada por hash,
+// V253 — emissão real Bradesco Produção com sanitização de texto e retentativa segura após HTTP 400; resposta persistida e HTTP 2xx copiado para Histórico com prévia congelada por hash,
 // duas confirmações e bloqueio de reenvio automático do mesmo Seu Nº no backend.
 let bradescoPreviewProducaoV248=null;
 async function prepararEmissaoProducaoBradescoV248(){
@@ -9227,7 +9248,7 @@ async function emitirCobrancaProducaoBradescoV248(){
         historicoMsg=`<br><b>Registro técnico:</b> ✅ resposta completa preservada no backend.<br><b>Histórico operacional:</b> ⚠️ não foi possível copiar automaticamente para cobrancas_bancarias (${escaparHtmlEmail(String(eHist.message||eHist))}). NÃO reemita o boleto; primeiro recupere a emissão já feita.`;
       }
     }
-    if(out){out.className=`bb-cert-aviso ${ok?'ok':'alerta'}`;out.innerHTML=`${ok?'✅':'⚠️'} <b>Resposta do Bradesco Produção — HTTP ${escaparHtmlEmail(String(r.http_status??'—'))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<br><b>Seu Nº:</b> ${escaparHtmlEmail(String(r.seuNumero||''))}<br><b>Nosso Nº retornado:</b> ${escaparHtmlEmail(String(r.nossoNumero_retornado||'não identificado'))}<br><b>Reenvio automático:</b> NÃO${historicoMsg}<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r.resposta_bradesco||{},null,2))}</pre></div><span class="bb-cert-ajuda">V252: a tentativa fica registrada no backend. Se o Bradesco rejeitar com HTTP 400, uma nova prévia corrigida pode ser enviada manualmente; HTTP 2xx e resultados incertos permanecem bloqueados. Quando houver aceite, o portal salva a emissão no Histórico para consulta/impressão.</span>`;}
+    if(out){out.className=`bb-cert-aviso ${ok?'ok':'alerta'}`;out.innerHTML=`${ok?'✅':'⚠️'} <b>Resposta do Bradesco Produção — HTTP ${escaparHtmlEmail(String(r.http_status??'—'))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<br><b>Seu Nº:</b> ${escaparHtmlEmail(String(r.seuNumero||''))}<br><b>Nosso Nº retornado:</b> ${escaparHtmlEmail(String(r.nossoNumero_retornado||'não identificado'))}<br><b>Reenvio automático:</b> NÃO${historicoMsg}<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r.resposta_bradesco||{},null,2))}</pre></div><span class="bb-cert-ajuda">V253: a tentativa fica registrada no backend e os dados retornados pelo Bradesco ficam disponíveis no Histórico para impressão. Se o Bradesco rejeitar com HTTP 400, uma nova prévia corrigida pode ser enviada manualmente; HTTP 2xx e resultados incertos permanecem bloqueados. Quando houver aceite, o portal salva a emissão no Histórico para consulta/impressão.</span>`;}
   }catch(e){bradescoPreviewProducaoV248=null;if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Emissão não concluída: '+String(e.message||e)+' O sistema não fará repetição automática. Confira no Bradesco antes de qualquer nova tentativa.';}alert('A tentativa não foi repetida.\n\n'+String(e.message||e)+'\n\nConfira o Bradesco antes de tentar novamente.');}
   finally{if(prepBtn)prepBtn.disabled=false;}
 }
