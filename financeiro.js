@@ -9165,7 +9165,7 @@ async function prepararHomologacaoControladaBradesco(){
   finally{if(btn)btn.disabled=false;}
 }
 
-// V248 — primeira emissão real Bradesco Produção com prévia congelada por hash,
+// V249 — primeira emissão real Bradesco Produção; resposta persistida e HTTP 2xx copiado para Histórico com prévia congelada por hash,
 // duas confirmações e bloqueio de reenvio automático do mesmo Seu Nº no backend.
 let bradescoPreviewProducaoV248=null;
 async function prepararEmissaoProducaoBradescoV248(){
@@ -9196,7 +9196,38 @@ async function emitirCobrancaProducaoBradescoV248(){
     const j=await bradescoReq('emitir-cobranca-producao-v248',{method:'POST',body:{...atual,preview_hash:prep.hash,confirmacao:'EMITIR_PRODUCAO'}}),r=j.registro||{};
     bradescoPreviewProducaoV248=null;
     const ok=Number(r.http_status)>=200&&Number(r.http_status)<300;
-    if(out){out.className=`bb-cert-aviso ${ok?'ok':'alerta'}`;out.innerHTML=`${ok?'✅':'⚠️'} <b>Resposta do Bradesco Produção — HTTP ${escaparHtmlEmail(String(r.http_status??'—'))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<br><b>Seu Nº:</b> ${escaparHtmlEmail(String(r.seuNumero||''))}<br><b>Nosso Nº retornado:</b> ${escaparHtmlEmail(String(r.nossoNumero_retornado||'não identificado'))}<br><b>Reenvio automático:</b> NÃO<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r.resposta_bradesco||{},null,2))}</pre></div><span class="bb-cert-ajuda">Não faça nova tentativa com o mesmo Seu Nº sem conferir primeiro o retorno e o portal/consulta do Bradesco.</span>`;}
+    let historicoMsg='';
+    if(ok){
+      // V249: a primeira emissão real aceita pelo Bradesco também precisa virar um
+      // registro operacional do portal. Assim ela não fica somente no log técnico
+      // criptografado do backend e poderá ser localizada no Histórico para impressão.
+      const d=r.resposta_bradesco||{};
+      const achar=(...ks)=>{for(const k of ks){const v=d?.[k]??d?.titulo?.[k]??d?.boleto?.[k]??d?.dados?.[k];if(v!==undefined&&v!==null&&String(v)!=='')return v}return null};
+      const linha=achar('linhaDigitavel','linha_digitavel','linhaDig','linha');
+      const barras=achar('codigoBarras','codigoBarra','codigo_barras','codigoBarraNumerico');
+      const urlPdf=achar('urlBoleto','urlImagemBoleto','urlPdf','pdfUrl','pdf_url');
+      const regHist={cliente_nome:atual.nome,cpf_cnpj:atual.documento,endereco:atual.logradouro,numero:atual.numero||'',bairro:atual.bairro,cidade:atual.municipio,uf:atual.uf,cep:atual.cep,email:atual.email||null,banco:'bradesco',banco_nome:'BRADESCO',tipo:'boleto',valor:Number(atual.valor||0),vencimento:atual.vencimento,numero_nf:atual.seuNumero,referencia:'BRADESCO-'+atual.seuNumero,status:'aberto',origem:'primeira_emissao_bradesco_v249',parcela_numero:1,parcela_total:1,nosso_numero:r.nossoNumero_retornado||achar('nuTitulo','nossoNumero','numeroTitulo')||null,linha_digitavel:linha||null,codigo_barras:barras||null,pdf_url:urlPdf||null,emitido_em:new Date().toISOString(),criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
+      try{
+        const ex=await banco.from('cobrancas_bancarias').select('id').eq('banco','bradesco').eq('numero_nf',atual.seuNumero).limit(1);
+        let salvo=null;
+        if(!ex.error&&ex.data?.length){salvo=ex.data[0];}
+        else{
+          let sr=await banco.from('cobrancas_bancarias').insert([regHist]).select().single();
+          if(sr.error){
+            // Compatibilidade com bancos que ainda não receberam todas as colunas novas.
+            const compat={cliente_nome:regHist.cliente_nome,cpf_cnpj:regHist.cpf_cnpj,banco:regHist.banco,banco_nome:regHist.banco_nome,tipo:regHist.tipo,valor:regHist.valor,vencimento:regHist.vencimento,numero_nf:regHist.numero_nf,referencia:regHist.referencia,status:regHist.status,origem:regHist.origem,nosso_numero:regHist.nosso_numero,linha_digitavel:regHist.linha_digitavel,codigo_barras:regHist.codigo_barras,pdf_url:regHist.pdf_url,emitido_em:regHist.emitido_em,atualizado_em:regHist.atualizado_em};
+            sr=await banco.from('cobrancas_bancarias').insert([compat]).select().single();
+          }
+          if(sr.error)throw sr.error; salvo=sr.data;
+        }
+        historicoMsg=`<br><b>Registro no portal:</b> ✅ salvo no Histórico${salvo?.id?' • ID '+escaparHtmlEmail(String(salvo.id)):''}.`;
+        if(linha||barras||urlPdf)historicoMsg+=`<br><b>Impressão:</b> ✅ dados de boleto retornados pelo banco foram armazenados.`;
+        else historicoMsg+=`<br><b>Impressão:</b> ⚠️ emissão registrada, mas a resposta inicial não trouxe linha digitável/código de barras/PDF. O registro ficou preservado para consulta posterior ao Bradesco.`;
+      }catch(eHist){
+        historicoMsg=`<br><b>Registro técnico:</b> ✅ resposta completa preservada no backend.<br><b>Histórico operacional:</b> ⚠️ não foi possível copiar automaticamente para cobrancas_bancarias (${escaparHtmlEmail(String(eHist.message||eHist))}). NÃO reemita o boleto; primeiro recupere a emissão já feita.`;
+      }
+    }
+    if(out){out.className=`bb-cert-aviso ${ok?'ok':'alerta'}`;out.innerHTML=`${ok?'✅':'⚠️'} <b>Resposta do Bradesco Produção — HTTP ${escaparHtmlEmail(String(r.http_status??'—'))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<br><b>Seu Nº:</b> ${escaparHtmlEmail(String(r.seuNumero||''))}<br><b>Nosso Nº retornado:</b> ${escaparHtmlEmail(String(r.nossoNumero_retornado||'não identificado'))}<br><b>Reenvio automático:</b> NÃO${historicoMsg}<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r.resposta_bradesco||{},null,2))}</pre></div><span class="bb-cert-ajuda">V249: a tentativa fica registrada no backend mesmo se o Bradesco rejeitar. Quando houver HTTP 2xx, o portal também tenta salvar a emissão no Histórico para consulta/impressão. Nunca reemita o mesmo Seu Nº apenas porque a etapa de Histórico falhou.</span>`;}
   }catch(e){bradescoPreviewProducaoV248=null;if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Emissão não concluída: '+String(e.message||e)+' O sistema não fará repetição automática. Confira no Bradesco antes de qualquer nova tentativa.';}alert('A tentativa não foi repetida.\n\n'+String(e.message||e)+'\n\nConfira o Bradesco antes de tentar novamente.');}
   finally{if(prepBtn)prepBtn.disabled=false;}
 }
