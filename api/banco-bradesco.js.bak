@@ -433,19 +433,19 @@ module.exports=async function(req,res){
       const travaId=idRegistro(amb,'emissao-v248-'+crypto.createHash('sha256').update(seuNumero).digest('hex').slice(0,24));
       const anterior=await obter(travaId);
       if(anterior)throw new Error('Este Seu Nº já possui uma tentativa de emissão registrada no backend. O sistema bloqueou o reenvio automático para evitar duplicidade. Confira o retorno/histórico antes de qualquer nova tentativa.');
-      await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:'INICIADA',iniciada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'INICIADA'});
+      await salvar(travaId,amb,'emissao-v248',{seuNumero,hash:prep.hash,estado:'INICIADA',iniciada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'INICIADA'});
       let retorno;
       try{
         const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
         retorno=await enviarRegistroCobrancaProducao(auth.access_token,mtls,prep.payload);
       }catch(e){
-        await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:'ERRO_TRANSPORTE_SEM_RETRY',erro:String(e.message||e),finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'ERRO_TRANSPORTE_SEM_RETRY'});
+        await salvar(travaId,amb,'emissao-v248',{seuNumero,hash:prep.hash,estado:'ERRO_TRANSPORTE_SEM_RETRY',erro:String(e.message||e),finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'ERRO_TRANSPORTE_SEM_RETRY'});
         throw new Error('A tentativa foi interrompida sem repetição automática: '+String(e.message||e)+'. Confira no Bradesco antes de tentar novamente.');
       }
       const d=retorno.data||{}, http2xx=retorno.http_status>=200&&retorno.http_status<300;
       const achar=(...ks)=>{for(const k of ks){const v=d?.[k]??d?.titulo?.[k]??d?.boleto?.[k]??d?.dados?.[k];if(v!==undefined&&v!==null&&String(v)!=='')return v}return null};
       const nossoNumero=d.nuTitulo??d.nossoNumero??d.numeroTitulo??d?.titulo?.nuTitulo??null;
-      await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:'RESPOSTA_RECEBIDA',http_status:retorno.http_status,nossoNumero:nossoNumero||null,resposta:d,payload_hash:prep.hash,finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'RESPOSTA_RECEBIDA',http_status:retorno.http_status});
+      await salvar(travaId,amb,'emissao-v250',{seuNumero,hash:prep.hash,estado:'RESPOSTA_RECEBIDA',http_status:retorno.http_status,nossoNumero:nossoNumero||null,resposta:d,payload_hash:prep.hash,finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'RESPOSTA_RECEBIDA',http_status:retorno.http_status});
       let historico={salvo:false,id:null,erro:null,impressao_disponivel:false};
       if(http2xx){
         const linha=achar('linhaDigitavel','linha_digitavel','linhaDig','linha');
@@ -467,7 +467,7 @@ module.exports=async function(req,res){
           }
           historico.impressao_disponivel=!!(linha||barras||urlPdf);
         }catch(eHist){historico.erro=String(eHist.message||eHist);}
-        await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:historico.salvo?'ACEITA_E_SALVA_NO_HISTORICO':'ACEITA_HISTORICO_PENDENTE',http_status:retorno.http_status,nossoNumero:nossoNumero||null,resposta:d,historico,finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:historico.salvo?'ACEITA_E_SALVA_NO_HISTORICO':'ACEITA_HISTORICO_PENDENTE',http_status:retorno.http_status,historico_salvo:historico.salvo});
+        await salvar(travaId,amb,'emissao-v250',{seuNumero,hash:prep.hash,estado:historico.salvo?'ACEITA_E_SALVA_NO_HISTORICO':'ACEITA_HISTORICO_PENDENTE',http_status:retorno.http_status,nossoNumero:nossoNumero||null,resposta:d,historico,finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:historico.salvo?'ACEITA_E_SALVA_NO_HISTORICO':'ACEITA_HISTORICO_PENDENTE',http_status:retorno.http_status,historico_salvo:historico.salvo});
       }
       return json(res,200,{ok:true,registro:{ambiente:'PRODUCAO',versao:'V250',http_status:retorno.http_status,enviado_ao_bradesco:true,http_2xx_bradesco:http2xx,reenvio_automatico:false,seuNumero,nossoNumero_retornado:nossoNumero,historico,resposta_bradesco:d},mensagem:http2xx?(historico.salvo?'Bradesco respondeu HTTP 2xx e o boleto foi salvo no Histórico pelo backend.':'Bradesco respondeu HTTP 2xx. A emissão foi preservada no backend, mas houve falha ao copiar para o Histórico. NÃO reemita; recupere esta emissão antes de qualquer nova tentativa.'):'O Bradesco respondeu HTTP '+retorno.http_status+'. A tentativa foi registrada e não será repetida automaticamente.'});
     }
@@ -664,8 +664,8 @@ module.exports=async function(req,res){
     const msg=String(e?.message||'Falha na integração Bradesco.');
     const precisaMigracao=/integracoes_bradesco_segredos_tipo_check|violates check constraint/i.test(msg);
     const erroPublico=precisaMigracao
-      ? 'A trava de segurança da emissão não pôde ser gravada porque falta a migração SQL V251. O POST de cobrança NÃO foi executado. Aplique o arquivo SQL_V251_BRADESCO_EMISSAO.sql no Supabase e gere uma nova conferência.'
+      ? 'O banco de dados precisa da atualização SQL V211 para aceitar o cadastro dos dados bancários Bradesco. Nenhum dado foi alterado.'
       : msg;
-    return json(res,statusHttp,{ok:false,erro:erroPublico,codigo:precisaMigracao?'BRADESCO_SQL_V251_PENDENTE':null,post_cobranca_executado:precisaMigracao?false:undefined,bradesco_http:upstream||null,detalhe:precisaMigracao?null:resposta});
+    return json(res,statusHttp,{ok:false,erro:erroPublico,codigo:precisaMigracao?'BRADESCO_SQL_V211_PENDENTE':null,bradesco_http:upstream||null,detalhe:precisaMigracao?null:resposta});
   }
 };
