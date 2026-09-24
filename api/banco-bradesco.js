@@ -443,9 +443,33 @@ module.exports=async function(req,res){
         throw new Error('A tentativa foi interrompida sem repetição automática: '+String(e.message||e)+'. Confira no Bradesco antes de tentar novamente.');
       }
       const d=retorno.data||{}, http2xx=retorno.http_status>=200&&retorno.http_status<300;
+      const achar=(...ks)=>{for(const k of ks){const v=d?.[k]??d?.titulo?.[k]??d?.boleto?.[k]??d?.dados?.[k];if(v!==undefined&&v!==null&&String(v)!=='')return v}return null};
       const nossoNumero=d.nuTitulo??d.nossoNumero??d.numeroTitulo??d?.titulo?.nuTitulo??null;
-      await salvar(travaId,amb,'emissao-v248',{seuNumero,hash:prep.hash,estado:'RESPOSTA_RECEBIDA',http_status:retorno.http_status,nossoNumero:nossoNumero||null,resposta:d,finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'RESPOSTA_RECEBIDA',http_status:retorno.http_status});
-      return json(res,200,{ok:true,registro:{ambiente:'PRODUCAO',versao:'V248',http_status:retorno.http_status,enviado_ao_bradesco:true,http_2xx_bradesco:http2xx,reenvio_automatico:false,seuNumero,nossoNumero_retornado:nossoNumero,resposta_bradesco:d},mensagem:http2xx?'O Bradesco respondeu HTTP 2xx à primeira emissão controlada. Confira o Nosso Nº e a resposta do banco antes de qualquer outra ação.':'O Bradesco respondeu HTTP '+retorno.http_status+'. A tentativa foi registrada e não será repetida automaticamente.'});
+      await salvar(travaId,amb,'emissao-v250',{seuNumero,hash:prep.hash,estado:'RESPOSTA_RECEBIDA',http_status:retorno.http_status,nossoNumero:nossoNumero||null,resposta:d,payload_hash:prep.hash,finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'RESPOSTA_RECEBIDA',http_status:retorno.http_status});
+      let historico={salvo:false,id:null,erro:null,impressao_disponivel:false};
+      if(http2xx){
+        const linha=achar('linhaDigitavel','linha_digitavel','linhaDig','linha');
+        const barras=achar('codigoBarras','codigoBarra','codigo_barras','codigoBarraNumerico');
+        const urlPdf=achar('urlBoleto','urlImagemBoleto','urlPdf','pdfUrl','pdf_url');
+        const agora=new Date().toISOString();
+        const hist={cliente_nome:String(req.body?.nome||''),cpf_cnpj:String(req.body?.documento||'').replace(/\D/g,''),endereco:String(req.body?.logradouro||''),numero:String(req.body?.numero||''),bairro:String(req.body?.bairro||''),cidade:String(req.body?.municipio||''),uf:String(req.body?.uf||'').toUpperCase(),cep:String(req.body?.cep||'').replace(/\D/g,''),email:req.body?.email||null,banco:'bradesco',banco_nome:'BRADESCO',tipo:'boleto',valor:Number(req.body?.valor||0),vencimento:String(req.body?.vencimento||''),numero_nf:seuNumero,referencia:'BRADESCO-'+seuNumero,status:'aberto',origem:'primeira_emissao_bradesco_v250',parcela_numero:1,parcela_total:1,nosso_numero:nossoNumero||null,linha_digitavel:linha||null,codigo_barras:barras||null,pdf_url:urlPdf||null,emitido_em:agora,atualizado_em:agora};
+        try{
+          const existentes=await supabaseRest('cobrancas_bancarias',{query:`?banco=eq.bradesco&numero_nf=eq.${encodeURIComponent(seuNumero)}&select=id&limit=1`});
+          if(Array.isArray(existentes)&&existentes.length){historico.salvo=true;historico.id=existentes[0].id;}
+          else{
+            let gravado;
+            try{gravado=await supabaseRest('cobrancas_bancarias',{method:'POST',body:hist});}
+            catch(e1){
+              const compat={cliente_nome:hist.cliente_nome,cpf_cnpj:hist.cpf_cnpj,banco:hist.banco,banco_nome:hist.banco_nome,tipo:hist.tipo,valor:hist.valor,vencimento:hist.vencimento,numero_nf:hist.numero_nf,referencia:hist.referencia,status:hist.status,origem:hist.origem,nosso_numero:hist.nosso_numero,linha_digitavel:hist.linha_digitavel,codigo_barras:hist.codigo_barras,pdf_url:hist.pdf_url,emitido_em:hist.emitido_em,atualizado_em:hist.atualizado_em};
+              gravado=await supabaseRest('cobrancas_bancarias',{method:'POST',body:compat});
+            }
+            const row=Array.isArray(gravado)?gravado[0]:gravado;historico.salvo=true;historico.id=row?.id||null;
+          }
+          historico.impressao_disponivel=!!(linha||barras||urlPdf);
+        }catch(eHist){historico.erro=String(eHist.message||eHist);}
+        await salvar(travaId,amb,'emissao-v250',{seuNumero,hash:prep.hash,estado:historico.salvo?'ACEITA_E_SALVA_NO_HISTORICO':'ACEITA_HISTORICO_PENDENTE',http_status:retorno.http_status,nossoNumero:nossoNumero||null,resposta:d,historico,finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:historico.salvo?'ACEITA_E_SALVA_NO_HISTORICO':'ACEITA_HISTORICO_PENDENTE',http_status:retorno.http_status,historico_salvo:historico.salvo});
+      }
+      return json(res,200,{ok:true,registro:{ambiente:'PRODUCAO',versao:'V250',http_status:retorno.http_status,enviado_ao_bradesco:true,http_2xx_bradesco:http2xx,reenvio_automatico:false,seuNumero,nossoNumero_retornado:nossoNumero,historico,resposta_bradesco:d},mensagem:http2xx?(historico.salvo?'Bradesco respondeu HTTP 2xx e o boleto foi salvo no Histórico pelo backend.':'Bradesco respondeu HTTP 2xx. A emissão foi preservada no backend, mas houve falha ao copiar para o Histórico. NÃO reemita; recupere esta emissão antes de qualquer nova tentativa.'):'O Bradesco respondeu HTTP '+retorno.http_status+'. A tentativa foi registrada e não será repetida automaticamente.'});
     }
     if(action==='preparar-homologacao-controlada'){
       if(amb!=='sandbox')throw new Error('A preparação controlada está liberada somente para o Sandbox.');
