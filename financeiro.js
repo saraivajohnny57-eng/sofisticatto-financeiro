@@ -9165,7 +9165,7 @@ async function prepararHomologacaoControladaBradesco(){
   finally{if(btn)btn.disabled=false;}
 }
 
-// V250 — primeira emissão real Bradesco Produção; resposta persistida e HTTP 2xx copiado para Histórico com prévia congelada por hash,
+// V252 — emissão real Bradesco Produção com sanitização de texto e retentativa segura após HTTP 400; resposta persistida e HTTP 2xx copiado para Histórico com prévia congelada por hash,
 // duas confirmações e bloqueio de reenvio automático do mesmo Seu Nº no backend.
 let bradescoPreviewProducaoV248=null;
 async function prepararEmissaoProducaoBradescoV248(){
@@ -9227,7 +9227,7 @@ async function emitirCobrancaProducaoBradescoV248(){
         historicoMsg=`<br><b>Registro técnico:</b> ✅ resposta completa preservada no backend.<br><b>Histórico operacional:</b> ⚠️ não foi possível copiar automaticamente para cobrancas_bancarias (${escaparHtmlEmail(String(eHist.message||eHist))}). NÃO reemita o boleto; primeiro recupere a emissão já feita.`;
       }
     }
-    if(out){out.className=`bb-cert-aviso ${ok?'ok':'alerta'}`;out.innerHTML=`${ok?'✅':'⚠️'} <b>Resposta do Bradesco Produção — HTTP ${escaparHtmlEmail(String(r.http_status??'—'))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<br><b>Seu Nº:</b> ${escaparHtmlEmail(String(r.seuNumero||''))}<br><b>Nosso Nº retornado:</b> ${escaparHtmlEmail(String(r.nossoNumero_retornado||'não identificado'))}<br><b>Reenvio automático:</b> NÃO${historicoMsg}<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r.resposta_bradesco||{},null,2))}</pre></div><span class="bb-cert-ajuda">V250: a tentativa fica registrada no backend mesmo se o Bradesco rejeitar. Quando houver HTTP 2xx, o portal também tenta salvar a emissão no Histórico para consulta/impressão. Nunca reemita o mesmo Seu Nº apenas porque a etapa de Histórico falhou.</span>`;}
+    if(out){out.className=`bb-cert-aviso ${ok?'ok':'alerta'}`;out.innerHTML=`${ok?'✅':'⚠️'} <b>Resposta do Bradesco Produção — HTTP ${escaparHtmlEmail(String(r.http_status??'—'))}</b><br>${escaparHtmlEmail(String(j.mensagem||''))}<br><b>Seu Nº:</b> ${escaparHtmlEmail(String(r.seuNumero||''))}<br><b>Nosso Nº retornado:</b> ${escaparHtmlEmail(String(r.nossoNumero_retornado||'não identificado'))}<br><b>Reenvio automático:</b> NÃO${historicoMsg}<div style="margin-top:10px;max-height:430px;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px;">${escaparHtmlEmail(JSON.stringify(r.resposta_bradesco||{},null,2))}</pre></div><span class="bb-cert-ajuda">V252: a tentativa fica registrada no backend. Se o Bradesco rejeitar com HTTP 400, uma nova prévia corrigida pode ser enviada manualmente; HTTP 2xx e resultados incertos permanecem bloqueados. Quando houver aceite, o portal salva a emissão no Histórico para consulta/impressão.</span>`;}
   }catch(e){bradescoPreviewProducaoV248=null;if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Emissão não concluída: '+String(e.message||e)+' O sistema não fará repetição automática. Confira no Bradesco antes de qualquer nova tentativa.';}alert('A tentativa não foi repetida.\n\n'+String(e.message||e)+'\n\nConfira o Bradesco antes de tentar novamente.');}
   finally{if(prepBtn)prepBtn.disabled=false;}
 }
