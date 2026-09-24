@@ -219,20 +219,28 @@ function enviarRegistroCobrancaProducao(token,mtls,payload){
 
 function montarPayloadRegistroReal(body,banco){
   const dig=v=>String(v||'').replace(/\D/g,'');
-  const nome=String(body?.nome||'').trim(), documento=dig(body?.documento), valor=Number(body?.valor), vencimento=String(body?.vencimento||'').trim(), seuNumero=String(body?.seuNumero||'').trim();
+  // V252: a API de registro do Bradesco rejeita caracteres especiais em campos
+  // de endereço. Normalizamos somente o payload enviado ao banco; o cadastro
+  // original do cliente permanece intacto no sistema.
+  const textoBradesco=(v,max=120)=>String(v||'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^A-Za-z0-9 ]+/g,' ')
+    .replace(/\s+/g,' ').trim().slice(0,max);
+  const nome=textoBradesco(body?.nome,80), documento=dig(body?.documento), valor=Number(body?.valor), vencimento=String(body?.vencimento||'').trim(), seuNumero=String(body?.seuNumero||'').trim();
   const erros=[];if(!nome)erros.push('nome');if(![11,14].includes(documento.length))erros.push('CPF/CNPJ');if(!(valor>0))erros.push('valor');if(!/^\d{4}-\d{2}-\d{2}$/.test(vencimento))erros.push('vencimento');if(!seuNumero||seuNumero.length>10)erros.push('Seu Nº (1 a 10 caracteres)');
   const carteira=dig(banco.carteira).padStart(2,'0'), negociacao=dig(banco.negociacao), cnpj=dig(banco.cnpj);
   if(cnpj.length!==14)erros.push('CNPJ do beneficiário');if(negociacao.length!==18)erros.push('nuNegociacao com 18 dígitos');if(!carteira)erros.push('idProduto/carteira');
-  const cep8=dig(body?.cep);let logradouro=String(body?.logradouro||'').trim(), numero=String(body?.numero||'').trim();
-  if(!numero||/^S\/?N$/i.test(numero)){const m=logradouro.match(/^(.*?)(?:\s+(?:N[º°]?|NÚMERO|NUMERO)\s*[.:#-]?\s*|,\s*)(\d+[A-Z0-9\/-]*)\s*$/i);if(m){logradouro=m[1].trim();numero=m[2].trim();}}
-  const complemento=String(body?.complemento||'').trim(), bairro=String(body?.bairro||'').trim(), municipio=String(body?.municipio||'').trim(), uf=String(body?.uf||'').trim().toUpperCase();
+  const cep8=dig(body?.cep);let logradouroOriginal=String(body?.logradouro||'').trim(), numeroOriginal=String(body?.numero||'').trim();
+  if(!numeroOriginal||/^S\/?N$/i.test(numeroOriginal)){const m=logradouroOriginal.match(/^(.*?)(?:\s+(?:N[º°]?|NÚMERO|NUMERO)\s*[.:#-]?\s*|,\s*)(\d+[A-Z0-9\/-]*)\s*$/i);if(m){logradouroOriginal=m[1].trim();numeroOriginal=m[2].trim();}}
+  const logradouro=textoBradesco(logradouroOriginal,70), numero=textoBradesco(numeroOriginal,10);
+  const complemento=textoBradesco(body?.complemento,40), bairro=textoBradesco(body?.bairro,40), municipio=textoBradesco(body?.municipio,40), uf=String(body?.uf||'').replace(/[^A-Za-z]/g,'').trim().toUpperCase().slice(0,2);
   if(cep8.length!==8)erros.push('CEP');if(!logradouro)erros.push('logradouro');if(!numero)erros.push('número');if(!bairro)erros.push('bairro');if(!municipio)erros.push('município');if(!/^[A-Z]{2}$/.test(uf))erros.push('UF');
   const hoje=new Date().toISOString().slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(vencimento)&&new Date(vencimento+'T12:00:00')<=new Date(hoje+'T12:00:00'))erros.push('vencimento deve ser posterior à data de emissão');
   const especie=Number(dig(body?.especie)||2);if(!Number.isInteger(especie)||especie<1||especie>99)erros.push('espécie do título');
   if(erros.length)throw new Error('Emissão bloqueada pela pré-validação: '+erros.join(', ')+'.');
   const fmt=v=>{const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);return `${m[3]}.${m[2]}.${m[1]}`};
   const cpfCnpjApi=documento.length===11?documento.padStart(14,'0'):documento;
-  const payload={nuCPFCNPJ:cnpj.slice(0,8),filialCPFCNPJ:cnpj.slice(8,12),ctrlCPFCNPJ:cnpj.slice(12,14),idProduto:carteira,nuNegociacao:negociacao,nuCliente:seuNumero,dtEmissaoTitulo:fmt(hoje),dtVencimentoTitulo:fmt(vencimento),tpVencimento:0,vlNominalTitulo:Number(valor.toFixed(2)),cdEspecieTitulo:especie,cindcdAceitSacdo:'N',percentualJuros:0,vlJuros:0,qtdeDiasJuros:0,percentualMulta:0,vlMulta:0,qtdeDiasMulta:0,percentualDesconto1:0,vlDesconto1:0,dataLimiteDesconto1:'',nomePagador:nome,logradouroPagador:logradouro,nuLogradouroPagador:numero,...(complemento?{complementoLogradouroPagador:complemento}:{}),cepPagador:cep8.slice(0,5),complementoCepPagador:cep8.slice(5,8),bairroPagador:bairro,municipioPagador:municipio,ufPagador:uf,cdIndCpfcnpjPagador:documento.length===11?1:2,nuCpfcnpjPagador:cpfCnpjApi,listaMsgs:[{mensagem:String(body?.mensagem||'').trim()||'COBRANCA SOFISTICATTO'}]};
+  const payload={nuCPFCNPJ:cnpj.slice(0,8),filialCPFCNPJ:cnpj.slice(8,12),ctrlCPFCNPJ:cnpj.slice(12,14),idProduto:carteira,nuNegociacao:negociacao,nuCliente:seuNumero,dtEmissaoTitulo:fmt(hoje),dtVencimentoTitulo:fmt(vencimento),tpVencimento:0,vlNominalTitulo:Number(valor.toFixed(2)),cdEspecieTitulo:especie,cindcdAceitSacdo:'N',percentualJuros:0,vlJuros:0,qtdeDiasJuros:0,percentualMulta:0,vlMulta:0,qtdeDiasMulta:0,percentualDesconto1:0,vlDesconto1:0,dataLimiteDesconto1:'',nomePagador:nome,logradouroPagador:logradouro,nuLogradouroPagador:numero,...(complemento?{complementoLogradouroPagador:complemento}:{}),cepPagador:cep8.slice(0,5),complementoCepPagador:cep8.slice(5,8),bairroPagador:bairro,municipioPagador:municipio,ufPagador:uf,cdIndCpfcnpjPagador:documento.length===11?1:2,nuCpfcnpjPagador:cpfCnpjApi,listaMsgs:[{mensagem:textoBradesco(body?.mensagem||'COBRANCA SOFISTICATTO',80)||'COBRANCA SOFISTICATTO'}]};
   const resumo={pagador:nome,documento:mascarar(documento,3,2),valor:Number(valor.toFixed(2)),vencimento,seuNumero,endereco:`${logradouro}, ${numero}${complemento?' - '+complemento:''} - ${bairro} - ${municipio}/${uf} - CEP ${cep8.slice(0,5)}-${cep8.slice(5)}`,especie,mensagem:payload.listaMsgs[0].mensagem,contrato:{cnpj:mascarar(cnpj,2,2),carteira:mascarar(carteira,0,1),negociacao:mascarar(negociacao,4,4)}};
   const hash=crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
   return {payload,resumo,hash};
@@ -432,8 +440,19 @@ module.exports=async function(req,res){
       const seuNumero=String(req.body?.seuNumero||'').trim();
       const travaId=idRegistro(amb,'emissao-v248-'+crypto.createHash('sha256').update(seuNumero).digest('hex').slice(0,24));
       const anterior=await obter(travaId);
-      if(anterior)throw new Error('Este Seu Nº já possui uma tentativa de emissão registrada no backend. O sistema bloqueou o reenvio automático para evitar duplicidade. Confira o retorno/histórico antes de qualquer nova tentativa.');
-      await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:'INICIADA',iniciada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'INICIADA'});
+      let tentativaNumero=1, tentativaAnterior=null;
+      if(anterior){
+        tentativaAnterior=descriptografar(anterior)||{};
+        const statusAnterior=Number(tentativaAnterior.http_status||0);
+        // V252: somente uma rejeição HTTP 400 já respondida pelo Bradesco pode
+        // ser corrigida e reenviada manualmente. HTTP 2xx, erro de transporte,
+        // timeout ou qualquer resultado incerto continuam bloqueados.
+        if(!(tentativaAnterior.estado==='RESPOSTA_RECEBIDA' && statusAnterior===400)){
+          throw new Error('Este Seu Nº já possui uma tentativa que não pode ser reenviada automaticamente. O sistema manteve o bloqueio para evitar duplicidade. Confira o retorno/histórico antes de qualquer nova tentativa.');
+        }
+        tentativaNumero=Number(tentativaAnterior.tentativa_numero||1)+1;
+      }
+      await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:'INICIADA',tentativa_numero:tentativaNumero,reenvio_correcao_http400:!!anterior,tentativa_anterior:tentativaAnterior?{http_status:tentativaAnterior.http_status||null,estado:tentativaAnterior.estado||null,resposta:tentativaAnterior.resposta||null,finalizada_em:tentativaAnterior.finalizada_em||null}:null,iniciada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'INICIADA',tentativa_numero:tentativaNumero,reenvio_correcao_http400:!!anterior});
       let retorno;
       try{
         const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
@@ -452,7 +471,7 @@ module.exports=async function(req,res){
         const barras=achar('codigoBarras','codigoBarra','codigo_barras','codigoBarraNumerico');
         const urlPdf=achar('urlBoleto','urlImagemBoleto','urlPdf','pdfUrl','pdf_url');
         const agora=new Date().toISOString();
-        const hist={cliente_nome:String(req.body?.nome||''),cpf_cnpj:String(req.body?.documento||'').replace(/\D/g,''),endereco:String(req.body?.logradouro||''),numero:String(req.body?.numero||''),bairro:String(req.body?.bairro||''),cidade:String(req.body?.municipio||''),uf:String(req.body?.uf||'').toUpperCase(),cep:String(req.body?.cep||'').replace(/\D/g,''),email:req.body?.email||null,banco:'bradesco',banco_nome:'BRADESCO',tipo:'boleto',valor:Number(req.body?.valor||0),vencimento:String(req.body?.vencimento||''),numero_nf:seuNumero,referencia:'BRADESCO-'+seuNumero,status:'aberto',origem:'primeira_emissao_bradesco_v250',parcela_numero:1,parcela_total:1,nosso_numero:nossoNumero||null,linha_digitavel:linha||null,codigo_barras:barras||null,pdf_url:urlPdf||null,emitido_em:agora,atualizado_em:agora};
+        const hist={cliente_nome:String(req.body?.nome||''),cpf_cnpj:String(req.body?.documento||'').replace(/\D/g,''),endereco:String(req.body?.logradouro||''),numero:String(req.body?.numero||''),bairro:String(req.body?.bairro||''),cidade:String(req.body?.municipio||''),uf:String(req.body?.uf||'').toUpperCase(),cep:String(req.body?.cep||'').replace(/\D/g,''),email:req.body?.email||null,banco:'bradesco',banco_nome:'BRADESCO',tipo:'boleto',valor:Number(req.body?.valor||0),vencimento:String(req.body?.vencimento||''),numero_nf:seuNumero,referencia:'BRADESCO-'+seuNumero,status:'aberto',origem:'primeira_emissao_bradesco_v252',parcela_numero:1,parcela_total:1,nosso_numero:nossoNumero||null,linha_digitavel:linha||null,codigo_barras:barras||null,pdf_url:urlPdf||null,emitido_em:agora,atualizado_em:agora};
         try{
           const existentes=await supabaseRest('cobrancas_bancarias',{query:`?banco=eq.bradesco&numero_nf=eq.${encodeURIComponent(seuNumero)}&select=id&limit=1`});
           if(Array.isArray(existentes)&&existentes.length){historico.salvo=true;historico.id=existentes[0].id;}
@@ -469,7 +488,7 @@ module.exports=async function(req,res){
         }catch(eHist){historico.erro=String(eHist.message||eHist);}
         await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:historico.salvo?'ACEITA_E_SALVA_NO_HISTORICO':'ACEITA_HISTORICO_PENDENTE',http_status:retorno.http_status,nossoNumero:nossoNumero||null,resposta:d,historico,finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:historico.salvo?'ACEITA_E_SALVA_NO_HISTORICO':'ACEITA_HISTORICO_PENDENTE',http_status:retorno.http_status,historico_salvo:historico.salvo});
       }
-      return json(res,200,{ok:true,registro:{ambiente:'PRODUCAO',versao:'V250',http_status:retorno.http_status,enviado_ao_bradesco:true,http_2xx_bradesco:http2xx,reenvio_automatico:false,seuNumero,nossoNumero_retornado:nossoNumero,historico,resposta_bradesco:d},mensagem:http2xx?(historico.salvo?'Bradesco respondeu HTTP 2xx e o boleto foi salvo no Histórico pelo backend.':'Bradesco respondeu HTTP 2xx. A emissão foi preservada no backend, mas houve falha ao copiar para o Histórico. NÃO reemita; recupere esta emissão antes de qualquer nova tentativa.'):'O Bradesco respondeu HTTP '+retorno.http_status+'. A tentativa foi registrada e não será repetida automaticamente.'});
+      return json(res,200,{ok:true,registro:{ambiente:'PRODUCAO',versao:'V252',http_status:retorno.http_status,enviado_ao_bradesco:true,http_2xx_bradesco:http2xx,reenvio_automatico:false,seuNumero,nossoNumero_retornado:nossoNumero,historico,resposta_bradesco:d},mensagem:http2xx?(historico.salvo?'Bradesco respondeu HTTP 2xx e o boleto foi salvo no Histórico pelo backend.':'Bradesco respondeu HTTP 2xx. A emissão foi preservada no backend, mas houve falha ao copiar para o Histórico. NÃO reemita; recupere esta emissão antes de qualquer nova tentativa.'):'O Bradesco respondeu HTTP '+retorno.http_status+'. A tentativa foi registrada e não será repetida automaticamente.'});
     }
     if(action==='preparar-homologacao-controlada'){
       if(amb!=='sandbox')throw new Error('A preparação controlada está liberada somente para o Sandbox.');
