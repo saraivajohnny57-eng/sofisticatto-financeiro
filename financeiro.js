@@ -6836,6 +6836,7 @@ function aplicarPadraoBancoCobrancaManual(){
   const cod=document.getElementById("cobBanco")?.value||"bb";
   const multa=document.getElementById("cobMulta"),juros=document.getElementById("cobJuros"),btn=document.getElementById("btnCobEmitirManual");
   if(cod==="bb"){if(multa)multa.value="2";if(juros)juros.value="5";if(btn)btn.textContent="💳 Emitir cobrança BB";}
+  else if(cod==="bradesco"){if(multa)multa.value="0";if(juros)juros.value="0";if(btn)btn.textContent="💳 Emitir cobrança Bradesco";}
   else if(btn)btn.textContent="📝 Preparar cobrança";
 }
 function atualizarPainelInstrucoesBancoBoleto(){
@@ -6901,6 +6902,30 @@ function previsualizarCobranca(){
   b.innerHTML=`<div class="cobranca-preview-doc"><div class="cobranca-preview-bank">${d.banco==='bb'?'BANCO DO BRASIL':'BRADESCO'}</div><div class="cobranca-preview-valor">${cobMoeda(d.valor)}</div><div><b>Pagador:</b> ${escaparHtmlEmail(d.cliente_nome||'—')}</div><div><b>Documento:</b> ${escaparHtmlEmail(d.cpf_cnpj||'—')}</div><div><b>Vencimento:</b> ${d.vencimento?new Date(d.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</div><div><b>NF:</b> ${escaparHtmlEmail(d.numero_nf||'—')}</div><div><b>Tipo:</b> ${d.tipo==='boleto_pix'?'Boleto + Pix':'Boleto'}</div><div><b>Multa:</b> ${d.multa_percentual}% • <b>Juros:</b> ${d.juros_percentual}% a.m.</div></div>`;
 }
 
+function seuNumeroBradescoOperacional(numeroNf,parcelaNumero=1,parcelaTotal=1){
+  const base=String(numeroNf||'').replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+  if(Number(parcelaTotal||1)<=1)return base.slice(0,10);
+  const suf=String(Number(parcelaNumero||1)).padStart(2,'0').slice(-2);
+  return (base.slice(0,8)+suf).slice(0,10);
+}
+async function bradescoReqProducao(action,body){
+  const chave=bbAdminKey();if(!chave)throw new Error('Valide a chave administrativa das integrações antes de emitir no Bradesco.');
+  const r=await fetch(`/api/banco-bradesco?action=${encodeURIComponent(action)}&ambiente=producao`,{method:'POST',headers:{'x-integrations-admin-key':chave,'Content-Type':'application/json'},body:JSON.stringify({...body,ambiente:'producao'})});
+  const j=await r.json().catch(()=>({}));if(!r.ok||j.ok===false)throw new Error(j.erro||j.mensagem||`Bradesco HTTP ${r.status}`);return j;
+}
+function payloadBradescoDeCobranca(p,seuNumero){
+  return {nome:String(p.cliente_nome||''),documento:String(p.cpf_cnpj||'').replace(/\D/g,''),valor:Number(p.valor||0),vencimento:String(p.vencimento||''),seuNumero:String(seuNumero||''),cep:String(p.cep||'').replace(/\D/g,''),logradouro:String(p.endereco||''),numero:String(p.numero||'SN'),complemento:String(p.complemento||''),bairro:String(p.bairro||''),municipio:String(p.cidade||''),uf:String(p.uf||'').toUpperCase(),especie:'2',mensagem:'COBRANCA SOFISTICATTO',email:p.email||null,numero_nf_original:String(p.numero_nf||''),registro_id:p.id||null,relatorio_id:p.relatorio_id||null,parcela_numero:Number(p.parcela_numero||1),parcela_total:Number(p.parcela_total||1),referencia:p.referencia||null};
+}
+async function emitirBradescoOperacional(p,{confirmar=true}={}){
+  const seuNumero=seuNumeroBradescoOperacional(p.numero_nf,p.parcela_numero,p.parcela_total);
+  if(!seuNumero)throw new Error('Informe a NF/pedido para gerar o Seu Nº do Bradesco.');
+  const body=payloadBradescoDeCobranca(p,seuNumero);
+  const prev=await bradescoReqProducao('preparar-emissao-producao-v248',body),hash=prev?.preparacao?.hash;
+  if(!hash)throw new Error('O Bradesco não retornou a confirmação da prévia. Nenhum boleto foi enviado.');
+  if(confirmar){const ok=confirm(`EMISSÃO REAL BRADESCO\n\nCliente: ${body.nome}\nNF/Pedido: ${p.numero_nf}\nParcela: ${body.parcela_numero}/${body.parcela_total}\nSeu Nº: ${body.seuNumero}\nValor: ${cobMoeda(body.valor)}\nVencimento: ${body.vencimento}\n\nConfirma UMA tentativa de emissão?`);if(!ok)throw new Error('Emissão cancelada pelo usuário.');}
+  return bradescoReqProducao('emitir-cobranca-producao-v248',{...body,preview_hash:hash,confirmacao:'EMITIR_PRODUCAO'});
+}
+
 async function emitirCobrancaBancaria(){
   const d=dadosNovaCobranca(),st=document.getElementById('cobStatus'),btn=document.getElementById('btnCobEmitirManual');
   if(!d.cliente_id)return alert('Selecione um cliente cadastrado.');
@@ -6918,7 +6943,15 @@ async function emitirCobrancaBancaria(){
     }
     const payload={...d,numero_nf:String(d.numero_nf||'').trim()||null,referencia:d.referencia||`SOF-${Date.now()}`,status:'pendente_integracao',parcela_numero:1,parcela_total:1,condicao_pagamento:'À vista',data_base:new Date().toISOString().slice(0,10),valor_total_grupo:d.valor,origem:'integracao_bancaria_manual',criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
     let r=await banco.from('cobrancas_bancarias').insert([payload]).select().single();if(r.error)throw r.error;
-    if(d.banco!=='bb'){if(st)st.innerHTML='✅ Cobrança preparada. A emissão real deste banco ainda está em configuração.';await carregarCobrancasBancarias();return;}
+    if(d.banco==='bradesco'){
+      // O registro local criado acima vira a própria parcela operacional do Bradesco.
+      const ret=await emitirBradescoOperacional(r.data,{confirmar:true});
+      const rr=ret?.registro||{};
+      if(!(Number(rr.http_status)>=200&&Number(rr.http_status)<300))throw new Error(`Bradesco respondeu HTTP ${rr.http_status||'—'}. Confira o retorno antes de tentar novamente.`);
+      if(st)st.innerHTML=`✅ Boleto registrado no Bradesco.${rr.nossoNumero_retornado?` Nosso Número: <b>${escaparHtmlEmail(String(rr.nossoNumero_retornado))}</b>.`:''}`;
+      mostrarBalaoSistema?.('Boleto Bradesco emitido','Cobrança registrada e salva no Histórico.');
+      await carregarCobrancasBancarias();return;
+    }
     const ret=await emitirParcelaBbReal(r.data);
     if(st)st.innerHTML=`✅ Boleto registrado no Banco do Brasil.${ret?.emissao?.numeroTituloCliente?` Nosso Número: <b>${escaparHtmlEmail(ret.emissao.numeroTituloCliente)}</b>.`:''}`;
     mostrarBalaoSistema?.('Boleto emitido','Cobrança registrada com sucesso no Banco do Brasil.');
@@ -7090,10 +7123,10 @@ function abrirBoletoBradescoRegistro(id){
   const numeroDoc=String(x.numero_nf||'—');
   const logo=`<img class="logo-bradesco" src="/bradesco-logo.png" alt="Bradesco">`;
   const cab=()=>`<div class="cab">${logo}<div class="banco">237-2</div><div class="ld">${esc(linhaFmt)}</div></div>`;
-  const canhoto=`<section class="canhoto">${cab()}<div class="stubgrid"><div><small>Beneficiário</small><b>${beneficiario}</b></div><div><small>Agência / Cód. Beneficiário</small><b>${agenciaCed}</b></div><div class="motivos" rowspan="4"><b>Comprovante de Entrega</b><small>Motivos de não entrega (para uso da empresa entregadora)</small><span>□ Mudou-se &nbsp;&nbsp; □ Ausente &nbsp;&nbsp; □ Não existe Nº indicado</span><span>□ Não procurado &nbsp; □ Recusado &nbsp; □ Endereço insuficiente</span><span>□ Desconhecido &nbsp; □ Falecido &nbsp; □ Outros (anotar no verso)</span></div><div><small>Pagador</small><b>${esc(x.cliente_nome||'—')}</b></div><div><small>Nosso Número</small><b>${esc(nosso||'—')}</b></div><div><small>Vencimento</small><b>${esc(venc)}</b></div><div><small>Nº do Documento</small><b>${esc(numeroDoc)}</b></div><div><small>Espécie Moeda</small><b>R$</b></div><div><small>Valor do Documento</small><b>${valor}</b></div></div><div class="recebe">Recebi(emos) o bloqueto/Título com as características acima. &nbsp;&nbsp;&nbsp; Data ____________ &nbsp; Assinatura ____________________ &nbsp; Entregador ____________________</div><div class="local">Local de Pagamento: <b>Pagável preferencialmente na Rede Bradesco e Bradesco Expresso</b><span>Data de Processamento: <b>${esc(emissao)}</b></span></div></section>`;
+  const canhoto=`<section class="canhoto"><div class="sof-canhoto"><img src="/assets/sofisticatto-logo.jpeg" alt="Sofisticatto"><span>Canhoto / comprovante do cliente</span></div>${cab()}<div class="stubgrid"><div><small>Beneficiário</small><b>${beneficiario}</b></div><div><small>Agência / Cód. Beneficiário</small><b>${agenciaCed}</b></div><div class="motivos" rowspan="4"><b>Comprovante de Entrega</b><small>Motivos de não entrega (para uso da empresa entregadora)</small><span>□ Mudou-se &nbsp;&nbsp; □ Ausente &nbsp;&nbsp; □ Não existe Nº indicado</span><span>□ Não procurado &nbsp; □ Recusado &nbsp; □ Endereço insuficiente</span><span>□ Desconhecido &nbsp; □ Falecido &nbsp; □ Outros (anotar no verso)</span></div><div><small>Pagador</small><b>${esc(x.cliente_nome||'—')}</b></div><div><small>Nosso Número</small><b>${esc(nosso||'—')}</b></div><div><small>Vencimento</small><b>${esc(venc)}</b></div><div><small>Nº do Documento</small><b>${esc(numeroDoc)}</b></div><div><small>Espécie Moeda</small><b>R$</b></div><div><small>Valor do Documento</small><b>${valor}</b></div></div><div class="recebe">Recebi(emos) o bloqueto/Título com as características acima. &nbsp;&nbsp;&nbsp; Data ____________ &nbsp; Assinatura ____________________ &nbsp; Entregador ____________________</div><div class="local">Local de Pagamento: <b>Pagável preferencialmente na Rede Bradesco e Bradesco Expresso</b><span>Data de Processamento: <b>${esc(emissao)}</b></span></div></section>`;
   const ficha=(titulo,comBarcode)=>`<section class="ficha">${cab()}<div class="tipo">${titulo}</div><div class="row"><div class="cell grow"><small>Local de Pagamento</small><b>Pagável preferencialmente na Rede Bradesco e Bradesco Expresso</b></div><div class="cell venc"><small>Vencimento</small><b>${esc(venc)}</b></div></div><div class="row"><div class="cell grow"><small>Beneficiário</small><b>${beneficiario} - CNPJ: ${cnpjBenef}</b></div><div class="cell venc"><small>Agência / Cód. Beneficiário</small><b>${agenciaCed}</b></div></div><div class="row"><div class="cell"><small>Data do documento</small><b>${esc(emissao)}</b></div><div class="cell"><small>Número do documento</small><b>${esc(numeroDoc)}</b></div><div class="cell"><small>Espécie Documento</small><b>DM</b></div><div class="cell"><small>Aceite</small><b>N</b></div><div class="cell"><small>Data Processamento</small><b>${esc(emissao)}</b></div><div class="cell venc"><small>Nosso Número</small><b>${esc(nosso||'—')}</b></div></div><div class="row"><div class="cell"><small>Uso do Banco</small>&nbsp;</div><div class="cell"><small>CIP</small>&nbsp;</div><div class="cell"><small>Carteira</small><b>${carteira}</b></div><div class="cell"><small>Espécie Moeda</small><b>R$</b></div><div class="cell grow"><small>Quantidade / Valor</small>&nbsp;</div><div class="cell venc"><small>1 (=) Valor do Documento</small><b>${valor}</b></div></div><div class="corpo"><div class="instr"><b>*** VALORES EXPRESSOS EM REAIS ***</b><div class="espaco"></div><div class="dados-pagador"><b>Pagador: ${esc(x.cliente_nome||'—')} - CPF/CNPJ: ${esc(docFmt||'—')}</b><br>${esc(endPag||'—')}<br>${esc(cidPag||'')}</div><div class="dados-beneficiario"><b>Beneficiário Final:</b> ${beneficiario} - CNPJ: ${cnpjBenef}<br>${endBenef}<br>${cidBenef}</div></div><div class="valores"><div>2 (-) Desconto / Abatimento</div><div>3 (-) Outras Deduções</div><div>4 (+) Mora Multa</div><div>5 (+) Outros Acréscimos</div><div>6 (=) Valor Cobrado</div></div></div>${comBarcode?`<div class="bar"><svg class="barcode"></svg></div><div class="rod">Autenticação Mecânica &nbsp;&nbsp; <b>Ficha de Compensação</b></div>`:`<div class="rod">Autenticação Mecânica</div>`}</section>`;
   const original=String(x.pdf_url||'').trim();
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Boleto Bradesco ${esc(numeroDoc)}</title><style>@page{size:A4 portrait;margin:5mm}*{box-sizing:border-box}html,body{margin:0;padding:0}body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:9px}.boleto-page{width:100%;max-width:200mm;margin:0 auto}.aviso,.acoes{max-width:195mm;margin:0 auto 4mm;padding:6px 8px;background:#f6f6f6;border:1px solid #ccc}.acoes{background:#fff;border:0;padding-left:0}.acoes button,.acoes a{display:inline-block;padding:7px 12px;margin-right:6px;border:1px solid #999;background:#fff;color:#111;text-decoration:none;cursor:pointer}.canhoto,.ficha{position:relative;max-width:200mm;margin:0 auto 2mm}.canhoto{border-bottom:1px dashed #555;padding-bottom:3mm}.cab{height:10mm;display:flex;align-items:center;border-bottom:1.5px solid #111}.logo-bradesco{width:35mm;height:auto;max-height:8mm;object-fit:contain;object-position:left center;padding-right:3mm;border-right:1px solid #111}.banco{font-size:20px;font-weight:800;padding:0 12px;border-right:1px solid #111}.ld{font-size:12px;font-weight:800;flex:1;text-align:right;padding-right:3px}.tipo{position:absolute;right:3px;top:11mm;font-weight:bold;font-size:8px;background:#fff;padding-left:3px}.stubgrid{display:grid;grid-template-columns:2fr 1fr 2.4fr;border-bottom:1px solid #555}.stubgrid>div{padding:1.15mm 1.2mm;border-right:1px solid #555;border-bottom:1px solid #777;min-height:7.2mm;overflow:hidden}.stubgrid small,.cell small,.motivos small{display:block;font-size:6.5px;line-height:1.1}.stubgrid b,.cell b{display:block;font-size:8px;line-height:1.15;overflow-wrap:anywhere}.motivos{grid-row:1 / span 3;grid-column:3;display:flex;flex-direction:column;gap:1.2mm}.motivos span{font-size:6.5px;line-height:1.15}.recebe{padding:1.5mm 1mm;border-bottom:1px solid #555;white-space:normal}.local{padding:1.3mm 1mm;min-height:6mm}.local span{float:right}.row{display:flex;border-bottom:1px solid #555;min-height:7.7mm;align-items:stretch}.row .cell:not(.grow):not(.venc){flex:1 1 0;min-width:0}.cell{padding:1.2mm 1mm;border-right:1px solid #555;min-width:18mm;overflow:hidden}.cell:last-child{border-right:0}.cell.grow{flex:1;min-width:0}.cell.venc{width:52mm;flex:0 0 52mm}.corpo{display:flex;height:49mm;border-bottom:1px solid #555}.instr{flex:1;min-width:0;padding:1.5mm 1mm;line-height:1.3}.espaco{height:10mm}.dados-pagador{padding:1.8mm 1mm 2.2mm;border-bottom:1px solid #777}.dados-beneficiario{padding:2.2mm 1mm 0}.valores{width:52mm;flex:0 0 52mm;border-left:1px solid #555}.valores div{height:8mm;border-bottom:1px solid #555;padding:1.3mm 1mm}.bar{height:17mm;padding:1.5mm 4mm 0}.barcode{width:105mm;height:13mm}.rod{text-align:right;padding:2px;font-size:8px}.corte{max-width:200mm;margin:.7mm auto 1.2mm;border-top:1px dashed #555;text-align:right;font-size:7px;padding-top:1px}@media print{.aviso,.acoes{display:none!important}.boleto-page{width:200mm;height:286mm;max-height:286mm;overflow:hidden;margin:0 auto;break-inside:avoid;page-break-inside:avoid;break-after:page;page-break-after:always}.boleto-page:last-of-type{break-after:auto;page-break-after:auto}.canhoto,.ficha{max-width:none}.corte{max-width:none}.bar,.barcode{break-inside:avoid;page-break-inside:avoid}}</style><script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script></head><body><div class="aviso"><b>V257 — boleto registrado no Bradesco.</b> Esta tela não realiza nova emissão. O layout usa os dados oficiais armazenados no Histórico. ${original?'Também existe um endereço de boleto/PDF retornado pelo banco.':'A resposta atual do banco não trouxe URL/PDF original; por isso a via abaixo é montada com os dados oficiais retornados.'}</div><main class="boleto-page">${canhoto}<div class="corte">✂ corte/destaque</div>${ficha('Recibo do Pagador',false)}<div class="corte">✂ corte/destaque</div>${ficha('Ficha de Compensação',true)}</main><div class="acoes"><button onclick="window.print()">🖨 Imprimir boleto completo</button>${original?`<a href="${esc(original)}" target="_blank" rel="noopener">🏦 Abrir boleto original retornado pelo Bradesco</a>`:''}</div><script>window.onload=function(){try{document.querySelectorAll('.barcode').forEach(function(el){JsBarcode(el,'${barras44}',{format:'ITF',displayValue:false,height:48,width:1.25,margin:0});});}catch(e){console.error(e)}}<\/script></body></html>`);
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Boleto Bradesco ${esc(numeroDoc)}</title><style>@page{size:A4 portrait;margin:5mm}*{box-sizing:border-box}html,body{margin:0;padding:0}body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:9px}.boleto-page{width:100%;max-width:200mm;margin:0 auto}.aviso,.acoes{max-width:195mm;margin:0 auto 4mm;padding:6px 8px;background:#f6f6f6;border:1px solid #ccc}.acoes{background:#fff;border:0;padding-left:0}.acoes button,.acoes a{display:inline-block;padding:7px 12px;margin-right:6px;border:1px solid #999;background:#fff;color:#111;text-decoration:none;cursor:pointer}.canhoto,.ficha{position:relative;max-width:200mm;margin:0 auto 2mm}.canhoto{border-bottom:1px dashed #555;padding-bottom:3mm}.sof-canhoto{height:9mm;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #777;padding:0 1mm}.sof-canhoto img{max-width:32mm;max-height:7mm;object-fit:contain}.sof-canhoto span{font-size:7px;font-weight:bold}.cab{height:10mm;display:flex;align-items:center;border-bottom:1.5px solid #111}.logo-bradesco{width:35mm;height:auto;max-height:8mm;object-fit:contain;object-position:left center;padding-right:3mm;border-right:1px solid #111}.banco{font-size:20px;font-weight:800;padding:0 12px;border-right:1px solid #111}.ld{font-size:12px;font-weight:800;flex:1;text-align:right;padding-right:3px}.tipo{position:absolute;right:3px;top:11mm;font-weight:bold;font-size:8px;background:#fff;padding-left:3px}.stubgrid{display:grid;grid-template-columns:2fr 1fr 2.4fr;border-bottom:1px solid #555}.stubgrid>div{padding:1.15mm 1.2mm;border-right:1px solid #555;border-bottom:1px solid #777;min-height:7.2mm;overflow:hidden}.stubgrid small,.cell small,.motivos small{display:block;font-size:6.5px;line-height:1.1}.stubgrid b,.cell b{display:block;font-size:8px;line-height:1.15;overflow-wrap:anywhere}.motivos{grid-row:1 / span 3;grid-column:3;display:flex;flex-direction:column;gap:1.2mm}.motivos span{font-size:6.5px;line-height:1.15}.recebe{padding:1.5mm 1mm;border-bottom:1px solid #555;white-space:normal}.local{padding:1.3mm 1mm;min-height:6mm}.local span{float:right}.row{display:flex;border-bottom:1px solid #555;min-height:7.7mm;align-items:stretch}.row .cell:not(.grow):not(.venc){flex:1 1 0;min-width:0}.cell{padding:1.2mm 1mm;border-right:1px solid #555;min-width:18mm;overflow:hidden}.cell:last-child{border-right:0}.cell.grow{flex:1;min-width:0}.cell.venc{width:52mm;flex:0 0 52mm}.corpo{display:flex;height:49mm;border-bottom:1px solid #555}.instr{flex:1;min-width:0;padding:1.5mm 1mm;line-height:1.3}.espaco{height:10mm}.dados-pagador{padding:1.8mm 1mm 2.2mm;border-bottom:1px solid #777}.dados-beneficiario{padding:2.2mm 1mm 0}.valores{width:52mm;flex:0 0 52mm;border-left:1px solid #555}.valores div{height:8mm;border-bottom:1px solid #555;padding:1.3mm 1mm}.bar{height:17mm;padding:1.5mm 4mm 0}.barcode{width:105mm;height:13mm}.rod{text-align:right;padding:2px;font-size:8px}.corte{max-width:200mm;margin:.7mm auto 1.2mm;border-top:1px dashed #555;text-align:right;font-size:7px;padding-top:1px}@media print{.aviso,.acoes{display:none!important}.boleto-page{width:200mm;height:286mm;max-height:286mm;overflow:hidden;margin:0 auto;break-inside:avoid;page-break-inside:avoid;break-after:page;page-break-after:always}.boleto-page:last-of-type{break-after:auto;page-break-after:auto}.canhoto,.ficha{max-width:none}.corte{max-width:none}.bar,.barcode{break-inside:avoid;page-break-inside:avoid}}</style><script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script></head><body><div class="aviso"><b>V258 — boleto registrado no Bradesco.</b> Esta tela não realiza nova emissão. O layout usa os dados oficiais armazenados no Histórico. ${original?'Também existe um endereço de boleto/PDF retornado pelo banco.':'A resposta atual do banco não trouxe URL/PDF original; por isso a via abaixo é montada com os dados oficiais retornados.'}</div><main class="boleto-page">${canhoto}<div class="corte">✂ corte/destaque</div>${ficha('Recibo do Pagador',false)}<div class="corte">✂ corte/destaque</div>${ficha('Ficha de Compensação',true)}</main><div class="acoes"><button onclick="window.print()">🖨 Imprimir boleto completo</button>${original?`<a href="${esc(original)}" target="_blank" rel="noopener">🏦 Abrir boleto original retornado pelo Bradesco</a>`:''}</div><script>window.onload=function(){try{document.querySelectorAll('.barcode').forEach(function(el){JsBarcode(el,'${barras44}',{format:'ITF',displayValue:false,height:48,width:1.25,margin:0});});}catch(e){console.error(e)}}<\/script></body></html>`);
   w.document.close();
 }
 function renderHistoricoCobrancas(){
@@ -7596,9 +7629,10 @@ async function salvarPreparacaoBoletoRelatorio(){
 }
 async function salvarPreparacaoBoletoRelatorioV175(){
   if(!boletoRelatorioAtual)return;
-  if(codigoBancoCobranca(boletoRelatorioAtual.banco)==="bb"){
-    const ja=await banco.from("cobrancas_bancarias").select("id,nosso_numero,status").eq("relatorio_id",boletoRelatorioAtual.id).eq("status","aberto").limit(1);
-    if(!ja.error&&ja.data?.length)return alert("Este relatório já possui boleto(s) emitido(s) no Banco do Brasil. Para imprimir ou salvar, use o Histórico da Integração Bancária. O sistema bloqueou uma nova emissão para evitar duplicidade.");
+  if(["bb","bradesco"].includes(codigoBancoCobranca(boletoRelatorioAtual.banco))){
+    const codAtual=codigoBancoCobranca(boletoRelatorioAtual.banco);
+    const ja=await banco.from("cobrancas_bancarias").select("id,nosso_numero,status").eq("relatorio_id",boletoRelatorioAtual.id).eq("banco",codAtual).eq("status","aberto").limit(1);
+    if(!ja.error&&ja.data?.length)return alert(`Este relatório já possui boleto(s) emitido(s) no ${codAtual==='bradesco'?'Bradesco':'Banco do Brasil'}. Para imprimir, use o Histórico da Integração Bancária. Uma nova emissão foi bloqueada para evitar duplicidade.`);
   }
   const faltando=camposObrigatoriosBoleto();
   if(faltando.length)return alert("Complete os dados obrigatórios antes de continuar:\n\n• "+faltando.join("\n• "));
@@ -7662,7 +7696,7 @@ async function salvarPreparacaoBoletoRelatorioV175(){
     email:cli.email,
     banco:codigoBancoCobranca(boletoRelatorioAtual.banco),
     banco_nome:boletoRelatorioAtual.banco,
-    tipo:"boleto_pix",
+    tipo:codigoBancoCobranca(boletoRelatorioAtual.banco)==="bradesco"?"boleto":"boleto_pix",
     numero_nf:numeroTituloBase||null,
     referencia:`REL-${boletoRelatorioAtual.id}`,
     descricao:document.getElementById("bolDescricao").value.trim()||null,
@@ -7706,16 +7740,27 @@ async function salvarPreparacaoBoletoRelatorioV175(){
   boletoCobrancaAtual=r.data?.[0]||null;
   const rows=r.data||[];
   const codBanco=codigoBancoCobranca(boletoRelatorioAtual.banco);
-  if(codBanco!=="bb"){
-    document.getElementById("bolModalStatus").innerHTML=`✅ <b>${linhas.length} cobrança(s)</b> preparada(s) para <b>${nomeBancoCobranca(boletoRelatorioAtual.banco)}</b>. A emissão real do Bradesco continua em configuração; nenhum boleto foi registrado no banco.`;
-    mostrarBalaoSistema?.("Cobranças preparadas",`${cli.nome} • ${linhas.length} parcela(s) • ${formatarMoeda(valorTotal)}`);
+  if(codBanco==="bradesco"){
+    const confirmar=confirm(`Serão registrados ${rows.length} boleto(s) REAIS no Bradesco para ${cli.nome}, total de ${formatarMoeda(valorTotal)}.\n\nCada parcela terá Seu Nº próprio e ficará salva no Histórico. Deseja continuar?`);
+    if(!confirmar){
+      document.getElementById("bolModalStatus").innerHTML=`✅ Parcelas salvas. <b>Nenhum boleto foi emitido.</b> Você pode emitir depois pela fila em massa.`;
+    }else{
+      const palavra=prompt('Digite exatamente EMITIR BRADESCO para confirmar este grupo:');
+      if(String(palavra||'').trim().toUpperCase()!=='EMITIR BRADESCO'){
+        document.getElementById("bolModalStatus").innerHTML=`✅ Parcelas salvas. Emissão Bradesco cancelada antes do envio.`;
+      }else{
+        let ok=0,erros=[];
+        for(const p of rows){
+          try{const ret=await emitirBradescoOperacional(p,{confirmar:false});const rr=ret?.registro||{};if(Number(rr.http_status)>=200&&Number(rr.http_status)<300)ok++;else throw new Error(`HTTP ${rr.http_status||'—'}`);}
+          catch(e){erros.push(`Parcela ${p.parcela_numero||1}/${p.parcela_total||rows.length}: ${e.message||e}`);}
+        }
+        document.getElementById("bolModalStatus").innerHTML=`${erros.length?'⚠️':'✅'} Bradesco: <b>${ok}/${rows.length}</b> boleto(s) emitido(s) e registrado(s) no Histórico.${erros.length?`<br>${erros.map(escaparHtmlEmail).join('<br>')}`:''}`;
+      }
+    }
   }else{
     const confirmar=confirm(`Serão registrados ${rows.length} boleto(s) REAIS no Banco do Brasil para ${cli.nome}, total de ${formatarMoeda(valorTotal)}.\n\nDeseja continuar?`);
-    if(!confirmar){
-      document.getElementById("bolModalStatus").innerHTML=`✅ Parcelas salvas. <b>Nenhum boleto foi emitido.</b> Você pode voltar depois e emitir.`;
-    }else{
-      await emitirGrupoBoletoRelatorioReal(rows,{rel:boletoRelatorioAtual,cliente:cli});
-    }
+    if(!confirmar){document.getElementById("bolModalStatus").innerHTML=`✅ Parcelas salvas. <b>Nenhum boleto foi emitido.</b> Você pode voltar depois e emitir.`;}
+    else{await emitirGrupoBoletoRelatorioReal(rows,{rel:boletoRelatorioAtual,cliente:cli});}
   }
   await carregarParcelasRelatoriosFinanceiro();
   montarTabela();
@@ -7728,7 +7773,7 @@ async function salvarPreparacaoBoletoRelatorioV175(){
 // ============================================================
 // V155 — EMISSÃO REAL BB + PDF/IMPRESSÃO + HISTÓRICO
 // ============================================================
-function bancoEmissaoRealDisponivel(nome){return codigoBancoCobranca(nome)==="bb";}
+function bancoEmissaoRealDisponivel(nome){const c=codigoBancoCobranca(nome);return c==="bb"||c==="bradesco";}
 function numeroTituloParcelaBb(p){
   const base=String(p?.numero_nf||p?.referencia||'').trim().slice(0,15);
   const total=Number(p?.parcela_total||1), n=Number(p?.parcela_numero||1);
@@ -8373,7 +8418,7 @@ async function limparDuplicidadesPendentesMassaV209(rows){
 }
 
 async function prepararRelatorioParaFilaMassaV176(rel){
-  if(!rel||!rel.id||!rel.banco||codigoBancoCobranca(rel.banco)!=='bb')return false;
+  if(!rel||!rel.id||!rel.banco||!['bb','bradesco'].includes(codigoBancoCobranca(rel.banco)))return false;
   const trava=String(rel.id);
   if(cobrancaMassaPreparandoRelatoriosV209.has(trava))return false;
   cobrancaMassaPreparandoRelatoriosV209.add(trava);
@@ -8389,10 +8434,11 @@ async function prepararRelatorioParaFilaMassaV176(rel){
   const cli=(emailClientes||[]).find(c=>String(c.id)===String(rel.cliente_id));
   if(!cli||!(cli.cpf_cnpj||cli.cnpj||cli.cpf))return false;
   const numeroNf=String(rel.numero_nf).trim();
-  const ja=await banco.from('cobrancas_bancarias').select('id,relatorio_id,numero_nf,nosso_numero,status').eq('banco','bb').eq('numero_nf',numeroNf).neq('status','cancelado');
+  const codBanco=codigoBancoCobranca(rel.banco);
+  const ja=await banco.from('cobrancas_bancarias').select('id,relatorio_id,numero_nf,nosso_numero,status').eq('banco',codBanco).eq('numero_nf',numeroNf).neq('status','cancelado');
   if(!ja.error&&(ja.data||[]).some(x=>String(x.relatorio_id)!==String(rel.id)))return false;
   const grupoId=crypto.randomUUID();
-  const comuns={relatorio_id:rel.id,grupo_id:grupoId,cliente_id:cli.id,cliente_nome:cli.nome||rel.nome,cpf_cnpj:cli.cpf_cnpj||cli.cnpj||cli.cpf||'',endereco:cli.endereco||cli.logradouro||'',numero:cli.numero||'',complemento:cli.complemento||'',bairro:cli.bairro||'',cep:cli.cep||'',cidade:cli.cidade||'',uf:cli.uf||'',email:cli.email||'',banco:'bb',banco_nome:rel.banco,tipo:'boleto_pix',numero_nf:numeroNf,descricao:`Cobrança ${rel.nome||''}`,multa_percentual:2,juros_percentual:5,condicao_pagamento:rel.condicao_pagamento||'Personalizado',data_base:rel.data_base||new Date().toISOString().slice(0,10),valor_total_grupo:valorParaNumero(rel.valor||0),status:'pendente_integracao',origem:'relatorio_financeiro',criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
+  const comuns={relatorio_id:rel.id,grupo_id:grupoId,cliente_id:cli.id,cliente_nome:cli.nome||rel.nome,cpf_cnpj:cli.cpf_cnpj||cli.cnpj||cli.cpf||'',endereco:cli.endereco||cli.logradouro||'',numero:cli.numero||'',complemento:cli.complemento||'',bairro:cli.bairro||'',cep:cli.cep||'',cidade:cli.cidade||'',uf:cli.uf||'',email:cli.email||'',banco:codBanco,banco_nome:rel.banco,tipo:codBanco==='bb'?'boleto_pix':'boleto',numero_nf:numeroNf,descricao:`Cobrança ${rel.nome||''}`,multa_percentual:codBanco==='bb'?2:0,juros_percentual:codBanco==='bb'?5:0,condicao_pagamento:rel.condicao_pagamento||'Personalizado',data_base:rel.data_base||new Date().toISOString().slice(0,10),valor_total_grupo:valorParaNumero(rel.valor||0),status:'pendente_integracao',origem:'relatorio_financeiro',criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
   const linhas=parcelas.map((x,i)=>({...comuns,valor:Number(x.valor||0),vencimento:x.vencimento,parcela_numero:i+1,parcela_total:parcelas.length,prazo_dias:Number(x.prazo_dias??x.prazo??0),referencia:`REL-${rel.id}-${i+1}DE${parcelas.length}`}));
   if(linhas.some(x=>!x.vencimento||!(x.valor>0)))return false;
   const r=await banco.from('cobrancas_bancarias').insert(linhas).select();
@@ -8451,14 +8497,14 @@ function renderFilaCobrancaMassa(){
     let situacao="";
     if(!g.rel.banco)situacao='<span class="cob-massa-status falta">Banco não definido</span>';
     else if(!bancoSuportaCobrancaIntegrada(g.rel.banco))situacao='<span class="cob-massa-status falta">Banco sem integração</span>';
-    else if(!bancoEmissaoRealDisponivel(g.rel.banco))situacao='<span class="cob-massa-status falta">Bradesco • integração em configuração</span>';
+    else if(!bancoEmissaoRealDisponivel(g.rel.banco))situacao='<span class="cob-massa-status falta">Banco ainda não liberado para emissão</span>';
     else if(!g.parcelas.length){
       const falt=[];if(!g.rel.cliente_id)falt.push('cliente');if(!g.rel.numero_nf)falt.push('NF/Título');if(!(Array.isArray(g.rel.parcelas_json)&&g.rel.parcelas_json.length))falt.push('parcelas');
       situacao=`<span class="cob-massa-status preparar">${falt.length?'Completar '+falt.join(', '):'Definir parcelas'}</span>`;
     }
     else if(g.parcelas.every(p=>p.status==='aberto'))situacao='<span class="cob-massa-status pronto">BB • já emitido</span>';
     else if(g.parcelas.some(p=>p.status!=='pendente_integracao'))situacao='<span class="cob-massa-status falta">BB • lote parcialmente processado</span>';
-    else situacao='<span class="cob-massa-status pronto">BB • pronto para emissão real</span>';
+    else situacao=`<span class="cob-massa-status pronto">${codigoBancoCobranca(g.rel.banco)==='bradesco'?'Bradesco':'BB'} • pronto para emissão real</span>`;
     const cond=g.parcelas.length?`${escaparHtmlEmail(g.condicao||"Personalizado")} • ${g.parcelas.length} boleto(s)`:'—';
     const acao=g.rel.banco&&bancoSuportaCobrancaIntegrada(g.rel.banco)
       ?`<button class="btn azul" onclick="abrirEmissaoBoletoRelatorio('${g.rel.id}')">${g.parcelas.length?'Editar parcelas':'Definir parcelas'}</button>`:'—';
@@ -8468,7 +8514,7 @@ function renderFilaCobrancaMassa(){
 }
 function checksCobrancaMassa(){return Array.from(document.querySelectorAll('.cob-massa-check'));}
 function selecionarProntosCobrancaMassa(){
-  // V176: selecionar somente bancos com emissão REAL disponível. Bradesco nunca entra no lote enquanto não houver integração própria.
+  // V258: seleciona BB e Bradesco quando a emissão real estiver disponível.
   checksCobrancaMassa().forEach(c=>{
     const rel=(cobrancaMassaRelatorios||[]).find(r=>String(r.id)===String(c.dataset.id));
     c.checked=Boolean(rel&&bancoEmissaoRealDisponivel(rel.banco));
@@ -8515,50 +8561,42 @@ function nomeArquivoBoletoMassa(g,p){
   return `${seguro} - ${parc} - ${Number(p.valor||0).toFixed(2).replace('.',',')}.pdf`;
 }
 async function emitirBoletosEmMassa(){
-  const selecionados=gruposSelecionadosCobrancaMassa();
-  // V176 proteção definitiva: o lote de emissão real aceita exclusivamente Banco do Brasil.
-  // Mesmo que um checkbox seja manipulado pelo navegador, Bradesco não chega ao motor bancário.
-  const bloqueados=selecionados.filter(g=>!bancoEmissaoRealDisponivel(g.rel?.banco));
-  const grupos=ordemCobrancaMassa(selecionados.filter(g=>bancoEmissaoRealDisponivel(g.rel?.banco)));
-  if(bloqueados.length){
-    console.warn('Emissão em massa: bancos sem integração real ignorados',bloqueados.map(g=>({id:g.rel?.id,banco:g.rel?.banco})));
-  }
-  if(!grupos.length)return alert('Não há boletos do Banco do Brasil selecionados e prontos para emissão.\n\nBradesco está com a integração pendente e não será emitido.');
-
+  const grupos=ordemCobrancaMassa(gruposSelecionadosCobrancaMassa());
+  if(!grupos.length)return alert('Não há boletos selecionados e prontos para emissão.');
+  const totalBoletos=grupos.reduce((n,g)=>n+g.parcelas.length,0), totalValor=grupos.reduce((n,g)=>n+g.valorTotal,0);
+  const qtdBB=grupos.filter(g=>codigoBancoCobranca(g.rel.banco)==='bb').reduce((n,g)=>n+g.parcelas.length,0);
+  const qtdBR=grupos.filter(g=>codigoBancoCobranca(g.rel.banco)==='bradesco').reduce((n,g)=>n+g.parcelas.length,0);
+  if(!confirm(`EMISSÃO EM MASSA — CONFERÊNCIA FINAL\n\nClientes: ${grupos.length}\nBoletos: ${totalBoletos}\nBanco do Brasil: ${qtdBB}\nBradesco: ${qtdBR}\nTotal: ${cobMoeda(totalValor)}\n\nCada parcela será emitida uma única vez e registrada no Histórico. Continuar?`))return;
+  const palavra=prompt('Digite exatamente EMITIR LOTE para confirmar a emissão real dos boletos selecionados:');
+  if(String(palavra||'').trim().toUpperCase()!=='EMITIR LOTE')return alert('Emissão em massa cancelada. Nenhum novo envio foi iniciado.');
   const pasta=await escolherPastaCobrancaMassa();
-  if(window.showDirectoryPicker && !pasta)return; // usuário cancelou o seletor
-
-  // V155: Banco do Brasil está ligado à emissão real. Bradesco permanece bloqueado até a integração própria.
-  if(typeof window.emitirBoletoBancoIntegrado!=='function')return alert('Motor bancário indisponível nesta versão. Nenhum boleto foi emitido.');
-
-  const btn=document.getElementById('btnEmitirMassa');if(btn){btn.disabled=true;btn.textContent='Emitindo...';}
+  if(window.showDirectoryPicker && !pasta)return;
+  const btn=document.getElementById('btnEmitirMassa');if(btn){btn.disabled=true;btn.textContent='Emitindo lote...';}
   const resultados=[];
   try{
     for(const g of grupos){
-      const blobsGrupo=[];
-      const okGrupo=[];
+      const cod=codigoBancoCobranca(g.rel.banco),blobsGrupo=[],okGrupo=[];
       for(const p of g.parcelas){
         try{
-          const ret=await window.emitirBoletoBancoIntegrado(p,g);
-          let blob=ret?.blob||null;
-          if(!blob&&ret?.base64){const bin=atob(String(ret.base64).replace(/^data:application\/pdf;base64,/,''));const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);blob=new Blob([arr],{type:'application/pdf'});}
-          if(blob)blobsGrupo.push(blob);
-          const rr={ok:true,g,p,ret,blob};resultados.push(rr);okGrupo.push(rr);
+          let ret,blob=null;
+          if(cod==='bb'){
+            if(typeof window.emitirBoletoBancoIntegrado!=='function')throw new Error('Motor Banco do Brasil indisponível.');
+            ret=await window.emitirBoletoBancoIntegrado(p,g);blob=ret?.blob||null;
+            if(!blob&&ret?.base64){const bin=atob(String(ret.base64).replace(/^data:application\/pdf;base64,/,''));const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);blob=new Blob([arr],{type:'application/pdf'});}
+          }else if(cod==='bradesco'){
+            ret=await emitirBradescoOperacional(p,{confirmar:false});
+            const rr=ret?.registro||{};if(!(Number(rr.http_status)>=200&&Number(rr.http_status)<300))throw new Error(`Bradesco HTTP ${rr.http_status||'—'}. O item não será repetido automaticamente.`);
+          }else throw new Error('Banco sem integração de emissão.');
+          if(blob)blobsGrupo.push(blob);const rr={ok:true,g,p,ret,blob};resultados.push(rr);okGrupo.push(rr);
         }catch(e){resultados.push({ok:false,g,p,erro:e});}
       }
-      // V165: um único PDF por cliente/pedido, com uma página por parcela na ordem 1/N, 2/N...
-      if(pasta&&blobsGrupo.length){
-        const combinado=await mesclarPdfsBb(blobsGrupo);
-        const nome=nomePdfImpressaoNormalBb(g.parcelas);
-        await salvarBlobNaPastaCobrancaMassa(pasta,nome,combinado);
-        okGrupo.forEach(x=>x.blobCombinado=combinado);
-      }
+      if(pasta&&cod==='bb'&&blobsGrupo.length){const combinado=await mesclarPdfsBb(blobsGrupo);const nome=nomePdfImpressaoNormalBb(g.parcelas);await salvarBlobNaPastaCobrancaMassa(pasta,nome,combinado);okGrupo.forEach(x=>x.blobCombinado=combinado);}
     }
     cobrancaMassaArquivosEmitidos=resultados.filter(x=>x.ok&&x.blob);
-    const ok=resultados.filter(x=>x.ok).length,erros=resultados.length-ok;
-    const qtdBradesco=(cobrancaMassaRelatorios||[]).filter(r=>codigoBancoCobranca(r.banco)==='bradesco').length;
-    mostrarBalaoSistema?.('Emissão em massa concluída',`${ok} boleto(s) BB emitido(s)${erros?` • ${erros} com erro`:''}${qtdBradesco?` • ${qtdBradesco} relatório(s) Bradesco ignorado(s) (integração pendente)`:''}.`);
-    await carregarFilaCobrancaMassa();
+    const ok=resultados.filter(x=>x.ok).length,erros=resultados.length-ok,okBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco').length,okBB=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bb').length;
+    mostrarBalaoSistema?.('Emissão em massa concluída',`${ok} boleto(s) emitido(s): ${okBB} BB • ${okBR} Bradesco${erros?` • ${erros} com erro`:''}. Todos os aceitos ficam no Histórico.`);
+    if(erros){const msg=resultados.filter(x=>!x.ok).map(x=>`${x.g.rel.nome} • parcela ${x.p.parcela_numero||1}/${x.p.parcela_total||1}: ${x.erro?.message||x.erro}`).join('\n');alert(`Lote concluído com ${erros} erro(s). Os itens com erro NÃO serão repetidos automaticamente.\n\n${msg.slice(0,3000)}`);}
+    await carregarFilaCobrancaMassa();await carregarCobrancasBancarias();
   }finally{if(btn){btn.disabled=false;btn.textContent='💳 Emitir em massa';}}
 }
 
