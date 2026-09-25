@@ -7171,7 +7171,11 @@ function abrirBoletoBradescoRegistro(id){
   const beneficiario='SOFISTICATTO COSMETICOS', cnpjBenef='05.451.985/0001-95';
   const agenciaCed='2274-8 / 0280052-7', carteira='09';
   const endBenef='RUA 4 N 217 QD 35 LOTE 14E - VILA ABAJA', cidBenef='74550-470 - GOIANIA - GO';
-  const numeroDoc=String(x.numero_nf||'—');
+  // V265: o Nº do Documento exibido deve refletir o Seu Nº (nuCliente) enviado ao Bradesco.
+  // Mantemos numero_nf sem sufixo para agrupar/imprimir todas as parcelas do mesmo pedido.
+  // Para históricos anteriores, reconstruímos o identificador pela parcela (ex.: 56002-01 / 56002-02).
+  const refBradesco=String(x.referencia||'').match(/^BRADESCO-(.+)$/i);
+  const numeroDoc=refBradesco?.[1] || seuNumeroBradescoOperacional(x.numero_nf,x.parcela_numero,x.parcela_total) || String(x.numero_nf||'—');
   const logo=`<img class="logo-bradesco" src="/bradesco-logo.png" alt="Bradesco">`;
   const cab=()=>`<div class="cab">${logo}<div class="banco">237-2</div><div class="ld">${esc(linhaFmt)}</div></div>`;
   const canhoto=`<section class="canhoto"><div class="sof-canhoto"><img src="/assets/sofisticatto-logo.jpeg" alt="Sofisticatto"><span>Canhoto / comprovante do cliente</span></div>${cab()}<div class="stubgrid"><div><small>Beneficiário</small><b>${beneficiario}</b></div><div><small>Agência / Cód. Beneficiário</small><b>${agenciaCed}</b></div><div class="motivos" rowspan="4"><b>Comprovante de Entrega</b><small>Motivos de não entrega (para uso da empresa entregadora)</small><span>□ Mudou-se &nbsp;&nbsp; □ Ausente &nbsp;&nbsp; □ Não existe Nº indicado</span><span>□ Não procurado &nbsp; □ Recusado &nbsp; □ Endereço insuficiente</span><span>□ Desconhecido &nbsp; □ Falecido &nbsp; □ Outros (anotar no verso)</span></div><div><small>Pagador</small><b>${esc(x.cliente_nome||'—')}</b></div><div><small>Nosso Número</small><b>${esc(nosso||'—')}</b></div><div><small>Vencimento</small><b>${esc(venc)}</b></div><div><small>Nº do Documento</small><b>${esc(numeroDoc)}</b></div><div><small>Espécie Moeda</small><b>R$</b></div><div><small>Valor do Documento</small><b>${valor}</b></div></div><div class="recebe">Recebi(emos) o bloqueto/Título com as características acima. &nbsp;&nbsp;&nbsp; Data ____________ &nbsp; Assinatura ____________________ &nbsp; Entregador ____________________</div><div class="local">Local de Pagamento: <b>Pagável preferencialmente na Rede Bradesco e Bradesco Expresso</b><span>Data de Processamento: <b>${esc(emissao)}</b></span></div></section>`;
