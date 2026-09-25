@@ -389,10 +389,23 @@ async function carregarParcelasRelatoriosFinanceiro(){
     parcelasRelatoriosFinanceiro=r.error?[]:(r.data||[]);
   }catch(e){parcelasRelatoriosFinanceiro=[];console.warn("Parcelas no relatório:",e)}
 }
+// V261 — concilia relatório com cobranças já emitidas mesmo quando o registro antigo
+// não recebeu relatorio_id. Usa banco + NF/Título como chave segura de fallback.
+function cobrancasDoRelatorioV261(rel,fonte){
+  if(!rel)return [];
+  const rows=(fonte||[]).filter(x=>x&&x.status!=="cancelado");
+  let ps=rows.filter(x=>String(x.relatorio_id||"")===String(rel.id||""));
+  if(ps.length)return ps.sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0));
+  const nf=String(rel.numero_nf||"").replace(/\s+/g,"").toUpperCase();
+  const bc=codigoBancoCobranca(rel.banco);
+  if(!nf||!bc)return [];
+  ps=rows.filter(x=>String(x.banco||"")===bc && String(x.numero_nf||"").replace(/\s+/g,"").toUpperCase()===nf);
+  return ps.sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0));
+}
 function resumoParcelasRelatorioFinanceiro(relatorioId){
-  const ps=(parcelasRelatoriosFinanceiro||[]).filter(x=>String(x.relatorio_id)===String(relatorioId)&&x.status!=="cancelado").sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0));
+  const rel=(todosBoletos||[]).find(x=>String(x.id)===String(relatorioId));
+  const ps=cobrancasDoRelatorioV261(rel,parcelasRelatoriosFinanceiro);
   if(!ps.length){
-    const rel=(todosBoletos||[]).find(x=>String(x.id)===String(relatorioId));
     const prev=Array.isArray(rel?.parcelas_json)?rel.parcelas_json:[];
     if(!prev.length)return '<span class="rel-parcelas-vazio">—</span>';
     const cond=rel?.condicao_pagamento||"Personalizado";
@@ -8498,7 +8511,8 @@ async function carregarFilaCobrancaMassa(){
   }
 }
 function parcelasDoRelatorioMassa(id){
-  return deduplicarParcelasMassaV209((cobrancaMassaPreparadas||[]).filter(x=>String(x.relatorio_id)===String(id)&&x.status!=="cancelado")).sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0));
+  const rel=(cobrancaMassaRelatorios||[]).find(r=>String(r.id)===String(id));
+  return deduplicarParcelasMassaV209(cobrancasDoRelatorioV261(rel,cobrancaMassaPreparadas));
 }
 function dadosGrupoCobrancaMassa(rel){
   const parcelas=parcelasDoRelatorioMassa(rel.id);
@@ -8518,7 +8532,7 @@ function renderFilaCobrancaMassa(){
       const falt=[];if(!g.rel.cliente_id)falt.push('cliente');if(!g.rel.numero_nf)falt.push('NF/Título');if(!(Array.isArray(g.rel.parcelas_json)&&g.rel.parcelas_json.length))falt.push('parcelas');
       situacao=`<span class="cob-massa-status preparar">${falt.length?'Completar '+falt.join(', '):'Definir parcelas'}</span>`;
     }
-    else if(g.parcelas.every(p=>p.status==='aberto'))situacao='<span class="cob-massa-status pronto">BB • já emitido</span>';
+    else if(g.parcelas.every(p=>['aberto','pago','vencido'].includes(p.status)))situacao=`<span class="cob-massa-status pronto">${codigoBancoCobranca(g.rel.banco)==='bradesco'?'Bradesco':'BB'} • já emitido</span>`;
     else if(g.parcelas.some(p=>p.status!=='pendente_integracao'))situacao='<span class="cob-massa-status falta">BB • lote parcialmente processado</span>';
     else situacao=`<span class="cob-massa-status pronto">${codigoBancoCobranca(g.rel.banco)==='bradesco'?'Bradesco':'BB'} • pronto para emissão real</span>`;
     const cond=g.parcelas.length?`${escaparHtmlEmail(g.condicao||"Personalizado")} • ${g.parcelas.length} boleto(s)`:'—';
