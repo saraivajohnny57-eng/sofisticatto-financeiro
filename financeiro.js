@@ -7732,10 +7732,13 @@ async function salvarPreparacaoBoletoRelatorio(){
 }
 async function salvarPreparacaoBoletoRelatorioV175(){
   if(!boletoRelatorioAtual)return;
-  if(["bb","bradesco"].includes(codigoBancoCobranca(boletoRelatorioAtual.banco))){
-    const codAtual=codigoBancoCobranca(boletoRelatorioAtual.banco);
-    const ja=await banco.from("cobrancas_bancarias").select("id,nosso_numero,status").eq("relatorio_id",boletoRelatorioAtual.id).eq("banco",codAtual).eq("status","aberto").limit(1);
-    if(!ja.error&&ja.data?.length)return alert(`Este relatório já possui boleto(s) emitido(s) no ${codAtual==='bradesco'?'Bradesco':'Banco do Brasil'}. Para imprimir, use o Histórico da Integração Bancária. Uma nova emissão foi bloqueada para evitar duplicidade.`);
+  // V266 — recuperação segura de emissão parcial.
+  // BB continua bloqueando o grupo quando já existe título emitido.
+  // Bradesco pode reabrir o pedido: as parcelas confirmadas são preservadas e
+  // somente as parcelas ainda pendentes/rejeitadas serão enviadas novamente.
+  if(codigoBancoCobranca(boletoRelatorioAtual.banco)==="bb"){
+    const ja=await banco.from("cobrancas_bancarias").select("id,nosso_numero,status").eq("relatorio_id",boletoRelatorioAtual.id).eq("banco","bb").eq("status","aberto").limit(1);
+    if(!ja.error&&ja.data?.length)return alert(`Este relatório já possui boleto(s) emitido(s) no Banco do Brasil. Para imprimir, use o Histórico da Integração Bancária. Uma nova emissão foi bloqueada para evitar duplicidade.`);
   }
   const faltando=camposObrigatoriosBoleto();
   if(faltando.length)return alert("Complete os dados obrigatórios antes de continuar:\n\n• "+faltando.join("\n• "));
@@ -7837,25 +7840,44 @@ async function salvarPreparacaoBoletoRelatorioV175(){
   }));
 
   const codBanco=codigoBancoCobranca(boletoRelatorioAtual.banco);
+  let linhasParaInserir=linhas;
+  let bradescoJaConfirmadas=[];
 
-  // V260: no Bradesco, confirmar ANTES de criar registros pendentes.
-  // Cancelar a confirmação não grava nenhuma preparação e não duplica o Histórico.
+  // V266: no Bradesco, identifica primeiro o que JÁ foi confirmado pelo banco.
+  // A identidade da parcela é relatorio_id + parcela_numero. Registros abertos,
+  // pagos ou vencidos nunca são recriados nem reenviados.
   if(codBanco==="bradesco"){
-    const confirmar=confirm(`Serão emitidos ${linhas.length} boleto(s) REAIS no Bradesco para ${cli.nome}, total de ${formatarMoeda(valorTotal)}.\n\nCada parcela terá Seu Nº próprio e somente emissões confirmadas serão mantidas no Histórico. Deseja continuar?`);
-    if(!confirmar){
-      document.getElementById("bolModalStatus").innerHTML=`ℹ️ Emissão cancelada. <b>Nenhum boleto foi enviado e nenhuma nova preparação foi gravada.</b>`;
+    const existentes=await banco.from("cobrancas_bancarias")
+      .select("id,status,parcela_numero,parcela_total,nosso_numero,linha_digitavel,codigo_barras")
+      .eq("relatorio_id",boletoRelatorioAtual.id)
+      .eq("banco","bradesco")
+      .in("status",["aberto","pago","vencido"]);
+    if(!existentes.error)bradescoJaConfirmadas=existentes.data||[];
+    const numsConfirmados=new Set(bradescoJaConfirmadas.map(x=>Number(x.parcela_numero||1)));
+    linhasParaInserir=linhas.filter(x=>!numsConfirmados.has(Number(x.parcela_numero||1)));
+
+    if(!linhasParaInserir.length){
+      document.getElementById("bolModalStatus").innerHTML=`✅ Todas as <b>${linhas.length}</b> parcelas deste pedido já estão emitidas no Bradesco. Nenhuma nova emissão foi feita.`;
+      alert('Todas as parcelas deste pedido já estão emitidas. Use o Histórico para visualizar/imprimir.');
       return;
     }
-    const palavra=prompt('CONFIRMAÇÃO FINAL\n\nDigite exatamente EMITIR BRADESCO para emitir este grupo:');
-    if(String(palavra||'').trim().toUpperCase()!=='EMITIR BRADESCO'){
-      document.getElementById("bolModalStatus").innerHTML=`ℹ️ Emissão cancelada antes do envio. <b>Nenhum boleto foi enviado e nenhuma nova preparação foi gravada.</b>`;
+    const lista=linhasParaInserir.map(x=>`${x.parcela_numero}/${x.parcela_total} • Seu Nº ${seuNumeroBradescoOperacional(x.numero_nf,x.parcela_numero,x.parcela_total)} • ${formatarMoeda(x.valor)} • ${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}`).join('\n');
+    const preservadas=bradescoJaConfirmadas.length?`\n\n${bradescoJaConfirmadas.length} parcela(s) já emitida(s) serão PRESERVADAS e NÃO serão reenviadas.`:'';
+    const confirmar=confirm(`RECUPERAÇÃO DE EMISSÃO BRADESCO\n\nSerão emitidas somente ${linhasParaInserir.length} parcela(s) pendente(s) para ${cli.nome}:\n\n${lista}${preservadas}\n\nDeseja continuar?`);
+    if(!confirmar){
+      document.getElementById("bolModalStatus").innerHTML=`ℹ️ Emissão cancelada. <b>Nenhum boleto foi enviado e os já emitidos foram preservados.</b>`;
+      return;
+    }
+    const palavra=prompt(`CONFIRMAÇÃO FINAL\n\nDigite exatamente EMITIR PENDENTES para emitir somente ${linhasParaInserir.length} parcela(s) pendente(s):`);
+    if(String(palavra||'').trim().toUpperCase()!=='EMITIR PENDENTES'){
+      document.getElementById("bolModalStatus").innerHTML=`ℹ️ Emissão cancelada antes do envio. <b>Nenhum boleto pendente foi enviado.</b>`;
       return;
     }
   }
 
-  let r=await banco.from("cobrancas_bancarias").insert(linhas).select();
+  let r=await banco.from("cobrancas_bancarias").insert(linhasParaInserir).select();
   if(r.error && /instrucoes_banco/i.test(String(r.error.message||""))){
-    const compativeis=linhas.map(({instrucoes_banco,...resto})=>resto);
+    const compativeis=linhasParaInserir.map(({instrucoes_banco,...resto})=>resto);
     r=await banco.from("cobrancas_bancarias").insert(compativeis).select();
   }
   if(r.error)return alert("Não foi possível preparar os boletos: "+r.error.message);
@@ -7865,7 +7887,7 @@ async function salvarPreparacaoBoletoRelatorioV175(){
   if(codBanco==="bradesco"){
     const statusEl=document.getElementById("bolModalStatus");
     if(statusEl)statusEl.innerHTML=`⏳ Enviando <b>${rows.length}</b> boleto(s) ao Bradesco. Não feche esta janela e não repita a operação.`;
-    let ok=0,erros=[],jaEmitidos=0;
+    let ok=0,erros=[],jaEmitidos=bradescoJaConfirmadas.length;
     for(const p of rows){
       try{
         // V264: se esta parcela do mesmo relatório já foi confirmada anteriormente,
