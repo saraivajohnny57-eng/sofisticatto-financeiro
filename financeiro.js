@@ -405,11 +405,15 @@ function consolidarParcelasRelatorioV262(rows){
   for(const x of (rows||[])){
     if(!x||x.status==='cancelado')continue;
     const n=Number(x.parcela_numero||0);
-    const venc=String(x.vencimento||'');
-    const valor=Math.round(Number(x.valor||0)*100);
-    const k=`${n}|${venc}|${valor}`;
+    // V264: dentro do mesmo relatório/pedido, o número da parcela é a identidade.
+    // Se o valor total foi corrigido, não exibimos a versão antiga + a nova como duas parcelas.
+    // Um boleto já confirmado pelo banco sempre prevalece sobre preparação pendente.
+    const k=n>0?`PARCELA:${n}`:`SEMNUM:${String(x.vencimento||'')}|${Math.round(Number(x.valor||0)*100)}`;
     const atual=mapa.get(k);
-    if(!atual||prioridadeCobrancaV262(x)>prioridadeCobrancaV262(atual))mapa.set(k,x);
+    const px=prioridadeCobrancaV262(x), pa=prioridadeCobrancaV262(atual);
+    const tx=String(x.atualizado_em||x.updated_at||x.created_at||x.criado_em||'');
+    const ta=String(atual?.atualizado_em||atual?.updated_at||atual?.created_at||atual?.criado_em||'');
+    if(!atual||px>pa||(px===pa&&tx>ta))mapa.set(k,x);
   }
   return [...mapa.values()].sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0)||String(a.vencimento||'').localeCompare(String(b.vencimento||'')));
 }
@@ -6948,7 +6952,7 @@ function previsualizarCobranca(){
 }
 
 function seuNumeroBradescoOperacional(numeroNf,parcelaNumero=1,parcelaTotal=1){
-  // V263: cada parcela precisa ter um Seu Nº (nuCliente) próprio no Bradesco.
+  // V264: cada parcela precisa ter um Seu Nº (nuCliente) próprio no Bradesco.
   // O layout aceita até 10 caracteres. Ex.: 55976NF-01, 55976NF-02, 55976NF-03.
   const base=String(numeroNf||'').replace(/[^A-Za-z0-9]/g,'').toUpperCase();
   if(Number(parcelaTotal||1)<=1)return base.slice(0,10);
@@ -7187,7 +7191,7 @@ function renderHistoricoCobrancas(){
     const emitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bb'&&x.nosso_numero;
     const bradescoEmitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bradesco'&&x.linha_digitavel;
     const acoes=bradescoEmitido
-      ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar / Imprimir Bradesco</button>`
+      ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar boleto</button> <button class="btn verde" onclick="imprimirPedidoBradescoV264('${x.id}')">📄 Imprimir pedido</button>`
       :(emitido
       ?`<button class="btn azul" onclick="abrirImpressaoNormalBbRegistro('${x.id}')">🖨 Impressão Normal</button> <button class="btn verde" onclick="abrirBoletoOficialBbRegistro('${x.id}')">🏦 2ª via BB</button>`
       :(x.banco==='bb'&&x.status==='pendente_integracao'
@@ -7195,6 +7199,54 @@ function renderHistoricoCobrancas(){
         :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`));
     return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${dataEmissaoCobrancaV177(x)?new Date(dataEmissaoCobrancaV177(x)+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
   }).join(''):'<tr><td colspan="8">Nenhuma cobrança encontrada.</td></tr>';
+}
+
+
+// V264 — impressão agrupada por CLIENTE + PEDIDO/NF.
+// Cada parcela continua em uma página A4, mas todas as parcelas do mesmo pedido
+// são abertas em uma única janela de impressão. Pedidos diferentes nunca são misturados.
+function registrosPedidoBradescoV264(id){
+  const base=(cobrancasBancarias||[]).find(r=>String(r.id)===String(id));
+  if(!base)return [];
+  const nf=String(base.numero_nf||'').replace(/\s+/g,'').toUpperCase();
+  const cli=String(base.cliente_id||base.cpf_cnpj||base.cliente_nome||'').replace(/\s+/g,'').toUpperCase();
+  return (cobrancasBancarias||[]).filter(r=>{
+    if(codigoBancoCobranca(r.banco)!=='bradesco'||!['aberto','pago','vencido'].includes(String(r.status||'')))return false;
+    const rnf=String(r.numero_nf||'').replace(/\s+/g,'').toUpperCase();
+    const rcli=String(r.cliente_id||r.cpf_cnpj||r.cliente_nome||'').replace(/\s+/g,'').toUpperCase();
+    return rnf===nf&&rcli===cli;
+  }).sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0)||String(a.vencimento||'').localeCompare(String(b.vencimento||'')));
+}
+function capturarHtmlBoletoBradescoV264(id){
+  let html='';
+  const originalOpen=window.open, originalAlert=window.alert;
+  try{
+    window.alert=()=>{};
+    window.open=()=>({document:{write:t=>{html+=String(t||'')},close:()=>{}},focus:()=>{}});
+    abrirBoletoBradescoRegistro(id);
+  }finally{window.open=originalOpen;window.alert=originalAlert;}
+  return html;
+}
+function imprimirPedidoBradescoV264(id){
+  const regs=registrosPedidoBradescoV264(id);
+  if(!regs.length)return alert('Nenhum boleto Bradesco emitido foi encontrado para este pedido.');
+  const partes=[];let css='';
+  for(const r of regs){
+    const html=capturarHtmlBoletoBradescoV264(r.id);if(!html)continue;
+    const doc=new DOMParser().parseFromString(html,'text/html');
+    if(!css)css=Array.from(doc.querySelectorAll('style')).map(x=>x.textContent||'').join('\n');
+    const main=doc.querySelector('main.boleto-page');if(!main)continue;
+    // Cada página recebe o código de barras correspondente à própria parcela.
+    const linha=String(r.linha_digitavel||'');
+    const barras=String(r.codigo_barras||'').replace(/\D/g,'').length===44?String(r.codigo_barras).replace(/\D/g,''):bradescoCodigoBarras44DaLinha(linha);
+    main.querySelectorAll('.barcode').forEach(el=>el.setAttribute('data-barcode',barras));
+    partes.push(main.outerHTML);
+  }
+  if(!partes.length)return alert('Não foi possível montar os boletos deste pedido. Nenhuma nova emissão foi feita.');
+  const base=regs[0], nf=String(base.numero_nf||'PEDIDO');
+  const w=window.open('','_blank');if(!w)return alert('Libere pop-ups para imprimir os boletos deste pedido.');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Boletos Bradesco - ${nf}</title><style>${css}\n@media print{.pedido-acoes{display:none!important}.boleto-page{break-after:page!important;page-break-after:always!important}.boleto-page:last-of-type{break-after:auto!important;page-break-after:auto!important}}</style><script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script></head><body><div class="pedido-acoes" style="max-width:195mm;margin:4mm auto;padding:8px"><b>${regs.length} boleto(s) do pedido ${nf}</b> — cada parcela ficará em uma página A4. <button onclick="window.print()">🖨 Imprimir / Salvar PDF único</button></div>${partes.join('')}<script>window.onload=function(){document.querySelectorAll('.barcode[data-barcode]').forEach(function(el){try{JsBarcode(el,el.getAttribute('data-barcode'),{format:'ITF',displayValue:false,height:48,width:1.25,margin:0})}catch(e){console.error(e)}})}<\/script></body></html>`);
+  w.document.close();
 }
 
 async function verificarConciliarTituloBb(id){
@@ -7812,7 +7864,7 @@ async function salvarPreparacaoBoletoRelatorioV175(){
     let ok=0,erros=[],jaEmitidos=0;
     for(const p of rows){
       try{
-        // V263: se esta parcela do mesmo relatório já foi confirmada anteriormente,
+        // V264: se esta parcela do mesmo relatório já foi confirmada anteriormente,
         // não cria uma segunda cobrança ao trocar o padrão do Seu Nº.
         if(p.relatorio_id){
           const existente=await banco.from('cobrancas_bancarias')
