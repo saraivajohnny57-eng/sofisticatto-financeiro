@@ -6948,10 +6948,12 @@ function previsualizarCobranca(){
 }
 
 function seuNumeroBradescoOperacional(numeroNf,parcelaNumero=1,parcelaTotal=1){
+  // V263: cada parcela precisa ter um Seu Nº (nuCliente) próprio no Bradesco.
+  // O layout aceita até 10 caracteres. Ex.: 55976NF-01, 55976NF-02, 55976NF-03.
   const base=String(numeroNf||'').replace(/[^A-Za-z0-9]/g,'').toUpperCase();
   if(Number(parcelaTotal||1)<=1)return base.slice(0,10);
-  const suf=String(Number(parcelaNumero||1)).padStart(2,'0').slice(-2);
-  return (base.slice(0,8)+suf).slice(0,10);
+  const suf='-'+String(Number(parcelaNumero||1)).padStart(2,'0').slice(-2);
+  return (base.slice(0,10-suf.length)+suf).slice(0,10);
 }
 async function bradescoReqProducao(action,body){
   const chave=bbAdminKey();if(!chave)throw new Error('Valide a chave administrativa das integrações antes de emitir no Bradesco.');
@@ -7807,17 +7809,34 @@ async function salvarPreparacaoBoletoRelatorioV175(){
   if(codBanco==="bradesco"){
     const statusEl=document.getElementById("bolModalStatus");
     if(statusEl)statusEl.innerHTML=`⏳ Enviando <b>${rows.length}</b> boleto(s) ao Bradesco. Não feche esta janela e não repita a operação.`;
-    let ok=0,erros=[];
+    let ok=0,erros=[],jaEmitidos=0;
     for(const p of rows){
       try{
+        // V263: se esta parcela do mesmo relatório já foi confirmada anteriormente,
+        // não cria uma segunda cobrança ao trocar o padrão do Seu Nº.
+        if(p.relatorio_id){
+          const existente=await banco.from('cobrancas_bancarias')
+            .select('id,status,nosso_numero,linha_digitavel,codigo_barras')
+            .eq('relatorio_id',p.relatorio_id)
+            .eq('banco','bradesco')
+            .eq('parcela_numero',Number(p.parcela_numero||1))
+            .in('status',['aberto','pago','vencido'])
+            .neq('id',p.id)
+            .limit(1);
+          if(!existente.error && existente.data?.length){
+            jaEmitidos++;
+            await banco.from('cobrancas_bancarias').delete().eq('id',p.id).eq('status','pendente_integracao');
+            continue;
+          }
+        }
         const ret=await emitirBradescoOperacional(p,{confirmar:false});
         const rr=ret?.registro||{};
         if(Number(rr.http_status)>=200&&Number(rr.http_status)<300)ok++;
         else throw new Error(`HTTP ${rr.http_status||'—'}`);
       }catch(e){erros.push(`Parcela ${p.parcela_numero||1}/${p.parcela_total||rows.length}: ${e.message||e}`);}
     }
-    if(statusEl)statusEl.innerHTML=`${erros.length?'⚠️':'✅'} Bradesco: <b>${ok}/${rows.length}</b> boleto(s) emitido(s) e registrado(s) no Histórico.${erros.length?`<br><b>Não repita automaticamente.</b><br>${erros.map(escaparHtmlEmail).join('<br>')}`:'<br>Emissão concluída. Use o Histórico para visualizar/imprimir.'}`;
-    alert(erros.length?`Bradesco: ${ok}/${rows.length} boleto(s) concluído(s). Há erro(s) em parcela(s). Não repita a emissão; confira o Histórico.`:`Bradesco: ${ok}/${rows.length} boleto(s) emitido(s) com sucesso.`);
+    if(statusEl)statusEl.innerHTML=`${erros.length?'⚠️':'✅'} Bradesco: <b>${ok}</b> nova(s) emissão(ões) confirmada(s)${jaEmitidos?` • <b>${jaEmitidos}</b> parcela(s) já emitida(s) preservada(s)`:''}.${erros.length?`<br><b>Não repita automaticamente.</b><br>${erros.map(escaparHtmlEmail).join('<br>')}`:'<br>Emissão concluída. Use o Histórico para visualizar/imprimir.'}`;
+    alert(erros.length?`Bradesco: ${ok} nova(s) emissão(ões) concluída(s)${jaEmitidos?` e ${jaEmitidos} parcela(s) já emitida(s) preservada(s)`:''}. Há erro(s) em parcela(s). Não repita a emissão; confira o Histórico.`:`Bradesco: ${ok} nova(s) emissão(ões) concluída(s)${jaEmitidos?` e ${jaEmitidos} parcela(s) já emitida(s) preservada(s)`:''}.`);
   }else{
     const confirmar=confirm(`Serão registrados ${rows.length} boleto(s) REAIS no Banco do Brasil para ${cli.nome}, total de ${formatarMoeda(valorTotal)}.\n\nDeseja continuar?`);
     if(!confirmar){document.getElementById("bolModalStatus").innerHTML=`✅ Parcelas salvas. <b>Nenhum boleto foi emitido.</b> Você pode voltar depois e emitir.`;}
