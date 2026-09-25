@@ -391,16 +391,42 @@ async function carregarParcelasRelatoriosFinanceiro(){
 }
 // V261 — concilia relatório com cobranças já emitidas mesmo quando o registro antigo
 // não recebeu relatorio_id. Usa banco + NF/Título como chave segura de fallback.
+// V262 — consolida parcelas do mesmo relatório sem duplicar preparação + boleto emitido.
+// Para a mesma parcela (número/vencimento/valor), o registro confirmado pelo banco tem
+// prioridade sobre uma preparação pendente antiga. Nenhum boleto emitido é apagado.
+function prioridadeCobrancaV262(x){
+  const st=String(x?.status||'');
+  if(['pago','vencido','aberto'].includes(st))return 30;
+  if(st==='pendente_integracao')return 10;
+  return 20;
+}
+function consolidarParcelasRelatorioV262(rows){
+  const mapa=new Map();
+  for(const x of (rows||[])){
+    if(!x||x.status==='cancelado')continue;
+    const n=Number(x.parcela_numero||0);
+    const venc=String(x.vencimento||'');
+    const valor=Math.round(Number(x.valor||0)*100);
+    const k=`${n}|${venc}|${valor}`;
+    const atual=mapa.get(k);
+    if(!atual||prioridadeCobrancaV262(x)>prioridadeCobrancaV262(atual))mapa.set(k,x);
+  }
+  return [...mapa.values()].sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0)||String(a.vencimento||'').localeCompare(String(b.vencimento||'')));
+}
 function cobrancasDoRelatorioV261(rel,fonte){
   if(!rel)return [];
   const rows=(fonte||[]).filter(x=>x&&x.status!=="cancelado");
   let ps=rows.filter(x=>String(x.relatorio_id||"")===String(rel.id||""));
-  if(ps.length)return ps.sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0));
+  if(ps.length)return consolidarParcelasRelatorioV262(ps);
   const nf=String(rel.numero_nf||"").replace(/\s+/g,"").toUpperCase();
   const bc=codigoBancoCobranca(rel.banco);
   if(!nf||!bc)return [];
   ps=rows.filter(x=>String(x.banco||"")===bc && String(x.numero_nf||"").replace(/\s+/g,"").toUpperCase()===nf);
-  return ps.sort((a,b)=>Number(a.parcela_numero||0)-Number(b.parcela_numero||0));
+  return consolidarParcelasRelatorioV262(ps);
+}
+function relatorioTotalmenteEmitidoV262(rel){
+  const ps=cobrancasDoRelatorioV261(rel,parcelasRelatoriosFinanceiro);
+  return !!ps.length&&ps.every(x=>['aberto','pago','vencido'].includes(String(x.status||'')));
 }
 function resumoParcelasRelatorioFinanceiro(relatorioId){
   const rel=(todosBoletos||[]).find(x=>String(x.id)===String(relatorioId));
@@ -454,8 +480,11 @@ function montarTabela(){
       botoes += `<button class="btn azul" onclick="editarRelatorio('${item.id}')">Editar</button>`;
       if(item.banco){
         if(bancoSuportaCobrancaIntegrada(item.banco)){
-          const rotulo=(codigoBancoCobranca(item.banco)==="bb"||codigoBancoCobranca(item.banco)==="bradesco")?"💳 Emitir boleto":"📝 Preparar cobrança";
-          botoes += `<button class="btn verde" onclick="abrirEmissaoBoletoRelatorio('${item.id}')">${rotulo}</button>`;
+          const jaEmitido=relatorioTotalmenteEmitidoV262(item);
+          const rotulo=jaEmitido?"✅ Boleto emitido":((codigoBancoCobranca(item.banco)==="bb"||codigoBancoCobranca(item.banco)==="bradesco")?"💳 Emitir boleto":"📝 Preparar cobrança");
+          botoes += jaEmitido
+            ? `<button class="btn verde" type="button" disabled title="Todas as parcelas deste lançamento já foram emitidas">${rotulo}</button>`
+            : `<button class="btn verde" onclick="abrirEmissaoBoletoRelatorio('${item.id}')">${rotulo}</button>`;
         }
         botoes += `<button class="btn roxo" onclick="finalizar('${item.id}')">Finalizar</button>`;
       }
@@ -476,8 +505,11 @@ function montarTabela(){
       botoes += `<button class="btn azul" onclick="editarRelatorio('${item.id}')">Editar</button>`;
       if(item.banco){
         if(bancoSuportaCobrancaIntegrada(item.banco)){
-          const rotulo=(codigoBancoCobranca(item.banco)==="bb"||codigoBancoCobranca(item.banco)==="bradesco")?"💳 Emitir boleto":"📝 Preparar cobrança";
-          botoes += `<button class="btn verde" onclick="abrirEmissaoBoletoRelatorio('${item.id}')">${rotulo}</button>`;
+          const jaEmitido=relatorioTotalmenteEmitidoV262(item);
+          const rotulo=jaEmitido?"✅ Boleto emitido":((codigoBancoCobranca(item.banco)==="bb"||codigoBancoCobranca(item.banco)==="bradesco")?"💳 Emitir boleto":"📝 Preparar cobrança");
+          botoes += jaEmitido
+            ? `<button class="btn verde" type="button" disabled title="Todas as parcelas deste lançamento já foram emitidas">${rotulo}</button>`
+            : `<button class="btn verde" onclick="abrirEmissaoBoletoRelatorio('${item.id}')">${rotulo}</button>`;
         }
         botoes += `<button class="btn roxo" onclick="finalizar('${item.id}')">Finalizar</button>`;
       }
