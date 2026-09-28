@@ -7094,12 +7094,50 @@ async function sincronizarStatusBbV176(silencioso=false){
 // Remove somente cópias locais com status "pendente_integracao" quando já existe
 // uma emissão Bradesco confirmada para a mesma parcela. Nunca remove um boleto
 // emitido, pago, vencido ou cancelado.
+function seuNumeroBradescoHistoricoV271(x){
+  if(!x)return '';
+  const direto=String(x.seu_numero||x.seuNumero||'').trim();
+  if(direto)return direto.toUpperCase();
+  const nf=String(x.numero_nf||'').trim();
+  const parcela=Number(x.parcela_numero||1);
+  const total=Number(x.parcela_total||1);
+  return nf ? String(seuNumeroBradescoOperacional(nf,parcela,total)||'').trim().toUpperCase() : '';
+}
 function chaveParcelaBradescoV270(x){
   const banco=String(x?.banco||'').toLowerCase();
   if(banco!=='bradesco')return '';
+  // V271: o identificador principal da duplicidade é o mesmo Seu Nº
+  // que aparece no boleto. Isso permite conciliar uma preparação antiga
+  // mesmo quando ela pertence a outro relatório/reprocessamento local.
+  const seu=seuNumeroBradescoHistoricoV271(x);
+  if(seu)return `seu:${seu}`;
   const parcela=Number(x?.parcela_numero||1);
   if(x?.relatorio_id)return `rel:${x.relatorio_id}|p:${parcela}`;
   return `nf:${String(x?.numero_nf||'').trim()}|v:${String(x?.vencimento||'').slice(0,10)}|p:${parcela}|val:${Number(x?.valor||0).toFixed(2)}`;
+}
+async function verificarConciliarTituloBradescoV271(id){
+  const reg=(cobrancasBancarias||[]).find(x=>String(x.id)===String(id));
+  if(!reg)return alert('Cobrança Bradesco pendente não encontrada.');
+  if(String(reg.banco||'').toLowerCase()!=='bradesco'||String(reg.status||'')!=='pendente_integracao')return alert('Este registro não está como Pendente integração no Bradesco.');
+  const seu=seuNumeroBradescoHistoricoV271(reg);
+  if(!seu)return alert('Não foi possível identificar o Seu Nº desta parcela.');
+  const candidatos=(cobrancasBancarias||[]).filter(x=>
+    String(x.id)!==String(reg.id) &&
+    String(x.banco||'').toLowerCase()==='bradesco' &&
+    ['aberto','pago','vencido'].includes(String(x.status||'')) &&
+    seuNumeroBradescoHistoricoV271(x)===seu
+  );
+  if(!candidatos.length){
+    return alert(`⚠️ O Seu Nº ${seu} não foi encontrado como boleto Bradesco já emitido no Histórico.\n\nPor segurança, esta pendência NÃO será excluída e nenhum novo boleto será emitido.`);
+  }
+  const emitido=candidatos[0];
+  const confirma=confirm(`Boleto já emitido encontrado.\n\nSeu Nº: ${seu}\nCliente: ${emitido.cliente_nome||reg.cliente_nome||'—'}\nNF/Pedido: ${emitido.numero_nf||reg.numero_nf||'—'}\nParcela: ${emitido.parcela_numero||1}/${emitido.parcela_total||reg.parcela_total||1}\nSituação: ${cobStatus(emitido.status)}\nNosso Número: ${emitido.nosso_numero||'—'}\n\nO registro Pendente integração será tratado como duplicado e removido.\nO boleto já emitido será PRESERVADO.\n\nConfirma a conciliação?`);
+  if(!confirma)return;
+  const r=await banco.from('cobrancas_bancarias').delete().eq('id',reg.id).eq('status','pendente_integracao').select('id');
+  if(r.error)throw r.error;
+  if(!Array.isArray(r.data)||!r.data.length)return alert('O registro pendente não foi removido. Nenhum boleto emitido foi alterado.');
+  await carregarCobrancasBancarias();
+  alert(`✅ Duplicidade conciliada.\n\nSeu Nº ${seu} já estava emitido.\nApenas a cópia Pendente integração foi removida.\nO boleto emitido foi preservado.`);
 }
 async function limparPendenciasBradescoJaEmitidasV270(rows){
   const lista=Array.isArray(rows)?rows:[];
@@ -7122,9 +7160,14 @@ async function limparPendenciasBradescoJaEmitidasV270(rows){
     const r=await banco.from('cobrancas_bancarias')
       .delete()
       .eq('id',x.id)
-      .eq('status','pendente_integracao');
-    if(!r.error)total++;
-    else console.warn('V270: não foi possível remover preparação Bradesco antiga',x.id,r.error);
+      .eq('status','pendente_integracao')
+      .select('id');
+    if(r.error){
+      console.warn('V271: não foi possível remover preparação Bradesco antiga',x.id,r.error);
+      continue;
+    }
+    if(Array.isArray(r.data) && r.data.length) total++;
+    else console.warn('V271: exclusão não afetou nenhum registro',x.id);
   }
   return {removidas:total,pendentes:apagar.length};
 }
@@ -7315,11 +7358,13 @@ function renderHistoricoCobrancas(){
     const bradescoEmitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bradesco'&&x.linha_digitavel;
     const acoes=bradescoEmitido
       ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar boleto</button> <button class="btn verde" onclick="imprimirPedidoBradescoV264('${x.id}')">📄 Imprimir pedido</button>`
-      :(emitido
+      :(x.banco==='bradesco'&&x.status==='pendente_integracao'
+        ?`<button class="btn vermelho" onclick="verificarConciliarTituloBradescoV271('${x.id}')">🔎 Verificar Bradesco</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
+        :(emitido
       ?`<button class="btn azul" onclick="abrirImpressaoNormalBbRegistro('${x.id}')">🖨 Impressão Normal</button> <button class="btn verde" onclick="abrirBoletoOficialBbRegistro('${x.id}')">🏦 2ª via BB</button>`
-      :(x.banco==='bb'&&x.status==='pendente_integracao'
-        ?`<button class="btn verde" onclick="verificarConciliarTituloBb('${x.id}')">🔎 Verificar no BB</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
-        :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`));
+        :(x.banco==='bb'&&x.status==='pendente_integracao'
+          ?`<button class="btn verde" onclick="verificarConciliarTituloBb('${x.id}')">🔎 Verificar no BB</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
+          :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`)));
     return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${dataEmissaoCobrancaV177(x)?new Date(dataEmissaoCobrancaV177(x)+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
   }).join(''):'<tr><td colspan="8">Nenhuma cobrança encontrada.</td></tr>';
 }
