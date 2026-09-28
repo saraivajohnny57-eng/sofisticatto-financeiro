@@ -1,4 +1,14 @@
 const crypto=require('crypto');
+function detalheRespostaBradesco(d){
+  if(typeof d==='string'){try{d=JSON.parse(d)}catch(_){return d.slice(0,1800)}}
+  if(!d||typeof d!=='object')return null;
+  const partes=[];
+  for(const k of ['mensagem','message','descricao','detail','erro','error','motivo','causa','mensagemErro','mensagemRetorno']){const v=d?.[k];if(v!==undefined&&v!==null&&typeof v!=='object'&&String(v).trim())partes.push(String(v).trim())}
+  for(const k of ['codigo','codigoErro','codigoRetorno','code']){const v=d?.[k];if(v!==undefined&&v!==null&&String(v).trim()&&!partes.some(x=>x.includes(String(v))))partes.unshift(`${k}: ${v}`)}
+  for(const k of ['erros','errors','errosValidacao','mensagens','messages']){const arr=d?.[k];if(Array.isArray(arr))for(const item of arr.slice(0,12)){if(typeof item==='string'&&item.trim())partes.push(item.trim());else if(item&&typeof item==='object'){const v=item.mensagem??item.message??item.descricao??item.detail??item.erro??item.error;if(v)partes.push(String(v).trim())}}}
+  return partes.length?[...new Set(partes)].join(' | '):null;
+}
+
 const https=require('https');
 const forge=require('node-forge');
 const {exigirAdmin,supabaseRest,criptografar,descriptografar}=require('../lib/integracoes/_utils');
@@ -495,7 +505,8 @@ module.exports=async function(req,res){
         }catch(eHist){historico.erro=String(eHist.message||eHist);}
         await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:historico.salvo?'ACEITA_E_SALVA_NO_HISTORICO':'ACEITA_HISTORICO_PENDENTE',http_status:retorno.http_status,nossoNumero:nossoNumero||null,resposta:d,historico,finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:historico.salvo?'ACEITA_E_SALVA_NO_HISTORICO':'ACEITA_HISTORICO_PENDENTE',http_status:retorno.http_status,historico_salvo:historico.salvo});
       }
-      return json(res,200,{ok:true,registro:{ambiente:'PRODUCAO',versao:'V259',http_status:retorno.http_status,enviado_ao_bradesco:true,http_2xx_bradesco:http2xx,reenvio_automatico:false,seuNumero,nossoNumero_retornado:nossoNumero,historico,resposta_bradesco:d},mensagem:http2xx?(historico.salvo?'Bradesco respondeu HTTP 2xx e o boleto foi salvo no Histórico pelo backend.':'Bradesco respondeu HTTP 2xx. A emissão foi preservada no backend, mas houve falha ao copiar para o Histórico. NÃO reemita; recupere esta emissão antes de qualquer nova tentativa.'):'O Bradesco respondeu HTTP '+retorno.http_status+'. A tentativa foi registrada e não será repetida automaticamente.'});
+      const detalheBradesco=detalheRespostaBradesco(d);
+      return json(res,200,{ok:true,registro:{ambiente:'PRODUCAO',versao:'V267',http_status:retorno.http_status,enviado_ao_bradesco:true,http_2xx_bradesco:http2xx,reenvio_automatico:false,seuNumero,nossoNumero_retornado:nossoNumero,historico,resposta_bradesco:d,detalhe_bradesco:detalheBradesco},mensagem:http2xx?(historico.salvo?'Bradesco respondeu HTTP 2xx e o boleto foi salvo no Histórico pelo backend.':'Bradesco respondeu HTTP 2xx. A emissão foi preservada no backend, mas houve falha ao copiar para o Histórico. NÃO reemita; recupere esta emissão antes de qualquer nova tentativa.'):'O Bradesco respondeu HTTP '+retorno.http_status+'. A tentativa foi registrada e não será repetida automaticamente.',detalhe_bradesco:detalheBradesco});
     }
     if(action==='preparar-homologacao-controlada'){
       if(amb!=='sandbox')throw new Error('A preparação controlada está liberada somente para o Sandbox.');
