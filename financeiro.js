@@ -7090,28 +7090,33 @@ async function sincronizarStatusBbV176(silencioso=false){
     if(btn){btn.disabled=false;btn.textContent='🔄 Consultar BB agora';}
   }
 }
-// V269 — BRADESCO: limpa preparações pendentes antigas quando a mesma parcela
-// já foi confirmada pelo banco. Assim o Histórico não mostra o mesmo boleto
-// repetido como "Pendente integração" depois de uma emissão bem-sucedida.
-// A regra usa relatorio_id + parcela_numero, a mesma identidade usada no fluxo
-// de recuperação do Bradesco. Nunca remove registros já emitidos, pagos ou vencidos.
-async function limparPendenciasBradescoJaEmitidasV269(rows){
+// V270 — BRADESCO: reconciliação manual do Histórico.
+// Remove somente cópias locais com status "pendente_integracao" quando já existe
+// uma emissão Bradesco confirmada para a mesma parcela. Nunca remove um boleto
+// emitido, pago, vencido ou cancelado.
+function chaveParcelaBradescoV270(x){
+  const banco=String(x?.banco||'').toLowerCase();
+  if(banco!=='bradesco')return '';
+  const parcela=Number(x?.parcela_numero||1);
+  if(x?.relatorio_id)return `rel:${x.relatorio_id}|p:${parcela}`;
+  return `nf:${String(x?.numero_nf||'').trim()}|v:${String(x?.vencimento||'').slice(0,10)}|p:${parcela}|val:${Number(x?.valor||0).toFixed(2)}`;
+}
+async function limparPendenciasBradescoJaEmitidasV270(rows){
   const lista=Array.isArray(rows)?rows:[];
   const confirmadas=new Set();
   for(const x of lista){
     if(String(x?.banco||'').toLowerCase()!=='bradesco')continue;
     if(!['aberto','pago','vencido'].includes(String(x?.status||'')))continue;
-    if(!x?.relatorio_id)continue;
-    const chave=`${x.relatorio_id}|${Number(x.parcela_numero||1)}`;
-    confirmadas.add(chave);
+    const chave=chaveParcelaBradescoV270(x);
+    if(chave)confirmadas.add(chave);
   }
-  const apagar=lista.filter(x=>
-    String(x?.banco||'').toLowerCase()==='bradesco' &&
-    String(x?.status||'')==='pendente_integracao' &&
-    x?.relatorio_id &&
-    confirmadas.has(`${x.relatorio_id}|${Number(x.parcela_numero||1)}`)
-  );
-  if(!apagar.length)return 0;
+  const apagar=lista.filter(x=>{
+    if(String(x?.banco||'').toLowerCase()!=='bradesco')return false;
+    if(String(x?.status||'')!=='pendente_integracao')return false;
+    const chave=chaveParcelaBradescoV270(x);
+    return !!chave && confirmadas.has(chave);
+  });
+  if(!apagar.length)return {removidas:0,pendentes:0};
   let total=0;
   for(const x of apagar){
     const r=await banco.from('cobrancas_bancarias')
@@ -7119,9 +7124,35 @@ async function limparPendenciasBradescoJaEmitidasV269(rows){
       .eq('id',x.id)
       .eq('status','pendente_integracao');
     if(!r.error)total++;
-    else console.warn('V269: não foi possível remover preparação Bradesco antiga',x.id,r.error);
+    else console.warn('V270: não foi possível remover preparação Bradesco antiga',x.id,r.error);
   }
-  return total;
+  return {removidas:total,pendentes:apagar.length};
+}
+async function sincronizarStatusBradescoV270(silencioso=false){
+  const btn=document.getElementById('cobBtnSyncBradesco'),info=document.getElementById('cobSyncBradescoInfo');
+  if(btn){btn.disabled=true;btn.textContent='Consultando Bradesco...';}
+  if(info&&!silencioso)info.textContent='Atualizando o Histórico do Bradesco e reconciliando parcelas já emitidas...';
+  try{
+    const q=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(2000);
+    if(q.error)throw q.error;
+    const lista=q.data||[];
+    const r=await limparPendenciasBradescoJaEmitidasV270(lista);
+    const novo=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(2000);
+    if(novo.error)throw novo.error;
+    cobrancasBancarias=novo.data||[];
+    renderHistoricoCobrancas();
+    const agora=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    if(info)info.textContent=`Última atualização Bradesco: ${agora} • ${r.removidas} pendência(s) antiga(s) removida(s)${r.removidas!==r.pendentes?` • ${r.pendentes-r.removidas} não removida(s)`:''}.`;
+    if(!silencioso)alert(r.removidas
+      ? `Bradesco atualizado.\n\n${r.removidas} registro(s) antigo(s) de "Pendente integração" foram removido(s) porque a parcela já está emitida.`
+      : 'Bradesco atualizado.\n\nNenhum registro pendente antigo precisou ser removido.');
+  }catch(e){
+    console.warn('Atualização Bradesco V270:',e);
+    if(info)info.textContent='Não foi possível atualizar o Histórico do Bradesco: '+(e.message||e);
+    if(!silencioso)alert('Não foi possível atualizar o Bradesco.\n\n'+(e.message||e));
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='🔄 Atualizar Bradesco';}
+  }
 }
 
 async function carregarCobrancasBancarias(){
@@ -7130,8 +7161,8 @@ async function carregarCobrancasBancarias(){
   // V269: remove do histórico as cópias pendentes que ficaram para trás
   // quando a parcela já foi efetivamente aceita pelo Bradesco.
   if(!r.error){
-    const removidas=await limparPendenciasBradescoJaEmitidasV269(cobrancasBancarias);
-    if(removidas){
+    const reconciliacao=await limparPendenciasBradescoJaEmitidasV270(cobrancasBancarias);
+    if(reconciliacao.removidas){
       const novo=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(1000);
       if(!novo.error)cobrancasBancarias=novo.data||[];
     }
