@@ -7090,9 +7090,53 @@ async function sincronizarStatusBbV176(silencioso=false){
     if(btn){btn.disabled=false;btn.textContent='🔄 Consultar BB agora';}
   }
 }
+// V269 — BRADESCO: limpa preparações pendentes antigas quando a mesma parcela
+// já foi confirmada pelo banco. Assim o Histórico não mostra o mesmo boleto
+// repetido como "Pendente integração" depois de uma emissão bem-sucedida.
+// A regra usa relatorio_id + parcela_numero, a mesma identidade usada no fluxo
+// de recuperação do Bradesco. Nunca remove registros já emitidos, pagos ou vencidos.
+async function limparPendenciasBradescoJaEmitidasV269(rows){
+  const lista=Array.isArray(rows)?rows:[];
+  const confirmadas=new Set();
+  for(const x of lista){
+    if(String(x?.banco||'').toLowerCase()!=='bradesco')continue;
+    if(!['aberto','pago','vencido'].includes(String(x?.status||'')))continue;
+    if(!x?.relatorio_id)continue;
+    const chave=`${x.relatorio_id}|${Number(x.parcela_numero||1)}`;
+    confirmadas.add(chave);
+  }
+  const apagar=lista.filter(x=>
+    String(x?.banco||'').toLowerCase()==='bradesco' &&
+    String(x?.status||'')==='pendente_integracao' &&
+    x?.relatorio_id &&
+    confirmadas.has(`${x.relatorio_id}|${Number(x.parcela_numero||1)}`)
+  );
+  if(!apagar.length)return 0;
+  let total=0;
+  for(const x of apagar){
+    const r=await banco.from('cobrancas_bancarias')
+      .delete()
+      .eq('id',x.id)
+      .eq('status','pendente_integracao');
+    if(!r.error)total++;
+    else console.warn('V269: não foi possível remover preparação Bradesco antiga',x.id,r.error);
+  }
+  return total;
+}
+
 async function carregarCobrancasBancarias(){
   const r=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(1000);
-  cobrancasBancarias=r.error?[]:(r.data||[]); renderHistoricoCobrancas();
+  cobrancasBancarias=r.error?[]:(r.data||[]);
+  // V269: remove do histórico as cópias pendentes que ficaram para trás
+  // quando a parcela já foi efetivamente aceita pelo Bradesco.
+  if(!r.error){
+    const removidas=await limparPendenciasBradescoJaEmitidasV269(cobrancasBancarias);
+    if(removidas){
+      const novo=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(1000);
+      if(!novo.error)cobrancasBancarias=novo.data||[];
+    }
+  }
+  renderHistoricoCobrancas();
   const temBbAberto=cobrancasBancarias.some(x=>(String(x.banco||'').toLowerCase()==='bb'||/banco do brasil/i.test(String(x.banco_nome||'')))&&x.nosso_numero&&x.status!=='cancelado');
   if(temBbAberto && Date.now()-bbStatusUltimaSyncV176>10*60*1000)setTimeout(()=>sincronizarStatusBbV176(true),350);
 }
@@ -7955,8 +7999,25 @@ async function salvarPreparacaoBoletoRelatorioV175(){
         const ret=await emitirBradescoOperacional(p,{confirmar:false});
         const rr=ret?.registro||{};
         const http=Number(rr.http_status||0);
-        if(http>=200&&http<300)ok++;
-        else erros.push({parcela:`${p.parcela_numero||1}/${p.parcela_total||rows.length}`,seuNumero:String(rr.seuNumero||seuNumeroBradescoOperacional(p.numero_nf,p.parcela_numero,p.parcela_total)),http:http||'—',detalhe:bradescoDetalheResposta(ret),bruto:bradescoRespostaBruta(ret)});
+        if(http>=200&&http<300){
+          ok++;
+          // V269: a emissão foi confirmada pelo Bradesco. As preparações antigas
+          // da mesma parcela deixam de representar uma pendência e são removidas.
+          if(p.relatorio_id){
+            const antigas=await banco.from('cobrancas_bancarias')
+              .select('id')
+              .eq('relatorio_id',p.relatorio_id)
+              .eq('banco','bradesco')
+              .eq('parcela_numero',Number(p.parcela_numero||1))
+              .eq('status','pendente_integracao')
+              .neq('id',p.id);
+            if(!antigas.error && antigas.data?.length){
+              for(const antiga of antigas.data){
+                await banco.from('cobrancas_bancarias').delete().eq('id',antiga.id).eq('status','pendente_integracao');
+              }
+            }
+          }
+        }else erros.push({parcela:`${p.parcela_numero||1}/${p.parcela_total||rows.length}`,seuNumero:String(rr.seuNumero||seuNumeroBradescoOperacional(p.numero_nf,p.parcela_numero,p.parcela_total)),http:http||'—',detalhe:bradescoDetalheResposta(ret),bruto:bradescoRespostaBruta(ret)});
       }catch(e){
         const j=e?.bradescoResponse||null;
         const rr=j?.registro||{};
