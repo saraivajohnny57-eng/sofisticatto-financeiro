@@ -8902,6 +8902,60 @@ async function escolherPastaCobrancaMassa(){
 async function salvarBlobNaPastaCobrancaMassa(handle,nome,blob){
   const arq=await handle.getFileHandle(nome,{create:true});const wr=await arq.createWritable();await wr.write(blob);await wr.close();
 }
+function localizarValorPdfBradescoMassa(obj){
+  const vistos=new Set();
+  const chaves=['pdfBase64','base64Pdf','boletoBase64','arquivoBase64','conteudoBase64','dadosBase64','base64','pdf','arquivo','conteudo'];
+  function rec(v){
+    if(!v||typeof v!=='object'||vistos.has(v))return null;
+    vistos.add(v);
+    for(const k of chaves){
+      const val=v?.[k];
+      if(typeof val==='string' && val.trim() && val.replace(/^data:application\/pdf;base64,/i,'').length>100)return val.trim();
+    }
+    for(const val of Object.values(v)){const r=rec(val);if(r)return r;}
+    return null;
+  }
+  return rec(obj);
+}
+function localizarUrlBoletoBradescoMassa(obj){
+  const vistos=new Set();
+  const chaves=['urlBoleto','urlImagemBoleto','urlPdf','pdfUrl','pdf_url','linkBoleto','linkPdf'];
+  function rec(v){
+    if(!v||typeof v!=='object'||vistos.has(v))return '';
+    vistos.add(v);
+    for(const k of chaves){const val=v?.[k];if(typeof val==='string'&&/^https?:\/\//i.test(val.trim()))return val.trim();}
+    for(const val of Object.values(v)){const r=rec(val);if(r)return r;}
+    return '';
+  }
+  return rec(obj);
+}
+function blobPdfDeBase64Massa(valor){
+  const limpo=String(valor||'').replace(/^data:application\/pdf;base64,/i,'').replace(/\s+/g,'');
+  if(!limpo)return null;
+  try{const bin=atob(limpo);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);return new Blob([arr],{type:'application/pdf'});}catch(e){return null;}
+}
+async function obterBlobBoletoBradescoMassa(ret){
+  const bruto=ret?.registro?.resposta_bradesco||ret?.resposta_bradesco||ret;
+  const b64=localizarValorPdfBradescoMassa(bruto);
+  if(b64){
+    const blob=blobPdfDeBase64Massa(b64);
+    if(blob)return blob;
+  }
+  const url=localizarUrlBoletoBradescoMassa(bruto)||String(ret?.registro?.pdf_url||'').trim();
+  if(!/^https?:\/\//i.test(url))return null;
+  try{
+    const r=await fetch(url,{mode:'cors'});
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const blob=await r.blob();
+    if(blob.type==='application/pdf'||blob.type==='application/octet-stream')return blob;
+    if(/^image\//i.test(blob.type)&&window.jspdf?.jsPDF){
+      const data=await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.onerror=reject;fr.readAsDataURL(blob);});
+      const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=data;});
+      const {jsPDF}=window.jspdf;const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});const maxW=190,maxH=277;const ratio=Math.min(maxW/img.width,maxH/img.height);const w=img.width*ratio,h=img.height*ratio;pdf.addImage(data,'JPEG',(210-w)/2,10,w,h);return pdf.output('blob');
+    }
+  }catch(e){console.warn('PDF Bradesco em massa: não foi possível baixar a URL oficial.',e);}
+  return null;
+}
 function nomeArquivoBoletoMassa(g,p){
   const seguro=String(g.rel.nome||'CLIENTE').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,' ');
   const parc=`${String(p.parcela_numero||1).padStart(2,'0')}de${String(p.parcela_total||g.parcelas.length).padStart(2,'0')}`;
@@ -8935,15 +8989,23 @@ async function emitirBoletosEmMassa(){
           }else if(cod==='bradesco'){
             ret=await emitirBradescoOperacional(p,{confirmar:false});
             const rr=ret?.registro||{};if(!(Number(rr.http_status)>=200&&Number(rr.http_status)<300))throw new Error(`Bradesco HTTP ${rr.http_status||'—'}. O item não será repetido automaticamente.`);
+            // V273: o Bradesco pode retornar o boleto como PDF/base64 ou como URL oficial.
+            // Recuperamos o arquivo para a mesma pasta escolhida pelo usuário, assim como no BB.
+            if(pasta)blob=await obterBlobBoletoBradescoMassa(ret);
           }else throw new Error('Banco sem integração de emissão.');
           if(blob)blobsGrupo.push(blob);const rr={ok:true,g,p,ret,blob};resultados.push(rr);okGrupo.push(rr);
+          if(pasta&&cod==='bradesco'&&blob){
+            await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,p),blob);
+          }
         }catch(e){resultados.push({ok:false,g,p,erro:e});}
       }
       if(pasta&&cod==='bb'&&blobsGrupo.length){const combinado=await mesclarPdfsBb(blobsGrupo);const nome=nomePdfImpressaoNormalBb(g.parcelas);await salvarBlobNaPastaCobrancaMassa(pasta,nome,combinado);okGrupo.forEach(x=>x.blobCombinado=combinado);}
     }
     cobrancaMassaArquivosEmitidos=resultados.filter(x=>x.ok&&x.blob);
     const ok=resultados.filter(x=>x.ok).length,erros=resultados.length-ok,okBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco').length,okBB=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bb').length;
-    mostrarBalaoSistema?.('Emissão em massa concluída',`${ok} boleto(s) emitido(s): ${okBB} BB • ${okBR} Bradesco${erros?` • ${erros} com erro`:''}. Todos os aceitos ficam no Histórico.`);
+    const arquivosBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco'&&x.blob).length;
+    const semArquivoBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco'&&!x.blob).length;
+    mostrarBalaoSistema?.('Emissão em massa concluída',`${ok} boleto(s) emitido(s): ${okBB} BB • ${okBR} Bradesco${pasta?` • ${arquivosBR} arquivo(s) salvo(s) na pasta`:''}${semArquivoBR?` • ${semArquivoBR} Bradesco sem arquivo PDF retornado`:''}${erros?` • ${erros} com erro`:''}. Todos os aceitos ficam no Histórico.`);
     if(erros){const msg=resultados.filter(x=>!x.ok).map(x=>`${x.g.rel.nome} • parcela ${x.p.parcela_numero||1}/${x.p.parcela_total||1}: ${x.erro?.message||x.erro}`).join('\n');alert(`Lote concluído com ${erros} erro(s). Os itens com erro NÃO serão repetidos automaticamente.\n\n${msg.slice(0,3000)}`);}
     await carregarFilaCobrancaMassa();await carregarCobrancasBancarias();
   }finally{if(btn){btn.disabled=false;btn.textContent='💳 Emitir em massa';}}
