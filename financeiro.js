@@ -6959,10 +6959,54 @@ function seuNumeroBradescoOperacional(numeroNf,parcelaNumero=1,parcelaTotal=1){
   const suf='-'+String(Number(parcelaNumero||1)).padStart(2,'0').slice(-2);
   return (base.slice(0,10-suf.length)+suf).slice(0,10);
 }
+function bradescoDetalheResposta(ret){
+  const registro=ret?.registro||ret||{};
+  let d=registro?.resposta_bradesco ?? ret?.resposta_bradesco ?? null;
+  if(typeof d==='string'){try{d=JSON.parse(d)}catch(_){return d.slice(0,1800)}}
+  if(!d || typeof d!=='object') return 'O Bradesco não retornou uma mensagem detalhada.';
+  const partes=[];
+  const chaves=['mensagem','message','descricao','detail','erro','error','motivo','causa','mensagemErro','mensagemRetorno','statusMensagem'];
+  for(const k of chaves){
+    const v=d?.[k];
+    if(v!==undefined&&v!==null&&String(v).trim()&&typeof v!=='object') partes.push(String(v).trim());
+  }
+  const codigos=['codigo','codigoErro','codigoRetorno','code','status'];
+  for(const k of codigos){
+    const v=d?.[k];
+    if(v!==undefined&&v!==null&&String(v).trim()&&!partes.some(x=>x.includes(String(v)))) partes.unshift(`${k}: ${v}`);
+  }
+  const listas=['erros','errors','errosValidacao','mensagens','messages'];
+  for(const k of listas){
+    const arr=d?.[k];
+    if(Array.isArray(arr)){
+      for(const item of arr.slice(0,12)){
+        if(typeof item==='string'&&item.trim()) partes.push(item.trim());
+        else if(item&&typeof item==='object'){
+          const v=item.mensagem??item.message??item.descricao??item.detail??item.erro??item.error;
+          if(v) partes.push(String(v).trim());
+        }
+      }
+    }
+  }
+  return partes.length?[...new Set(partes)].join(' | '):JSON.stringify(d,null,2).slice(0,1800);
+}
+
+function bradescoRespostaBruta(ret){
+  const d=ret?.registro?.resposta_bradesco ?? ret?.resposta_bradesco ?? null;
+  if(d===null||d===undefined)return '';
+  return typeof d==='string'?d:JSON.stringify(d,null,2);
+}
+
 async function bradescoReqProducao(action,body){
   const chave=bbAdminKey();if(!chave)throw new Error('Valide a chave administrativa das integrações antes de emitir no Bradesco.');
   const r=await fetch(`/api/banco-bradesco?action=${encodeURIComponent(action)}&ambiente=producao`,{method:'POST',headers:{'x-integrations-admin-key':chave,'Content-Type':'application/json'},body:JSON.stringify({...body,ambiente:'producao'})});
-  const j=await r.json().catch(()=>({}));if(!r.ok||j.ok===false)throw new Error(j.erro||j.mensagem||`Bradesco HTTP ${r.status}`);return j;
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok||j.ok===false){
+    const e=new Error(j.erro||j.mensagem||`Bradesco HTTP ${r.status}`);
+    e.bradescoResponse=j;
+    throw e;
+  }
+  return j;
 }
 function payloadBradescoDeCobranca(p,seuNumero){
   return {nome:String(p.cliente_nome||''),documento:String(p.cpf_cnpj||'').replace(/\D/g,''),valor:Number(p.valor||0),vencimento:String(p.vencimento||''),seuNumero:String(seuNumero||''),cep:String(p.cep||'').replace(/\D/g,''),logradouro:String(p.endereco||''),numero:String(p.numero||'SN'),complemento:String(p.complemento||''),bairro:String(p.bairro||''),municipio:String(p.cidade||''),uf:String(p.uf||'').toUpperCase(),especie:'2',mensagem:'COBRANCA SOFISTICATTO',email:p.email||null,numero_nf_original:String(p.numero_nf||''),registro_id:p.id||null,relatorio_id:p.relatorio_id||null,parcela_numero:Number(p.parcela_numero||1),parcela_total:Number(p.parcela_total||1),referencia:p.referencia||null};
@@ -7843,6 +7887,7 @@ async function salvarPreparacaoBoletoRelatorioV175(){
   let linhasParaInserir=linhas;
   let bradescoJaConfirmadas=[];
 
+  // V267: no Bradesco, identifica primeiro o que JÁ foi confirmado pelo banco e mostra o retorno detalhado das rejeições.
   // V266: no Bradesco, identifica primeiro o que JÁ foi confirmado pelo banco.
   // A identidade da parcela é relatorio_id + parcela_numero. Registros abertos,
   // pagos ou vencidos nunca são recriados nem reenviados.
@@ -7909,12 +7954,18 @@ async function salvarPreparacaoBoletoRelatorioV175(){
         }
         const ret=await emitirBradescoOperacional(p,{confirmar:false});
         const rr=ret?.registro||{};
-        if(Number(rr.http_status)>=200&&Number(rr.http_status)<300)ok++;
-        else throw new Error(`HTTP ${rr.http_status||'—'}`);
-      }catch(e){erros.push(`Parcela ${p.parcela_numero||1}/${p.parcela_total||rows.length}: ${e.message||e}`);}
+        const http=Number(rr.http_status||0);
+        if(http>=200&&http<300)ok++;
+        else erros.push({parcela:`${p.parcela_numero||1}/${p.parcela_total||rows.length}`,seuNumero:String(rr.seuNumero||seuNumeroBradescoOperacional(p.numero_nf,p.parcela_numero,p.parcela_total)),http:http||'—',detalhe:bradescoDetalheResposta(ret),bruto:bradescoRespostaBruta(ret)});
+      }catch(e){
+        const j=e?.bradescoResponse||null;
+        const rr=j?.registro||{};
+        erros.push({parcela:`${p.parcela_numero||1}/${p.parcela_total||rows.length}`,seuNumero:String(rr.seuNumero||seuNumeroBradescoOperacional(p.numero_nf,p.parcela_numero,p.parcela_total)),http:Number(rr.http_status||j?.bradesco_http||0)||'—',detalhe:bradescoDetalheResposta(j||{}),bruto:bradescoRespostaBruta(j||{})||String(e.message||e)});
+      }
     }
-    if(statusEl)statusEl.innerHTML=`${erros.length?'⚠️':'✅'} Bradesco: <b>${ok}</b> nova(s) emissão(ões) confirmada(s)${jaEmitidos?` • <b>${jaEmitidos}</b> parcela(s) já emitida(s) preservada(s)`:''}.${erros.length?`<br><b>Não repita automaticamente.</b><br>${erros.map(escaparHtmlEmail).join('<br>')}`:'<br>Emissão concluída. Use o Histórico para visualizar/imprimir.'}`;
-    alert(erros.length?`Bradesco: ${ok} nova(s) emissão(ões) concluída(s)${jaEmitidos?` e ${jaEmitidos} parcela(s) já emitida(s) preservada(s)`:''}. Há erro(s) em parcela(s). Não repita a emissão; confira o Histórico.`:`Bradesco: ${ok} nova(s) emissão(ões) concluída(s)${jaEmitidos?` e ${jaEmitidos} parcela(s) já emitida(s) preservada(s)`:''}.`);
+    const blocoErros=erros.length?`<div style="margin-top:12px;display:grid;gap:10px;">${erros.map((e,i)=>`<div style="border:1px solid #e3caca;background:#fff8f8;border-radius:10px;padding:12px;"><b>❌ Parcela ${escaparHtmlEmail(e.parcela)} — HTTP ${escaparHtmlEmail(String(e.http))}</b><div style="margin-top:5px;"><b>Seu Nº enviado:</b> ${escaparHtmlEmail(e.seuNumero)}</div><div style="margin-top:5px;"><b>Resposta do Bradesco:</b> ${escaparHtmlEmail(e.detalhe)}</div>${e.bruto?`<details style="margin-top:8px;"><summary>Ver resposta técnica completa</summary><pre style="margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:11px;max-height:260px;overflow:auto;">${escaparHtmlEmail(e.bruto)}</pre></details>`:''}</div>`).join('')}</div>`:'';
+    if(statusEl)statusEl.innerHTML=`${erros.length?'⚠️':'✅'} Bradesco: <b>${ok}</b> nova(s) emissão(ões) confirmada(s)${jaEmitidos?` • <b>${jaEmitidos}</b> parcela(s) já emitida(s) preservada(s)`:''}.${erros.length?`<br><b>As parcelas rejeitadas NÃO foram reenviadas automaticamente.</b>${blocoErros}`:'<br>Emissão concluída. Use o Histórico para visualizar/imprimir.'}`;
+    alert(erros.length?`Bradesco: ${ok} emissão(ões) confirmada(s). ${erros.length} parcela(s) foram rejeitada(s) pelo Bradesco. O sistema mostrou o Seu Nº e a resposta detalhada; não faça nova tentativa antes de analisar o motivo.`:`Bradesco: ${ok} nova(s) emissão(ões) concluída(s)${jaEmitidos?` e ${jaEmitidos} parcela(s) já emitida(s) preservada(s)`:''}.`);
   }else{
     const confirmar=confirm(`Serão registrados ${rows.length} boleto(s) REAIS no Banco do Brasil para ${cli.nome}, total de ${formatarMoeda(valorTotal)}.\n\nDeseja continuar?`);
     if(!confirmar){document.getElementById("bolModalStatus").innerHTML=`✅ Parcelas salvas. <b>Nenhum boleto foi emitido.</b> Você pode voltar depois e emitir.`;}
