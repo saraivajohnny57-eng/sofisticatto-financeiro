@@ -1368,7 +1368,6 @@ function validarCadastroClienteParaBancos(cliente){
   const cep=somenteDigitosRelatorioCadastro(c.cep);
   const problemas=[];
   if(!nome) problemas.push("Nome / razão social não informado");
-  else if(nome.length>30) problemas.push(`Nome / razão social tem ${nome.length} caracteres (limite preventivo de 30 para BB)`);
   if(![11,14].includes(documento.length)) problemas.push("CPF/CNPJ ausente ou com quantidade de dígitos inválida");
   if(!endereco) problemas.push("Endereço / logradouro não informado");
   else if(endereco.length>30) problemas.push(`Endereço / logradouro tem ${endereco.length} caracteres (limite preventivo de 30 para BB)`);
