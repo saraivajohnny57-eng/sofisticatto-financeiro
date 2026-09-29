@@ -1345,14 +1345,22 @@ function limparClienteSelecionadoRelatorio(){
   if(hid)hid.value="";if(box){box.classList.remove("ok");box.textContent="Digite nome, CNPJ ou CPF para localizar o cadastro.";}
   esconderAvisoCadastroClienteRelatorio();
 }
-function selecionarSugestaoClienteRelatorio(id,autoVerificar=true){
+async function selecionarSugestaoClienteRelatorio(id,autoVerificar=true){
   const input=document.getElementById("nome"),lista=document.getElementById("listaSugestoesClienteRelatorio"),hid=document.getElementById("relatorioClienteId"),box=document.getElementById("relatorioClienteSelecionado");
   const c=(emailClientes||[]).find(x=>String(x.id)===String(id));if(!input||!c)return;
   input.value=c.nome||c.razao_social||"";if(hid)hid.value=c.id||"";
   if(box){box.classList.add("ok");box.innerHTML=`✓ <b>${escaparHtmlEmail(input.value)}</b> • ${escaparHtmlEmail(c.cpf_cnpj||c.cnpj||c.cpf||"sem CPF/CNPJ")}${c.cidade?` • ${escaparHtmlEmail(c.cidade)}${c.uf?"/"+escaparHtmlEmail(c.uf):""}`:""}`;}
   if(lista){lista.classList.remove("ativa");lista.innerHTML="";}
-  const valido=renderizarAvisoCadastroClienteRelatorio(c,autoVerificar);
-  if(valido) mostrarBalaoSistema?.("Cadastro conferido","Os dados do cliente estão compatíveis com a emissão bancária.");
+  if(!autoVerificar){renderizarAvisoCadastroClienteRelatorio(c,false);return;}
+  const aviso=document.getElementById("relatorioClienteCadastroAviso");
+  if(aviso){aviso.style.display="block";aviso.className="relatorio-cadastro-aviso amarelo";aviso.innerHTML="<div><b>🔎 Conferindo cadastro e CEP...</b><span>Vamos verificar se a UF e a cidade estão compatíveis com o CEP.</span></div>";}
+  const v=await validarCadastroClienteParaBancosComCep(c);
+  if(v.ok){
+    renderizarAvisoCadastroClienteRelatorio(c,false);
+    mostrarBalaoSistema?.("Cadastro conferido","Nome, endereço, CPF/CNPJ, CEP, UF e cidade estão prontos para a emissão bancária.");
+  }else{
+    renderizarAvisoCadastroClienteRelatorioComProblemas(c,v.problemas,true);
+  }
 }
 function normalizarCadastroBancarioRelatorioValor(v){return String(v??"").trim();}
 function somenteDigitosRelatorioCadastro(v){return String(v??"").replace(/\D/g,"");}
@@ -1370,24 +1378,71 @@ function validarCadastroClienteParaBancos(cliente){
   if(!nome) problemas.push("Nome / razão social não informado");
   if(![11,14].includes(documento.length)) problemas.push("CPF/CNPJ ausente ou com quantidade de dígitos inválida");
   if(!endereco) problemas.push("Endereço / logradouro não informado");
-  else if(endereco.length>30) problemas.push(`Endereço / logradouro tem ${endereco.length} caracteres (limite preventivo de 30 para BB)`);
+  // V276: nome e endereço são mantidos completos no cadastro. Não bloquear por quantidade de caracteres/linhas.
   if(!numero) problemas.push("Número do endereço não informado");
   if(!bairro) problemas.push("Bairro não informado");
-  else if(bairro.length>30) problemas.push(`Bairro tem ${bairro.length} caracteres (limite preventivo de 30 para BB)`);
   if(!cidade) problemas.push("Cidade / município não informado");
-  else if(cidade.length>30) problemas.push(`Cidade / município tem ${cidade.length} caracteres (limite preventivo de 30 para BB)`);
-  if(!/^[A-Z]{2}$/.test(uf)) problemas.push("UF deve ter exatamente 2 letras");
+  if(!uf) problemas.push("UF não informada — será conferida/preenchida pelo CEP");
+  else if(!/^[A-Z]{2}$/.test(uf)) problemas.push("UF deve ter exatamente 2 letras");
   if(cep.length!==8) problemas.push("CEP deve ter exatamente 8 dígitos");
   return {ok:problemas.length===0,problemas,dados:{nome,documento,endereco,numero,bairro,cidade,uf,cep}};
 }
+function normalizarTextoCepRelatorio(v){
+  return String(v??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+}
+async function consultarCepRelatorio(cep){
+  const d=somenteDigitosRelatorioCadastro(cep);
+  if(d.length!==8)return {ok:false,erro:"CEP deve ter exatamente 8 dígitos."};
+  try{
+    const r=await fetch(`https://viacep.com.br/ws/${d}/json/`,{headers:{Accept:"application/json"}});
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const j=await r.json();
+    if(j?.erro)return {ok:false,erro:"CEP não encontrado na base de CEP."};
+    return {ok:true,cep:j.cep||d,logradouro:j.logradouro||"",bairro:j.bairro||"",cidade:j.localidade||"",uf:String(j.uf||"").toUpperCase(),ibge:j.ibge||""};
+  }catch(e){
+    return {ok:false,indisponivel:true,erro:"Não foi possível consultar o CEP agora."};
+  }
+}
+async function validarCadastroClienteParaBancosComCep(cliente){
+  const base=validarCadastroClienteParaBancos(cliente);
+  const problemas=[...base.problemas];
+  const cep=somenteDigitosRelatorioCadastro(cliente?.cep);
+  let cepDados=null;
+  if(cep.length===8){
+    cepDados=await consultarCepRelatorio(cep);
+    if(cepDados.ok){
+      const cidade=normalizarTextoCepRelatorio(cliente?.cidade||cliente?.municipio);
+      const cidadeCep=normalizarTextoCepRelatorio(cepDados.cidade);
+      const uf=String(cliente?.uf||"").trim().toUpperCase();
+      if(!uf){
+        problemas.push(`UF não informada. Pelo CEP ${formatarCepCadastroRelatorio(cep)}, a UF correta é ${cepDados.uf}.`);
+      }else if(uf!==cepDados.uf){
+        problemas.push(`UF incompatível com o CEP: cadastro ${uf}, mas o CEP indica ${cepDados.uf}.`);
+      }
+      if(!cidade){
+        problemas.push(`Cidade não informada. Pelo CEP, a cidade é ${cepDados.cidade}.`);
+      }else if(cidadeCep!==normalizarTextoCepRelatorio(cidade)){
+        problemas.push(`Cidade incompatível com o CEP: cadastro “${cidade}”, mas o CEP indica “${cepDados.cidade}”.`);
+      }
+    }else if(!cepDados.indisponivel){
+      problemas.push(cepDados.erro||"CEP não encontrado.");
+    }
+  }
+  return {ok:problemas.length===0,problemas,dados:base.dados,cepConsulta:cepDados};
+}
 function formatarCepCadastroRelatorio(v){const d=somenteDigitosRelatorioCadastro(v).slice(0,8);return d.length>5?`${d.slice(0,5)}-${d.slice(5)}`:d;}
-function renderizarAvisoCadastroClienteRelatorio(cliente,abrirEditor=false){
+function renderizarAvisoCadastroClienteRelatorioComProblemas(cliente,problemas,abrirEditor=false){
   const box=document.getElementById("relatorioClienteCadastroAviso");if(!box)return false;
-  const v=validarCadastroClienteParaBancos(cliente);box.style.display="block";box.className=`relatorio-cadastro-aviso ${v.ok?"ok":"erro"}`;
-  if(v.ok){box.innerHTML=`<div><b>✅ Cadastro compatível para emissão bancária.</b><span>Os dados atuais atendem aos campos necessários para BB e Bradesco.</span></div>`;return true;}
-  box.innerHTML=`<div><b>⚠️ Cadastro precisa de ajuste antes do envio.</b><span>Encontramos ${v.problemas.length} item(ns) que podem impedir a emissão:</span><ul>${v.problemas.map(x=>`<li>${escaparHtmlEmail(x)}</li>`).join("")}</ul></div><button type="button" class="btn roxo" onclick="abrirEdicaoCadastroClienteRelatorio()">✏️ Corrigir cadastro</button>`;
+  const lista=Array.from(new Set((problemas||[]).filter(Boolean)));
+  box.style.display="block";box.className=`relatorio-cadastro-aviso ${lista.length?"erro":"ok"}`;
+  if(!lista.length){box.innerHTML=`<div><b>✅ Cadastro compatível para emissão bancária.</b><span>Os dados atuais atendem aos campos necessários para BB e Bradesco.</span></div>`;return true;}
+  box.innerHTML=`<div><b>⚠️ Cadastro precisa de ajuste antes do envio.</b><span>Encontramos ${lista.length} item(ns) que precisam ser conferidos:</span><ul>${lista.map(x=>`<li>${escaparHtmlEmail(x)}</li>`).join("")}</ul></div><button type="button" class="btn roxo" onclick="abrirEdicaoCadastroClienteRelatorio()">✏️ Corrigir cadastro</button>`;
   if(abrirEditor)setTimeout(()=>abrirEdicaoCadastroClienteRelatorio(),60);
   return false;
+}
+function renderizarAvisoCadastroClienteRelatorio(cliente,abrirEditor=false){
+  const v=validarCadastroClienteParaBancos(cliente);
+  return renderizarAvisoCadastroClienteRelatorioComProblemas(cliente,v.problemas,abrirEditor);
 }
 function esconderAvisoCadastroClienteRelatorio(){const box=document.getElementById("relatorioClienteCadastroAviso");if(box){box.style.display="none";box.innerHTML="";box.className="relatorio-cadastro-aviso";}}
 function atualizarClienteSelecionadoRelatorioAposEdicao(cliente){
@@ -1395,20 +1450,51 @@ function atualizarClienteSelecionadoRelatorioAposEdicao(cliente){
   if(input)input.value=cliente.nome||cliente.razao_social||"";if(hid)hid.value=cliente.id||"";
   if(box){box.classList.add("ok");box.innerHTML=`✓ <b>${escaparHtmlEmail(cliente.nome||cliente.razao_social||"")}</b> • ${escaparHtmlEmail(cliente.cpf_cnpj||cliente.cnpj||cliente.cpf||"sem CPF/CNPJ")}${cliente.cidade?` • ${escaparHtmlEmail(cliente.cidade)}${cliente.uf?"/"+escaparHtmlEmail(cliente.uf):""}`:""}`;}
 }
-function abrirEdicaoCadastroClienteRelatorio(){
+async function abrirEdicaoCadastroClienteRelatorio(){
   if(!garantirFinanceiroEmail())return;
   const id=document.getElementById("relatorioClienteId")?.value||"",c=(emailClientes||[]).find(x=>String(x.id)===String(id));if(!c){alert("Selecione primeiro um cliente do cadastro.");return;}
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v??""};
   set("relatorioCadastroEditarId",c.id);set("relatorioCadastroEditarNome",c.nome||c.razao_social||"");set("relatorioCadastroEditarDocumento",c.cpf_cnpj||c.cnpj||c.cpf||"");set("relatorioCadastroEditarEndereco",c.endereco||c.logradouro||"");set("relatorioCadastroEditarNumero",c.numero||"");set("relatorioCadastroEditarComplemento",c.complemento||"");set("relatorioCadastroEditarBairro",c.bairro||"");set("relatorioCadastroEditarCep",formatarCepCadastroRelatorio(c.cep||""));set("relatorioCadastroEditarCidade",c.cidade||c.municipio||"");set("relatorioCadastroEditarUf",String(c.uf||"").toUpperCase());
   const out=document.getElementById("relatorioCadastroEditarAviso");if(out){out.className="relatorio-cadastro-editor-aviso";out.textContent="";}
   const modal=document.getElementById("modalEditarCadastroClienteRelatorio");if(modal)modal.style.display="flex";
+  await atualizarCamposCepNoEditorCadastroRelatorio();
+}
+async function atualizarCamposCepNoEditorCadastroRelatorio(){
+  const cep=document.getElementById("relatorioCadastroEditarCep")?.value||"";
+  if(somenteDigitosRelatorioCadastro(cep).length!==8)return null;
+  const out=document.getElementById("relatorioCadastroEditarAviso");
+  if(out){out.className="relatorio-cadastro-editor-aviso amarelo";out.innerHTML="🔎 Consultando CEP...";}
+  const j=await consultarCepRelatorio(cep);
+  if(!j.ok){if(out){out.className="relatorio-cadastro-editor-aviso erro";out.textContent=j.erro||"Não foi possível consultar o CEP.";}return j;}
+  const cidadeEl=document.getElementById("relatorioCadastroEditarCidade"),ufEl=document.getElementById("relatorioCadastroEditarUf");
+  const cidadeAtual=String(cidadeEl?.value||"").trim(),ufAtual=String(ufEl?.value||"").trim().toUpperCase();
+  const cidadeComp=normalizarTextoCepRelatorio(cidadeAtual)===normalizarTextoCepRelatorio(j.cidade);
+  const ufComp=ufAtual===j.uf;
+  if(cidadeEl&&!cidadeAtual)cidadeEl.value=j.cidade;
+  if(ufEl&&!ufAtual)ufEl.value=j.uf;
+  const problemas=[];
+  if(cidadeAtual&&!cidadeComp)problemas.push(`Cidade do cadastro: “${cidadeAtual}”. CEP informa: “${j.cidade}”.`);
+  if(ufAtual&&!ufComp)problemas.push(`UF do cadastro: “${ufAtual}”. CEP informa: “${j.uf}”.`);
+  if(out){
+    out.className=`relatorio-cadastro-editor-aviso ${problemas.length?"erro":"ok"}`;
+    out.innerHTML=problemas.length?`<b>⚠️ Confira o endereço:</b><ul>${problemas.map(x=>`<li>${escaparHtmlEmail(x)}</li>`).join("")}</ul><span>O CEP retornou <b>${escaparHtmlEmail(j.cidade)}/${escaparHtmlEmail(j.uf)}</b>.</span>`:`✅ CEP conferido: <b>${escaparHtmlEmail(j.cidade)}/${escaparHtmlEmail(j.uf)}</b>${!cidadeAtual||!ufAtual?" — os campos vazios foram preenchidos automaticamente.":" — cidade e UF estão compatíveis."}`;
+  }
+  return j;
 }
 function fecharEdicaoCadastroClienteRelatorio(){const modal=document.getElementById("modalEditarCadastroClienteRelatorio");if(modal)modal.style.display="none";}
 async function salvarEdicaoCadastroClienteRelatorio(){
   if(!garantirFinanceiroEmail())return;
   const id=document.getElementById("relatorioCadastroEditarId")?.value||"",c=(emailClientes||[]).find(x=>String(x.id)===String(id));if(!c){alert("Cliente não encontrado no cadastro.");return;}
   const dados={nome:document.getElementById("relatorioCadastroEditarNome").value.trim(),cpf_cnpj:document.getElementById("relatorioCadastroEditarDocumento").value.trim(),endereco:document.getElementById("relatorioCadastroEditarEndereco").value.trim(),numero:document.getElementById("relatorioCadastroEditarNumero").value.trim(),complemento:document.getElementById("relatorioCadastroEditarComplemento").value.trim(),bairro:document.getElementById("relatorioCadastroEditarBairro").value.trim(),cep:document.getElementById("relatorioCadastroEditarCep").value.trim(),cidade:document.getElementById("relatorioCadastroEditarCidade").value.trim(),uf:document.getElementById("relatorioCadastroEditarUf").value.trim().toUpperCase(),atualizado_em:new Date().toISOString()};
-  const validacao=validarCadastroClienteParaBancos({...c,...dados}),out=document.getElementById("relatorioCadastroEditarAviso");
+  const out=document.getElementById("relatorioCadastroEditarAviso");
+  const cepConsulta=await consultarCepRelatorio(dados.cep);
+  if(cepConsulta.ok){
+    if(!dados.uf)dados.uf=cepConsulta.uf;
+    if(!dados.cidade)dados.cidade=cepConsulta.cidade;
+    document.getElementById("relatorioCadastroEditarUf").value=dados.uf;
+    document.getElementById("relatorioCadastroEditarCidade").value=dados.cidade;
+  }
+  const validacao=await validarCadastroClienteParaBancosComCep({...c,...dados});
   if(!validacao.ok){if(out){out.className="relatorio-cadastro-editor-aviso erro";out.innerHTML=`<b>⚠️ Ainda falta corrigir:</b><ul>${validacao.problemas.map(x=>`<li>${escaparHtmlEmail(x)}</li>`).join("")}</ul>`;}return;}
   const btn=document.getElementById("btnSalvarCadastroClienteRelatorio");if(btn){btn.disabled=true;btn.textContent="Salvando...";}
   try{
@@ -1482,10 +1568,9 @@ async function salvarRelatorio(){
   if(!numeroNf){alert("Informe o Nº da NF/Título. Todos os relatórios precisam de uma numeração para impedir cadastros duplicados.");return;}
   if(clienteId&&!cliente)return alert("O cliente selecionado não foi localizado no cadastro. Pesquise novamente.");
   if(cliente){
-    const cadastro=validarCadastroClienteParaBancos(cliente);
+    const cadastro=await validarCadastroClienteParaBancosComCep(cliente);
     if(!cadastro.ok){
-      renderizarAvisoCadastroClienteRelatorio(cliente,false);
-      abrirEdicaoCadastroClienteRelatorio();
+      renderizarAvisoCadastroClienteRelatorioComProblemas(cliente,cadastro.problemas,true);
       alert('O relatório não pode continuar enquanto o cadastro do cliente tiver pendências bancárias. Corrija os itens indicados no cadastro.');
       return;
     }

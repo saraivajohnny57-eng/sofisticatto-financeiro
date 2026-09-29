@@ -3749,7 +3749,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <div class="relatorio-cadastro-grid">
       <div class="span2"><label>Nome / Razão social</label><input id="relatorioCadastroEditarNome"></div>
       <div><label>CPF/CNPJ</label><input id="relatorioCadastroEditarDocumento"></div>
-      <div><label>CEP</label><input id="relatorioCadastroEditarCep" maxlength="9" oninput="this.value=formatarCepCadastroRelatorio(this.value)"></div>
+      <div><label>CEP</label><input id="relatorioCadastroEditarCep" maxlength="9" oninput="this.value=formatarCepCadastroRelatorio(this.value)" onblur="atualizarCamposCepNoEditorCadastroRelatorio()"></div>
       <div class="span2"><label>Endereço / Logradouro</label><input id="relatorioCadastroEditarEndereco"></div>
       <div><label>Número</label><input id="relatorioCadastroEditarNumero"></div>
       <div><label>Complemento</label><input id="relatorioCadastroEditarComplemento"></div>
