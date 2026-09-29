@@ -7226,6 +7226,15 @@ async function emitirCobrancaBancaria(){
   finally{if(btn){btn.disabled=false;aplicarPadraoBancoCobrancaManual();}}
 }
 
+let bradescoStatusSyncEmAndamentoV277=false;
+function bradescoStatusExtraHtml(x){
+  const extras=[];
+  if(x?.bradesco_descontado)extras.push('<span class="cobranca-status-tag bradesco-descontado">Descontado</span>');
+  if(x?.bradesco_status_detalhe && !x?.bradesco_descontado && !['PAGO','PAGO NO DIA','A VENCER / VENCIDO'].includes(String(x.bradesco_status_detalhe).toUpperCase())){
+    extras.push(`<span class="cobranca-status-tag bradesco-detalhe">${escaparHtmlEmail(String(x.bradesco_status_detalhe))}</span>`);
+  }
+  return extras.join(' ');
+}
 let bbStatusSyncEmAndamentoV176=false;
 let bbStatusUltimaSyncV176=0;
 function bbStatusExtraHtml(x){
@@ -7342,31 +7351,46 @@ async function limparPendenciasBradescoJaEmitidasV270(rows){
   }
   return {removidas:total,pendentes:apagar.length};
 }
-async function sincronizarStatusBradescoV270(silencioso=false){
+async function sincronizarStatusBradescoV277(silencioso=false){
+  if(bradescoStatusSyncEmAndamentoV277)return;
+  bradescoStatusSyncEmAndamentoV277=true;
   const btn=document.getElementById('cobBtnSyncBradesco'),info=document.getElementById('cobSyncBradescoInfo');
   if(btn){btn.disabled=true;btn.textContent='Consultando Bradesco...';}
-  if(info&&!silencioso)info.textContent='Atualizando o Histórico do Bradesco e reconciliando parcelas já emitidas...';
+  if(info&&!silencioso)info.textContent='Consultando o status oficial dos boletos Bradesco...';
   try{
-    const q=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(2000);
-    if(q.error)throw q.error;
-    const lista=q.data||[];
-    const r=await limparPendenciasBradescoJaEmitidasV270(lista);
+    const j=await bradescoReqProducao('sincronizar-status',{limite:80});
+    const r=j?.resumo||{};
     const novo=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(2000);
     if(novo.error)throw novo.error;
     cobrancasBancarias=novo.data||[];
     renderHistoricoCobrancas();
-    const agora=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    if(info)info.textContent=`Última atualização Bradesco: ${agora} • ${r.removidas} pendência(s) antiga(s) removida(s)${r.removidas!==r.pendentes?` • ${r.pendentes-r.removidas} não removida(s)`:''}.`;
-    if(!silencioso)alert(r.removidas
-      ? `Bradesco atualizado.\n\n${r.removidas} registro(s) antigo(s) de "Pendente integração" foram removido(s) porque a parcela já está emitida.`
-      : 'Bradesco atualizado.\n\nNenhum registro pendente antigo precisou ser removido.');
+    const hora=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    if(info)info.textContent=`Última consulta Bradesco: ${hora} • ${r.consultados||0} título(s) • ${r.pagos||0} pago(s) • ${r.descontados||0} descontado(s)${r.erros?.length?` • ${r.erros.length} erro(s)`:''}`;
+    if(!silencioso && r.erros?.length)console.warn('Sincronização Bradesco com erros parciais:',r.erros);
+    if(!silencioso)alert(`Bradesco atualizado.\n\n${r.consultados||0} boleto(s) consultado(s).\n${r.descontados||0} com indicação de Descontado.\n${r.pagos||0} com pagamento identificado.${r.erros?.length?`\n\n${r.erros.length} consulta(s) tiveram erro; veja o console para detalhes.`:''}`);
   }catch(e){
-    console.warn('Atualização Bradesco V270:',e);
-    if(info)info.textContent='Não foi possível atualizar o Histórico do Bradesco: '+(e.message||e);
-    if(!silencioso)alert('Não foi possível atualizar o Bradesco.\n\n'+(e.message||e));
+    console.warn('Sincronização de status Bradesco V277:',e);
+    if(info)info.textContent='Não foi possível consultar o Bradesco agora: '+(e.message||e);
+    if(!silencioso)alert('Não foi possível atualizar os status no Bradesco.\n\n'+(e.message||e));
   }finally{
+    bradescoStatusSyncEmAndamentoV277=false;
     if(btn){btn.disabled=false;btn.textContent='🔄 Atualizar Bradesco';}
   }
+}
+async function verificarStatusBradescoV277(id){
+  const reg=(cobrancasBancarias||[]).find(x=>String(x.id)===String(id));
+  if(!reg)return alert('Boleto Bradesco não encontrado no Histórico.');
+  if(String(reg.banco||'').toLowerCase()!=='bradesco')return alert('Este registro não é do Bradesco.');
+  const btns=document.querySelectorAll(`[data-verifica-bradesco=\"${String(id).replace(/\"/g,'')}\"]`);btns.forEach(b=>b.disabled=true);
+  try{
+    const j=await bradescoReqProducao('consultar-status-titulo',{id:String(id)}),c=j?.consulta||{};
+    const novo=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(2000);
+    if(!novo.error)cobrancasBancarias=novo.data||[];
+    renderHistoricoCobrancas();
+    const tags=[c.status||'—',c.descontado?'Descontado':null].filter(Boolean).join(' • ');
+    alert(`Status Bradesco atualizado.\n\nStatus: ${tags}\n${c.data_pagamento?`Data do pagamento: ${new Date(c.data_pagamento+'T12:00:00').toLocaleDateString('pt-BR')}\n`:''}${c.valor_pago!=null?`Valor pago: ${cobMoeda(c.valor_pago)}\n`:''}Código Bradesco: ${c.codStatus??'—'}`);
+  }catch(e){alert('Não foi possível consultar este boleto no Bradesco.\n\n'+(e.message||e));}
+  finally{btns.forEach(b=>b.disabled=false);}
 }
 
 async function carregarCobrancasBancarias(){
@@ -7409,11 +7433,11 @@ function mostrarAbaIntegracaoBancaria(aba='historico'){
   if(aba==='credenciais'){if(typeof carregarStatusBancoBB==='function')carregarStatusBancoBB(false);if(typeof carregarStatusBradesco==='function')carregarStatusBradesco(false);}
 }
 function cobrancasFiltradasHistoricoV178(){
-  const q=cobNorm(document.getElementById('cobBuscaHistorico')?.value||''), f=document.getElementById('cobFiltroStatus')?.value||'';
+  const q=cobNorm(document.getElementById('cobBuscaHistorico')?.value||''), f=document.getElementById('cobFiltroStatus')?.value||'', fb=document.getElementById('cobFiltroBanco')?.value||'';
   const di=document.getElementById('cobDataEmissaoIni')?.value||'', df=document.getElementById('cobDataEmissaoFim')?.value||'';
   return (cobrancasBancarias||[]).filter(x=>{
     const de=dataEmissaoCobrancaV177(x);
-    return (!q||cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia].join(' ')).includes(q))&&(!f||x.status===f)&&(!di||de>=di)&&(!df||de<=df);
+    return (!q||cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia].join(' ')).includes(q))&&(!fb||codigoBancoCobranca(x?.banco_nome||x?.banco||'')===fb)&&(!f||x.status===f)&&(!di||de>=di)&&(!df||de<=df);
   });
 }
 async function imprimirBoletosFiltradosV178(){
@@ -7528,7 +7552,7 @@ function renderHistoricoCobrancas(){
     const emitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bb'&&x.nosso_numero;
     const bradescoEmitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bradesco'&&x.linha_digitavel;
     const acoes=bradescoEmitido
-      ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar boleto</button> <button class="btn verde" onclick="imprimirPedidoBradescoV264('${x.id}')">📄 Imprimir pedido</button>`
+      ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar boleto</button> <button class="btn verde" onclick="imprimirPedidoBradescoV264('${x.id}')">📄 Imprimir pedido</button> <button class="btn" style="background:#c62828;color:#fff;" data-verifica-bradesco="${x.id}" onclick="verificarStatusBradescoV277('${x.id}')">🔄 Verificar Bradesco</button>`
       :(x.banco==='bradesco'&&x.status==='pendente_integracao'
         ?`<button class="btn vermelho" onclick="verificarConciliarTituloBradescoV271('${x.id}')">🔎 Verificar Bradesco</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
         :(emitido
@@ -7536,7 +7560,7 @@ function renderHistoricoCobrancas(){
         :(x.banco==='bb'&&x.status==='pendente_integracao'
           ?`<button class="btn verde" onclick="verificarConciliarTituloBb('${x.id}')">🔎 Verificar no BB</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
           :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`)));
-    return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${dataEmissaoCobrancaV177(x)?new Date(dataEmissaoCobrancaV177(x)+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
+    return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${dataEmissaoCobrancaV177(x)?new Date(dataEmissaoCobrancaV177(x)+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)} ${bradescoStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}${x.bradesco_data_pagamento?`<div class="bb-status-meta">Pagamento: ${new Date(x.bradesco_data_pagamento+'T12:00:00').toLocaleDateString('pt-BR')}${x.bradesco_valor_pago!=null?' • Pago '+cobMoeda(x.bradesco_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
   }).join(''):'<tr><td colspan="8">Nenhuma cobrança encontrada.</td></tr>';
 }
 
