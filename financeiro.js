@@ -1343,13 +1343,91 @@ function mostrarSugestoesClienteRelatorio(){
 function limparClienteSelecionadoRelatorio(){
   const hid=document.getElementById("relatorioClienteId"),box=document.getElementById("relatorioClienteSelecionado");
   if(hid)hid.value="";if(box){box.classList.remove("ok");box.textContent="Digite nome, CNPJ ou CPF para localizar o cadastro.";}
+  esconderAvisoCadastroClienteRelatorio();
 }
-function selecionarSugestaoClienteRelatorio(id){
+function selecionarSugestaoClienteRelatorio(id,autoVerificar=true){
   const input=document.getElementById("nome"),lista=document.getElementById("listaSugestoesClienteRelatorio"),hid=document.getElementById("relatorioClienteId"),box=document.getElementById("relatorioClienteSelecionado");
   const c=(emailClientes||[]).find(x=>String(x.id)===String(id));if(!input||!c)return;
   input.value=c.nome||c.razao_social||"";if(hid)hid.value=c.id||"";
   if(box){box.classList.add("ok");box.innerHTML=`✓ <b>${escaparHtmlEmail(input.value)}</b> • ${escaparHtmlEmail(c.cpf_cnpj||c.cnpj||c.cpf||"sem CPF/CNPJ")}${c.cidade?` • ${escaparHtmlEmail(c.cidade)}${c.uf?"/"+escaparHtmlEmail(c.uf):""}`:""}`;}
   if(lista){lista.classList.remove("ativa");lista.innerHTML="";}
+  const valido=renderizarAvisoCadastroClienteRelatorio(c,autoVerificar);
+  if(valido) mostrarBalaoSistema?.("Cadastro conferido","Os dados do cliente estão compatíveis com a emissão bancária.");
+}
+function normalizarCadastroBancarioRelatorioValor(v){return String(v??"").trim();}
+function somenteDigitosRelatorioCadastro(v){return String(v??"").replace(/\D/g,"");}
+function validarCadastroClienteParaBancos(cliente){
+  const c=cliente||{};
+  const nome=normalizarCadastroBancarioRelatorioValor(c.nome||c.razao_social);
+  const documento=somenteDigitosRelatorioCadastro(c.cpf_cnpj||c.cnpj||c.cpf);
+  const endereco=normalizarCadastroBancarioRelatorioValor(c.endereco||c.logradouro);
+  const numero=normalizarCadastroBancarioRelatorioValor(c.numero);
+  const bairro=normalizarCadastroBancarioRelatorioValor(c.bairro);
+  const cidade=normalizarCadastroBancarioRelatorioValor(c.cidade||c.municipio);
+  const uf=normalizarCadastroBancarioRelatorioValor(c.uf).toUpperCase();
+  const cep=somenteDigitosRelatorioCadastro(c.cep);
+  const problemas=[];
+  if(!nome) problemas.push("Nome / razão social não informado");
+  else if(nome.length>30) problemas.push(`Nome / razão social tem ${nome.length} caracteres (limite preventivo de 30 para BB)`);
+  if(![11,14].includes(documento.length)) problemas.push("CPF/CNPJ ausente ou com quantidade de dígitos inválida");
+  if(!endereco) problemas.push("Endereço / logradouro não informado");
+  else if(endereco.length>30) problemas.push(`Endereço / logradouro tem ${endereco.length} caracteres (limite preventivo de 30 para BB)`);
+  if(!numero) problemas.push("Número do endereço não informado");
+  if(!bairro) problemas.push("Bairro não informado");
+  else if(bairro.length>30) problemas.push(`Bairro tem ${bairro.length} caracteres (limite preventivo de 30 para BB)`);
+  if(!cidade) problemas.push("Cidade / município não informado");
+  else if(cidade.length>30) problemas.push(`Cidade / município tem ${cidade.length} caracteres (limite preventivo de 30 para BB)`);
+  if(!/^[A-Z]{2}$/.test(uf)) problemas.push("UF deve ter exatamente 2 letras");
+  if(cep.length!==8) problemas.push("CEP deve ter exatamente 8 dígitos");
+  return {ok:problemas.length===0,problemas,dados:{nome,documento,endereco,numero,bairro,cidade,uf,cep}};
+}
+function formatarCepCadastroRelatorio(v){const d=somenteDigitosRelatorioCadastro(v).slice(0,8);return d.length>5?`${d.slice(0,5)}-${d.slice(5)}`:d;}
+function renderizarAvisoCadastroClienteRelatorio(cliente,abrirEditor=false){
+  const box=document.getElementById("relatorioClienteCadastroAviso");if(!box)return false;
+  const v=validarCadastroClienteParaBancos(cliente);box.style.display="block";box.className=`relatorio-cadastro-aviso ${v.ok?"ok":"erro"}`;
+  if(v.ok){box.innerHTML=`<div><b>✅ Cadastro compatível para emissão bancária.</b><span>Os dados atuais atendem aos campos necessários para BB e Bradesco.</span></div>`;return true;}
+  box.innerHTML=`<div><b>⚠️ Cadastro precisa de ajuste antes do envio.</b><span>Encontramos ${v.problemas.length} item(ns) que podem impedir a emissão:</span><ul>${v.problemas.map(x=>`<li>${escaparHtmlEmail(x)}</li>`).join("")}</ul></div><button type="button" class="btn roxo" onclick="abrirEdicaoCadastroClienteRelatorio()">✏️ Corrigir cadastro</button>`;
+  if(abrirEditor)setTimeout(()=>abrirEdicaoCadastroClienteRelatorio(),60);
+  return false;
+}
+function esconderAvisoCadastroClienteRelatorio(){const box=document.getElementById("relatorioClienteCadastroAviso");if(box){box.style.display="none";box.innerHTML="";box.className="relatorio-cadastro-aviso";}}
+function atualizarClienteSelecionadoRelatorioAposEdicao(cliente){
+  const input=document.getElementById("nome"),hid=document.getElementById("relatorioClienteId"),box=document.getElementById("relatorioClienteSelecionado");if(!cliente)return;
+  if(input)input.value=cliente.nome||cliente.razao_social||"";if(hid)hid.value=cliente.id||"";
+  if(box){box.classList.add("ok");box.innerHTML=`✓ <b>${escaparHtmlEmail(cliente.nome||cliente.razao_social||"")}</b> • ${escaparHtmlEmail(cliente.cpf_cnpj||cliente.cnpj||cliente.cpf||"sem CPF/CNPJ")}${cliente.cidade?` • ${escaparHtmlEmail(cliente.cidade)}${cliente.uf?"/"+escaparHtmlEmail(cliente.uf):""}`:""}`;}
+}
+function abrirEdicaoCadastroClienteRelatorio(){
+  if(!garantirFinanceiroEmail())return;
+  const id=document.getElementById("relatorioClienteId")?.value||"",c=(emailClientes||[]).find(x=>String(x.id)===String(id));if(!c){alert("Selecione primeiro um cliente do cadastro.");return;}
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v??""};
+  set("relatorioCadastroEditarId",c.id);set("relatorioCadastroEditarNome",c.nome||c.razao_social||"");set("relatorioCadastroEditarDocumento",c.cpf_cnpj||c.cnpj||c.cpf||"");set("relatorioCadastroEditarEndereco",c.endereco||c.logradouro||"");set("relatorioCadastroEditarNumero",c.numero||"");set("relatorioCadastroEditarComplemento",c.complemento||"");set("relatorioCadastroEditarBairro",c.bairro||"");set("relatorioCadastroEditarCep",formatarCepCadastroRelatorio(c.cep||""));set("relatorioCadastroEditarCidade",c.cidade||c.municipio||"");set("relatorioCadastroEditarUf",String(c.uf||"").toUpperCase());
+  const out=document.getElementById("relatorioCadastroEditarAviso");if(out){out.className="relatorio-cadastro-editor-aviso";out.textContent="";}
+  const modal=document.getElementById("modalEditarCadastroClienteRelatorio");if(modal)modal.style.display="flex";
+}
+function fecharEdicaoCadastroClienteRelatorio(){const modal=document.getElementById("modalEditarCadastroClienteRelatorio");if(modal)modal.style.display="none";}
+async function salvarEdicaoCadastroClienteRelatorio(){
+  if(!garantirFinanceiroEmail())return;
+  const id=document.getElementById("relatorioCadastroEditarId")?.value||"",c=(emailClientes||[]).find(x=>String(x.id)===String(id));if(!c){alert("Cliente não encontrado no cadastro.");return;}
+  const dados={nome:document.getElementById("relatorioCadastroEditarNome").value.trim(),cpf_cnpj:document.getElementById("relatorioCadastroEditarDocumento").value.trim(),endereco:document.getElementById("relatorioCadastroEditarEndereco").value.trim(),numero:document.getElementById("relatorioCadastroEditarNumero").value.trim(),complemento:document.getElementById("relatorioCadastroEditarComplemento").value.trim(),bairro:document.getElementById("relatorioCadastroEditarBairro").value.trim(),cep:document.getElementById("relatorioCadastroEditarCep").value.trim(),cidade:document.getElementById("relatorioCadastroEditarCidade").value.trim(),uf:document.getElementById("relatorioCadastroEditarUf").value.trim().toUpperCase(),atualizado_em:new Date().toISOString()};
+  const validacao=validarCadastroClienteParaBancos({...c,...dados}),out=document.getElementById("relatorioCadastroEditarAviso");
+  if(!validacao.ok){if(out){out.className="relatorio-cadastro-editor-aviso erro";out.innerHTML=`<b>⚠️ Ainda falta corrigir:</b><ul>${validacao.problemas.map(x=>`<li>${escaparHtmlEmail(x)}</li>`).join("")}</ul>`;}return;}
+  const btn=document.getElementById("btnSalvarCadastroClienteRelatorio");if(btn){btn.disabled=true;btn.textContent="Salvando...";}
+  try{
+    const resposta=await banco.from("email_clientes").update(dados).eq("id",id);if(resposta.error)throw resposta.error;
+    await carregarClientesEmail();const atualizado=(emailClientes||[]).find(x=>String(x.id)===String(id));if(!atualizado)throw new Error("O cadastro foi salvo, mas não foi possível recarregá-lo.");
+    atualizarClienteSelecionadoRelatorioAposEdicao(atualizado);const ok=renderizarAvisoCadastroClienteRelatorio(atualizado,false);if(!ok)throw new Error("O cadastro foi salvo, mas ainda possui pendências bancárias.");
+    fecharEdicaoCadastroClienteRelatorio();mostrarBalaoSistema("Cadastro atualizado","O cliente agora está compatível com a emissão bancária. Você pode continuar o relatório.");
+  }catch(e){if(out){out.className="relatorio-cadastro-editor-aviso erro";out.textContent="❌ Não foi possível salvar o cadastro: "+(e?.message||e);}}
+  finally{if(btn){btn.disabled=false;btn.textContent="💾 Salvar e continuar";}}
+}
+let relatorioClienteBuscaTimer=null;
+function verificarCadastroClienteAoDigitarRelatorio(){
+  clearTimeout(relatorioClienteBuscaTimer);const input=document.getElementById("nome");if(!input)return;
+  relatorioClienteBuscaTimer=setTimeout(()=>{
+    const valor=String(input.value||"").trim();if(valor.length<3)return;const normalizado=normalizarNomeEmail(valor),dig=somenteDigitosRelatorioCadastro(valor);
+    const encontrados=(emailClientes||[]).filter(c=>{const n=normalizarNomeEmail(c.nome||c.razao_social||""),d=somenteDigitosRelatorioCadastro(c.cpf_cnpj||c.cnpj||c.cpf||"");return (normalizado&&n===normalizado)||(dig&&dig.length>=8&&d===dig);});
+    if(encontrados.length!==1)return;selecionarSugestaoClienteRelatorio(encontrados[0].id,true);
+  },260);
 }
 function alternarCondicaoPersonalizadaRelatorio(){
   const sel=document.getElementById("relatorioCondicaoPagamento"),box=document.getElementById("relatorioCondicaoPersonalizadaBox");
@@ -1404,6 +1482,15 @@ async function salvarRelatorio(){
   if(!nome||!valorTexto){alert("Preencha cliente e valor");return;}
   if(!numeroNf){alert("Informe o Nº da NF/Título. Todos os relatórios precisam de uma numeração para impedir cadastros duplicados.");return;}
   if(clienteId&&!cliente)return alert("O cliente selecionado não foi localizado no cadastro. Pesquise novamente.");
+  if(cliente){
+    const cadastro=validarCadastroClienteParaBancos(cliente);
+    if(!cadastro.ok){
+      renderizarAvisoCadastroClienteRelatorio(cliente,false);
+      abrirEdicaoCadastroClienteRelatorio();
+      alert('O relatório não pode continuar enquanto o cadastro do cliente tiver pendências bancárias. Corrija os itens indicados no cadastro.');
+      return;
+    }
+  }
   if(condicao&&(!dataBase||!parcelas.length))return alert("Informe a data base para gerar as parcelas.");
   salvandoRelatorioAgora=true;if(botao){botao.disabled=true;botao.dataset.textoOriginal=botao.textContent;botao.textContent="Salvando...";}
   try{

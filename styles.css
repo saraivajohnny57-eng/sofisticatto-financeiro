@@ -2330,3 +2330,15 @@ html.modo-portal-publico .portal-conteudo{
 
 /* V238 — cobertura regional */
 .frete-cobertura-regional{border-color:#e7b84b!important;background:#fffaf0!important}.frete-cobertura-badge.regional{background:#fff1c2;color:#7a5700;border:1px solid #e7b84b}
+
+/* V274 — conferência automática do cadastro antes do relatório bancário */
+.relatorio-cadastro-aviso{margin-top:8px;padding:10px 12px;border-radius:10px;border:1px solid #ddd7eb;background:#faf9ff;color:#51486d;font-size:12px;line-height:1.45;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.relatorio-cadastro-aviso.ok{background:#edf9f1;border-color:#c8e8d2;color:#25663c}
+.relatorio-cadastro-aviso.erro{background:#fff5f5;border-color:#efcaca;color:#8b2c2c}
+.relatorio-cadastro-aviso>div{min-width:0}.relatorio-cadastro-aviso b{display:block;margin-bottom:3px}.relatorio-cadastro-aviso span{display:block}.relatorio-cadastro-aviso ul{margin:6px 0 0 18px;padding:0}.relatorio-cadastro-aviso li{margin:2px 0}
+.relatorio-cadastro-modal{position:fixed;inset:0;z-index:350000;background:rgba(24,20,43,.58);display:flex;align-items:center;justify-content:center;padding:18px}
+.relatorio-cadastro-modal-card{width:min(760px,100%);max-height:94vh;overflow:auto;background:#fff;border-radius:20px;padding:22px;box-shadow:0 28px 80px rgba(0,0,0,.3)}
+.relatorio-cadastro-modal-topo{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;border-bottom:1px solid #eeeaf6;padding-bottom:12px;margin-bottom:14px}.relatorio-cadastro-modal-topo h2{margin:0 0 5px;color:#413879;font-size:21px}.relatorio-cadastro-modal-topo p{margin:0;color:#6c6580;font-size:13px;line-height:1.45}.relatorio-cadastro-fechar{border:0;background:#f1eef9;color:#51468e;border-radius:10px;width:36px;height:36px;font-size:17px;cursor:pointer}
+.relatorio-cadastro-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.relatorio-cadastro-grid>div{min-width:0}.relatorio-cadastro-grid .span2{grid-column:span 2}.relatorio-cadastro-grid label{display:block;font-size:12px;font-weight:700;color:#554c70;margin:0 0 5px}.relatorio-cadastro-grid input{width:100%;box-sizing:border-box}
+.relatorio-cadastro-editor-aviso{min-height:18px;margin-top:12px;padding:0;font-size:12px;line-height:1.45;color:#6b6478}.relatorio-cadastro-editor-aviso.erro{padding:10px 12px;background:#fff3f3;border:1px solid #efcaca;border-radius:10px;color:#8b2c2c}.relatorio-cadastro-editor-aviso ul{margin:5px 0 0 18px;padding:0}.relatorio-cadastro-modal-acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #eeeaf6}
+@media(max-width:700px){.relatorio-cadastro-grid{grid-template-columns:1fr}.relatorio-cadastro-grid .span2{grid-column:span 1}.relatorio-cadastro-aviso{flex-direction:column}.relatorio-cadastro-modal-card{padding:16px}}
