@@ -2342,3 +2342,7 @@ html.modo-portal-publico .portal-conteudo{
 .relatorio-cadastro-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.relatorio-cadastro-grid>div{min-width:0}.relatorio-cadastro-grid .span2{grid-column:span 2}.relatorio-cadastro-grid label{display:block;font-size:12px;font-weight:700;color:#554c70;margin:0 0 5px}.relatorio-cadastro-grid input{width:100%;box-sizing:border-box}
 .relatorio-cadastro-editor-aviso{min-height:18px;margin-top:12px;padding:0;font-size:12px;line-height:1.45;color:#6b6478}.relatorio-cadastro-editor-aviso.erro{padding:10px 12px;background:#fff3f3;border:1px solid #efcaca;border-radius:10px;color:#8b2c2c}.relatorio-cadastro-editor-aviso ul{margin:5px 0 0 18px;padding:0}.relatorio-cadastro-modal-acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #eeeaf6}
 @media(max-width:700px){.relatorio-cadastro-grid{grid-template-columns:1fr}.relatorio-cadastro-grid .span2{grid-column:span 1}.relatorio-cadastro-aviso{flex-direction:column}.relatorio-cadastro-modal-card{padding:16px}}
+
+/* V278 — indicadores complementares do Bradesco (não substituem Aberto/Vencido/Pago) */
+.cobranca-status-tag.bradesco-descontado{background:#fde7ed;color:#9b1c3f;margin-left:4px}
+.cobranca-status-tag.bradesco-detalhe{background:#edf1f7;color:#455064;margin-left:4px}

@@ -7226,6 +7226,9 @@ async function emitirCobrancaBancaria(){
   finally{if(btn){btn.disabled=false;aplicarPadraoBancoCobrancaManual();}}
 }
 
+// V278 — Status bancário composto: o indicador DESCONTADO nunca substitui
+// a situação operacional do título (Aberto/Vencido/Pago). Assim um boleto
+// pode aparecer, por exemplo, como "Aberto • Descontado".
 let bradescoStatusSyncEmAndamentoV277=false;
 function bradescoStatusExtraHtml(x){
   const extras=[];
