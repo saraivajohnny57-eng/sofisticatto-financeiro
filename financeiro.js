@@ -9159,26 +9159,64 @@ function nomeArquivoBoletoMassa(g,p){
   const parc=`${String(p.parcela_numero||1).padStart(2,'0')}de${String(p.parcela_total||g.parcelas.length).padStart(2,'0')}`;
   return `${seguro} - ${parc} - ${Number(p.valor||0).toFixed(2).replace('.',',')}.pdf`;
 }
+// V279 — fila transacional de emissão em massa.
+// O estado do lote é separado do status bancário (aberto/pago/etc.).
+function cobLoteIdV279(){
+  const d=new Date(), pad=n=>String(n).padStart(2,'0');
+  return `LOTE-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}-${crypto.randomUUID().slice(0,8).toUpperCase()}`;
+}
+function mensagemErroV279(e){return String(e?.message||e||'Erro desconhecido').slice(0,1800)}
+function erroSeguroParaNovaTentativaV279(e){
+  // Somente rejeições HTTP 4xx explicitamente devolvidas pelo banco são consideradas
+  // "não emitidas". Timeout, rede, 5xx e respostas sem HTTP são resultado incerto.
+  const m=mensagemErroV279(e), nums=[...m.matchAll(/HTTP\s*(\d{3})/ig)].map(x=>Number(x[1]));
+  return nums.some(n=>n>=400&&n<500&&![408,409,425,429].includes(n));
+}
+async function marcarFilaLoteV279(p,estado,loteId,extra={}){
+  if(!p?.id)return {ok:false};
+  const payload={lote_emissao_id:loteId,lote_estado:estado,lote_ultima_tentativa:new Date().toISOString(),...extra};
+  try{
+    const r=await banco.from('cobrancas_bancarias').update(payload).eq('id',p.id);
+    if(r.error){
+      // Se o SQL V279 ainda não foi executado, interrompe ANTES de qualquer POST bancário.
+      if(/lote_|column|schema cache|does not exist/i.test(String(r.error.message||'')))throw new Error('SQL V279 ainda não foi aplicado no Supabase. A emissão em massa foi bloqueada antes de enviar ao banco.');
+      throw r.error;
+    }
+    Object.assign(p,payload);return {ok:true};
+  }catch(e){throw e}
+}
+async function incrementarTentativaLoteV279(p,loteId){
+  const atual=Number(p?.lote_tentativas||0)+1;
+  await marcarFilaLoteV279(p,'enviando',loteId,{lote_tentativas:atual,lote_erro:null});
+  p.lote_tentativas=atual;
+}
 async function emitirBoletosEmMassa(){
   const grupos=ordemCobrancaMassa(gruposSelecionadosCobrancaMassa());
   if(!grupos.length)return alert('Não há boletos selecionados e prontos para emissão.');
   const totalBoletos=grupos.reduce((n,g)=>n+g.parcelas.length,0), totalValor=grupos.reduce((n,g)=>n+g.valorTotal,0);
   const qtdBB=grupos.filter(g=>codigoBancoCobranca(g.rel.banco)==='bb').reduce((n,g)=>n+g.parcelas.length,0);
   const qtdBR=grupos.filter(g=>codigoBancoCobranca(g.rel.banco)==='bradesco').reduce((n,g)=>n+g.parcelas.length,0);
-  // V260: o seletor de pasta precisa ser aberto diretamente pelo clique do usuário.
-  // Chrome bloqueia showDirectoryPicker quando ele é chamado depois de confirm()/prompt().
+  const bloqueados=grupos.flatMap(g=>g.parcelas).filter(p=>['enviando','resultado_incerto','emitido'].includes(String(p.lote_estado||'').toLowerCase()));
+  if(bloqueados.length)return alert(`${bloqueados.length} parcela(s) possuem estado de lote que impede novo envio (ENVIANDO, RESULTADO INCERTO ou EMITIDO).\n\nAtualize a fila e confira esses títulos antes de continuar.`);
   const pasta=await escolherPastaCobrancaMassa();
   if(window.showDirectoryPicker && !pasta)return;
-  if(!confirm(`EMISSÃO EM MASSA — CONFERÊNCIA FINAL\n\nClientes: ${grupos.length}\nBoletos: ${totalBoletos}\nBanco do Brasil: ${qtdBB}\nBradesco: ${qtdBR}\nTotal: ${cobMoeda(totalValor)}\n\nCada parcela será emitida uma única vez e registrada no Histórico. Continuar?`))return;
+  if(!confirm(`EMISSÃO EM MASSA — CONFERÊNCIA FINAL\n\nClientes: ${grupos.length}\nBoletos: ${totalBoletos}\nBanco do Brasil: ${qtdBB}\nBradesco: ${qtdBR}\nTotal: ${cobMoeda(totalValor)}\n\nV279 registrará o estado de cada parcela antes e depois de falar com o banco. Continuar?`))return;
   const palavra=prompt('Digite exatamente EMITIR LOTE para confirmar a emissão real dos boletos selecionados:');
   if(String(palavra||'').trim().toUpperCase()!=='EMITIR LOTE')return alert('Emissão em massa cancelada. Nenhum novo envio foi iniciado.');
+  const loteId=cobLoteIdV279();
   const btn=document.getElementById('btnEmitirMassa');if(btn){btn.disabled=true;btn.textContent='Emitindo lote...';}
   const resultados=[];
   try{
+    // Primeiro grava o identificador do lote em TODAS as parcelas. Se o SQL não existir,
+    // nada é enviado a BB/Bradesco.
+    for(const g of grupos)for(const p of g.parcelas)await marcarFilaLoteV279(p,'aguardando',loteId,{lote_erro:null});
     for(const g of grupos){
       const cod=codigoBancoCobranca(g.rel.banco),blobsGrupo=[],okGrupo=[];
       for(const p of g.parcelas){
+        let iniciouPost=false;
         try{
+          await incrementarTentativaLoteV279(p,loteId);
+          iniciouPost=true;
           let ret,blob=null;
           if(cod==='bb'){
             if(typeof window.emitirBoletoBancoIntegrado!=='function')throw new Error('Motor Banco do Brasil indisponível.');
@@ -9186,27 +9224,43 @@ async function emitirBoletosEmMassa(){
             if(!blob&&ret?.base64){const bin=atob(String(ret.base64).replace(/^data:application\/pdf;base64,/,''));const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);blob=new Blob([arr],{type:'application/pdf'});}
           }else if(cod==='bradesco'){
             ret=await emitirBradescoOperacional(p,{confirmar:false});
-            const rr=ret?.registro||{};if(!(Number(rr.http_status)>=200&&Number(rr.http_status)<300))throw new Error(`Bradesco HTTP ${rr.http_status||'—'}. O item não será repetido automaticamente.`);
-            // V273: o Bradesco pode retornar o boleto como PDF/base64 ou como URL oficial.
-            // Recuperamos o arquivo para a mesma pasta escolhida pelo usuário, assim como no BB.
+            const rr=ret?.registro||{};if(!(Number(rr.http_status)>=200&&Number(rr.http_status)<300))throw new Error(`Bradesco HTTP ${rr.http_status||'—'}.`);
             if(pasta)blob=await obterBlobBoletoBradescoMassa(ret);
           }else throw new Error('Banco sem integração de emissão.');
-          if(blob)blobsGrupo.push(blob);const rr={ok:true,g,p,ret,blob};resultados.push(rr);okGrupo.push(rr);
-          if(pasta&&cod==='bradesco'&&blob){
-            await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,p),blob);
-          }
-        }catch(e){resultados.push({ok:false,g,p,erro:e});}
+          await marcarFilaLoteV279(p,'emitido',loteId,{lote_erro:null});
+          if(blob)blobsGrupo.push(blob);const rr={ok:true,g,p,ret,blob,loteId};resultados.push(rr);okGrupo.push(rr);
+          if(pasta&&cod==='bradesco'&&blob)await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,p),blob);
+        }catch(e){
+          const seguro=iniciouPost&&erroSeguroParaNovaTentativaV279(e);
+          const estado=iniciouPost?(seguro?'erro_seguro':'resultado_incerto'):'erro_seguro';
+          try{await marcarFilaLoteV279(p,estado,loteId,{lote_erro:mensagemErroV279(e)})}catch(e2){console.error('V279: falha ao registrar estado do lote',e2)}
+          resultados.push({ok:false,g,p,erro:e,estado,loteId});
+          // Resultado incerto é barreira de segurança: para o lote inteiro. Não avançamos
+          // para novos títulos até o operador conferir o banco.
+          if(estado==='resultado_incerto')throw Object.assign(new Error(`RESULTADO INCERTO em ${g.rel.nome}, parcela ${p.parcela_numero||1}. O lote foi interrompido para evitar duplicidade. Confira o banco antes de qualquer nova tentativa.`),{v279Interromper:true});
+        }
       }
       if(pasta&&cod==='bb'&&blobsGrupo.length){const combinado=await mesclarPdfsBb(blobsGrupo);const nome=nomePdfImpressaoNormalBb(g.parcelas);await salvarBlobNaPastaCobrancaMassa(pasta,nome,combinado);okGrupo.forEach(x=>x.blobCombinado=combinado);}
     }
+  }catch(e){
+    if(!e?.v279Interromper)alert('O lote foi interrompido antes de continuar.\n\n'+mensagemErroV279(e));
+    else alert(mensagemErroV279(e));
+  }finally{
     cobrancaMassaArquivosEmitidos=resultados.filter(x=>x.ok&&x.blob);
-    const ok=resultados.filter(x=>x.ok).length,erros=resultados.length-ok,okBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco').length,okBB=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bb').length;
+    const ok=resultados.filter(x=>x.ok).length;
+    const seguros=resultados.filter(x=>!x.ok&&x.estado==='erro_seguro').length;
+    const incertos=resultados.filter(x=>!x.ok&&x.estado==='resultado_incerto').length;
+    const okBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco').length,okBB=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bb').length;
     const arquivosBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco'&&x.blob).length;
     const semArquivoBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco'&&!x.blob).length;
-    mostrarBalaoSistema?.('Emissão em massa concluída',`${ok} boleto(s) emitido(s): ${okBB} BB • ${okBR} Bradesco${pasta?` • ${arquivosBR} arquivo(s) salvo(s) na pasta`:''}${semArquivoBR?` • ${semArquivoBR} Bradesco sem arquivo PDF retornado`:''}${erros?` • ${erros} com erro`:''}. Todos os aceitos ficam no Histórico.`);
-    if(erros){const msg=resultados.filter(x=>!x.ok).map(x=>`${x.g.rel.nome} • parcela ${x.p.parcela_numero||1}/${x.p.parcela_total||1}: ${x.erro?.message||x.erro}`).join('\n');alert(`Lote concluído com ${erros} erro(s). Os itens com erro NÃO serão repetidos automaticamente.\n\n${msg.slice(0,3000)}`);}
-    await carregarFilaCobrancaMassa();await carregarCobrancasBancarias();
-  }finally{if(btn){btn.disabled=false;btn.textContent='💳 Emitir em massa';}}
+    if(resultados.length)mostrarBalaoSistema?.('Lote bancário V279',`Lote ${loteId}: ${ok} emitido(s) (${okBB} BB • ${okBR} Bradesco) • ${seguros} rejeitado(s) seguro(s) • ${incertos} resultado(s) incerto(s)${pasta?` • ${arquivosBR} Bradesco salvo(s) na pasta`:''}${semArquivoBR?` • ${semArquivoBR} Bradesco sem PDF retornado`:''}.`);
+    if(seguros||incertos){
+      const msg=resultados.filter(x=>!x.ok).map(x=>`${x.estado==='resultado_incerto'?'⚠ RESULTADO INCERTO':'↻ ERRO SEGURO'} • ${x.g.rel.nome} • parcela ${x.p.parcela_numero||1}/${x.p.parcela_total||1}: ${mensagemErroV279(x.erro)}`).join('\n');
+      alert(`RESUMO DO LOTE ${loteId}\n\nEmitidos: ${ok}\nErros seguros para corrigir e tentar manualmente depois: ${seguros}\nResultados incertos (NÃO REEMITIR antes de conferir o banco): ${incertos}\n\n${msg.slice(0,3500)}`);
+    }
+    try{await carregarFilaCobrancaMassa();await carregarCobrancasBancarias();}catch(e){console.warn(e)}
+    if(btn){btn.disabled=false;btn.textContent='💳 Emitir em massa';}
+  }
 }
 
 /* =========================================================
