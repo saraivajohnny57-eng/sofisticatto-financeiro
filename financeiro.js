@@ -9159,11 +9159,19 @@ function nomeArquivoBoletoMassa(g,p){
   const parc=`${String(p.parcela_numero||1).padStart(2,'0')}de${String(p.parcela_total||g.parcelas.length).padStart(2,'0')}`;
   return `${seguro} - ${parc} - ${Number(p.valor||0).toFixed(2).replace('.',',')}.pdf`;
 }
-// V279 — fila transacional de emissão em massa.
+// V280 — fila transacional de emissão em massa com UUID nativo no Supabase.
 // O estado do lote é separado do status bancário (aberto/pago/etc.).
 function cobLoteIdV279(){
-  const d=new Date(), pad=n=>String(n).padStart(2,'0');
-  return `LOTE-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}-${crypto.randomUUID().slice(0,8).toUpperCase()}`;
+  // V280: lote_emissao_id no Supabase pode ser UUID. Nunca envie o rótulo LOTE-* para essa coluna.
+  if(globalThis.crypto?.randomUUID)return crypto.randomUUID();
+  // Fallback UUID v4 para navegadores antigos.
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
+    const r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);
+  });
+}
+function cobLoteCodigoV280(loteId){
+  const d=new Date(),pad=n=>String(n).padStart(2,'0');
+  return `LOTE-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}-${String(loteId||'').slice(0,8).toUpperCase()}`;
 }
 function mensagemErroV279(e){return String(e?.message||e||'Erro desconhecido').slice(0,1800)}
 function erroSeguroParaNovaTentativaV279(e){
@@ -9204,6 +9212,7 @@ async function emitirBoletosEmMassa(){
   const palavra=prompt('Digite exatamente EMITIR LOTE para confirmar a emissão real dos boletos selecionados:');
   if(String(palavra||'').trim().toUpperCase()!=='EMITIR LOTE')return alert('Emissão em massa cancelada. Nenhum novo envio foi iniciado.');
   const loteId=cobLoteIdV279();
+  const loteCodigo=cobLoteCodigoV280(loteId);
   const btn=document.getElementById('btnEmitirMassa');if(btn){btn.disabled=true;btn.textContent='Emitindo lote...';}
   const resultados=[];
   try{
@@ -9253,10 +9262,10 @@ async function emitirBoletosEmMassa(){
     const okBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco').length,okBB=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bb').length;
     const arquivosBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco'&&x.blob).length;
     const semArquivoBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco'&&!x.blob).length;
-    if(resultados.length)mostrarBalaoSistema?.('Lote bancário V279',`Lote ${loteId}: ${ok} emitido(s) (${okBB} BB • ${okBR} Bradesco) • ${seguros} rejeitado(s) seguro(s) • ${incertos} resultado(s) incerto(s)${pasta?` • ${arquivosBR} Bradesco salvo(s) na pasta`:''}${semArquivoBR?` • ${semArquivoBR} Bradesco sem PDF retornado`:''}.`);
+    if(resultados.length)mostrarBalaoSistema?.('Lote bancário V279',`Lote ${loteCodigo}: ${ok} emitido(s) (${okBB} BB • ${okBR} Bradesco) • ${seguros} rejeitado(s) seguro(s) • ${incertos} resultado(s) incerto(s)${pasta?` • ${arquivosBR} Bradesco salvo(s) na pasta`:''}${semArquivoBR?` • ${semArquivoBR} Bradesco sem PDF retornado`:''}.`);
     if(seguros||incertos){
       const msg=resultados.filter(x=>!x.ok).map(x=>`${x.estado==='resultado_incerto'?'⚠ RESULTADO INCERTO':'↻ ERRO SEGURO'} • ${x.g.rel.nome} • parcela ${x.p.parcela_numero||1}/${x.p.parcela_total||1}: ${mensagemErroV279(x.erro)}`).join('\n');
-      alert(`RESUMO DO LOTE ${loteId}\n\nEmitidos: ${ok}\nErros seguros para corrigir e tentar manualmente depois: ${seguros}\nResultados incertos (NÃO REEMITIR antes de conferir o banco): ${incertos}\n\n${msg.slice(0,3500)}`);
+      alert(`RESUMO DO LOTE ${loteCodigo}\n\nEmitidos: ${ok}\nErros seguros para corrigir e tentar manualmente depois: ${seguros}\nResultados incertos (NÃO REEMITIR antes de conferir o banco): ${incertos}\n\n${msg.slice(0,3500)}`);
     }
     try{await carregarFilaCobrancaMassa();await carregarCobrancasBancarias();}catch(e){console.warn(e)}
     if(btn){btn.disabled=false;btn.textContent='💳 Emitir em massa';}
