@@ -8505,7 +8505,7 @@ async function gerarPdfBoletoBb(d,opt={}){
     rect(L,yTop-h,CW,h,.75);
     const bankW=153,codeW=60;
     if(bbLogoAsset){
-      const targetW=137,targetH=24,sc=Math.min(targetW/bbLogoAsset.width,targetH/bbLogoAsset.height);
+      const targetW=112,targetH=20,sc=Math.min(targetW/bbLogoAsset.width,targetH/bbLogoAsset.height);
       pg.drawImage(bbLogoAsset,{x:L+7,y:yTop-h+(h-bbLogoAsset.height*sc)/2,width:bbLogoAsset.width*sc,height:bbLogoAsset.height*sc});
     }else drawTextFit('BANCO DO BRASIL',L+8,yTop-h+12,bankW-16,12,bold);
     line(L+bankW,yTop-h,L+bankW,yTop,.75);
@@ -8551,7 +8551,7 @@ async function gerarPdfBoletoBb(d,opt={}){
     rect(L,top-headH,CW,headH,.75);
     let hx=L;
     if(bbLogoAsset){
-      const targetW=122,targetH=24,sc=Math.min(targetW/bbLogoAsset.width,targetH/bbLogoAsset.height);
+      const targetW=108,targetH=20,sc=Math.min(targetW/bbLogoAsset.width,targetH/bbLogoAsset.height);
       pg.drawImage(bbLogoAsset,{x:hx+8,y:top-headH+(headH-bbLogoAsset.height*sc)/2,width:bbLogoAsset.width*sc,height:bbLogoAsset.height*sc});
     }else drawTextFit('BANCO DO BRASIL',hx+8,top-headH+12,bankW-16,11.5,bold);
     hx+=bankW; line(hx,top-headH,hx,top,.75);
@@ -9225,6 +9225,44 @@ function cobLoteCodigoV280(loteId){
   const d=new Date(),pad=n=>String(n).padStart(2,'0');
   return `LOTE-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}-${String(loteId||'').slice(0,8).toUpperCase()}`;
 }
+// V283 — procura dados oficiais do boleto em qualquer nível da resposta Bradesco.
+// Algumas respostas de produção encapsulam linha/código em titulo, boleto, dados, retorno etc.
+function localizarCampoBradescoV283(obj,chaves){
+  const alvo=(chaves||[]).map(x=>String(x).toLowerCase().replace(/[^a-z0-9]/g,'')),vistos=new Set();
+  function rec(v){
+    if(v==null)return null;
+    if(typeof v!=='object')return null;
+    if(vistos.has(v))return null;vistos.add(v);
+    for(const [k,val] of Object.entries(v)){
+      const kk=String(k).toLowerCase().replace(/[^a-z0-9]/g,'');
+      if(alvo.includes(kk)&&val!=null&&String(val).trim()!=='')return val;
+    }
+    for(const val of Object.values(v)){const r=rec(val);if(r!=null&&String(r).trim()!=='')return r;}
+    return null;
+  }
+  return rec(obj);
+}
+async function completarDadosBoletoBradescoV283(ret,p,idHistorico){
+  const fonte=ret||{};
+  const linha=localizarCampoBradescoV283(fonte,['linhaDigitavel','linha_digitavel','linhaDig','linha']);
+  const barras=localizarCampoBradescoV283(fonte,['codigoBarras','codigoBarra','codigo_barras','codigoBarraNumerico']);
+  const pdf=localizarCampoBradescoV283(fonte,['urlBoleto','urlImagemBoleto','urlPdf','pdfUrl','pdf_url']);
+  const nosso=localizarCampoBradescoV283(fonte,['nuTitulo','nossoNumero','numeroTitulo','nosso_numero']);
+  const id=String(idHistorico||p?.id||'').trim();
+  const upd={};
+  if(linha)upd.linha_digitavel=String(linha).trim();
+  if(barras)upd.codigo_barras=String(barras).replace(/\D/g,'');
+  if(pdf)upd.pdf_url=String(pdf).trim();
+  if(nosso)upd.nosso_numero=String(nosso).trim();
+  if(id&&Object.keys(upd).length){
+    upd.atualizado_em=new Date().toISOString();
+    const r=await banco.from('cobrancas_bancarias').update(upd).eq('id',id).select().maybeSingle();
+    if(r.error)console.warn('V283: emissão confirmada, mas não foi possível completar os dados do boleto no Histórico.',r.error);
+    else if(r.data)return r.data;
+  }
+  return id?{...p,id,...upd,banco:'bradesco',status:'aberto'}:{...p,...upd,banco:'bradesco',status:'aberto'};
+}
+
 function mensagemErroV279(e){return String(e?.message||e||'Erro desconhecido').slice(0,1800)}
 function erroSeguroParaNovaTentativaV279(e){
   // Somente rejeições HTTP 4xx explicitamente devolvidas pelo banco são consideradas
@@ -9300,22 +9338,19 @@ async function emitirBoletosEmMassa(){
                 // e não em registro.id. Busca a linha já atualizada no Supabase para usar
                 // exatamente os mesmos dados que alimentam o botão azul "Visualizar boleto".
                 const rrBr=ret?.registro||{};
-                const idHistorico=String(rrBr?.historico?.id||p?.id||'').trim();
-                let reg=null;
+                const idHistorico=String(rrBr?.historico?.id||rrBr?.id_historico||p?.id||'').trim();
+                // V283: primeiro extrai recursivamente linha digitável/código de barras do retorno
+                // real do Bradesco e persiste no Histórico. Isto corrige respostas onde esses
+                // campos vêm aninhados e a V282 não os encontrava.
+                let reg=await completarDadosBoletoBradescoV283(ret,p,idHistorico);
                 if(idHistorico){
                   const qHist=await banco.from('cobrancas_bancarias').select('*').eq('id',idHistorico).maybeSingle();
-                  if(!qHist.error&&qHist.data)reg=qHist.data;
-                }
-                // Fallback seguro: nunca reemite. Apenas monta a via com os dados oficiais
-                // já devolvidos/salvos na emissão atual.
-                if(!reg&&idHistorico){
-                  reg={...p,id:idHistorico,banco:'bradesco',status:'aberto',
-                    nosso_numero:rrBr.nossoNumero_retornado||p.nosso_numero||null,
-                    linha_digitavel:rrBr?.resposta_bradesco?.linhaDigitavel||rrBr?.resposta_bradesco?.linha_digitavel||p.linha_digitavel||null,
-                    codigo_barras:rrBr?.resposta_bradesco?.codigoBarras||rrBr?.resposta_bradesco?.codigo_barras||p.codigo_barras||null,
-                    pdf_url:rrBr?.resposta_bradesco?.urlBoleto||rrBr?.resposta_bradesco?.urlPdf||p.pdf_url||null};
+                  if(!qHist.error&&qHist.data)reg={...reg,...qHist.data};
                 }
                 if(!reg)throw new Error('Boleto Bradesco foi emitido, mas o registro atualizado do Histórico não pôde ser localizado para gerar o PDF.');
+                if(!String(reg.linha_digitavel||'').trim()){
+                  throw new Error('Boleto Bradesco emitido, porém a resposta bancária não trouxe a linha digitável necessária para montar a via. O título NÃO será reemitido; PDF marcado como pendente.');
+                }
                 blob=await gerarBlobVisualizacaoBradescoV281(reg);
               }
               if(!blob)throw new Error('Boleto emitido, mas não foi possível gerar o PDF automaticamente.');
