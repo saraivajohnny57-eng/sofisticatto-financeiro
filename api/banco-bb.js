@@ -393,12 +393,19 @@ function interpretarSituacaoBoletoBb(dados={},registro={}){
   const baixado=estado===7;
   const protestado=[5,9,13].includes(estado);
   const descontado=modalidade===6;
-  let statusNovo=String(registro?.status||'aberto');
-  if(pago)statusNovo='pago';
-  else if(['aberto','vencido'].includes(statusNovo)){
+  // V289 — o estado oficial mais recente do BB tem prioridade sobre o status
+  // local. O indicador de desconto continua independente do status principal.
+  let statusNovo='aberto';
+  if(pago){
+    statusNovo='pago';
+  }else if(baixado){
+    statusNovo='cancelado';
+  }else{
+    // Pagamento parcial, protesto e demais estados não liquidados continuam
+    // operacionais; o vencimento define Aberto x Vencido e o detalhe BB é
+    // preservado separadamente para auditoria.
     const venc=String(registro?.vencimento||'');
-    if(venc && venc < new Date().toISOString().slice(0,10))statusNovo='vencido';
-    else statusNovo='aberto';
+    statusNovo=(venc && venc < new Date().toISOString().slice(0,10))?'vencido':'aberto';
   }
   let detalhe='Em aberto';
   if(pago)detalhe='Liquidado';
@@ -417,7 +424,9 @@ function interpretarSituacaoBoletoBb(dados={},registro={}){
 }
 async function sincronizarStatusBoletosBb(amb,entrada={}){
   const limite=Math.max(1,Math.min(100,Number(entrada.limite||60)));
-  const rows=await supabaseRest('cobrancas_bancarias',{query:`?status=neq.cancelado&nosso_numero=not.is.null&select=*&order=created_at.desc&limit=${limite}`});
+  // V289 — inclui também títulos localmente cancelados/baixados para permitir
+  // reconciliação posterior caso o estado oficial do BB tenha sido alterado.
+  const rows=await supabaseRest('cobrancas_bancarias',{query:`?nosso_numero=not.is.null&select=*&order=created_at.desc&limit=${limite}`});
   const candidatos=(Array.isArray(rows)?rows:[]).filter(r=>String(r.banco||'').toLowerCase()==='bb'||/banco do brasil/i.test(String(r.banco_nome||'')));
   if(!candidatos.length)return {consultados:0,atualizados:0,pagos:0,descontados:0,parciais:0,erros:[]};
   const oauth=await obterTokenOAuth(amb);
