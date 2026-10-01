@@ -7448,30 +7448,49 @@ async function imprimirBoletosFiltradosV178(){
   const filtrados=cobrancasFiltradasHistoricoV178();
   const mapa=new Map();
   for(const x of filtrados){
-    const bb=codigoBancoCobranca(x?.banco_nome||x?.banco||'')==='bb';
-    const emitido=['aberto','pago','vencido'].includes(String(x?.status||''))&&x?.nosso_numero;
-    if(!bb||!emitido)continue;
-    const chave=String(x.id||x.nosso_numero||`${x.numero_nf||''}|${x.parcela_numero||1}`);
+    const bancoCod=codigoBancoCobranca(x?.banco_nome||x?.banco||'');
+    const statusOk=['aberto','pago','vencido'].includes(String(x?.status||''));
+    const bbOk=bancoCod==='bb'&&statusOk&&!!x?.nosso_numero;
+    const brOk=bancoCod==='bradesco'&&statusOk&&!!String(x?.linha_digitavel||'').trim();
+    if(!bbOk&&!brOk)continue;
+    const chave=String(x.id||`${bancoCod}|${x.nosso_numero||x.linha_digitavel||''}|${x.numero_nf||''}|${x.parcela_numero||1}`);
     if(!mapa.has(chave))mapa.set(chave,x);
   }
-  // V179: SOMENTE na impressão dos boletos filtrados, a ordem é exclusivamente por vencimento.
-  // Não agrupa por cliente/NF/quantidade de parcelas e não altera a ordem do Histórico.
   const lista=[...mapa.values()].sort((a,b)=>{
     const va=String(a.vencimento||'9999-12-31'), vb=String(b.vencimento||'9999-12-31');
-    return va.localeCompare(vb);
+    return va.localeCompare(vb)||Number(a.parcela_numero||1)-Number(b.parcela_numero||1);
   });
-  if(!lista.length)return alert('Nenhum boleto do Banco do Brasil efetivamente emitido foi encontrado nos filtros atuais.\n\nRegistros pendentes, cancelados e Bradesco não entram na impressão.');
+  if(!lista.length)return alert('Nenhum boleto efetivamente emitido foi encontrado nos filtros atuais.\n\nEntram na impressão boletos Banco do Brasil com Nosso Número e boletos Bradesco com linha digitável armazenada. Registros pendentes ou cancelados não entram.');
+  const bb=lista.filter(x=>codigoBancoCobranca(x?.banco_nome||x?.banco||'')==='bb');
+  const br=lista.filter(x=>codigoBancoCobranca(x?.banco_nome||x?.banco||'')==='bradesco');
   const fmt=v=>v?new Date(v+'T12:00:00').toLocaleDateString('pt-BR'):'';
   const periodo=di||df?` entre ${fmt(di)||'o início'} e ${fmt(df)||'hoje'}`:' conforme os filtros atuais';
-  if(!confirm(`Foram encontrados ${lista.length} boleto(s) emitido(s)${periodo}.\n\nDeseja gerar a Impressão Normal de todos em um único PDF?`))return;
+  if(!confirm(`Foram encontrados ${lista.length} boleto(s) emitido(s)${periodo}.\n\nBanco do Brasil: ${bb.length}\nBradesco: ${br.length}\n\nDeseja abrir a impressão dos boletos filtrados?`))return;
   try{
-    const blob=await gerarPdfImpressaoNormalBb(lista);
-    const url=URL.createObjectURL(blob);
-    const w=window.open(url,'_blank');
-    if(!w){
-      const a=document.createElement('a');a.href=url;a.download=`Boletos BB - ${di||'inicio'} a ${df||'hoje'}.pdf`;a.click();
+    // BB permanece em um único PDF, como já funcionava.
+    if(bb.length){
+      const blob=await gerarPdfImpressaoNormalBb(bb);
+      const url=URL.createObjectURL(blob);
+      const w=window.open(url,'_blank');
+      if(!w){const a=document.createElement('a');a.href=url;a.download=`Boletos BB - ${di||'inicio'} a ${df||'hoje'}.pdf`;a.click();}
+      setTimeout(()=>URL.revokeObjectURL(url),120000);
     }
-    setTimeout(()=>URL.revokeObjectURL(url),120000);
+    // Bradesco: agrupa por cliente + pedido/NF para não duplicar parcelas e usa exatamente
+    // a mesma via oficial armazenada que alimenta "Visualizar boleto" / "Imprimir pedido".
+    if(br.length){
+      const grupos=new Map();
+      for(const r of br){
+        const cli=String(r.cliente_id||r.cpf_cnpj||r.cliente_nome||'').replace(/\s+/g,'').toUpperCase();
+        const nf=String(r.numero_nf||'').replace(/\s+/g,'').toUpperCase();
+        const k=cli+'|'+nf;
+        if(!grupos.has(k))grupos.set(k,r);
+      }
+      let atraso=bb.length?500:0;
+      for(const r of grupos.values()){
+        setTimeout(()=>imprimirPedidoBradescoV264(r.id),atraso);
+        atraso+=250;
+      }
+    }
   }catch(e){alert('Não foi possível gerar a impressão dos boletos filtrados.\n\n'+(e.message||e));}
 }
 function bradescoCodigoBarras44DaLinha(linha){
