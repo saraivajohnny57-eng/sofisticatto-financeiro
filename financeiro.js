@@ -9159,6 +9159,58 @@ function nomeArquivoBoletoMassa(g,p){
   const parc=`${String(p.parcela_numero||1).padStart(2,'0')}de${String(p.parcela_total||g.parcelas.length).padStart(2,'0')}`;
   return `${seguro} - ${parc} - ${Number(p.valor||0).toFixed(2).replace('.',',')}.pdf`;
 }
+
+// V281 — gera automaticamente o MESMO boleto exibido pelo botão "Visualizar boleto"
+// e o transforma em PDF para a pasta escolhida no lote. Esta etapa nunca reemite o título.
+async function gerarBlobVisualizacaoBradescoV281(registro){
+  if(!registro?.id) return null;
+  if(typeof carregarBibliotecasEtiqueta==='function') await carregarBibliotecasEtiqueta();
+  if(!window.html2canvas||!window.jspdf?.jsPDF) throw new Error('Bibliotecas de PDF indisponíveis.');
+  const lista=Array.isArray(cobrancasBancarias)?cobrancasBancarias:[];
+  const jaExiste=lista.some(x=>String(x.id)===String(registro.id));
+  if(!jaExiste) lista.push(registro);
+  let html='';
+  const openOriginal=window.open;
+  try{
+    window.open=()=>({document:{write:t=>{html+=String(t||'')},close:()=>{}},focus:()=>{},print:()=>{}});
+    abrirBoletoBradescoRegistro(registro.id);
+  }finally{
+    window.open=openOriginal;
+    if(!jaExiste){const i=lista.findIndex(x=>x===registro);if(i>=0)lista.splice(i,1);}
+  }
+  if(!html) throw new Error('Não foi possível montar a visualização do boleto Bradesco.');
+  // Retira ações/avisos e scripts externos; o código de barras é desenhado no documento principal.
+  html=html.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<div class="aviso">[\s\S]*?<\/div>/i,'').replace(/<div class="acoes">[\s\S]*?<\/div>/i,'');
+  const iframe=document.createElement('iframe');
+  iframe.setAttribute('aria-hidden','true');
+  iframe.style.cssText='position:fixed;left:-10000px;top:0;width:794px;height:1200px;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(iframe);
+  try{
+    iframe.srcdoc=html;
+    await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error('Tempo excedido ao montar o PDF Bradesco.')),8000);iframe.onload=()=>{clearTimeout(t);resolve();};});
+    const doc=iframe.contentDocument, page=doc?.querySelector('.boleto-page');
+    if(!page) throw new Error('Layout do boleto Bradesco não foi encontrado.');
+    const linha=String(registro.linha_digitavel||'').trim();
+    const barras=String(registro.codigo_barras||'').replace(/\D/g,'').length===44?String(registro.codigo_barras).replace(/\D/g,''):bradescoCodigoBarras44DaLinha(linha);
+    if(barras.length===44 && window.JsBarcode){
+      doc.querySelectorAll('.barcode').forEach(el=>{try{window.JsBarcode(el,barras,{format:'ITF',displayValue:false,height:48,width:1.25,margin:0});}catch(e){console.warn(e)}});
+    }
+    await new Promise(r=>setTimeout(r,120));
+    const canvas=await window.html2canvas(page,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false});
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const img=canvas.toDataURL('image/jpeg',0.96), maxW=200,maxH=287;
+    const ratio=Math.min(maxW/canvas.width,maxH/canvas.height), w=canvas.width*ratio,h=canvas.height*ratio;
+    pdf.addImage(img,'JPEG',(210-w)/2,5,w,h,undefined,'FAST');
+    return pdf.output('blob');
+  }finally{iframe.remove();}
+}
+async function marcarPdfLoteV281(p,status,erro=null){
+  if(!p?.id)return;
+  const payload={lote_pdf_status:status,lote_pdf_erro:erro?String(erro).slice(0,1800):null};
+  try{const r=await banco.from('cobrancas_bancarias').update(payload).eq('id',p.id);if(r.error&&!/lote_pdf_|column|schema cache|does not exist/i.test(String(r.error.message||'')))console.warn('V281 PDF status:',r.error);Object.assign(p,payload);}catch(e){console.warn('V281 PDF status:',e)}
+}
+
 // V280 — fila transacional de emissão em massa com UUID nativo no Supabase.
 // O estado do lote é separado do status bancário (aberto/pago/etc.).
 function cobLoteIdV279(){
@@ -9237,8 +9289,30 @@ async function emitirBoletosEmMassa(){
             if(pasta)blob=await obterBlobBoletoBradescoMassa(ret);
           }else throw new Error('Banco sem integração de emissão.');
           await marcarFilaLoteV279(p,'emitido',loteId,{lote_erro:null});
-          if(blob)blobsGrupo.push(blob);const rr={ok:true,g,p,ret,blob,loteId};resultados.push(rr);okGrupo.push(rr);
-          if(pasta&&cod==='bradesco'&&blob)await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,p),blob);
+          // V281: emissão bancária terminou aqui. Qualquer falha de PDF abaixo NÃO altera o título para resultado incerto.
+          let pdfErro=null;
+          if(pasta&&cod==='bradesco'){
+            try{
+              // Primeiro tenta PDF/base64/URL oficial. Se o Bradesco não devolver arquivo,
+              // gera automaticamente a mesma via usada pelo botão azul "Visualizar boleto".
+              if(!blob){
+                let reg=ret?.registro||null;
+                if(reg?.id){
+                  // A resposta da emissão pode não trazer todos os campos do Histórico; mescla com a parcela preparada.
+                  reg={...p,...reg,banco:'bradesco',status:reg.status||'aberto'};
+                  blob=await gerarBlobVisualizacaoBradescoV281(reg);
+                }
+              }
+              if(!blob)throw new Error('Boleto emitido, mas não foi possível gerar o PDF automaticamente.');
+              await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,p),blob);
+              await marcarPdfLoteV281(p,'salvo',null);
+            }catch(ePdf){
+              pdfErro=mensagemErroV279(ePdf);
+              await marcarPdfLoteV281(p,'pendente',pdfErro);
+              console.warn('V281: boleto Bradesco emitido; PDF pendente.',ePdf);
+            }
+          }
+          if(blob)blobsGrupo.push(blob);const rr={ok:true,g,p,ret,blob,loteId,pdfErro};resultados.push(rr);okGrupo.push(rr);
         }catch(e){
           const seguro=iniciouPost&&erroSeguroParaNovaTentativaV279(e);
           const estado=iniciouPost?(seguro?'erro_seguro':'resultado_incerto'):'erro_seguro';
@@ -9261,8 +9335,8 @@ async function emitirBoletosEmMassa(){
     const incertos=resultados.filter(x=>!x.ok&&x.estado==='resultado_incerto').length;
     const okBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco').length,okBB=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bb').length;
     const arquivosBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco'&&x.blob).length;
-    const semArquivoBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco'&&!x.blob).length;
-    if(resultados.length)mostrarBalaoSistema?.('Lote bancário V279',`Lote ${loteCodigo}: ${ok} emitido(s) (${okBB} BB • ${okBR} Bradesco) • ${seguros} rejeitado(s) seguro(s) • ${incertos} resultado(s) incerto(s)${pasta?` • ${arquivosBR} Bradesco salvo(s) na pasta`:''}${semArquivoBR?` • ${semArquivoBR} Bradesco sem PDF retornado`:''}.`);
+    const semArquivoBR=resultados.filter(x=>x.ok&&codigoBancoCobranca(x.g.rel.banco)==='bradesco'&&(!x.blob||x.pdfErro)).length;
+    if(resultados.length)mostrarBalaoSistema?.('Lote bancário V279',`Lote ${loteCodigo}: ${ok} emitido(s) (${okBB} BB • ${okBR} Bradesco) • ${seguros} rejeitado(s) seguro(s) • ${incertos} resultado(s) incerto(s)${pasta?` • ${arquivosBR} Bradesco salvo(s) na pasta`:''}${semArquivoBR?` • ${semArquivoBR} Bradesco com PDF pendente`:''}.`);
     if(seguros||incertos){
       const msg=resultados.filter(x=>!x.ok).map(x=>`${x.estado==='resultado_incerto'?'⚠ RESULTADO INCERTO':'↻ ERRO SEGURO'} • ${x.g.rel.nome} • parcela ${x.p.parcela_numero||1}/${x.p.parcela_total||1}: ${mensagemErroV279(x.erro)}`).join('\n');
       alert(`RESUMO DO LOTE ${loteCodigo}\n\nEmitidos: ${ok}\nErros seguros para corrigir e tentar manualmente depois: ${seguros}\nResultados incertos (NÃO REEMITIR antes de conferir o banco): ${incertos}\n\n${msg.slice(0,3500)}`);
