@@ -154,10 +154,13 @@ function interpretarConsultaBradesco(data,reg){
   const pago=[13,61,62].includes(cod) || numeroBradesco(t?.vlrPagto)>0 || !!dataBradescoIso(t?.dtPagto);
   const baixado=[51,52,53,54,55,56,57,58,59,60].includes(cod);
   const descontado=cod===65 || String(t?.corige35||'').toUpperCase()==='S';
+  // V286: o estado retornado pelo Bradesco tem prioridade sobre o estado local.
+  // O indicador de desconto permanece independente, permitindo combinações como
+  // Aberto/Descontado, Vencido/Descontado e Pago/Descontado.
   let statusNovo=String(reg?.status||'aberto');
   if(pago)statusNovo='pago';
-  else if(['aberto','vencido'].includes(statusNovo))statusNovo=(vencIso&&vencIso<hoje)?'vencido':'aberto';
-  else if(baixado && statusNovo!=='cancelado')statusNovo='cancelado';
+  else if(baixado)statusNovo='cancelado';
+  else statusNovo=(vencIso&&vencIso<hoje)?'vencido':'aberto';
   const dtPag=dataBradescoIso(t?.dtPagto);
   return {codStatus:cod,descricao,statusNovo,pago,baixado,descontado,corige35:String(t?.corige35||'').toUpperCase()==='S',dataPagamento:dtPag,valorPago:numeroBradesco(t?.vlrPagto),valorTitulo:numeroBradesco(t?.valMoeda),valorBoleto:numeroBradesco(t?.valorMoedaBol),vencimento:vencIso,titulo:t};
 }
@@ -172,8 +175,10 @@ async function consultarTituloBradesco(amb,reg){
 }
 async function sincronizarStatusBoletosBradesco(amb,entrada={}){
   const limite=Math.max(1,Math.min(100,Number(entrada.limite||60)));
-  const rows=await supabaseRest('cobrancas_bancarias',{query:`?status=neq.cancelado&nosso_numero=not.is.null&select=*&order=created_at.desc&limit=${limite}`});
-  const candidatos=(Array.isArray(rows)?rows:[]).filter(r=>String(r.banco||'').toLowerCase()==='bradesco'&&['aberto','pago','vencido'].includes(String(r.status||'')));
+  // V286: também revisa títulos localmente cancelados/baixados. A fonte de verdade
+  // da sincronização é a resposta atual do Bradesco, não o estado previamente salvo.
+  const rows=await supabaseRest('cobrancas_bancarias',{query:`?nosso_numero=not.is.null&select=*&order=created_at.desc&limit=${limite}`});
+  const candidatos=(Array.isArray(rows)?rows:[]).filter(r=>String(r.banco||'').toLowerCase()==='bradesco'&&['aberto','pago','vencido','cancelado'].includes(String(r.status||'')));
   if(!candidatos.length)return {consultados:0,atualizados:0,pagos:0,descontados:0,erros:[]};
   const resumo={consultados:0,atualizados:0,pagos:0,descontados:0,erros:[]},agora=new Date().toISOString();
   const processar=async reg=>{
