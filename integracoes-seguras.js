@@ -4,7 +4,7 @@
 let integracaoSeguraAtual=null;
 
 function chaveAdminIntegracoes(){
-  return sessionStorage.getItem("integrations_admin_key") || "";
+  return localStorage.getItem("integrations_admin_key") || sessionStorage.getItem("integrations_admin_key") || "";
 }
 
 function cabecalhosIntegracoes(){
@@ -92,8 +92,12 @@ async function validarChaveIntegracoes(){
   sessionStorage.setItem("integrations_admin_key",chave);
 
   try{
-    await requisicaoIntegracoes("/api/integracoes?action=validar-chave",{method:"POST",body:"{}"});
-    statusCampoIntegracao("integracaoAdminKeyStatus","Chave validada","ok");
+    const dados=await requisicaoIntegracoes("/api/integracoes?action=validar-chave",{method:"POST",body:"{}"});
+    const autorizado=dados.device_token||chave;
+    sessionStorage.setItem("integrations_admin_key",autorizado);
+    localStorage.setItem("integrations_admin_key",autorizado);
+    if(campo)campo.value="";
+    statusCampoIntegracao("integracaoAdminKeyStatus","Dispositivo autorizado","ok");
     await carregarStatusCredenciaisIntegracao();
   }catch(erro){
     sessionStorage.removeItem("integrations_admin_key");

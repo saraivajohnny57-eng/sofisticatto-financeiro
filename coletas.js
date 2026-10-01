@@ -631,9 +631,7 @@ async function solicitarChaveColeta(){
   const autorizado=await validarChaveColetaNoServidor(valor);
   const chaveSalvar=autorizado||valor;
   sessionStorage.setItem("integrations_admin_key",chaveSalvar);
-  if(confirm("Deseja manter esta chave salva neste computador? Use somente em computador confiável.")){
-    localStorage.setItem("integrations_admin_key",chaveSalvar);
-  }
+  localStorage.setItem("integrations_admin_key",chaveSalvar);
   atualizarStatusChaveColeta("Chave validada",true);
   return chaveSalvar;
 }
@@ -651,9 +649,9 @@ async function chaveAdminColeta(forcarTroca=false){
 
   try{
     atualizarStatusChaveColeta("Validando chave...");
-    await validarChaveColetaNoServidor(chave);
-    atualizarStatusChaveColeta("Chave salva e validada",true);
-    return chave;
+    const autorizado=await validarChaveColetaNoServidor(chave);
+    atualizarStatusChaveColeta("Dispositivo autorizado",true);
+    return autorizado||localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key")||chave;
   }catch{
     localStorage.removeItem("integrations_admin_key");
     sessionStorage.removeItem("integrations_admin_key");

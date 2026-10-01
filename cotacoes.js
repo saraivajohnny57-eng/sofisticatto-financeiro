@@ -332,7 +332,13 @@ async function validarChaveIntegracoesCotacao(chave){
     },
     body:"{}"
   });
-  return resposta.ok;
+  const dados=await resposta.json().catch(()=>({}));
+  if(!resposta.ok||dados.ok===false)return {ok:false,dados};
+  if(dados.device_token){
+    sessionStorage.setItem("integrations_admin_key",dados.device_token);
+    localStorage.setItem("integrations_admin_key",dados.device_token);
+  }
+  return {ok:true,dados};
 }
 
 function abrirModalChaveIntegracoesCotacao(){
@@ -377,13 +383,12 @@ function abrirModalChaveIntegracoesCotacao(){
       if(!chave){erro.textContent="Informe a chave administrativa.";return;}
       btn.disabled=true;btn.textContent="Validando...";erro.textContent="";
       try{
-        const ok=await validarChaveIntegracoesCotacao(chave);
-        if(!ok){erro.textContent="Chave inválida. Confira o valor cadastrado na Vercel.";return;}
-        sessionStorage.setItem("integrations_admin_key", localStorage.getItem("integrations_admin_key")||chave);
-      if(confirm("Deseja manter esta chave salva neste computador para não precisar digitá-la novamente?\n\nUse somente em um computador confiável.")){
-        localStorage.setItem("integrations_admin_key", sessionStorage.getItem("integrations_admin_key")||chave);
-      }
-        fundo.remove();resolve(chave);
+        const validacao=await validarChaveIntegracoesCotacao(chave);
+        if(!validacao.ok){erro.textContent="Senha/autorização inválida. Confira a configuração na Vercel.";return;}
+        const autorizado=localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key")||chave;
+        sessionStorage.setItem("integrations_admin_key",autorizado);
+        localStorage.setItem("integrations_admin_key",autorizado);
+        fundo.remove();resolve(autorizado);
       }catch(e){
         erro.textContent="Não foi possível validar a chave. Tente novamente.";
       }finally{
@@ -398,7 +403,8 @@ async function obterChaveIntegracoesCotacao(){
   let chave=(localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key"))||"";
   if(chave){
     try{
-      if(await validarChaveIntegracoesCotacao(chave))return chave;
+      const v=await validarChaveIntegracoesCotacao(chave);
+      if(v.ok)return localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key")||chave;
     }catch{}
     sessionStorage.removeItem("integrations_admin_key");
   }
