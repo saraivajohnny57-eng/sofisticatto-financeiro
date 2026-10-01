@@ -128,13 +128,34 @@ function requestBradescoJson({url,token,mtls,method='POST',body={}}){
 }
 function montarConsultaTituloBradesco(banco,reg){
   const dig=v=>String(v??'').replace(/\D/g,'');
-  const cnpj=dig(banco?.cnpj), negociacao=dig(banco?.negociacao), produto=dig(banco?.carteira||banco?.produto);
+  const cnpj=dig(banco?.cnpj), produto=dig(banco?.carteira||banco?.produto);
   const nosso=dig(reg?.nosso_numero||reg?.banco_nosso_numero);
+  const negociacaoEmissao=dig(banco?.negociacao);
+  const agencia=dig(banco?.agencia), conta=dig(banco?.conta);
   if(cnpj.length!==14)throw new Error('CNPJ do beneficiário Bradesco não está configurado com 14 dígitos.');
-  if(negociacao.length!==11)throw new Error('Número de negociação Bradesco inválido para consulta.');
   if(!produto)throw new Error('Carteira/produto Bradesco não configurado.');
   if(!nosso)throw new Error('Nosso Número Bradesco ausente no boleto.');
-  return {cpfCnpj:Number(cnpj.slice(0,8)),filial:Number(cnpj.slice(8,12)),controle:Number(cnpj.slice(12,14)),produto:Number(produto),negociacao:Number(negociacao),nossoNumero:Number(nosso.padStart(11,'0')),sequencia:0,status:0};
+
+  // V287: registro/emissão e consulta usam formatos diferentes para a negociação.
+  // Na emissão o Bradesco usa nuNegociacao de 18 posições. Na consulta de título,
+  // o campo negociacao representa Agência (4, sem DV) + Conta (7, sem DV) = 11 dígitos.
+  // Preferimos montar a consulta a partir da agência/conta já cadastradas, evitando
+  // truncar ou converter o nuNegociacao de emissão de forma insegura.
+  let negociacaoConsulta='';
+  if(agencia && conta && agencia.length<=4 && conta.length<=7){
+    negociacaoConsulta=agencia.padStart(4,'0')+conta.padStart(7,'0');
+  }else if(negociacaoEmissao.length===11){
+    // Compatibilidade com cadastros antigos que já guardavam o formato de consulta.
+    negociacaoConsulta=negociacaoEmissao;
+  }else if(negociacaoEmissao.length===18){
+    // Fallback compatível com o formato legado do Bradesco: preserva o prefixo e
+    // remove apenas o bloco intermediário de zeros do número de emissão.
+    const candidato=negociacaoEmissao.slice(0,6)+negociacaoEmissao.slice(-5);
+    if(candidato.length===11)negociacaoConsulta=candidato;
+  }
+  if(negociacaoConsulta.length!==11)throw new Error('Não foi possível montar a negociação de consulta Bradesco (Agência 4 + Conta 7, sem dígitos verificadores). Revise agência e conta cadastradas.');
+
+  return {cpfCnpj:Number(cnpj.slice(0,8)),filial:Number(cnpj.slice(8,12)),controle:Number(cnpj.slice(12,14)),produto:Number(produto),negociacao:Number(negociacaoConsulta),nossoNumero:Number(nosso.padStart(11,'0')),sequencia:0,status:0};
 }
 function dataBradescoIso(v){
   const s=String(v??'').trim();
