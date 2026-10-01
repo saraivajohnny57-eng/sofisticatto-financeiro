@@ -9160,7 +9160,7 @@ function nomeArquivoBoletoMassa(g,p){
   return `${seguro} - ${parc} - ${Number(p.valor||0).toFixed(2).replace('.',',')}.pdf`;
 }
 
-// V281 — gera automaticamente o MESMO boleto exibido pelo botão "Visualizar boleto"
+// V282 — gera automaticamente o MESMO boleto exibido pelo botão "Visualizar boleto"
 // e o transforma em PDF para a pasta escolhida no lote. Esta etapa nunca reemite o título.
 async function gerarBlobVisualizacaoBradescoV281(registro){
   if(!registro?.id) return null;
@@ -9296,12 +9296,27 @@ async function emitirBoletosEmMassa(){
               // Primeiro tenta PDF/base64/URL oficial. Se o Bradesco não devolver arquivo,
               // gera automaticamente a mesma via usada pelo botão azul "Visualizar boleto".
               if(!blob){
-                let reg=ret?.registro||null;
-                if(reg?.id){
-                  // A resposta da emissão pode não trazer todos os campos do Histórico; mescla com a parcela preparada.
-                  reg={...p,...reg,banco:'bradesco',status:reg.status||'aberto'};
-                  blob=await gerarBlobVisualizacaoBradescoV281(reg);
+                // V282: o endpoint Bradesco devolve o ID persistido em registro.historico.id,
+                // e não em registro.id. Busca a linha já atualizada no Supabase para usar
+                // exatamente os mesmos dados que alimentam o botão azul "Visualizar boleto".
+                const rrBr=ret?.registro||{};
+                const idHistorico=String(rrBr?.historico?.id||p?.id||'').trim();
+                let reg=null;
+                if(idHistorico){
+                  const qHist=await banco.from('cobrancas_bancarias').select('*').eq('id',idHistorico).maybeSingle();
+                  if(!qHist.error&&qHist.data)reg=qHist.data;
                 }
+                // Fallback seguro: nunca reemite. Apenas monta a via com os dados oficiais
+                // já devolvidos/salvos na emissão atual.
+                if(!reg&&idHistorico){
+                  reg={...p,id:idHistorico,banco:'bradesco',status:'aberto',
+                    nosso_numero:rrBr.nossoNumero_retornado||p.nosso_numero||null,
+                    linha_digitavel:rrBr?.resposta_bradesco?.linhaDigitavel||rrBr?.resposta_bradesco?.linha_digitavel||p.linha_digitavel||null,
+                    codigo_barras:rrBr?.resposta_bradesco?.codigoBarras||rrBr?.resposta_bradesco?.codigo_barras||p.codigo_barras||null,
+                    pdf_url:rrBr?.resposta_bradesco?.urlBoleto||rrBr?.resposta_bradesco?.urlPdf||p.pdf_url||null};
+                }
+                if(!reg)throw new Error('Boleto Bradesco foi emitido, mas o registro atualizado do Histórico não pôde ser localizado para gerar o PDF.');
+                blob=await gerarBlobVisualizacaoBradescoV281(reg);
               }
               if(!blob)throw new Error('Boleto emitido, mas não foi possível gerar o PDF automaticamente.');
               await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,p),blob);

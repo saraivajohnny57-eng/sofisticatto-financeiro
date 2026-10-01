@@ -1,0 +1,16 @@
+Sofisticatto Financeiro V282
+
+Correção: PDF automático do Bradesco na emissão em massa.
+
+Causa corrigida:
+- O backend retorna o ID persistido em registro.historico.id.
+- A V281 procurava registro.id e, por isso, não iniciava a geração automática do PDF.
+
+V282:
+- usa registro.historico.id;
+- busca no Supabase o boleto Bradesco já atualizado;
+- gera a mesma via usada pelo botão Visualizar boleto;
+- salva na pasta escolhida no início do lote;
+- falha de PDF nunca reemite o boleto.
+
+SQL: não há SQL novo. O SQL V281 já executado continua válido.
