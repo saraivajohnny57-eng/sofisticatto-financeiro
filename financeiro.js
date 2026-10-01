@@ -215,9 +215,41 @@ function configurarCadastroClientesPorPerfil(){
   }
   atualizarEmailVendedoraAutomatico?.();
 }
+// V293 — perfil Cobrança: somente títulos já emitidos e operações de acompanhamento.
+function usuarioEhCobrancaV293(){ return usuarioLogado?.tipo === "cobranca"; }
+function cobrancaJaEmitidaV293(x){
+  const st=String(x?.status||'');
+  const bc=typeof codigoBancoCobranca==='function'?codigoBancoCobranca(x?.banco_nome||x?.banco||''):String(x?.banco||'').toLowerCase();
+  if(!['aberto','pago','vencido','cancelado'].includes(st)) return false;
+  if(bc==='bb') return !!String(x?.nosso_numero||'').trim();
+  if(bc==='bradesco') return !!(String(x?.linha_digitavel||'').trim()||String(x?.nosso_numero||'').trim()||String(x?.bradesco_nosso_numero||'').trim());
+  return false;
+}
+function negarOperacaoCobrancaV293(){
+  if(!usuarioEhCobrancaV293()) return false;
+  alert('Perfil Cobrança: esta operação não é permitida. Este usuário pode consultar, atualizar status, imprimir boletos já emitidos e gerar relatórios.');
+  return true;
+}
+function configurarIntegracaoPerfilCobrancaV293(){
+  if(!usuarioEhCobrancaV293()) return;
+  ['cobTabEmissao','cobTabMassa','cobTabCredenciais'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
+  const pend=document.querySelector('#cobFiltroStatus option[value="pendente_integracao"]'); if(pend) pend.remove();
+  const aviso=document.querySelector('.cobranca-integracao-aviso');
+  if(aviso) aviso.innerHTML='<b>Perfil Cobrança:</b> acesso somente a boletos já emitidos, impressão, relatórios e atualização de status bancário.';
+  mostrarAbaIntegracaoBancaria('historico');
+}
+
 function configurarInterfacePorPerfil(){
   const comercial=usuarioEhComercialRastreio();
   const entregador=usuarioLogado?.tipo==="entregador";
+  const cobranca=usuarioEhCobrancaV293();
+  if(cobranca){
+    ["btnDashboard","btnRelatorios","btnHistoricoFinanceiro","btnCorridas","btnEnvioDocumentos","btnAdmin"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display="none";});
+    const bi=document.getElementById("btnIntegracaoBancaria"); if(bi)bi.style.display="block";
+    const notif=document.querySelector(".notificacao-box"); if(notif)notif.style.display="none";
+    setTimeout(configurarIntegracaoPerfilCobrancaV293,0);
+    return;
+  }
   ["btnDashboard","btnRelatorios","btnHistoricoFinanceiro"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=(comercial||entregador)?"none":"block"});
   const btnCorridas=document.getElementById("btnCorridas");
   if(btnCorridas) btnCorridas.style.display=(usuarioLogado?.tipo==="admin"||usuarioLogado?.tipo==="financeiro"||entregador)?"block":"none";
@@ -274,13 +306,14 @@ function iniciarSistema(){
   document.getElementById("btnAdmin").style.display = usuarioLogado.tipo === "admin" ? "block" : "none";
   document.getElementById("btnEnvioDocumentos").style.display = (usuarioLogado.tipo === "financeiro" || usuarioEhComercialRastreio()) ? "block" : "none";
   const btnIntegracaoBancaria=document.getElementById("btnIntegracaoBancaria");
-  if(btnIntegracaoBancaria) btnIntegracaoBancaria.style.display = ["financeiro","banco","admin"].includes(usuarioLogado.tipo) ? "block" : "none";
+  if(btnIntegracaoBancaria) btnIntegracaoBancaria.style.display = ["financeiro","banco","admin","cobranca"].includes(usuarioLogado.tipo) ? "block" : "none";
   document.getElementById("boxNovoRelatorio").style.display = usuarioLogado.tipo === "banco" ? "none" : "block";
   configurarInterfacePorPerfil();
   if(usuarioLogado.tipo==="entregador"){ mostrarSecao("corridas"); setTimeout(()=>mostrarAbaCorridas("minhas"),30); }
+  else if(usuarioEhCobrancaV293()){ mostrarSecao("integracaoBancaria"); setTimeout(configurarIntegracaoPerfilCobrancaV293,30); }
   else if(usuarioEhComercialRastreio()){ mostrarSecao("envioDocumentos"); mostrarAbaEmail("coletas"); setTimeout(()=>mostrarPainelColeta("rodonaves"),50); }
   else { mostrarDashboardHoje(); mostrarSecao("dashboard"); }
-  if(usuarioLogado.tipo!=="entregador") carregarRelatorios();
+  if(usuarioLogado.tipo!=="entregador" && !usuarioEhCobrancaV293()) carregarRelatorios();
   carregarUsuarios();
   if(["admin","financeiro","entregador"].includes(usuarioLogado.tipo)){
     setTimeout(()=>carregarModuloCorridas?.(),80);
@@ -305,11 +338,12 @@ function mostrarSecao(secao){
   if(usuarioLogado?.tipo==="entregador" && secao!=="corridas"){
     secao="corridas";
   }
+  if(usuarioEhCobrancaV293() && secao!=="integracaoBancaria"){ secao="integracaoBancaria"; }
   if(secao === "envioDocumentos" && !usuarioPodeModuloEmail()){
     alert("Seu usuário não possui acesso a esta área.");
     secao = "dashboard";
   }
-  if(secao === "integracaoBancaria" && !["financeiro","banco","admin"].includes(usuarioLogado?.tipo)){
+  if(secao === "integracaoBancaria" && !["financeiro","banco","admin","cobranca"].includes(usuarioLogado?.tipo)){
     alert("Seu usuário não possui acesso à Integração Bancária.");
     secao = "dashboard";
   }
@@ -321,7 +355,7 @@ function mostrarSecao(secao){
       carregarClientesEmail().catch(e=>console.warn("Integração Bancária: clientes:",e));
     }
     if(typeof carregarCobrancasBancarias==="function") carregarCobrancasBancarias();
-    if(typeof carregarFilaCobrancaMassa==="function") carregarFilaCobrancaMassa();
+    if(!usuarioEhCobrancaV293() && typeof carregarFilaCobrancaMassa==="function") carregarFilaCobrancaMassa();
     if(typeof aplicarPadraoBancoCobrancaManual==="function") aplicarPadraoBancoCobrancaManual();
     if(typeof carregarStatusBancoBB==="function") setTimeout(()=>carregarStatusBancoBB(),50);
   }
@@ -7118,6 +7152,7 @@ function dadosNovaCobranca(){
 }
 
 function previsualizarCobranca(){
+  if(negarOperacaoCobrancaV293()) return;
   const d=dadosNovaCobranca(), b=document.getElementById('cobPreview'); if(!b)return;
   b.innerHTML=`<div class="cobranca-preview-doc"><div class="cobranca-preview-bank">${d.banco==='bb'?'BANCO DO BRASIL':'BRADESCO'}</div><div class="cobranca-preview-valor">${cobMoeda(d.valor)}</div><div><b>Pagador:</b> ${escaparHtmlEmail(d.cliente_nome||'—')}</div><div><b>Documento:</b> ${escaparHtmlEmail(d.cpf_cnpj||'—')}</div><div><b>Vencimento:</b> ${d.vencimento?new Date(d.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</div><div><b>NF:</b> ${escaparHtmlEmail(d.numero_nf||'—')}</div><div><b>Tipo:</b> ${d.tipo==='boleto_pix'?'Boleto + Pix':'Boleto'}</div><div><b>Multa:</b> ${d.multa_percentual}% • <b>Juros:</b> ${d.juros_percentual}% a.m.</div></div>`;
 }
@@ -7193,6 +7228,7 @@ async function emitirBradescoOperacional(p,{confirmar=true}={}){
 }
 
 async function emitirCobrancaBancaria(){
+  if(negarOperacaoCobrancaV293()) return;
   const d=dadosNovaCobranca(),st=document.getElementById('cobStatus'),btn=document.getElementById('btnCobEmitirManual');
   if(!d.cliente_id)return alert('Selecione um cliente cadastrado.');
   if(!d.cpf_cnpj)return alert('O cliente precisa ter CPF/CNPJ.');
@@ -7429,6 +7465,7 @@ function mostrarAbaTesteBancario(banco='bb'){
   else{if(typeof carregarStatusBradesco==='function')carregarStatusBradesco(false);}
 }
 function mostrarAbaIntegracaoBancaria(aba='historico'){
+  if(usuarioEhCobrancaV293() && aba!=='historico') aba='historico';
   const mapa={historico:'cobAbaHistorico',emissao:'cobAbaEmissao',massa:'cobAbaMassa',credenciais:'cobAbaCredenciais'};
   Object.entries(mapa).forEach(([k,id])=>{const el=document.getElementById(id),bt=document.getElementById('cobTab'+k.charAt(0).toUpperCase()+k.slice(1));if(el)el.style.display=k===aba?(k==='emissao'?'grid':'block'):'none';if(bt)bt.classList.toggle('ativa',k===aba);});
   if(aba==='historico'&&typeof carregarCobrancasBancarias==='function')carregarCobrancasBancarias();
@@ -7440,6 +7477,7 @@ function cobrancasFiltradasHistoricoV178(){
   const di=document.getElementById('cobDataEmissaoIni')?.value||'', df=document.getElementById('cobDataEmissaoFim')?.value||'';
   const vi=document.getElementById('cobDataVencIni')?.value||'', vf=document.getElementById('cobDataVencFim')?.value||'';
   return (cobrancasBancarias||[]).filter(x=>{
+    if(usuarioEhCobrancaV293() && !cobrancaJaEmitidaV293(x)) return false;
     const de=dataEmissaoCobrancaV177(x), ve=String(x?.vencimento||'').slice(0,10);
     return (!q||cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia,x.nosso_numero].join(' ')).includes(q))&&(!fb||codigoBancoCobranca(x?.banco_nome||x?.banco||'')===fb)&&(!f||x.status===f)&&(!di||de>=di)&&(!df||de<=df)&&(!vi||ve>=vi)&&(!vf||ve<=vf);
   });
@@ -7607,10 +7645,11 @@ function imprimirRelatorioBancoV290(bancoCod){
 function renderHistoricoCobrancas(){
   const tb=document.getElementById('cobHistoricoTabela'); if(!tb)return;
   const lista=cobrancasFiltradasHistoricoV178();
-  document.getElementById('cobKpiAbertos').textContent=cobrancasBancarias.filter(x=>['aberto','pendente_integracao'].includes(x.status)).length;
-  document.getElementById('cobKpiPagos').textContent=cobrancasBancarias.filter(x=>x.status==='pago').length;
-  document.getElementById('cobKpiVencidos').textContent=cobrancasBancarias.filter(x=>x.status==='vencido').length;
-  document.getElementById('cobKpiTotal').textContent=cobMoeda(cobrancasBancarias.filter(x=>['aberto','pendente_integracao','vencido'].includes(x.status)).reduce((a,b)=>a+Number(b.valor||0),0));
+  const baseKpi=usuarioEhCobrancaV293()?(cobrancasBancarias||[]).filter(cobrancaJaEmitidaV293):(cobrancasBancarias||[]);
+  document.getElementById('cobKpiAbertos').textContent=baseKpi.filter(x=>['aberto','pendente_integracao'].includes(x.status)).length;
+  document.getElementById('cobKpiPagos').textContent=baseKpi.filter(x=>x.status==='pago').length;
+  document.getElementById('cobKpiVencidos').textContent=baseKpi.filter(x=>x.status==='vencido').length;
+  document.getElementById('cobKpiTotal').textContent=cobMoeda(baseKpi.filter(x=>['aberto','pendente_integracao','vencido'].includes(x.status)).reduce((a,b)=>a+Number(b.valor||0),0));
   tb.innerHTML=lista.length?lista.map(x=>{
     const emitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bb'&&x.nosso_numero;
     const bradescoEmitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bradesco'&&x.linha_digitavel;
@@ -7724,12 +7763,14 @@ function localizarCampoBbV176(obj,chaves){
 }
 
 async function editarCobrancaBancaria(id){
+  if(negarOperacaoCobrancaV293()) return;
   const x=cobrancasBancarias.find(a=>String(a.id)===String(id)); if(!x)return;
   const v=prompt('Novo valor:',String(x.valor||'')); if(v===null)return;
   const dt=prompt('Novo vencimento (AAAA-MM-DD):',x.vencimento||''); if(dt===null)return;
   const r=await banco.from('cobrancas_bancarias').update({valor:cobNum(v),vencimento:dt,atualizado_em:new Date().toISOString()}).eq('id',id); if(r.error)return alert(r.error.message); carregarCobrancasBancarias();
 }
 async function cancelarCobrancaBancaria(id){
+  if(negarOperacaoCobrancaV293()) return;
   if(!confirm('Cancelar esta cobrança no Portal?'))return;
   const r=await banco.from('cobrancas_bancarias').update({status:'cancelado',atualizado_em:new Date().toISOString()}).eq('id',id); if(r.error)return alert(r.error.message); carregarCobrancasBancarias();
 }
@@ -9349,6 +9390,7 @@ async function incrementarTentativaLoteV279(p,loteId){
   p.lote_tentativas=atual;
 }
 async function emitirBoletosEmMassa(){
+  if(negarOperacaoCobrancaV293()) return;
   const grupos=ordemCobrancaMassa(gruposSelecionadosCobrancaMassa());
   if(!grupos.length)return alert('Não há boletos selecionados e prontos para emissão.');
   const totalBoletos=grupos.reduce((n,g)=>n+g.parcelas.length,0), totalValor=grupos.reduce((n,g)=>n+g.valorTotal,0);
@@ -10147,6 +10189,7 @@ async function prepararEmissaoProducaoBradescoV248(){
   finally{if(btn)btn.disabled=false;}
 }
 async function emitirCobrancaProducaoBradescoV248(){
+  if(negarOperacaoCobrancaV293()) return;
   const prep=bradescoPreviewProducaoV248;if(!prep)return alert('Primeiro clique em “Conferir primeira emissão — NÃO ENVIAR”.');
   const atual=dadosFormularioRegistroBradesco();
   const resumo=`ATENÇÃO — AGORA SERÁ UMA EMISSÃO REAL NO BRADESCO PRODUÇÃO.\n\nCliente: ${atual.nome}\nSeu Nº (NF/Pedido): ${atual.seuNumero}\nValor: R$ ${Number(atual.valor||0).toFixed(2).replace('.',',')}\nVencimento: ${atual.vencimento}\n\nO sistema fará UMA tentativa. Não existe repetição automática.\n\nConfirma os dados acima?`;
