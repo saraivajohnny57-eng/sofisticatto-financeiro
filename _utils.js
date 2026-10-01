@@ -1,139 +1,20 @@
 const crypto = require("crypto");
-
-function json(res,status,data){
-  res.status(status).json(data);
-}
-
-function adminValido(req){
-  const esperado=String(process.env.INTEGRATIONS_ADMIN_KEY||"").trim();
-  const recebido=String(req.headers["x-integrations-admin-key"]||"").trim();
-  if(!esperado||!recebido)return false;
-
-  const a=Buffer.from(esperado);
-  const b=Buffer.from(recebido);
-  return a.length===b.length && crypto.timingSafeEqual(a,b);
-}
-
-function exigirAdmin(req,res){
-  if(!adminValido(req)){
-    json(res,401,{ok:false,erro:"Chave administrativa inválida ou não configurada."});
-    return false;
-  }
-  return true;
-}
-
-function cronValido(req){
-  const segredo=String(process.env.CRON_SECRET||"");
-  if(!segredo)return false;
-  const recebido=String(req.headers.authorization||"");
-  const esperado=`Bearer ${segredo}`;
-  const a=Buffer.from(esperado);
-  const b=Buffer.from(recebido);
-  return a.length===b.length && crypto.timingSafeEqual(a,b);
-}
-
-function exigirAdminOuCron(req,res){
-  if(adminValido(req)||cronValido(req))return true;
-  json(res,401,{ok:false,erro:"Acesso não autorizado para a sincronização."});
-  return false;
-}
-
-function supabaseConfig(){
-  const url=String(process.env.SUPABASE_URL||"").replace(/\/$/,"");
-  const key=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
-  if(!url||!key)throw new Error("SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configurada.");
-  return {url,key};
-}
-
-async function supabaseRest(caminho,{method="GET",body,query=""}={}){
-  const {url,key}=supabaseConfig();
-  const resposta=await fetch(`${url}/rest/v1/${caminho}${query}`,{
-    method,
-    headers:{
-      apikey:key,
-      Authorization:`Bearer ${key}`,
-      "Content-Type":"application/json",
-      Prefer:"return=representation"
-    },
-    body:body===undefined?undefined:JSON.stringify(body)
-  });
-
-  const texto=await resposta.text();
-  let dados=null;
-  try{dados=texto?JSON.parse(texto):null}catch{dados=texto}
-
-  if(!resposta.ok){
-    throw new Error(dados?.message||dados?.error||texto||`Supabase HTTP ${resposta.status}`);
-  }
-  return dados;
-}
-
-function chaveCriptografia(){
-  const segredo=process.env.INTEGRATIONS_ENCRYPTION_KEY||"";
-  if(segredo.length<32){
-    throw new Error("INTEGRATIONS_ENCRYPTION_KEY deve ter pelo menos 32 caracteres.");
-  }
-  return crypto.createHash("sha256").update(segredo).digest();
-}
-
-function criptografar(objeto){
-  const iv=crypto.randomBytes(12);
-  const cipher=crypto.createCipheriv("aes-256-gcm",chaveCriptografia(),iv);
-  const texto=Buffer.from(JSON.stringify(objeto),"utf8");
-  const cifrado=Buffer.concat([cipher.update(texto),cipher.final()]);
-  const tag=cipher.getAuthTag();
-
-  return {
-    payload:cifrado.toString("base64"),
-    iv:iv.toString("base64"),
-    tag:tag.toString("base64")
-  };
-}
-
-function descriptografar(registro){
-  const decipher=crypto.createDecipheriv(
-    "aes-256-gcm",
-    chaveCriptografia(),
-    Buffer.from(registro.iv,"base64")
-  );
-  decipher.setAuthTag(Buffer.from(registro.auth_tag,"base64"));
-  const aberto=Buffer.concat([
-    decipher.update(Buffer.from(registro.payload_criptografado,"base64")),
-    decipher.final()
-  ]);
-  return JSON.parse(aberto.toString("utf8"));
-}
-
-function validarUrlPublica(valor){
-  const url=new URL(valor);
-  if(url.protocol!=="https:")throw new Error("Somente URLs HTTPS são permitidas.");
-
-  const host=url.hostname.toLowerCase();
-  if(
-    host==="localhost"||
-    host==="127.0.0.1"||
-    host==="0.0.0.0"||
-    host==="::1"||
-    host.endsWith(".local")||
-    /^10\./.test(host)||
-    /^192\.168\./.test(host)||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host)||
-    /^169\.254\./.test(host)
-  ){
-    throw new Error("Endereço interno ou local não permitido.");
-  }
-  return url.toString();
-}
-
-function obterCampo(objeto,caminho){
-  return String(caminho||"")
-    .split(".")
-    .filter(Boolean)
-    .reduce((atual,chave)=>atual?.[chave],objeto);
-}
-
-module.exports={
-  json,adminValido,cronValido,exigirAdmin,exigirAdminOuCron,
-  supabaseRest,criptografar,descriptografar,
-  validarUrlPublica,obterCampo
-};
+function json(res,status,data){res.status(status).json(data);}
+function seguroIgual(a,b){a=Buffer.from(String(a||''));b=Buffer.from(String(b||''));return a.length===b.length&&a.length>0&&crypto.timingSafeEqual(a,b)}
+function segredoDispositivo(){const base=String(process.env.INTEGRATIONS_DEVICE_SECRET||process.env.INTEGRATIONS_ENCRYPTION_KEY||process.env.INTEGRATIONS_ADMIN_KEY||'');return crypto.createHash('sha256').update('sofisticatto-device-v291|'+base).digest()}
+function criarTokenDispositivo({deviceId,nome='Dispositivo confiável',dias=90}={}){const payload={v:1,did:String(deviceId||crypto.randomUUID()),nome:String(nome||'Dispositivo confiável').slice(0,80),iat:Date.now(),exp:Date.now()+Number(dias||90)*86400000};const b=Buffer.from(JSON.stringify(payload)).toString('base64url');const s=crypto.createHmac('sha256',segredoDispositivo()).update(b).digest('base64url');return {token:`sdv1.${b}.${s}`,payload}}
+function validarTokenDispositivo(token){try{const [p,b,s]=String(token||'').split('.');if(p!=='sdv1'||!b||!s)return null;const esp=crypto.createHmac('sha256',segredoDispositivo()).update(b).digest('base64url');if(!seguroIgual(s,esp))return null;const d=JSON.parse(Buffer.from(b,'base64url').toString('utf8'));if(!d?.did||Date.now()>Number(d.exp||0))return null;return d}catch{return null}}
+function credencialAdmin(req){const recebido=String(req.headers["x-integrations-admin-key"]||"").trim();const esperado=String(process.env.INTEGRATIONS_ADMIN_KEY||"").trim();if(esperado&&seguroIgual(recebido,esperado))return {tipo:'legado'};const dev=validarTokenDispositivo(recebido);if(dev)return {tipo:'dispositivo',...dev};return null}
+function adminValido(req){return !!credencialAdmin(req)}
+function senhaMestreValida(v){const mestre=String(process.env.INTEGRATIONS_MASTER_PASSWORD||'').trim();return !!mestre&&seguroIgual(String(v||'').trim(),mestre)}
+function exigirAdmin(req,res){if(!adminValido(req)){json(res,401,{ok:false,erro:"Autorização de integrações inválida, expirada ou não configurada."});return false}return true}
+function cronValido(req){const segredo=String(process.env.CRON_SECRET||"");if(!segredo)return false;const recebido=String(req.headers.authorization||"");return seguroIgual(recebido,`Bearer ${segredo}`)}
+function exigirAdminOuCron(req,res){if(adminValido(req)||cronValido(req))return true;json(res,401,{ok:false,erro:"Acesso não autorizado para a sincronização."});return false}
+function supabaseConfig(){const url=String(process.env.SUPABASE_URL||"").replace(/\/$/,"");const key=process.env.SUPABASE_SERVICE_ROLE_KEY||"";if(!url||!key)throw new Error("SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configurada.");return {url,key}}
+async function supabaseRest(caminho,{method="GET",body,query=""}={}){const {url,key}=supabaseConfig();const resposta=await fetch(`${url}/rest/v1/${caminho}${query}`,{method,headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"return=representation"},body:body===undefined?undefined:JSON.stringify(body)});const texto=await resposta.text();let dados=null;try{dados=texto?JSON.parse(texto):null}catch{dados=texto}if(!resposta.ok)throw new Error(dados?.message||dados?.error||texto||`Supabase HTTP ${resposta.status}`);return dados}
+function chaveCriptografia(){const segredo=process.env.INTEGRATIONS_ENCRYPTION_KEY||"";if(segredo.length<32)throw new Error("INTEGRATIONS_ENCRYPTION_KEY deve ter pelo menos 32 caracteres.");return crypto.createHash("sha256").update(segredo).digest()}
+function criptografar(objeto){const iv=crypto.randomBytes(12),cipher=crypto.createCipheriv("aes-256-gcm",chaveCriptografia(),iv),texto=Buffer.from(JSON.stringify(objeto),"utf8"),cifrado=Buffer.concat([cipher.update(texto),cipher.final()]),tag=cipher.getAuthTag();return {payload:cifrado.toString("base64"),iv:iv.toString("base64"),tag:tag.toString("base64")}}
+function descriptografar(registro){const decipher=crypto.createDecipheriv("aes-256-gcm",chaveCriptografia(),Buffer.from(registro.iv,"base64"));decipher.setAuthTag(Buffer.from(registro.auth_tag,"base64"));return JSON.parse(Buffer.concat([decipher.update(Buffer.from(registro.payload_criptografado,"base64")),decipher.final()]).toString("utf8"))}
+function validarUrlPublica(valor){const url=new URL(valor);if(url.protocol!=="https:")throw new Error("Somente URLs HTTPS são permitidas.");const host=url.hostname.toLowerCase();if(host==="localhost"||host==="127.0.0.1"||host==="0.0.0.0"||host==="::1"||host.endsWith(".local")||/^10\./.test(host)||/^192\.168\./.test(host)||/^172\.(1[6-9]|2\d|3[01])\./.test(host)||/^169\.254\./.test(host))throw new Error("Endereço interno ou local não permitido.");return url.toString()}
+function obterCampo(objeto,caminho){return String(caminho||"").split(".").filter(Boolean).reduce((atual,chave)=>atual?.[chave],objeto)}
+module.exports={json,adminValido,credencialAdmin,senhaMestreValida,criarTokenDispositivo,validarTokenDispositivo,cronValido,exigirAdmin,exigirAdminOuCron,supabaseRest,criptografar,descriptografar,validarUrlPublica,obterCampo};

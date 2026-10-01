@@ -9466,13 +9466,13 @@ function bbSetAdminStatus(texto,tipo='pendente'){
 }
 async function salvarChaveAdminBancoBB(){
   const el=document.getElementById('bbIntegrationsAdminKey');const v=String(el?.value||'').trim();
-  if(!v)return alert('Informe a chave administrativa das integrações.');
+  if(!v)return alert('Informe a Senha Mestre de Integrações ou use um dispositivo já autorizado.');
   bbSetAdminStatus('Validando…','pendente');
   try{
     const r=await fetch('/api/integracoes?action=validar-chave',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':v},body:'{}'});
     const j=await r.json().catch(()=>({}));
     if(!r.ok||j.ok===false)throw new Error(j.erro||'Chave administrativa inválida ou não configurada no servidor.');
-    sessionStorage.setItem('integrations_admin_key',v);
+    const autorizado=j.device_token||v; sessionStorage.setItem('integrations_admin_key',autorizado); localStorage.setItem('integrations_admin_key',autorizado);
     bbSetAdminStatus('Validada','ok');
     await carregarStatusBancoBB(true);
   }catch(e){
@@ -9509,7 +9509,7 @@ async function executarDiagnosticoBancoBB(){
       try{
         const r=await fetch('/api/integracoes?action=validar-chave',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:'{}'});
         const x=await r.json().catch(()=>({}));
-        if(!r.ok||x.ok===false)throw new Error(x.erro||`HTTP ${r.status}`);
+        if(!r.ok||x.ok===false)throw new Error(x.erro||`HTTP ${r.status}`); if(x.device_token){sessionStorage.setItem('integrations_admin_key',x.device_token);localStorage.setItem('integrations_admin_key',x.device_token);}
         bbDiagSet('bbDiagAdmin','OK','ok');
         bbSetAdminStatus('Validada','ok');
         detalhes.push('• Chave administrativa: OK.');

@@ -609,7 +609,8 @@ async function validarChaveColetaNoServidor(chave){
   if(!r.ok||!d.ok){
     throw new Error(d.erro||"Chave administrativa inválida ou não configurada.");
   }
-  return true;
+  if(d.device_token){sessionStorage.setItem("integrations_admin_key",d.device_token);localStorage.setItem("integrations_admin_key",d.device_token);return d.device_token;}
+  return valor;
 }
 
 function atualizarStatusChaveColeta(texto,ok=false){
@@ -622,18 +623,19 @@ function atualizarStatusChaveColeta(texto,ok=false){
 
 async function solicitarChaveColeta(){
   const digitada=prompt(
-    "Informe o valor secreto da variável INTEGRATIONS_ADMIN_KEY cadastrada na Vercel:",
+    "Informe a Senha Mestre de Integrações para autorizar este dispositivo:",
     ""
   );
   const valor=String(digitada||"").trim();
   if(!valor)return "";
-  await validarChaveColetaNoServidor(valor);
-  sessionStorage.setItem("integrations_admin_key",valor);
+  const autorizado=await validarChaveColetaNoServidor(valor);
+  const chaveSalvar=autorizado||valor;
+  sessionStorage.setItem("integrations_admin_key",chaveSalvar);
   if(confirm("Deseja manter esta chave salva neste computador? Use somente em computador confiável.")){
-    localStorage.setItem("integrations_admin_key",valor);
+    localStorage.setItem("integrations_admin_key",chaveSalvar);
   }
   atualizarStatusChaveColeta("Chave validada",true);
-  return valor;
+  return chaveSalvar;
 }
 
 async function chaveAdminColeta(forcarTroca=false){

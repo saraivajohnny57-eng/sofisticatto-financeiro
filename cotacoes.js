@@ -346,10 +346,10 @@ function abrirModalChaveIntegracoesCotacao(){
     fundo.innerHTML=`
       <div class="modal-chave-integracoes-card">
         <h3>🔐 Liberar cotação automática</h3>
-        <p>Informe a mesma chave administrativa cadastrada na Vercel. Ela ficará guardada somente nesta sessão do navegador.</p>
-        <label>Chave administrativa
+        <p>Informe sua Senha Mestre de Integrações. Em computadores já autorizados, a migração é automática.</p>
+        <label>Senha mestre
           <div class="modal-chave-integracoes-campo">
-            <input id="campoChaveIntegracoesCotacao" type="password" autocomplete="off" placeholder="Digite a chave administrativa">
+            <input id="campoChaveIntegracoesCotacao" type="password" autocomplete="off" placeholder="Digite a senha mestre">
             <button type="button" id="verChaveIntegracoesCotacao">👁</button>
           </div>
         </label>
@@ -379,9 +379,9 @@ function abrirModalChaveIntegracoesCotacao(){
       try{
         const ok=await validarChaveIntegracoesCotacao(chave);
         if(!ok){erro.textContent="Chave inválida. Confira o valor cadastrado na Vercel.";return;}
-        sessionStorage.setItem("integrations_admin_key", chave);
+        sessionStorage.setItem("integrations_admin_key", localStorage.getItem("integrations_admin_key")||chave);
       if(confirm("Deseja manter esta chave salva neste computador para não precisar digitá-la novamente?\n\nUse somente em um computador confiável.")){
-        localStorage.setItem("integrations_admin_key", chave);
+        localStorage.setItem("integrations_admin_key", sessionStorage.getItem("integrations_admin_key")||chave);
       }
         fundo.remove();resolve(chave);
       }catch(e){
