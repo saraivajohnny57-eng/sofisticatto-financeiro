@@ -155,7 +155,21 @@ function montarConsultaTituloBradesco(banco,reg){
   }
   if(negociacaoConsulta.length!==11)throw new Error('Não foi possível montar a negociação de consulta Bradesco (Agência 4 + Conta 7, sem dígitos verificadores). Revise agência e conta cadastradas.');
 
-  return {cpfCnpj:Number(cnpj.slice(0,8)),filial:Number(cnpj.slice(8,12)),controle:Number(cnpj.slice(12,14)),produto:Number(produto),negociacao:Number(negociacaoConsulta),nossoNumero:Number(nosso.padStart(11,'0')),sequencia:0,status:0};
+  // V288: o contrato de consulta do Bradesco tipa cpfCnpj como CpfCnpjVO.
+  // Portanto ele precisa ser enviado como objeto (raiz/filial/controle), e não como Number.
+  // Os demais identificadores também permanecem como strings para preservar zeros à esquerda.
+  return {
+    cpfCnpj:{
+      cpfCnpj:cnpj.slice(0,8),
+      filial:cnpj.slice(8,12),
+      controle:cnpj.slice(12,14)
+    },
+    produto:String(produto),
+    negociacao:String(negociacaoConsulta),
+    nossoNumero:String(nosso).padStart(11,'0'),
+    sequencia:'0',
+    status:'0'
+  };
 }
 function dataBradescoIso(v){
   const s=String(v??'').trim();
