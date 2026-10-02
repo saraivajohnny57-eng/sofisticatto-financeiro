@@ -6531,7 +6531,7 @@ async function prepararEtiquetaParaCaptura(etiqueta){
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
 }
 
-// V302 — impressão térmica: 1 volume = 1 folha 150x100, sem estouro por arredondamento do Chrome.
+// V303 — impressão térmica baseada na rotina antiga estável, com folga física anti-quebra.
 async function imprimirEtiquetas(){
   const d=validarEtiqueta();
   if(!d) return;
@@ -6564,8 +6564,6 @@ async function imprimirEtiquetas(){
   html,
   body{
     width:150mm;
-    height:auto !important;
-    min-height:0 !important;
     margin:0 !important;
     padding:0 !important;
     background:#fff !important;
@@ -6579,12 +6577,12 @@ async function imprimirEtiquetas(){
   }
 
   .pagina{
-    width:150mm !important;
-    height:99.5mm !important;
-    min-width:150mm !important;
-    min-height:99.5mm !important;
-    max-width:150mm !important;
-    max-height:99.5mm !important;
+    width:149mm !important;
+    height:99mm !important;
+    min-width:149mm !important;
+    min-height:99mm !important;
+    max-width:149mm !important;
+    max-height:99mm !important;
     margin:0 !important;
     padding:0 !important;
     overflow:hidden !important;
@@ -6605,12 +6603,12 @@ async function imprimirEtiquetas(){
     position:absolute;
     inset:0;
     display:block !important;
-    width:150mm !important;
-    height:99.5mm !important;
-    min-width:150mm !important;
-    min-height:99.5mm !important;
-    max-width:150mm !important;
-    max-height:99.5mm !important;
+    width:149mm !important;
+    height:99mm !important;
+    min-width:149mm !important;
+    min-height:99mm !important;
+    max-width:149mm !important;
+    max-height:99mm !important;
     margin:0 !important;
     padding:0 !important;
     border:0 !important;
@@ -6627,10 +6625,8 @@ async function imprimirEtiquetas(){
     }
 
     .pagina{
-      width:150mm !important;
-      height:99.5mm !important;
-      min-height:99.5mm !important;
-      max-height:99.5mm !important;
+      width:149mm !important;
+      height:99mm !important;
       margin:0 !important;
       padding:0 !important;
       overflow:hidden !important;
