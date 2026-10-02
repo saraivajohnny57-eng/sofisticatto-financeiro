@@ -549,6 +549,30 @@ async function listarPendenciasCarteiraBb(amb,entrada={}){
   return {ok:true,somente_leitura:true,quantidade:titulos.length,titulos,enriquecidos:true};
 }
 
+
+// V297 — diagnóstico somente leitura de um título externo BB.
+// Retorna caminhos/campos da resposta oficial sem tokens, credenciais ou cabeçalhos.
+function diagnosticoCamposBb(obj){
+  const out=[];
+  const sensivel=/token|secret|authorization|app[_-]?key|senha|password|cert|pfx/i;
+  const rec=(v,path,depth)=>{
+    if(depth>7||out.length>=300)return;
+    if(v===null||v===undefined)return;
+    if(Array.isArray(v)){v.slice(0,5).forEach((x,i)=>rec(x,`${path}[${i}]`,depth+1));return;}
+    if(typeof v==='object'){for(const [k,x] of Object.entries(v)){if(sensivel.test(k))continue;rec(x,path?`${path}.${k}`:k,depth+1);}return;}
+    if(typeof v==='string'||typeof v==='number'||typeof v==='boolean')out.push({campo:path,valor:String(v).slice(0,500)});
+  };
+  rec(obj,'',0);return out;
+}
+async function diagnosticarTituloExternoBb(amb,entrada={}){
+  const nosso=String(entrada.nosso_numero||'').trim();
+  if(!nosso)throw new Error('Informe o Nosso Número do título externo BB.');
+  const q=await consultarBoletoBb(amb,nosso),d=q?.data||{};
+  const campos=diagnosticoCamposBb(d);
+  const candidatos=campos.filter(x=>/pagador|sacado|cliente|cpf|cnpj|inscri|beneficiario|titulo|documento|numero/i.test(x.campo));
+  return {ok:true,somente_leitura:true,nosso_numero:nosso,http_status:q.status,total_campos:campos.length,candidatos,campos};
+}
+
 async function testarOAuth(amb){
   const credReg=await obterRegistro(idRegistro(amb,'credenciais'));
   if(!credReg)throw new Error('Credenciais BB ainda não cadastradas neste ambiente.');
@@ -641,6 +665,10 @@ module.exports=async function(req,res){
     }
     if(action==='listar-pendencias-carteira'){
       const out=await listarPendenciasCarteiraBb(amb,req.body||{});
+      return json(res,200,out);
+    }
+    if(action==='diagnosticar-titulo-externo'){
+      const out=await diagnosticarTituloExternoBb(amb,req.body||{});
       return json(res,200,out);
     }
     return json(res,400,{ok:false,erro:'Ação inválida.'});

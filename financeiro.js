@@ -10289,3 +10289,21 @@ async function emitirCobrancaProducaoBradescoV248(){
 }
 
 // V295 — BB: enriquece títulos externos com dados completos; Bradesco: diagnóstico da exigência de Nosso Número.
+
+
+// V297 — diagnóstico seguro/somente leitura de um título externo do Banco do Brasil.
+async function diagnosticarTituloExternoBbV297(){
+  try{
+    const ext=(window.carteiraExternaV294?.bb||[])[0];
+    const padrao=String(ext?.nosso_numero||'');
+    const nosso=prompt('Nosso Número de um título externo BB para diagnóstico:',padrao)||'';
+    if(!nosso.trim())return;
+    const j=await bbReq('diagnosticar-titulo-externo',{method:'POST',body:{nosso_numero:nosso.trim()}});
+    const candidatos=Array.isArray(j?.candidatos)?j.candidatos:[];
+    const todos=Array.isArray(j?.campos)?j.campos:[];
+    const linhas=(candidatos.length?candidatos:todos).map(x=>`${x.campo}: ${x.valor}`).join('\n');
+    const w=window.open('','_blank');if(!w)return alert('Libere pop-ups para abrir o diagnóstico.');
+    const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Diagnóstico BB ${esc(nosso)}</title><style>body{font:14px Arial;padding:20px;max-width:1100px;margin:auto}pre{white-space:pre-wrap;background:#f5f5f5;border:1px solid #ddd;padding:14px;border-radius:8px}h1{font-size:20px}.ok{background:#e8f5e9;padding:12px;border-radius:8px}</style></head><body><h1>Diagnóstico de título externo — Banco do Brasil</h1><div class="ok"><b>Somente leitura.</b> Nenhum boleto foi emitido, alterado ou salvo. Credenciais/tokens não são exibidos.</div><p><b>Nosso Número:</b> ${esc(nosso)} • <b>HTTP:</b> ${esc(j.http_status)} • <b>Campos encontrados:</b> ${esc(j.total_campos)}</p><p>Campos candidatos a Cliente / CPF-CNPJ / Seu Nº:</p><pre>${esc(linhas||'Nenhum campo candidato foi encontrado na resposta desta operação.')}</pre><p>Se Cliente/CPF-CNPJ/Seu Nº não aparecerem acima, esta consulta individual do BB não está devolvendo esses dados para esse título externo.</p></body></html>`);w.document.close();
+  }catch(e){alert('Não foi possível executar o diagnóstico BB:\n\n'+e.message+'\n\nA consulta é somente leitura.');}
+}
