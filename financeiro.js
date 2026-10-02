@@ -7656,6 +7656,34 @@ function imprimirPendenciasConsolidadasV296(banco,lista){
 // Compatibilidade com chamadas antigas da V294.
 function imprimirPendenciasExternasV294(banco,lista){return imprimirPendenciasConsolidadasV296(banco,lista);}
 
+
+
+// V301 — preparação segura para conciliação da carteira Bradesco por arquivo de retorno.
+// O arquivo é lido somente no navegador. Nesta etapa diagnóstica nenhum dado é enviado,
+// salvo no Supabase ou usado para alterar cobranças. O objetivo é identificar o layout
+// efetivamente fornecido pelo contrato da Sofisticatto antes de mapear posições CNAB.
+function abrirRetornoBradescoV301(){
+  const i=document.getElementById('cobRetornoBradescoV301');
+  if(!i)return alert('Seletor do retorno Bradesco não encontrado.');
+  i.value=''; i.click();
+}
+async function lerRetornoBradescoV301(input){
+  const arq=input?.files?.[0]; if(!arq)return;
+  try{
+    const texto=await arq.text();
+    const linhas=texto.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.length);
+    if(!linhas.length)throw new Error('O arquivo está vazio.');
+    const tamanhos={}; for(const l of linhas)tamanhos[l.length]=(tamanhos[l.length]||0)+1;
+    const predominante=Object.entries(tamanhos).sort((a,b)=>b[1]-a[1])[0];
+    const tam=Number(predominante?.[0]||0);
+    const layout=tam===400?'CNAB 400':tam===240?'CNAB 240':'layout ainda não identificado';
+    const irreg=linhas.filter(l=>l.length!==tam).length;
+    window.retornoBradescoDiagnosticoV301={nome:arq.name,tamanho:arq.size,linhas:linhas.length,tamanho_registro:tam,layout,linhas_irregulares:irreg};
+    alert(`Retorno Bradesco lido com segurança.\n\nArquivo: ${arq.name}\nRegistros: ${linhas.length}\nTamanho predominante: ${tam||'—'} caracteres\nLayout provável: ${layout}${irreg?`\nLinhas com tamanho diferente: ${irreg}`:''}\n\nV301 está em modo diagnóstico: o arquivo NÃO foi enviado ao servidor, NÃO foi salvo no Supabase e nenhum boleto foi alterado.\n\nCom um arquivo real de retorno podemos confirmar o layout contratado e então montar o relatório Bradesco no mesmo padrão do Banco do Brasil.`);
+  }catch(e){alert('Não foi possível ler o arquivo de retorno Bradesco.\n\n'+(e.message||e));}
+  finally{if(input)input.value='';}
+}
+
 // V290 — Relatórios bancários separados por banco, sempre em ordem de vencimento.
 function limparFiltroVencimentoV290(){
   const a=document.getElementById('cobDataVencIni'),b=document.getElementById('cobDataVencFim');
