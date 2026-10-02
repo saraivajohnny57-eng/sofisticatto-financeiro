@@ -142,8 +142,8 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .etiqueta-cidade{position:absolute;left:7mm;top:65mm;width:118mm;font-size:4.6mm;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip;letter-spacing:-0.1mm}
 .etiqueta-nf{position:absolute;left:7mm;top:73mm;font-size:5.8mm;line-height:1}
 .etiqueta-volume{position:absolute;left:79mm;top:73mm;font-size:5.8mm;line-height:1}
-.etiqueta-barcode{position:absolute;left:5mm;bottom:9.2mm;width:120mm;height:9mm}
-.etiqueta-chave{position:absolute;left:5mm;bottom:3.5mm;width:120mm;text-align:center;font-size:2.75mm;letter-spacing:0;white-space:nowrap;overflow:hidden}
+.etiqueta-barcode{position:absolute;left:5mm;bottom:10.2mm;width:120mm;height:9mm}
+.etiqueta-chave{position:absolute;left:5mm;bottom:4.5mm;width:120mm;text-align:center;font-size:2.75mm;line-height:1.15;letter-spacing:0;white-space:nowrap;overflow:visible}
 .etiqueta-transportadora.vazia{display:none}
 .etiqueta-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .etiqueta-sugestoes{position:relative}
