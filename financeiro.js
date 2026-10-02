@@ -7669,19 +7669,44 @@ function abrirRetornoBradescoV301(){
   i.value=''; i.click();
 }
 async function lerRetornoBradescoV301(input){
-  const arq=input?.files?.[0]; if(!arq)return;
+  const arquivos=Array.from(input?.files||[]); if(!arquivos.length)return;
   try{
-    const texto=await arq.text();
-    const linhas=texto.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.length);
-    if(!linhas.length)throw new Error('O arquivo está vazio.');
-    const tamanhos={}; for(const l of linhas)tamanhos[l.length]=(tamanhos[l.length]||0)+1;
-    const predominante=Object.entries(tamanhos).sort((a,b)=>b[1]-a[1])[0];
-    const tam=Number(predominante?.[0]||0);
-    const layout=tam===400?'CNAB 400':tam===240?'CNAB 240':'layout ainda não identificado';
-    const irreg=linhas.filter(l=>l.length!==tam).length;
-    window.retornoBradescoDiagnosticoV301={nome:arq.name,tamanho:arq.size,linhas:linhas.length,tamanho_registro:tam,layout,linhas_irregulares:irreg};
-    alert(`Retorno Bradesco lido com segurança.\n\nArquivo: ${arq.name}\nRegistros: ${linhas.length}\nTamanho predominante: ${tam||'—'} caracteres\nLayout provável: ${layout}${irreg?`\nLinhas com tamanho diferente: ${irreg}`:''}\n\nV301 está em modo diagnóstico: o arquivo NÃO foi enviado ao servidor, NÃO foi salvo no Supabase e nenhum boleto foi alterado.\n\nCom um arquivo real de retorno podemos confirmar o layout contratado e então montar o relatório Bradesco no mesmo padrão do Banco do Brasil.`);
-  }catch(e){alert('Não foi possível ler o arquivo de retorno Bradesco.\n\n'+(e.message||e));}
+    // V306: leitura múltipla e deduplicação SOMENTE em memória. Nenhum arquivo
+    // é enviado ao servidor e nenhum registro do Histórico é alterado nesta etapa.
+    const resumoArquivos=[];
+    const registrosUnicos=new Map();
+    let totalRegistros=0, totalIrregulares=0, qtd400=0, qtd240=0, qtdOutro=0;
+    for(const arq of arquivos){
+      const texto=await arq.text();
+      const linhas=texto.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.length);
+      if(!linhas.length){resumoArquivos.push({nome:arq.name,linhas:0,tam:0,layout:'vazio',irreg:0});continue;}
+      const tamanhos={}; for(const l of linhas)tamanhos[l.length]=(tamanhos[l.length]||0)+1;
+      const predominante=Object.entries(tamanhos).sort((a,b)=>b[1]-a[1])[0];
+      const tam=Number(predominante?.[0]||0);
+      const layout=tam===400?'CNAB 400':tam===240?'CNAB 240':'layout não identificado';
+      if(tam===400)qtd400++; else if(tam===240)qtd240++; else qtdOutro++;
+      const irreg=linhas.filter(l=>l.length!==tam).length;
+      totalIrregulares+=irreg; totalRegistros+=linhas.length;
+      resumoArquivos.push({nome:arq.name,linhas:linhas.length,tam,layout,irreg});
+      // A chave inclui a linha CNAB completa. Assim, a mesma ocorrência bancária
+      // repetida em dois retornos idênticos é contabilizada uma única vez, sem
+      // inventar posições do layout antes de mapear o contrato real do Bradesco.
+      for(const linha of linhas){
+        if(!registrosUnicos.has(linha))registrosUnicos.set(linha,{linha,arquivos:[arq.name]});
+        else registrosUnicos.get(linha).arquivos.push(arq.name);
+      }
+    }
+    const unicos=registrosUnicos.size, duplicados=Math.max(0,totalRegistros-unicos);
+    window.retornoBradescoDiagnosticoV301={
+      versao:'V306', arquivos:resumoArquivos, quantidade_arquivos:arquivos.length,
+      registros_lidos:totalRegistros, registros_unicos:unicos,
+      registros_duplicados_ignorados:duplicados, linhas_irregulares:totalIrregulares,
+      registros:[...registrosUnicos.values()]
+    };
+    const detalhes=resumoArquivos.slice(0,12).map(x=>`• ${x.nome}: ${x.linhas} registros • ${x.layout}${x.irreg?` • ${x.irreg} irregular(es)`:''}`).join('\n');
+    const extras=resumoArquivos.length>12?`\n• ... e mais ${resumoArquivos.length-12} arquivo(s)`:'';
+    alert(`Retornos Bradesco lidos com segurança.\n\nArquivos selecionados: ${arquivos.length}\nRegistros lidos: ${totalRegistros}\nRegistros únicos: ${unicos}\nDuplicados ignorados: ${duplicados}\nLinhas irregulares: ${totalIrregulares}\n\n${detalhes}${extras}\n\nLayouts: ${qtd400} arquivo(s) CNAB 400 • ${qtd240} CNAB 240${qtdOutro?` • ${qtdOutro} não identificado(s)`:''}.\n\nV306 mantém o modo seguro: os arquivos NÃO foram enviados ao servidor, NÃO foram salvos no Supabase e nenhum boleto foi alterado. A deduplicação acontece somente durante a conferência no navegador.`);
+  }catch(e){alert('Não foi possível ler os arquivos de retorno Bradesco.\n\n'+(e.message||e));}
   finally{if(input)input.value='';}
 }
 
