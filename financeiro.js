@@ -7716,8 +7716,31 @@ function statusRelatorioBancoV290(x){
 function imprimirRelatorioBancoV290(bancoCod){
   bancoCod=bancoCod==='bradesco'?'bradesco':'bb';
   const bancoNome=bancoCod==='bb'?'BANCO DO BRASIL':'BRADESCO';
-  // Respeita todos os filtros visíveis, exceto o seletor de banco: cada botão força seu próprio banco.
-  const lista=cobrancasFiltradasHistoricoV178().filter(x=>codigoBancoCobranca(x?.banco_nome||x?.banco||'')===bancoCod).sort((a,b)=>{
+  // V305 — correção isolada do filtro do Relatório BB.
+  // O filtro precisa considerar o status efetivo do BB (V304), e não o status local antigo.
+  // Bradesco e os demais módulos continuam usando exatamente o fluxo anterior.
+  let baseRelatorio;
+  if(bancoCod==='bb'){
+    const q=cobNorm(document.getElementById('cobBuscaHistorico')?.value||'');
+    const fs=statusSelecionadosV294();
+    const di=document.getElementById('cobDataEmissaoIni')?.value||'', df=document.getElementById('cobDataEmissaoFim')?.value||'';
+    const vi=document.getElementById('cobDataVencIni')?.value||'', vf=document.getElementById('cobDataVencFim')?.value||'';
+    baseRelatorio=(cobrancasBancarias||[]).filter(x=>{
+      if(usuarioEhCobrancaV293() && !cobrancaJaEmitidaV293(x)) return false;
+      if(codigoBancoCobranca(x?.banco_nome||x?.banco||'')!=='bb') return false;
+      const de=dataEmissaoCobrancaV177(x), ve=String(x?.vencimento||'').slice(0,10);
+      if(q && !cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia,x.nosso_numero].join(' ')).includes(q)) return false;
+      if((di&&de<di)||(df&&de>df)||(vi&&ve<vi)||(vf&&ve>vf)) return false;
+      if(!fs.length) return true;
+      const st=statusEfetivoRelatorioBancoV304(x);
+      const desc=st!=='cancelado'&&!!x?.bb_descontado;
+      const parcial=st!=='cancelado'&&[18,19].includes(Number(x?.bb_codigo_estado));
+      return fs.some(f=>f===st||(f==='descontado'&&desc)||(f==='parcial'&&parcial));
+    });
+  }else{
+    baseRelatorio=cobrancasFiltradasHistoricoV178().filter(x=>codigoBancoCobranca(x?.banco_nome||x?.banco||'')===bancoCod);
+  }
+  const lista=baseRelatorio.sort((a,b)=>{
     const va=String(a?.vencimento||'9999-12-31'),vb=String(b?.vencimento||'9999-12-31');
     return va.localeCompare(vb)||String(a?.cliente_nome||'').localeCompare(String(b?.cliente_nome||''),'pt-BR',{sensitivity:'base'})||Number(a?.parcela_numero||1)-Number(b?.parcela_numero||1);
   });
