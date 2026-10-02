@@ -7473,13 +7473,13 @@ function mostrarAbaIntegracaoBancaria(aba='historico'){
   if(aba==='credenciais'){if(typeof carregarStatusBancoBB==='function')carregarStatusBancoBB(false);if(typeof carregarStatusBradesco==='function')carregarStatusBradesco(false);}
 }
 function cobrancasFiltradasHistoricoV178(){
-  const q=cobNorm(document.getElementById('cobBuscaHistorico')?.value||''), f=document.getElementById('cobFiltroStatus')?.value||'', fb=document.getElementById('cobFiltroBanco')?.value||'';
+  const q=cobNorm(document.getElementById('cobBuscaHistorico')?.value||''), fs=statusSelecionadosV294(), fb=document.getElementById('cobFiltroBanco')?.value||'';
   const di=document.getElementById('cobDataEmissaoIni')?.value||'', df=document.getElementById('cobDataEmissaoFim')?.value||'';
   const vi=document.getElementById('cobDataVencIni')?.value||'', vf=document.getElementById('cobDataVencFim')?.value||'';
   return (cobrancasBancarias||[]).filter(x=>{
     if(usuarioEhCobrancaV293() && !cobrancaJaEmitidaV293(x)) return false;
     const de=dataEmissaoCobrancaV177(x), ve=String(x?.vencimento||'').slice(0,10);
-    return (!q||cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia,x.nosso_numero].join(' ')).includes(q))&&(!fb||codigoBancoCobranca(x?.banco_nome||x?.banco||'')===fb)&&(!f||x.status===f)&&(!di||de>=di)&&(!df||de<=df)&&(!vi||ve>=vi)&&(!vf||ve<=vf);
+    return (!q||cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia,x.nosso_numero].join(' ')).includes(q))&&(!fb||codigoBancoCobranca(x?.banco_nome||x?.banco||'')===fb)&&(fs.length===0||tituloCasaStatusV294(x,fs))&&(!di||de>=di)&&(!df||de<=df)&&(!vi||ve>=vi)&&(!vf||ve<=vf);
   });
 }
 async function imprimirBoletosFiltradosV178(){
@@ -7605,6 +7605,44 @@ function abrirBoletoBradescoRegistro(id){
   w.document.close();
 }
 
+
+// V294 — filtro múltiplo + consulta temporária de pendências diretamente nas carteiras bancárias.
+function statusSelecionadosV294(){return [...document.querySelectorAll('#cobFiltroStatusMulti input[type="checkbox"]:checked')].map(e=>e.value);}
+function statusLabelV294(s){return {pendente_integracao:'Pendente integração',aberto:'Em aberto',vencido:'Vencido',pago:'Pago',cancelado:'Cancelado/Baixado',descontado:'Descontado',parcial:'Pagamento parcial'}[s]||s;}
+function tituloCasaStatusV294(x,sel){
+  const b=codigoBancoCobranca(x?.banco_nome||x?.banco||'');
+  return sel.some(s=>s===x.status||(s==='descontado'&&(b==='bb'?!!x.bb_descontado:!!x.bradesco_descontado))||(s==='parcial'&&b==='bb'&&[18,19].includes(Number(x.bb_codigo_estado))));
+}
+function limparStatusMultiV294(){document.querySelectorAll('#cobFiltroStatusMulti input[type="checkbox"]').forEach(e=>e.checked=false);renderHistoricoCobrancas();}
+function boletoLocalChaveV294(x){return `${codigoBancoCobranca(x?.banco_nome||x?.banco||'')}|${String(x?.nosso_numero||'').replace(/\D/g,'')}`;}
+async function consultarPendenciasCarteiraV294(banco){
+  banco=banco==='bradesco'?'bradesco':'bb';
+  try{
+    let j;
+    if(banco==='bb'){
+      let ag=localStorage.getItem('sof_bb_agencia_consulta')||'',ct=localStorage.getItem('sof_bb_conta_consulta')||'';
+      if(!ag)ag=prompt('Agência beneficiária BB (sem dígito):','')||'';
+      if(!ct)ct=prompt('Conta beneficiária BB (sem dígito):','')||'';
+      if(!ag||!ct)return;
+      localStorage.setItem('sof_bb_agencia_consulta',ag.replace(/\D/g,''));localStorage.setItem('sof_bb_conta_consulta',ct.replace(/\D/g,''));
+      j=await bbReq('listar-pendencias-carteira',{method:'POST',body:{agencia:ag,conta:ct}});
+    }else j=await bradescoReqProducao('listar-pendencias-carteira',{});
+    const tit=Array.isArray(j?.titulos)?j.titulos:[];
+    const locais=new Set((cobrancasBancarias||[]).map(boletoLocalChaveV294));
+    const externos=tit.filter(x=>!locais.has(`${banco}|${String(x.nosso_numero||'').replace(/\D/g,'')}`));
+    const pend=externos.filter(x=>['aberto','vencido','parcial'].includes(x.status)||x.descontado);
+    window.carteiraExternaV294=window.carteiraExternaV294||{};window.carteiraExternaV294[banco]=pend;
+    alert(`${banco==='bb'?'Banco do Brasil':'Bradesco'} — consulta somente leitura concluída.\n\n${tit.length} título(s) pendente(s) encontrado(s) no banco.\n${externos.length} não estão no Portal Sofisticatto.\n${pend.length} pendência(s) externa(s) disponível(is) para relatório.\n\nNenhum boleto foi emitido, alterado ou salvo no Storage.`);
+    if(pend.length)imprimirPendenciasExternasV294(banco,pend);
+  }catch(e){alert(`Não foi possível listar a carteira ${banco==='bb'?'BB':'Bradesco'}:\n\n${e.message}\n\nA consulta é somente leitura e nenhum boleto foi alterado.`);}
+}
+function imprimirPendenciasExternasV294(banco,lista){
+  const nome=banco==='bb'?'BANCO DO BRASIL':'BRADESCO',esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),moeda=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}),fd=v=>{const s=String(v||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(s)?new Date(s+'T12:00:00').toLocaleDateString('pt-BR'):String(v||'—')};
+  lista=[...lista].sort((a,b)=>String(a.vencimento||'9999').localeCompare(String(b.vencimento||'9999')));
+  const rows=lista.map(x=>`<tr><td>${fd(x.vencimento)}</td><td><b>${esc(statusLabelV294(x.status))}${x.descontado?' / Descontado':''}</b></td><td>${esc(x.cliente||'—')}</td><td>${esc(x.cpf_cnpj||'—')}</td><td>${esc(x.seu_numero||'—')}</td><td>${esc(x.nosso_numero||'—')}</td><td style="text-align:right">${moeda(x.valor)}</td><td>BANCO</td></tr>`).join('');
+  const w=window.open('','_blank');if(!w)return alert('Libere pop-ups para abrir o relatório.');w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Pendências ${nome}</title><style>@page{size:A4 landscape;margin:9mm}body{font:9px Arial}h1{font-size:17px}table{width:100%;border-collapse:collapse}th,td{padding:4px;border-bottom:1px solid #bbb;text-align:left}th{background:#eee}@media print{button{display:none}}</style></head><body><button onclick="print()">🖨 Imprimir / Salvar PDF</button><h1>Sofisticatto Cosméticos — PENDÊNCIAS EXTERNAS ${nome}</h1><p>Somente títulos encontrados no banco que não constam no Portal Sofisticatto • Ordem crescente de vencimento • Consulta somente leitura</p><table><thead><tr><th>Vencimento</th><th>Status</th><th>Cliente</th><th>CPF/CNPJ</th><th>Seu Nº</th><th>Nosso Número</th><th>Valor</th><th>Origem</th></tr></thead><tbody>${rows}</tbody></table><p><b>${lista.length} título(s)</b> • Total ${moeda(lista.reduce((a,x)=>a+Number(x.valor||0),0))}</p></body></html>`);w.document.close();
+}
+
 // V290 — Relatórios bancários separados por banco, sempre em ordem de vencimento.
 function limparFiltroVencimentoV290(){
   const a=document.getElementById('cobDataVencIni'),b=document.getElementById('cobDataVencFim');
@@ -7634,8 +7672,8 @@ function imprimirRelatorioBancoV290(bancoCod){
   const total=lista.reduce((a,x)=>a+Number(x.valor||0),0);
   const filtros=[];
   const ei=document.getElementById('cobDataEmissaoIni')?.value,ef=document.getElementById('cobDataEmissaoFim')?.value,vi=document.getElementById('cobDataVencIni')?.value,vf=document.getElementById('cobDataVencFim')?.value;
-  const st=document.getElementById('cobFiltroStatus')?.value||'',busca=document.getElementById('cobBuscaHistorico')?.value||'';
-  if(ei||ef)filtros.push(`Emissão: ${fmtData(ei)} a ${fmtData(ef)}`); if(vi||vf)filtros.push(`Vencimento: ${fmtData(vi)} a ${fmtData(vf)}`); if(st)filtros.push(`Status: ${statusRelatorioBancoV290({status:st,banco:bancoCod})}`); if(busca)filtros.push(`Busca: ${esc(busca)}`);
+  const sts=statusSelecionadosV294(),busca=document.getElementById('cobBuscaHistorico')?.value||'';
+  if(ei||ef)filtros.push(`Emissão: ${fmtData(ei)} a ${fmtData(ef)}`); if(vi||vf)filtros.push(`Vencimento: ${fmtData(vi)} a ${fmtData(vf)}`); if(sts.length)filtros.push(`Status: ${sts.map(statusLabelV294).join(', ')}`); if(busca)filtros.push(`Busca: ${esc(busca)}`);
   const linhas=lista.map(x=>`<tr><td>${fmtData(x.vencimento)}</td><td class="status">${esc(statusRelatorioBancoV290(x))}</td><td>${esc(x.cliente_nome||'—')}</td><td>${esc(x.cpf_cnpj||'—')}</td><td>${esc(x.numero_nf||'—')}</td><td>${esc((x.parcela_numero||1)+'/'+(x.parcela_total||1))}</td><td>${esc(x.nosso_numero||'—')}</td><td class="valor">${moeda(x.valor)}</td></tr>`).join('');
   const w=window.open('','_blank'); if(!w)return alert('O navegador bloqueou a janela do relatório. Libere pop-ups para este site e tente novamente.');
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Relatório ${bancoNome}</title><style>@page{size:A4 landscape;margin:9mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;font-size:9px}.acoes{margin:0 0 8px}.acoes button{padding:8px 14px;font-weight:700}.cab{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #333;padding-bottom:7px;margin-bottom:8px}.cab h1{font-size:17px;margin:0}.cab h2{font-size:12px;margin:3px 0 0}.meta{text-align:right;font-size:8px}.filtros{border:1px solid #bbb;padding:5px 7px;margin-bottom:7px}.kpis{display:flex;gap:6px;margin-bottom:8px}.kpi{border:1px solid #bbb;padding:5px 7px;flex:1}.kpi b{display:block;font-size:11px}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border-bottom:1px solid #bbb;padding:4px 3px;vertical-align:top;overflow-wrap:anywhere}th{background:#eee;border-top:1px solid #888;text-align:left}th:nth-child(1){width:9%}th:nth-child(2){width:14%}th:nth-child(3){width:22%}th:nth-child(4){width:14%}th:nth-child(5){width:8%}th:nth-child(6){width:7%}th:nth-child(7){width:15%}th:nth-child(8){width:11%}.valor{text-align:right;white-space:nowrap}.status{font-weight:700}.rodape{margin-top:8px;border-top:2px solid #333;padding-top:6px;display:flex;justify-content:space-between;font-size:8px}@media print{.acoes{display:none}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}}</style></head><body><div class="acoes"><button onclick="window.print()">🖨 Imprimir / Salvar PDF</button></div><div class="cab"><div><h1>Sofisticatto Cosméticos</h1><h2>RELATÓRIO DE TÍTULOS — ${bancoNome}</h2></div><div class="meta">Gerado em ${new Date().toLocaleString('pt-BR')}<br>Ordenação: vencimento crescente</div></div><div class="filtros"><b>Filtros:</b> ${filtros.length?filtros.join(' • '):'Todos os títulos deste banco'}</div><div class="kpis"><div class="kpi">Títulos<b>${lista.length}</b></div><div class="kpi">Em aberto<b>${abertos.length}</b></div><div class="kpi">Vencidos<b>${vencidos.length}</b></div><div class="kpi">Pagos<b>${pagos.length}</b></div><div class="kpi">Descontados<b>${descontados.length}</b></div><div class="kpi">Cancelados/Baixados<b>${cancelados.length}</b></div><div class="kpi">Valor total<b>${moeda(total)}</b></div></div><table><thead><tr><th>Vencimento</th><th>Status</th><th>Cliente</th><th>CPF/CNPJ</th><th>NF</th><th>Parcela</th><th>Nosso Número</th><th>Valor</th></tr></thead><tbody>${linhas}</tbody></table><div class="rodape"><span>${bancoNome} • ${lista.length} título(s)</span><span>Valor total: <b>${moeda(total)}</b></span></div></body></html>`);

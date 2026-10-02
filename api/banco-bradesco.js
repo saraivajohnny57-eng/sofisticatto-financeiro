@@ -313,6 +313,31 @@ function consultarPendentesSandbox(token,mtls){
   });
 }
 
+
+// V294 — consulta somente leitura da carteira de títulos pendentes Bradesco.
+async function listarPendenciasCarteiraBradesco(amb){
+  if(amb!=='producao')throw new Error('Use Produção para consultar a carteira real do Bradesco.');
+  const bancoReg=await obter(idRegistro(amb,'dados-bancarios')),credReg=await obter(idRegistro(amb,'credenciais')),mtlsReg=await obter(idRegistro(amb,'mtls'));
+  if(!bancoReg||!credReg||!mtlsReg)throw new Error('Dados bancários, credenciais e mTLS do Bradesco precisam estar configurados.');
+  const b=descriptografar(bancoReg)||{},cred=descriptografar(credReg)||{},mtls=descriptografar(mtlsReg)||{};validarParMtls(mtls.cert_pem,mtls.key_pem);
+  const dig=v=>String(v||'').replace(/\D/g,''),cnpj=dig(b.cnpj),ag=dig(b.agencia),ct=dig(b.conta),produto=dig(b.carteira||b.produto);
+  if(cnpj.length!==14||!produto||!ag||!ct)throw new Error('Revise CNPJ, carteira, agência e conta Bradesco cadastrados.');
+  const neg=ag.padStart(4,'0')+ct.padStart(7,'0');if(neg.length!==11)throw new Error('Não foi possível montar a negociação Bradesco para consulta.');
+  const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls),url='https://openapi.bradesco.com.br/boleto/cobranca-pendente/v1/listar';
+  const dt=d=>String(d.getDate()).padStart(2,'0')+String(d.getMonth()+1).padStart(2,'0')+d.getFullYear();
+  const ini=new Date();ini.setFullYear(ini.getFullYear()-2);const fim=new Date();fim.setFullYear(fim.getFullYear()+2);
+  let pagina='0',todos=[];
+  for(let i=0;i<20;i++){
+    const payload={cpfCnpj:{cpfCnpj:cnpj.slice(0,8),filial:cnpj.slice(8,12),controle:cnpj.slice(12,14)},produto:String(produto),negociacao:String(neg),dataVencimentoDe:dt(ini),dataVencimentoAte:dt(fim),valorTituloDe:'0',faixaVencto:'7',paginaAnterior:pagina};
+    const r=await requestBradescoJson({url,token:auth.access_token,mtls,body:payload});if(r.http_status<200||r.http_status>=300)throw new Error(detalheRespostaBradesco(r.data)||`Bradesco HTTP ${r.http_status}`);
+    const d=r.data||{},arr=Array.isArray(d.titulos)?d.titulos:[];todos.push(...arr);
+    if(String(d.indMaisPagina||'').toUpperCase()!=='S')break;const prox=String(d.pagina??d.paginaAtual??'').trim();if(!prox||prox===pagina)break;pagina=prox;
+  }
+  const hoje=new Date().toISOString().slice(0,10),iso=v=>dataBradescoIso(v)||String(v||'').slice(0,10);
+  const titulos=todos.map(t=>{const cod=Number(t.codStatus||t.codigoStatus||t.status||0)||0,venc=iso(t.dataVenctoBol||t.dataVencto||t.dataVencimento),pago=[13,61,62].includes(cod),baixado=[51,52,53,54,55,56,57,58,59,60].includes(cod),desc=cod===65||String(t.corige35||'').toUpperCase()==='S';let status=pago?'pago':baixado?'cancelado':(venc&&venc<hoje?'vencido':'aberto');return {nosso_numero:String(t.nossoNumero||t.nuTitulo||t.numeroTitulo||''),seu_numero:String(t.seuNumero||t.numeroDocumento||''),cliente:t.nomePagador||t.nomeSacado||t.pagador||'',cpf_cnpj:String(t.cpfCnpjPagador||t.cnpjCpfPagador||''),vencimento:venc,valor:Number(t.valMoeda||t.valorTitulo||t.valorMoedaBol||0),status,descontado:desc,status_banco:bradescoStatusDescricao(cod)||String(t.status||''),origem:'banco'};}).filter(x=>['aberto','vencido'].includes(x.status)||x.descontado);
+  return {ok:true,somente_leitura:true,quantidade:titulos.length,titulos};
+}
+
 function validarEndpointRegistroSandbox(token,mtls){
   return new Promise((resolve,reject)=>{
     const url='https://openapisandbox.prebanco.com.br:443/boleto/cobranca-registro/v1/cobranca';
@@ -587,6 +612,10 @@ module.exports=async function(req,res){
       if(amb!=='producao')throw new Error('A sincronização de status Bradesco está liberada para Produção.');
       const resumo=await sincronizarStatusBoletosBradesco(amb,req.body||{});
       return json(res,200,{ok:true,resumo});
+    }
+    if(action==='listar-pendencias-carteira'){
+      const out=await listarPendenciasCarteiraBradesco(amb);
+      return json(res,200,out);
     }
     if(action==='consultar-pendentes'){
       if(amb!=='sandbox')throw new Error('A consulta de homologação está liberada somente para o Sandbox.');

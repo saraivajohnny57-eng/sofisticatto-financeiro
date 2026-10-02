@@ -522,6 +522,29 @@ async function emitirBoletoPiloto(amb,entrada={}){
   };
 }
 
+
+// V294 — lista a carteira "Em ser" diretamente no BB. Somente leitura.
+async function listarPendenciasCarteiraBb(amb,entrada={}){
+  const agencia=soDigitos(entrada.agencia),conta=String(Number(soDigitos(entrada.conta)||0));
+  if(!agencia||!conta||conta==='0')throw new Error('Informe agência e conta beneficiária BB para consultar a carteira.');
+  const o=await obterTokenOAuth(amb),base=amb==='teste'?'https://api.hm.bb.com.br':'https://api.bb.com.br';
+  let indice='',todos=[];
+  for(let pagina=0;pagina<10;pagina++){
+    const q=new URLSearchParams({'gw-dev-app-key':o.cred.app_key,indicadorSituacao:'A',agenciaBeneficiario:agencia,contaBeneficiario:conta});
+    if(indice)q.set('indice',indice);
+    const r=await getHttps({url:`${base}/cobrancas/v2/boletos?${q.toString()}`,headers:{Authorization:`Bearer ${o.token}`,Accept:'application/json'}});
+    let d={};try{d=JSON.parse(r.text||'{}')}catch{d={}}
+    if(r.status!==200&&r.status!==204)throw new Error(d?.erros?.[0]?.mensagem||d?.mensagem||d?.message||`BB HTTP ${r.status}`);
+    const arr=Array.isArray(d?.boletos)?d.boletos:(Array.isArray(d?.listaBoletos)?d.listaBoletos:[]);todos.push(...arr);
+    const cont=String(d?.numeroUltimoRegistro||d?.numero_ultimo_registro||'').trim();
+    const mais=String(d?.indicadorContinuidade||d?.indicador_continuidade||'').toUpperCase()==='S';
+    if(!mais||!cont)break;indice=cont;
+  }
+  const hoje=new Date().toISOString().slice(0,10), iso=v=>{const x=String(v||'');let m=x.match(/^(\d{2})[.\/-](\d{2})[.\/-](\d{4})$/);return m?`${m[3]}-${m[2]}-${m[1]}`:x.slice(0,10)};
+  const titulos=todos.map(t=>{const venc=iso(t.dataVencimento||t.dataVencimentoTitulo||t.vencimento);return {nosso_numero:String(t.numeroBoletoBB||t.numeroTituloCliente||t.nossoNumero||''),seu_numero:String(t.numeroTituloBeneficiario||t.numeroTitulo||''),cliente:t.nomePagador||t.pagador?.nome||t.nomeSacado||'',cpf_cnpj:String(t.numeroCpfCnpjPagador||t.cnpjPagador||t.cpfPagador||''),vencimento:venc,valor:Number(t.valorOriginal||t.valorTitulo||t.valor||0),status:venc&&venc<hoje?'vencido':'aberto',descontado:[3,4].includes(Number(t.codigoModalidadeTitulo||t.modalidadeCobranca||0)),origem:'banco'};});
+  return {ok:true,somente_leitura:true,quantidade:titulos.length,titulos};
+}
+
 async function testarOAuth(amb){
   const credReg=await obterRegistro(idRegistro(amb,'credenciais'));
   if(!credReg)throw new Error('Credenciais BB ainda não cadastradas neste ambiente.');
@@ -611,6 +634,10 @@ module.exports=async function(req,res){
     if(action==='sincronizar-status'){
       const resumo=await sincronizarStatusBoletosBb(amb,req.body||{});
       return json(res,200,{ok:true,resumo});
+    }
+    if(action==='listar-pendencias-carteira'){
+      const out=await listarPendenciasCarteiraBb(amb,req.body||{});
+      return json(res,200,out);
     }
     return json(res,400,{ok:false,erro:'Ação inválida.'});
   }catch(e){console.error('[BANCO-BB V176]',action,e);return json(res,500,{ok:false,erro:e.message||'Falha na integração Banco do Brasil.'});}
