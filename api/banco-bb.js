@@ -541,8 +541,12 @@ async function listarPendenciasCarteiraBb(amb,entrada={}){
     if(!mais||!cont)break;indice=cont;
   }
   const hoje=new Date().toISOString().slice(0,10), iso=v=>{const x=String(v||'');let m=x.match(/^(\d{2})[.\/-](\d{2})[.\/-](\d{4})$/);return m?`${m[3]}-${m[2]}-${m[1]}`:x.slice(0,10)};
-  const titulos=todos.map(t=>{const venc=iso(t.dataVencimento||t.dataVencimentoTitulo||t.vencimento);return {nosso_numero:String(t.numeroBoletoBB||t.numeroTituloCliente||t.nossoNumero||''),seu_numero:String(t.numeroTituloBeneficiario||t.numeroTitulo||''),cliente:t.nomePagador||t.pagador?.nome||t.nomeSacado||'',cpf_cnpj:String(t.numeroCpfCnpjPagador||t.cnpjPagador||t.cpfPagador||''),vencimento:venc,valor:Number(t.valorOriginal||t.valorTitulo||t.valor||0),status:venc&&venc<hoje?'vencido':'aberto',descontado:[3,4].includes(Number(t.codigoModalidadeTitulo||t.modalidadeCobranca||0)),origem:'banco'};});
-  return {ok:true,somente_leitura:true,quantidade:titulos.length,titulos};
+  // V295: a listagem resumida do BB pode omitir pagador/CPF-CNPJ/Seu Nº.
+  const baseTitulo=t=>{const venc=iso(t.dataVencimento||t.dataVencimentoTitulo||t.vencimento);return {nosso_numero:String(t.numeroBoletoBB||t.numeroTituloCliente||t.nossoNumero||''),seu_numero:String(t.numeroTituloBeneficiario||t.numeroTitulo||''),cliente:t.nomePagador||t.pagador?.nome||t.nomeSacado||'',cpf_cnpj:String(t.numeroCpfCnpjPagador||t.pagador?.numeroInscricao||t.cnpjPagador||t.cpfPagador||''),vencimento:venc,valor:Number(t.valorOriginal||t.valorTitulo||t.valor||0),status:venc&&venc<hoje?'vencido':'aberto',descontado:[3,4].includes(Number(t.codigoModalidadeTitulo||t.modalidadeCobranca||0)),origem:'banco'};};
+  const titulos=todos.map(baseTitulo);
+  const enriquecer=async x=>{if(!x.nosso_numero)return x;try{const q=await consultarBoletoBb(amb,x.nosso_numero,o),d=q?.data||{},p=d.pagador||d.sacado||{};x.cliente=String(d.nomePagador||p.nome||d.nomeSacado||x.cliente||'');x.cpf_cnpj=String(d.numeroCpfCnpjPagador||p.numeroInscricao||p.cpfCnpj||d.cnpjPagador||d.cpfPagador||x.cpf_cnpj||'');x.seu_numero=String(d.numeroTituloBeneficiario||d.numeroTitulo||d.seuNumero||x.seu_numero||'');x.vencimento=iso(d.dataVencimento||d.dataVencimentoTitulo||x.vencimento);x.valor=Number(d.valorOriginal||d.valorTitulo||x.valor||0);x.status=x.vencimento&&x.vencimento<hoje?'vencido':'aberto';}catch(e){x.aviso_detalhe=String(e.message||e).slice(0,180);}return x;};
+  for(let i=0;i<titulos.length;i+=5)await Promise.all(titulos.slice(i,i+5).map(enriquecer));
+  return {ok:true,somente_leitura:true,quantidade:titulos.length,titulos,enriquecidos:true};
 }
 
 async function testarOAuth(amb){

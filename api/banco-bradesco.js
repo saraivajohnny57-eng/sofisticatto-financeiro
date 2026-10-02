@@ -329,7 +329,8 @@ async function listarPendenciasCarteiraBradesco(amb){
   let pagina='0',todos=[];
   for(let i=0;i<20;i++){
     const payload={cpfCnpj:{cpfCnpj:cnpj.slice(0,8),filial:cnpj.slice(8,12),controle:cnpj.slice(12,14)},produto:String(produto),negociacao:String(neg),dataVencimentoDe:dt(ini),dataVencimentoAte:dt(fim),valorTituloDe:'0',faixaVencto:'7',paginaAnterior:pagina};
-    const r=await requestBradescoJson({url,token:auth.access_token,mtls,body:payload});if(r.http_status<200||r.http_status>=300)throw new Error(detalheRespostaBradesco(r.data)||`Bradesco HTTP ${r.http_status}`);
+    const r=await requestBradescoJson({url,token:auth.access_token,mtls,body:payload});
+    if(r.http_status<200||r.http_status>=300){const det=detalheRespostaBradesco(r.data)||`Bradesco HTTP ${r.http_status}`;if(/nosso\s*numero|nossoNumero/i.test(det))throw new Error('O recurso de Cobrança liberado para esta aplicação Bradesco exige Nosso Número para consultar um título. Ele não liberou a listagem geral da carteira sem conhecer previamente cada Nosso Número. Retorno do banco: '+det);throw new Error(det);}
     const d=r.data||{},arr=Array.isArray(d.titulos)?d.titulos:[];todos.push(...arr);
     if(String(d.indMaisPagina||'').toUpperCase()!=='S')break;const prox=String(d.pagina??d.paginaAtual??'').trim();if(!prox||prox===pagina)break;pagina=prox;
   }

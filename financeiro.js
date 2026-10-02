@@ -10275,3 +10275,5 @@ async function emitirCobrancaProducaoBradescoV248(){
   }catch(e){bradescoPreviewProducaoV248=null;if(out){out.className='bb-cert-aviso erro';out.textContent='❌ Emissão não concluída: '+String(e.message||e)+' O sistema não fará repetição automática. Confira no Bradesco antes de qualquer nova tentativa.';}alert('A tentativa não foi repetida.\n\n'+String(e.message||e)+'\n\nConfira o Bradesco antes de tentar novamente.');}
   finally{if(prepBtn)prepBtn.disabled=false;}
 }
+
+// V295 — BB: enriquece títulos externos com dados completos; Bradesco: diagnóstico da exigência de Nosso Número.
