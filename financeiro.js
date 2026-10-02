@@ -7628,20 +7628,32 @@ async function consultarPendenciasCarteiraV294(banco){
       j=await bbReq('listar-pendencias-carteira',{method:'POST',body:{agencia:ag,conta:ct}});
     }else j=await bradescoReqProducao('listar-pendencias-carteira',{});
     const tit=Array.isArray(j?.titulos)?j.titulos:[];
-    const locais=new Set((cobrancasBancarias||[]).map(boletoLocalChaveV294));
-    const externos=tit.filter(x=>!locais.has(`${banco}|${String(x.nosso_numero||'').replace(/\D/g,'')}`));
-    const pend=externos.filter(x=>['aberto','vencido','parcial'].includes(x.status)||x.descontado);
-    window.carteiraExternaV294=window.carteiraExternaV294||{};window.carteiraExternaV294[banco]=pend;
-    alert(`${banco==='bb'?'Banco do Brasil':'Bradesco'} — consulta somente leitura concluída.\n\n${tit.length} título(s) pendente(s) encontrado(s) no banco.\n${externos.length} não estão no Portal Sofisticatto.\n${pend.length} pendência(s) externa(s) disponível(is) para relatório.\n\nNenhum boleto foi emitido, alterado ou salvo no Storage.`);
-    if(pend.length)imprimirPendenciasExternasV294(banco,pend);
+    const locaisBanco=(cobrancasBancarias||[]).filter(x=>codigoBancoCobranca(x?.banco_nome||x?.banco||'')===banco);
+    const mapaLocal=new Map(locaisBanco.map(x=>[boletoLocalChaveV294(x),x]));
+    const encontradosNoPortal=[],externos=[];
+    tit.forEach(x=>{const k=`${banco}|${String(x.nosso_numero||'').replace(/\D/g,'')}`;if(mapaLocal.has(k))encontradosNoPortal.push({banco:x,local:mapaLocal.get(k)});else externos.push(x);});
+    const pendExternas=externos.filter(x=>['aberto','vencido','parcial'].includes(x.status)||x.descontado);
+    const chavesBanco=new Set(tit.map(x=>`${banco}|${String(x.nosso_numero||'').replace(/\D/g,'')}`));
+    const pendLocais=locaisBanco.filter(x=>chavesBanco.has(boletoLocalChaveV294(x))&&['aberto','vencido'].includes(String(x.status||'')));
+    const combinado=[
+      ...pendLocais.map(x=>({vencimento:x.vencimento,status:x.status,descontado:banco==='bb'?!!x.bb_descontado:!!x.bradesco_descontado,cliente:x.cliente_nome||'',cpf_cnpj:x.cpf_cnpj||'',seu_numero:x.numero_nf||x.referencia||'',nosso_numero:x.nosso_numero||'',valor:Number(x.valor||0),origem:'PORTAL'})),
+      ...pendExternas.map(x=>({...x,origem:'BANCO'}))
+    ];
+    window.carteiraExternaV294=window.carteiraExternaV294||{};window.carteiraExternaV294[banco]=pendExternas;
+    window.carteiraCompletaV296=window.carteiraCompletaV296||{};window.carteiraCompletaV296[banco]=combinado;
+    alert(`${banco==='bb'?'Banco do Brasil':'Bradesco'} — consulta somente leitura concluída.\n\n${tit.length} pendência(s) encontrada(s) no banco.\n${encontradosNoPortal.length} também estão no Portal Sofisticatto.\n${externos.length} existem somente no banco.\n${combinado.length} título(s) disponível(is) no relatório consolidado.\n\nNenhum boleto foi emitido, alterado ou salvo no Storage.`);
+    if(combinado.length)imprimirPendenciasConsolidadasV296(banco,combinado);
   }catch(e){alert(`Não foi possível listar a carteira ${banco==='bb'?'BB':'Bradesco'}:\n\n${e.message}\n\nA consulta é somente leitura e nenhum boleto foi alterado.`);}
 }
-function imprimirPendenciasExternasV294(banco,lista){
+function imprimirPendenciasConsolidadasV296(banco,lista){
   const nome=banco==='bb'?'BANCO DO BRASIL':'BRADESCO',esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),moeda=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}),fd=v=>{const s=String(v||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(s)?new Date(s+'T12:00:00').toLocaleDateString('pt-BR'):String(v||'—')};
-  lista=[...lista].sort((a,b)=>String(a.vencimento||'9999').localeCompare(String(b.vencimento||'9999')));
-  const rows=lista.map(x=>`<tr><td>${fd(x.vencimento)}</td><td><b>${esc(statusLabelV294(x.status))}${x.descontado?' / Descontado':''}</b></td><td>${esc(x.cliente||'—')}</td><td>${esc(x.cpf_cnpj||'—')}</td><td>${esc(x.seu_numero||'—')}</td><td>${esc(x.nosso_numero||'—')}</td><td style="text-align:right">${moeda(x.valor)}</td><td>BANCO</td></tr>`).join('');
-  const w=window.open('','_blank');if(!w)return alert('Libere pop-ups para abrir o relatório.');w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Pendências ${nome}</title><style>@page{size:A4 landscape;margin:9mm}body{font:9px Arial}h1{font-size:17px}table{width:100%;border-collapse:collapse}th,td{padding:4px;border-bottom:1px solid #bbb;text-align:left}th{background:#eee}@media print{button{display:none}}</style></head><body><button onclick="print()">🖨 Imprimir / Salvar PDF</button><h1>Sofisticatto Cosméticos — PENDÊNCIAS EXTERNAS ${nome}</h1><p>Somente títulos encontrados no banco que não constam no Portal Sofisticatto • Ordem crescente de vencimento • Consulta somente leitura</p><table><thead><tr><th>Vencimento</th><th>Status</th><th>Cliente</th><th>CPF/CNPJ</th><th>Seu Nº</th><th>Nosso Número</th><th>Valor</th><th>Origem</th></tr></thead><tbody>${rows}</tbody></table><p><b>${lista.length} título(s)</b> • Total ${moeda(lista.reduce((a,x)=>a+Number(x.valor||0),0))}</p></body></html>`);w.document.close();
+  lista=[...lista].sort((a,b)=>String(a.vencimento||'9999').localeCompare(String(b.vencimento||'9999'))||String(a.cliente||'').localeCompare(String(b.cliente||''),'pt-BR'));
+  const rows=lista.map(x=>`<tr><td>${fd(x.vencimento)}</td><td><b>${esc(statusLabelV294(x.status))}${x.descontado?' / Descontado':''}</b></td><td>${esc(x.cliente||'—')}</td><td>${esc(x.cpf_cnpj||'—')}</td><td>${esc(x.seu_numero||'—')}</td><td>${esc(x.nosso_numero||'—')}</td><td style="text-align:right">${moeda(x.valor)}</td><td><b>${esc(x.origem||'BANCO')}</b></td></tr>`).join('');
+  const qtdPortal=lista.filter(x=>x.origem==='PORTAL').length,qtdBanco=lista.filter(x=>x.origem==='BANCO').length,total=lista.reduce((a,x)=>a+Number(x.valor||0),0);
+  const w=window.open('','_blank');if(!w)return alert('Libere pop-ups para abrir o relatório.');w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Pendências ${nome}</title><style>@page{size:A4 landscape;margin:9mm}body{font:9px Arial}h1{font-size:17px}.resumo{display:flex;gap:18px;margin:8px 0;font-size:11px}table{width:100%;border-collapse:collapse}th,td{padding:4px;border-bottom:1px solid #bbb;text-align:left}th{background:#eee}@media print{button{display:none}}</style></head><body><button onclick="print()">🖨 Imprimir / Salvar PDF</button><h1>Sofisticatto Cosméticos — PENDÊNCIAS ${nome}</h1><p>Títulos pendentes encontrados no banco, consolidados com os registros do Portal Sofisticatto • Sem duplicidade • Ordem crescente de vencimento • Consulta somente leitura</p><div class="resumo"><b>${lista.length} pendência(s)</b><span>${qtdPortal} do PORTAL</span><span>${qtdBanco} somente do BANCO</span><span><b>Total ${moeda(total)}</b></span></div><table><thead><tr><th>Vencimento</th><th>Status</th><th>Cliente</th><th>CPF/CNPJ</th><th>Seu Nº</th><th>Nosso Número</th><th>Valor</th><th>Origem</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);w.document.close();
 }
+// Compatibilidade com chamadas antigas da V294.
+function imprimirPendenciasExternasV294(banco,lista){return imprimirPendenciasConsolidadasV296(banco,lista);}
 
 // V290 — Relatórios bancários separados por banco, sempre em ordem de vencimento.
 function limparFiltroVencimentoV290(){
