@@ -7641,7 +7641,8 @@ async function consultarPendenciasCarteiraV294(banco){
     ];
     window.carteiraExternaV294=window.carteiraExternaV294||{};window.carteiraExternaV294[banco]=pendExternas;
     window.carteiraCompletaV296=window.carteiraCompletaV296||{};window.carteiraCompletaV296[banco]=combinado;
-    alert(`${banco==='bb'?'Banco do Brasil':'Bradesco'} — consulta somente leitura concluída.\n\n${tit.length} pendência(s) encontrada(s) no banco.\n${encontradosNoPortal.length} também estão no Portal Sofisticatto.\n${externos.length} existem somente no banco.\n${combinado.length} título(s) disponível(is) no relatório consolidado.\n\nNenhum boleto foi emitido, alterado ou salvo no Storage.`);
+    const resumoBB=banco==='bb'&&j?.resumo?`\n${Number(j.resumo.vencidos||0)} vencido(s) ainda pendente(s) no BB.\n${Number(j.resumo.a_vencer||0)} título(s) a vencer no BB.`:'';
+    alert(`${banco==='bb'?'Banco do Brasil':'Bradesco'} — consulta somente leitura concluída.\n\n${tit.length} pendência(s) encontrada(s) no banco.${resumoBB}\n${encontradosNoPortal.length} também estão no Portal Sofisticatto.\n${externos.length} existem somente no banco.\n${combinado.length} título(s) disponível(is) no relatório consolidado.\n\nNenhum boleto foi emitido, alterado ou salvo no Storage.`);
     if(combinado.length)imprimirPendenciasConsolidadasV296(banco,combinado);
   }catch(e){alert(`Não foi possível listar a carteira ${banco==='bb'?'BB':'Bradesco'}:\n\n${e.message}\n\nA consulta é somente leitura e nenhum boleto foi alterado.`);}
 }
