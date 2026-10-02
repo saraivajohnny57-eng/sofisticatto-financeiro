@@ -7690,11 +7690,27 @@ function limparFiltroVencimentoV290(){
   const a=document.getElementById('cobDataVencIni'),b=document.getElementById('cobDataVencFim');
   if(a)a.value=''; if(b)b.value=''; renderHistoricoCobrancas();
 }
-function statusRelatorioBancoV290(x){
-  const base={aberto:'Em aberto',vencido:'Vencido',pago:'Pago',cancelado:'Cancelado/Baixado',pendente_integracao:'Pendente integração'}[String(x?.status||'')]||cobStatus(x?.status||'');
+// V304 — correção isolada do relatório BB. Não altera status, sincronização,
+// emissão, etiquetas ou qualquer outro módulo. Se o próprio BB já registrou o
+// título como baixado (estado 7 / detalhe Baixado), o relatório respeita esse
+// estado mesmo que o campo local `status` ainda esteja como aberto.
+function statusEfetivoRelatorioBancoV304(x){
   const bancoCod=codigoBancoCobranca(x?.banco_nome||x?.banco||'');
-  const desc=bancoCod==='bb'?!!x?.bb_descontado:!!x?.bradesco_descontado;
-  const parcial=bancoCod==='bb'&&[18,19].includes(Number(x?.bb_codigo_estado));
+  if(bancoCod==='bb'){
+    const estado=Number(x?.bb_codigo_estado||0);
+    const detalhe=String(x?.bb_status_detalhe||'').toLowerCase();
+    if(estado===7 || /baixad|cancelad/.test(detalhe)) return 'cancelado';
+    if([6,10,11,12,16].includes(estado) || /liquidad|pago/.test(detalhe)) return 'pago';
+  }
+  return String(x?.status||'');
+}
+function statusRelatorioBancoV290(x){
+  const statusEfetivo=statusEfetivoRelatorioBancoV304(x);
+  const base={aberto:'Em aberto',vencido:'Vencido',pago:'Pago',cancelado:'Cancelado/Baixado',pendente_integracao:'Pendente integração'}[statusEfetivo]||cobStatus(statusEfetivo);
+  const bancoCod=codigoBancoCobranca(x?.banco_nome||x?.banco||'');
+  const cancelado=statusEfetivo==='cancelado';
+  const desc=!cancelado && (bancoCod==='bb'?!!x?.bb_descontado:!!x?.bradesco_descontado);
+  const parcial=!cancelado && bancoCod==='bb'&&[18,19].includes(Number(x?.bb_codigo_estado));
   return [base,desc?'Descontado':'',parcial?'Pagamento parcial':''].filter(Boolean).join(' / ');
 }
 function imprimirRelatorioBancoV290(bancoCod){
@@ -7709,8 +7725,9 @@ function imprimirRelatorioBancoV290(bancoCod){
   const fmtData=v=>{if(!v)return '—';const d=String(v).slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(d)?new Date(d+'T12:00:00').toLocaleDateString('pt-BR'):'—';};
   const esc=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
   const moeda=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-  const abertos=lista.filter(x=>x.status==='aberto'), vencidos=lista.filter(x=>x.status==='vencido'), pagos=lista.filter(x=>x.status==='pago'), cancelados=lista.filter(x=>x.status==='cancelado');
-  const descontados=lista.filter(x=>bancoCod==='bb'?x.bb_descontado:x.bradesco_descontado);
+  const statusEfetivo=x=>bancoCod==='bb'?statusEfetivoRelatorioBancoV304(x):String(x?.status||'');
+  const abertos=lista.filter(x=>statusEfetivo(x)==='aberto'), vencidos=lista.filter(x=>statusEfetivo(x)==='vencido'), pagos=lista.filter(x=>statusEfetivo(x)==='pago'), cancelados=lista.filter(x=>statusEfetivo(x)==='cancelado');
+  const descontados=lista.filter(x=>statusEfetivo(x)!=='cancelado' && (bancoCod==='bb'?x.bb_descontado:x.bradesco_descontado));
   const total=lista.reduce((a,x)=>a+Number(x.valor||0),0);
   const filtros=[];
   const ei=document.getElementById('cobDataEmissaoIni')?.value,ef=document.getElementById('cobDataEmissaoFim')?.value,vi=document.getElementById('cobDataVencIni')?.value,vf=document.getElementById('cobDataVencFim')?.value;
