@@ -7673,6 +7673,32 @@ function imprimirPendenciasConsolidadasV296(banco,lista){
 // Compatibilidade com chamadas antigas da V294.
 function imprimirPendenciasExternasV294(banco,lista){return imprimirPendenciasConsolidadasV296(banco,lista);}
 
+// V313 — relatório bancário completo: une as últimas consultas completas do BB e Bradesco.
+// Usa apenas dados já consultados pelas APIs nesta sessão; não altera nem grava títulos.
+function imprimirRelatorioBancarioCompletoV313(){
+  const cache=window.carteiraCompletaV296||{};
+  const bb=Array.isArray(cache.bb)?cache.bb:null, br=Array.isArray(cache.bradesco)?cache.bradesco:null;
+  const faltam=[]; if(!bb)faltam.push('Banco do Brasil'); if(!br)faltam.push('Bradesco');
+  if(faltam.length)return alert(`Antes de gerar o relatório completo, consulte as pendências de: ${faltam.join(' e ')}.\n\nUse os botões “Consultar pendências BB” e “Consultar pendências Bradesco”. Depois clique novamente em “Relatório Bancário Completo”.`);
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const moeda=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const fd=v=>{const x=String(v||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(x)?new Date(x+'T12:00:00').toLocaleDateString('pt-BR'):String(v||'—')};
+  const status=x=>{const st=String(x?.status||''),det=String(x?.status_banco||'').toUpperCase();let base=statusLabelV294(st);if(st==='vencido')base=/ATRAS/.test(det)?'Vencido / Em atraso':'Vencido / Em aberto';else if(st==='aberto'&&/ATRAS/.test(det))base='Em aberto / Em atraso';if(x?.descontado&&!/DESCONTADO/i.test(base))base+=' / Descontado';return base;};
+  const mapa=new Map();
+  const add=(arr,banco,nome)=>{for(const x of arr){const nn=String(x?.nosso_numero||'').replace(/\D/g,'');const k=nn?`${banco}|${nn}`:`${banco}|${x?.seu_numero||''}|${x?.vencimento||''}|${Number(x?.valor||0).toFixed(2)}`;if(!mapa.has(k))mapa.set(k,{...x,banco_codigo:banco,banco_nome_rel:nome});else if(mapa.get(k).origem==='BANCO'&&x?.origem==='PORTAL')mapa.set(k,{...x,banco_codigo:banco,banco_nome_rel:nome});}};
+  add(bb,'bb','Banco do Brasil'); add(br,'bradesco','Bradesco');
+  const lista=[...mapa.values()].sort((a,b)=>String(a.vencimento||'9999').localeCompare(String(b.vencimento||'9999'))||String(a.banco_nome_rel).localeCompare(String(b.banco_nome_rel),'pt-BR')||String(a.cliente||'').localeCompare(String(b.cliente||''),'pt-BR'));
+  if(!lista.length)return alert('Nenhuma pendência foi encontrada nas últimas consultas do Banco do Brasil e Bradesco.');
+  const totalBanco=cod=>lista.filter(x=>x.banco_codigo===cod).reduce((a,x)=>a+Number(x.valor||0),0);
+  const qtdBanco=cod=>lista.filter(x=>x.banco_codigo===cod).length;
+  const vencidos=lista.filter(x=>String(x.status)==='vencido'), abertos=lista.filter(x=>String(x.status)==='aberto');
+  const total=lista.reduce((a,x)=>a+Number(x.valor||0),0);
+  const rows=lista.map(x=>`<tr><td>${fd(x.vencimento)}</td><td class="banco">${esc(x.banco_nome_rel)}</td><td class="status">${esc(status(x))}</td><td>${esc(x.cliente||'—')}</td><td>${esc(x.cpf_cnpj||'—')}</td><td>${esc(x.seu_numero||'—')}</td><td>${esc(x.nosso_numero||'—')}</td><td class="valor">${moeda(x.valor)}</td><td><b>${esc(x.origem||'BANCO')}</b></td></tr>`).join('');
+  const w=window.open('','_blank');if(!w)return alert('Libere pop-ups para abrir o relatório bancário completo.');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Relatório Bancário Completo</title><style>@page{size:A4 landscape;margin:8mm}*{box-sizing:border-box}body{font:8.5px Arial,Helvetica,sans-serif;color:#111;margin:0}.acoes{margin-bottom:7px}.acoes button{padding:8px 14px;font-weight:700}h1{font-size:17px;margin:0 0 3px}.sub{margin:0 0 8px}.kpis{display:flex;gap:6px;margin:8px 0}.kpi{border:1px solid #bbb;padding:5px 7px;flex:1}.kpi b{display:block;font-size:10.5px;margin-top:2px}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{padding:4px 3px;border-bottom:1px solid #bbb;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#eee;border-top:1px solid #888}th:nth-child(1){width:8%}th:nth-child(2){width:10%}th:nth-child(3){width:12%}th:nth-child(4){width:20%}th:nth-child(5){width:13%}th:nth-child(6){width:10%}th:nth-child(7){width:13%}th:nth-child(8){width:8%}th:nth-child(9){width:6%}.valor{text-align:right;white-space:nowrap}.status,.banco{font-weight:700}.rod{margin-top:7px;border-top:2px solid #333;padding-top:5px;display:flex;justify-content:space-between}@media print{.acoes{display:none}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}}</style></head><body><div class="acoes"><button onclick="print()">🖨 Imprimir / Salvar PDF</button></div><h1>Sofisticatto Cosméticos — RELATÓRIO BANCÁRIO COMPLETO</h1><p class="sub">Pendências consolidadas das últimas consultas ao Banco do Brasil e Bradesco • Sem duplicidade • Ordem crescente de vencimento • Consulta somente leitura</p><div class="kpis"><div class="kpi">Total geral<b>${lista.length} título(s) • ${moeda(total)}</b></div><div class="kpi">Banco do Brasil<b>${qtdBanco('bb')} • ${moeda(totalBanco('bb'))}</b></div><div class="kpi">Bradesco<b>${qtdBanco('bradesco')} • ${moeda(totalBanco('bradesco'))}</b></div><div class="kpi">Vencidos<b>${vencidos.length} • ${moeda(vencidos.reduce((a,x)=>a+Number(x.valor||0),0))}</b></div><div class="kpi">A vencer / Em aberto<b>${abertos.length} • ${moeda(abertos.reduce((a,x)=>a+Number(x.valor||0),0))}</b></div></div><table><thead><tr><th>Vencimento</th><th>Banco</th><th>Status</th><th>Cliente</th><th>CPF/CNPJ</th><th>Seu Nº</th><th>Nosso Número</th><th>Valor</th><th>Origem</th></tr></thead><tbody>${rows}</tbody></table><div class="rod"><span>Gerado em ${new Date().toLocaleString('pt-BR')}</span><span>Total geral: <b>${moeda(total)}</b></span></div></body></html>`);w.document.close();
+}
+
+
 
 
 // V307 — conciliação segura de múltiplos retornos Bradesco CNAB 400.
