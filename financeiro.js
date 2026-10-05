@@ -7204,15 +7204,12 @@ function bradescoRespostaBruta(ret){
   return typeof d==='string'?d:JSON.stringify(d,null,2);
 }
 
-async function bradescoReqProducao(action,body){
-  const chave=bbAdminKey();if(!chave)throw new Error('Valide a chave administrativa das integrações antes de emitir no Bradesco.');
+async function bradescoReqProducao(action,body,_tentativa=0){
+  const chave=await garantirAutorizacaoIntegracoesV315(false);
   const r=await fetch(`/api/banco-bradesco?action=${encodeURIComponent(action)}&ambiente=producao`,{method:'POST',headers:{'x-integrations-admin-key':chave,'Content-Type':'application/json'},body:JSON.stringify({...body,ambiente:'producao'})});
   const j=await r.json().catch(()=>({}));
-  if(!r.ok||j.ok===false){
-    const e=new Error(j.erro||j.mensagem||`Bradesco HTTP ${r.status}`);
-    e.bradescoResponse=j;
-    throw e;
-  }
+  if(r.status===401&&_tentativa===0){await garantirAutorizacaoIntegracoesV315(true);return bradescoReqProducao(action,body,1);}
+  if(!r.ok||j.ok===false){const e=new Error(j.erro||j.mensagem||`Bradesco HTTP ${r.status}`);e.bradescoResponse=j;throw e;}
   return j;
 }
 function payloadBradescoDeCobranca(p,seuNumero){
@@ -7650,12 +7647,8 @@ async function consultarPendenciasCarteiraV294(banco,opcoes={}){
   try{
     let j;
     if(banco==='bb'){
-      let ag=localStorage.getItem('sof_bb_agencia_consulta')||'',ct=localStorage.getItem('sof_bb_conta_consulta')||'';
-      if(!ag)ag=prompt('Agência beneficiária BB (sem dígito):','')||'';
-      if(!ct)ct=prompt('Conta beneficiária BB (sem dígito):','')||'';
-      if(!ag||!ct)return;
-      localStorage.setItem('sof_bb_agencia_consulta',ag.replace(/\D/g,''));localStorage.setItem('sof_bb_conta_consulta',ct.replace(/\D/g,''));
-      j=await bbReq('listar-pendencias-carteira',{method:'POST',body:{agencia:ag,conta:ct}});
+      // V315: agência/conta operacionais ficam no backend; usuário Cobrança não precisa conhecê-las nem digitá-las.
+      j=await bbReq('listar-pendencias-carteira',{method:'POST',body:{}});
     }else j=await bradescoReqProducao('listar-pendencias-carteira',{});
     const tit=Array.isArray(j?.titulos)?j.titulos:[];
     const locaisBanco=(cobrancasBancarias||[]).filter(x=>codigoBancoCobranca(x?.banco_nome||x?.banco||'')===banco);
@@ -9745,6 +9738,21 @@ async function emitirBoletosEmMassa(){
    V146 — BANCO DO BRASIL: CNPJ DO TITULAR + CERTIFICADO A1
    ========================================================= */
 function bbAdminKey(){return sessionStorage.getItem('integrations_admin_key')||localStorage.getItem('integrations_admin_key')||''}
+// V315 — autorização simples para perfis operacionais (inclusive Cobrança).
+// Em um computador novo, pede somente a Senha Mestre uma vez e troca por um token de dispositivo.
+async function garantirAutorizacaoIntegracoesV315(forcar=false){
+  if(!forcar&&bbAdminKey())return bbAdminKey();
+  if(forcar){sessionStorage.removeItem('integrations_admin_key');localStorage.removeItem('integrations_admin_key');}
+  const senha=String(prompt('Acesso aos relatórios bancários\n\nDigite a Senha Mestre de Integrações. Neste computador ela será solicitada somente nesta autorização:')||'').trim();
+  if(!senha)throw new Error('Autorização bancária cancelada.');
+  const r=await fetch('/api/integracoes?action=validar-chave',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':senha,'x-device-name':'Sofisticatto Financeiro - '+(navigator.userAgentData?.platform||navigator.platform||'computador')},body:JSON.stringify({device_name:'Sofisticatto Financeiro - '+(navigator.userAgentData?.platform||navigator.platform||'computador')})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok||j.ok===false)throw new Error(j.erro||'Senha Mestre inválida.');
+  const token=String(j.device_token||'').trim();
+  if(!token)throw new Error('O servidor não retornou a autorização deste computador.');
+  sessionStorage.setItem('integrations_admin_key',token);localStorage.setItem('integrations_admin_key',token);
+  return token;
+}
 function bbSetAdminStatus(texto,tipo='pendente'){
   const e=document.getElementById('bbAdminKeyStatus');if(!e)return;
   e.textContent=texto;e.className=`bb-admin-status ${tipo}`;
@@ -9846,13 +9854,11 @@ async function executarDiagnosticoBancoBB(){
     if(btn){btn.disabled=false;btn.textContent='🔎 Executar diagnóstico';}
   }
 }
-async function bbReq(action,{method='GET',body,raw=false}={}){
-  const chave=bbAdminKey();
-  if(!chave)throw new Error('Informe a chave administrativa das integrações nesta tela.');
+async function bbReq(action,{method='GET',body,raw=false,_tentativa=0}={}){
+  const chave=await garantirAutorizacaoIntegracoesV315(false);
   const amb=bbAmbiente();
-  const r=await fetch(`/api/banco-bb?action=${encodeURIComponent(action)}&ambiente=${encodeURIComponent(amb)}`,{
-    method,headers:{'x-integrations-admin-key':chave,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify({...body,ambiente:amb}):undefined
-  });
+  const r=await fetch(`/api/banco-bb?action=${encodeURIComponent(action)}&ambiente=${encodeURIComponent(amb)}`,{method,headers:{'x-integrations-admin-key':chave,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify({...body,ambiente:amb}):undefined});
+  if(r.status===401&&_tentativa===0){await garantirAutorizacaoIntegracoesV315(true);return bbReq(action,{method,body,raw,_tentativa:1});}
   if(raw){if(!r.ok){let j={};try{j=await r.json()}catch{}throw new Error(j.erro||`HTTP ${r.status}`)}return r}
   const j=await r.json().catch(()=>({}));if(!r.ok||j.ok===false)throw new Error(j.erro||`HTTP ${r.status}`);return j;
 }
