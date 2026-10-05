@@ -7618,6 +7618,15 @@ function limparStatusMultiV294(){document.querySelectorAll('#cobFiltroStatusMult
 function boletoLocalChaveV294(x){return `${codigoBancoCobranca(x?.banco_nome||x?.banco||'')}|${String(x?.nosso_numero||'').replace(/\D/g,'')}`;}
 async function consultarPendenciasCarteiraV294(banco){
   banco=banco==='bradesco'?'bradesco':'bb';
+  const btn=banco==='bradesco'?document.getElementById('cobBtnPendenciasBradesco'):null;
+  let timerBusca=null;
+  if(btn){
+    if(btn.dataset.busy==='1')return;
+    btn.dataset.busy='1'; btn.disabled=true;
+    const base='🏦 Buscando informações'; let pontos=0;
+    btn.textContent=base+'...';
+    timerBusca=setInterval(()=>{pontos=(pontos%3)+1;btn.textContent=base+'.'.repeat(pontos);},450);
+  }
   try{
     let j;
     if(banco==='bb'){
@@ -7646,6 +7655,10 @@ async function consultarPendenciasCarteiraV294(banco){
     alert(`${banco==='bb'?'Banco do Brasil':'Bradesco'} — consulta somente leitura concluída.\n\n${tit.length} pendência(s) encontrada(s) no banco.${resumoBB}\n${encontradosNoPortal.length} também estão no Portal Sofisticatto.\n${externos.length} existem somente no banco.\n${combinado.length} título(s) disponível(is) no relatório consolidado.\n\nNenhum boleto foi emitido, alterado ou salvo no Storage.`);
     if(combinado.length)imprimirPendenciasConsolidadasV296(banco,combinado);
   }catch(e){alert(`Não foi possível listar a carteira ${banco==='bb'?'BB':'Bradesco'}:\n\n${e.message}\n\nA consulta é somente leitura e nenhum boleto foi alterado.`);}
+  finally{
+    if(timerBusca)clearInterval(timerBusca);
+    if(btn){btn.dataset.busy='0';btn.disabled=false;btn.textContent='🏦 Consultar pendências Bradesco';}
+  }
 }
 function imprimirPendenciasConsolidadasV296(banco,lista){
   const nome=banco==='bb'?'BANCO DO BRASIL':'BRADESCO',esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),moeda=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}),fd=v=>{const s=String(v||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(s)?new Date(s+'T12:00:00').toLocaleDateString('pt-BR'):String(v||'—')};
