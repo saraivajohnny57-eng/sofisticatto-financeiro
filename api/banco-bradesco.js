@@ -352,7 +352,32 @@ async function listarPendenciasCarteiraBradesco(amb){
     pagina=prox;
   }
   const hoje=new Date().toISOString().slice(0,10),iso=v=>dataBradescoIso(v)||String(v||'').slice(0,10);
-  const titulos=todos.map(t=>{const cod=Number(t.codStatus||t.codigoStatus||t.status||0)||0,venc=iso(t.dataVenctoBol||t.dataVencto||t.dataVencimento),pago=[13,61,62].includes(cod),baixado=[51,52,53,54,55,56,57,58,59,60].includes(cod),desc=cod===65||String(t.corige35||'').toUpperCase()==='S';let status=pago?'pago':baixado?'cancelado':(venc&&venc<hoje?'vencido':'aberto');return {nosso_numero:String(t.nossoNumero||t.nuTitulo||t.numeroTitulo||''),seu_numero:String(t.seuNumero||t.numeroDocumento||''),cliente:t.nomePagador||t.nomeSacado||t.pagador||'',cpf_cnpj:String(t.cpfCnpjPagador||t.cnpjCpfPagador||''),vencimento:venc,valor:Number(t.valMoeda||t.valorTitulo||t.valorMoedaBol||0),status,descontado:desc,status_banco:bradescoStatusDescricao(cod)||String(t.status||''),origem:'banco'};}).filter(x=>['aberto','vencido'].includes(x.status)||x.descontado);
+  // V310 — mapeamento conforme o layout de RETORNO da consulta de pendentes Bradesco.
+  // Nesta API o pagador vem como objeto {cnpjCpf, filial, controle, nome};
+  // o valor vem em valTitulo e qtdeDecima informa as casas decimais.
+  const docPagador=t=>{
+    const p=t?.pagador&&typeof t.pagador==='object'?t.pagador:{};
+    const raiz=dig(p.cnpjCpf??p.cpfCnpj??t.cnpjCpfPagador??t.cpfCnpjPagador),filial=dig(p.filial??t.filialPagador),ctrl=dig(p.controle??t.controlePagador);
+    if(!raiz&&!ctrl)return '';
+    let d;
+    if(!filial||Number(filial)===0)d=raiz.padStart(9,'0')+ctrl.padStart(2,'0');
+    else d=raiz.padStart(8,'0')+filial.padStart(4,'0')+ctrl.padStart(2,'0');
+    if(d.length===11)return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
+    if(d.length===14)return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5');
+    return d;
+  };
+  const valorTitulo=t=>{
+    const bruto=t?.valTitulo??t?.valorTitulo??t?.valMoeda??t?.valorMoedaBol??0, n=Number(bruto)||0;
+    const dec=Number(t?.qtdeDecima??t?.quantidadeCasaDecimal??0)||0;
+    return dec>0&&Number.isInteger(n)?n/Math.pow(10,dec):n;
+  };
+  const titulos=todos.map(t=>{
+    const cod=Number(t.codStatus||t.codigoStatus||t.statusTitulo||t.status||0)||0,venc=iso(t.dataVencto||t.dataVenctoBol||t.dataVencimento),pago=[13,61,62].includes(cod),baixado=[51,52,53,54,55,56,57,58,59,60].includes(cod),desc=cod===65||String(t.corige35||'').toUpperCase()==='S';
+    let status=pago?'pago':baixado?'cancelado':(venc&&venc<hoje?'vencido':'aberto');
+    const pag=t?.pagador&&typeof t.pagador==='object'?t.pagador:{};
+    const cliente=String(pag.nome??t.nomePagador??t.nomeSacado??'').trim();
+    return {nosso_numero:String(t.nossoNumero||t.nuTitulo||t.numeroTitulo||''),seu_numero:String(t.seuNumero||t.numeroDocumento||''),cliente,cpf_cnpj:docPagador(t),vencimento:venc,valor:valorTitulo(t),status,descontado:desc,status_banco:String(t.descrStatus||t.descricaoStatusTitulo||bradescoStatusDescricao(cod)||t.status||''),origem:'banco'};
+  }).filter(x=>['aberto','vencido'].includes(x.status)||x.descontado);
   return {ok:true,somente_leitura:true,quantidade:titulos.length,titulos};
 }
 
