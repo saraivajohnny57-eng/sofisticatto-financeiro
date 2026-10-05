@@ -324,15 +324,32 @@ async function listarPendenciasCarteiraBradesco(amb){
   if(cnpj.length!==14||!produto||!ag||!ct)throw new Error('Revise CNPJ, carteira, agência e conta Bradesco cadastrados.');
   const neg=ag.padStart(4,'0')+ct.padStart(7,'0');if(neg.length!==11)throw new Error('Não foi possível montar a negociação Bradesco para consulta.');
   const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls),url='https://openapi.bradesco.com.br/boleto/cobranca-pendente/v1/listar';
-  const dt=d=>String(d.getDate()).padStart(2,'0')+String(d.getMonth()+1).padStart(2,'0')+d.getFullYear();
-  const ini=new Date();ini.setFullYear(ini.getFullYear()-2);const fim=new Date();fim.setFullYear(fim.getFullYear()+2);
-  let pagina='0',todos=[];
-  for(let i=0;i<20;i++){
-    const payload={cpfCnpj:{cpfCnpj:cnpj.slice(0,8),filial:cnpj.slice(8,12),controle:cnpj.slice(12,14)},produto:String(produto),negociacao:String(neg),dataVencimentoDe:dt(ini),dataVencimentoAte:dt(fim),valorTituloDe:'0',faixaVencto:'7',paginaAnterior:pagina};
+  // V309 — layout oficial 1.6.3: Nosso Número é opcional, mas campos opcionais numéricos devem ser enviados como 0.
+  // O endpoint lista até 50 títulos por chamada e usa paginaAnterior para continuar a paginação.
+  let pagina=0,todos=[];
+  for(let i=0;i<100;i++){
+    const payload={
+      cpfCnpj:{cpfCnpj:Number(cnpj.slice(0,8)),filial:Number(cnpj.slice(8,12)),controle:Number(cnpj.slice(12,14))},
+      produto:Number(produto),negociacao:Number(neg),
+      nossoNumero:0,
+      cpfCnpjPagador:{cpfCnpj:0,filial:0,controle:0},
+      dataVencimentoDe:0,dataVencimentoAte:0,
+      dataRegistroDe:0,dataRegistroAte:0,
+      valorTituloDe:0,faixaVencto:7,paginaAnterior:Number(pagina)||0
+    };
     const r=await requestBradescoJson({url,token:auth.access_token,mtls,body:payload});
-    if(r.http_status<200||r.http_status>=300){const det=detalheRespostaBradesco(r.data)||`Bradesco HTTP ${r.http_status}`;if(/nosso\s*numero|nossoNumero/i.test(det))throw new Error('O recurso de Cobrança liberado para esta aplicação Bradesco exige Nosso Número para consultar um título. Ele não liberou a listagem geral da carteira sem conhecer previamente cada Nosso Número. Retorno do banco: '+det);throw new Error(det);}
-    const d=r.data||{},arr=Array.isArray(d.titulos)?d.titulos:[];todos.push(...arr);
-    if(String(d.indMaisPagina||'').toUpperCase()!=='S')break;const prox=String(d.pagina??d.paginaAtual??'').trim();if(!prox||prox===pagina)break;pagina=prox;
+    if(r.http_status<200||r.http_status>=300){
+      const det=detalheRespostaBradesco(r.data)||`Bradesco HTTP ${r.http_status}`;
+      throw new Error(det);
+    }
+    const d=r.data||{};
+    const arr=Array.isArray(d.titulos)?d.titulos:(Array.isArray(d.Titulos)?d.Titulos:(Array.isArray(d.titulo)?d.titulo:[]));
+    todos.push(...arr);
+    const mais=String(d.indMaisPagina??d.IndicadorMaisPaginas??d.indicadorMaisPaginas??'').toUpperCase()==='S';
+    if(!mais)break;
+    const prox=Number(d.pagina??d.Pagina??d.paginaAtual??0);
+    if(!prox||prox===Number(pagina))break;
+    pagina=prox;
   }
   const hoje=new Date().toISOString().slice(0,10),iso=v=>dataBradescoIso(v)||String(v||'').slice(0,10);
   const titulos=todos.map(t=>{const cod=Number(t.codStatus||t.codigoStatus||t.status||0)||0,venc=iso(t.dataVenctoBol||t.dataVencto||t.dataVencimento),pago=[13,61,62].includes(cod),baixado=[51,52,53,54,55,56,57,58,59,60].includes(cod),desc=cod===65||String(t.corige35||'').toUpperCase()==='S';let status=pago?'pago':baixado?'cancelado':(venc&&venc<hoje?'vencido':'aberto');return {nosso_numero:String(t.nossoNumero||t.nuTitulo||t.numeroTitulo||''),seu_numero:String(t.seuNumero||t.numeroDocumento||''),cliente:t.nomePagador||t.nomeSacado||t.pagador||'',cpf_cnpj:String(t.cpfCnpjPagador||t.cnpjCpfPagador||''),vencimento:venc,valor:Number(t.valMoeda||t.valorTitulo||t.valorMoedaBol||0),status,descontado:desc,status_banco:bradescoStatusDescricao(cod)||String(t.status||''),origem:'banco'};}).filter(x=>['aberto','vencido'].includes(x.status)||x.descontado);
