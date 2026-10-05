@@ -7,7 +7,7 @@ const TABELA_SEQUENCIAS='integracoes_bancarias_sequencias';
 const TABELA_TITULOS='integracoes_bancarias_titulos';
 const CNPJ_PADRAO='05451985000195';
 const BB_SCOPE_COBRANCAS='cobrancas.boletos-info cobrancas.boletos-requisicao';
-const BB_CONFIG_PRODUCAO=Object.freeze({numeroConvenio:'3054166',numeroCarteira:'17',numeroVariacaoCarteira:'027',codigoModalidade:1});
+const BB_CONFIG_PRODUCAO=Object.freeze({numeroConvenio:'3054166',numeroCarteira:'17',numeroVariacaoCarteira:'027',codigoModalidade:1,agenciaBeneficiario:'03483',contaBeneficiario:'19039'});
 // 34113 foi confirmado como registrado no BB em 11/09/2026.
 // O próximo número seguro para o portal passa a ser 34114.
 const BB_NOSSO_NUMERO_INICIAL=34114;
@@ -525,8 +525,10 @@ async function emitirBoletoPiloto(amb,entrada={}){
 
 // V294 — lista a carteira "Em ser" diretamente no BB. Somente leitura.
 async function listarPendenciasCarteiraBb(amb,entrada={}){
-  const agencia=soDigitos(entrada.agencia),conta=String(Number(soDigitos(entrada.conta)||0));
-  if(!agencia||!conta||conta==='0')throw new Error('Informe agência e conta beneficiária BB para consultar a carteira.');
+  // V315: a carteira operacional usa a agência/conta configuradas no backend.
+  // A entrada continua aceita para compatibilidade/diagnóstico, mas não é exigida do usuário Cobrança.
+  const agencia=soDigitos(entrada.agencia||BB_CONFIG_PRODUCAO.agenciaBeneficiario),conta=String(Number(soDigitos(entrada.conta||BB_CONFIG_PRODUCAO.contaBeneficiario)||0));
+  if(!agencia||!conta||conta==='0')throw new Error('Agência/conta beneficiária BB não configuradas no servidor.');
   const o=await obterTokenOAuth(amb),base=amb==='teste'?'https://api.hm.bb.com.br':'https://api.bb.com.br';
   // V300: volta à listagem "Em ser" que funcionou na V298. Não envia boletoVencido,
   // pois essa variação retornou HTTP 404 na aplicação BB em produção.

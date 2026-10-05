@@ -372,11 +372,14 @@ async function listarPendenciasCarteiraBradesco(amb){
     return dec>0&&Number.isInteger(n)?n/Math.pow(10,dec):n;
   };
   const titulos=todos.map(t=>{
-    const cod=Number(t.codStatus||t.codigoStatus||t.statusTitulo||t.status||0)||0,venc=iso(t.dataVencto||t.dataVenctoBol||t.dataVencimento),pago=[13,61,62].includes(cod),baixado=[51,52,53,54,55,56,57,58,59,60].includes(cod),desc=cod===65||String(t.corige35||'').toUpperCase()==='S';
+    const cod=Number(t.codStatus||t.codigoStatus||t.statusTitulo||t.status||0)||0,venc=iso(t.dataVencto||t.dataVenctoBol||t.dataVencimento),pago=[13,61,62].includes(cod),baixado=[51,52,53,54,55,56,57,58,59,60].includes(cod);
+    const detalheStatus=String(t.descrStatus||t.descricaoStatusTitulo||bradescoStatusDescricao(cod)||t.status||'');
+    const flagsDesconto=[t.corige35,t.descontado,t.indDesconto,t.indicadorDesconto,t.tituloDescontado,t.indTituloDescontado].map(v=>String(v??'').trim().toUpperCase());
+    const desc=cod===65||flagsDesconto.some(v=>['S','SIM','1','TRUE'].includes(v))||/DESCONTAD|DESCONTO|ANTECIPAD/i.test(detalheStatus);
     let status=pago?'pago':baixado?'cancelado':(venc&&venc<hoje?'vencido':'aberto');
     const pag=t?.pagador&&typeof t.pagador==='object'?t.pagador:{};
     const cliente=String(pag.nome??t.nomePagador??t.nomeSacado??'').trim();
-    return {nosso_numero:String(t.nossoNumero||t.nuTitulo||t.numeroTitulo||''),seu_numero:String(t.seuNumero||t.numeroDocumento||''),cliente,cpf_cnpj:docPagador(t),vencimento:venc,valor:valorTitulo(t),status,descontado:desc,status_banco:String(t.descrStatus||t.descricaoStatusTitulo||bradescoStatusDescricao(cod)||t.status||''),origem:'banco'};
+    return {nosso_numero:String(t.nossoNumero||t.nuTitulo||t.numeroTitulo||''),seu_numero:String(t.seuNumero||t.numeroDocumento||''),cliente,cpf_cnpj:docPagador(t),vencimento:venc,valor:valorTitulo(t),status,descontado:desc,status_banco:detalheStatus,origem:'banco'};
   }).filter(x=>['aberto','vencido'].includes(x.status)||x.descontado);
   return {ok:true,somente_leitura:true,quantidade:titulos.length,titulos};
 }
