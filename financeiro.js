@@ -7659,55 +7659,87 @@ function imprimirPendenciasExternasV294(banco,lista){return imprimirPendenciasCo
 
 
 
-// V301 — preparação segura para conciliação da carteira Bradesco por arquivo de retorno.
-// O arquivo é lido somente no navegador. Nesta etapa diagnóstica nenhum dado é enviado,
-// salvo no Supabase ou usado para alterar cobranças. O objetivo é identificar o layout
-// efetivamente fornecido pelo contrato da Sofisticatto antes de mapear posições CNAB.
+// V307 — conciliação segura de múltiplos retornos Bradesco CNAB 400.
+// Alteração isolada: somente o importador de retorno. Os arquivos continuam locais no navegador.
 function abrirRetornoBradescoV301(){
   const i=document.getElementById('cobRetornoBradescoV301');
   if(!i)return alert('Seletor do retorno Bradesco não encontrado.');
   i.value=''; i.click();
 }
+function brRetFatV307(l,a,b){return String(l||'').slice(a-1,b).trim();}
+function brRetNumV307(v){const n=Number(String(v||'').replace(/\D/g,''));return Number.isFinite(n)?n/100:0;}
+function brRetDataV307(v){
+  const s=String(v||'').replace(/\D/g,''); if(s.length!==6||/^0+$/.test(s))return '';
+  const d=s.slice(0,2),m=s.slice(2,4),y=Number(s.slice(4,6)); return `${y>=70?'19':'20'}${String(y).padStart(2,'0')}-${m}-${d}`;
+}
+function brRetNossoV307(v){return String(v||'').replace(/\D/g,'').replace(/^0+/,'');}
+function brRetOcorrenciaV307(c){
+  const m={
+    '02':['Entrada confirmada','info'],'03':['Entrada rejeitada','info'],'06':['Liquidação','pago'],
+    '09':['Baixa','cancelado'],'10':['Baixa solicitada','cancelado'],'11':['Títulos em carteira','info'],
+    '12':['Abatimento concedido','info'],'13':['Abatimento cancelado','info'],'14':['Vencimento alterado','info'],
+    '15':['Liquidação em cartório','pago'],'17':['Liquidação após baixa','pago'],'19':['Confirmação instrução protesto','info'],
+    '20':['Confirmação sustação protesto','info'],'21':['Acerto do depositário','info'],'22':['Título com pagamento cancelado','info'],
+    '23':['Entrada do título em cartório','info'],'24':['Entrada rejeitada por CEP irregular','info'],'27':['Baixa rejeitada','info'],
+    '28':['Débito de tarifas/custas','info'],'30':['Alteração de outros dados rejeitada','info'],'32':['Instrução rejeitada','info']
+  }; return m[String(c||'').padStart(2,'0')]||[`Ocorrência ${c||'—'}`,'info'];
+}
+function brRetParse400V307(linha,arquivo){
+  if(String(linha||'').length!==400||String(linha)[0]!=='1')return null;
+  // Layout Cobrança Bradesco 400: posições fixas do registro detalhe tipo 1.
+  const codigo=brRetFatV307(linha,109,110), oc=brRetOcorrenciaV307(codigo);
+  return {arquivo,codigo_ocorrencia:codigo,ocorrencia:oc[0],acao:oc[1],
+    nosso_numero:brRetFatV307(linha,71,82),nosso_chave:brRetNossoV307(brRetFatV307(linha,71,82)),
+    numero_documento:brRetFatV307(linha,117,126),data_ocorrencia:brRetDataV307(brRetFatV307(linha,111,116)),
+    vencimento:brRetDataV307(brRetFatV307(linha,147,152)),valor_titulo:brRetNumV307(brRetFatV307(linha,153,165)),
+    valor_pago:brRetNumV307(brRetFatV307(linha,254,266)),data_credito:brRetDataV307(brRetFatV307(linha,296,301)),linha};
+}
+function brRetChaveMovV307(x){return [x.nosso_chave,x.codigo_ocorrencia,x.data_ocorrencia,Number(x.valor_pago||0).toFixed(2),Number(x.valor_titulo||0).toFixed(2)].join('|');}
 async function lerRetornoBradescoV301(input){
   const arquivos=Array.from(input?.files||[]); if(!arquivos.length)return;
   try{
-    // V306: leitura múltipla e deduplicação SOMENTE em memória. Nenhum arquivo
-    // é enviado ao servidor e nenhum registro do Histórico é alterado nesta etapa.
-    const resumoArquivos=[];
-    const registrosUnicos=new Map();
-    let totalRegistros=0, totalIrregulares=0, qtd400=0, qtd240=0, qtdOutro=0;
+    const resumoArquivos=[],movMap=new Map(); let totalRegistros=0,totalIrregulares=0,qtd400=0,qtd240=0,qtdOutro=0,detalhes400=0;
     for(const arq of arquivos){
-      const texto=await arq.text();
-      const linhas=texto.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.length);
+      const texto=await arq.text(),linhas=texto.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.length);
       if(!linhas.length){resumoArquivos.push({nome:arq.name,linhas:0,tam:0,layout:'vazio',irreg:0});continue;}
-      const tamanhos={}; for(const l of linhas)tamanhos[l.length]=(tamanhos[l.length]||0)+1;
-      const predominante=Object.entries(tamanhos).sort((a,b)=>b[1]-a[1])[0];
-      const tam=Number(predominante?.[0]||0);
-      const layout=tam===400?'CNAB 400':tam===240?'CNAB 240':'layout não identificado';
-      if(tam===400)qtd400++; else if(tam===240)qtd240++; else qtdOutro++;
-      const irreg=linhas.filter(l=>l.length!==tam).length;
-      totalIrregulares+=irreg; totalRegistros+=linhas.length;
-      resumoArquivos.push({nome:arq.name,linhas:linhas.length,tam,layout,irreg});
-      // A chave inclui a linha CNAB completa. Assim, a mesma ocorrência bancária
-      // repetida em dois retornos idênticos é contabilizada uma única vez, sem
-      // inventar posições do layout antes de mapear o contrato real do Bradesco.
-      for(const linha of linhas){
-        if(!registrosUnicos.has(linha))registrosUnicos.set(linha,{linha,arquivos:[arq.name]});
-        else registrosUnicos.get(linha).arquivos.push(arq.name);
-      }
+      const tamanhos={};for(const l of linhas)tamanhos[l.length]=(tamanhos[l.length]||0)+1;
+      const predominante=Object.entries(tamanhos).sort((a,b)=>b[1]-a[1])[0],tam=Number(predominante?.[0]||0),layout=tam===400?'CNAB 400':tam===240?'CNAB 240':'layout não identificado';
+      if(tam===400)qtd400++;else if(tam===240)qtd240++;else qtdOutro++;
+      const irreg=linhas.filter(l=>l.length!==tam).length;totalIrregulares+=irreg;totalRegistros+=linhas.length;resumoArquivos.push({nome:arq.name,linhas:linhas.length,tam,layout,irreg});
+      if(tam===400)for(const linha of linhas){const x=brRetParse400V307(linha,arq.name);if(!x)continue;detalhes400++;const k=brRetChaveMovV307(x);if(!movMap.has(k))movMap.set(k,x);}
     }
-    const unicos=registrosUnicos.size, duplicados=Math.max(0,totalRegistros-unicos);
-    window.retornoBradescoDiagnosticoV301={
-      versao:'V306', arquivos:resumoArquivos, quantidade_arquivos:arquivos.length,
-      registros_lidos:totalRegistros, registros_unicos:unicos,
-      registros_duplicados_ignorados:duplicados, linhas_irregulares:totalIrregulares,
-      registros:[...registrosUnicos.values()]
-    };
-    const detalhes=resumoArquivos.slice(0,12).map(x=>`• ${x.nome}: ${x.linhas} registros • ${x.layout}${x.irreg?` • ${x.irreg} irregular(es)`:''}`).join('\n');
-    const extras=resumoArquivos.length>12?`\n• ... e mais ${resumoArquivos.length-12} arquivo(s)`:'';
-    alert(`Retornos Bradesco lidos com segurança.\n\nArquivos selecionados: ${arquivos.length}\nRegistros lidos: ${totalRegistros}\nRegistros únicos: ${unicos}\nDuplicados ignorados: ${duplicados}\nLinhas irregulares: ${totalIrregulares}\n\n${detalhes}${extras}\n\nLayouts: ${qtd400} arquivo(s) CNAB 400 • ${qtd240} CNAB 240${qtdOutro?` • ${qtdOutro} não identificado(s)`:''}.\n\nV306 mantém o modo seguro: os arquivos NÃO foram enviados ao servidor, NÃO foram salvos no Supabase e nenhum boleto foi alterado. A deduplicação acontece somente durante a conferência no navegador.`);
+    const movs=[...movMap.values()],duplicados=Math.max(0,detalhes400-movs.length);
+    // Cruza SOMENTE com boletos Bradesco já existentes; não cria registros externos.
+    const q=await banco.from('cobrancas_bancarias').select('*').eq('banco','bradesco').order('created_at',{ascending:false}).limit(5000);
+    if(q.error)throw q.error; const locais=q.data||[];
+    const idx=new Map();for(const b of locais){const k=brRetNossoV307(b.nosso_numero||'');if(k&&!idx.has(k))idx.set(k,b);}
+    for(const x of movs){x.portal=idx.get(x.nosso_chave)||null;x.encontrado=!!x.portal;x.status_atual=x.portal?.status||'';}
+    const encontrados=movs.filter(x=>x.encontrado),nao=movs.filter(x=>!x.encontrado),pagos=movs.filter(x=>x.acao==='pago'),baixados=movs.filter(x=>x.acao==='cancelado');
+    window.retornoBradescoDiagnosticoV301={versao:'V307',arquivos:resumoArquivos,quantidade_arquivos:arquivos.length,registros_lidos:totalRegistros,movimentos_detalhe:detalhes400,movimentos_unicos:movs.length,registros_duplicados_ignorados:duplicados,linhas_irregulares:totalIrregulares,movimentos:movs};
+    mostrarPreviaRetornoBradescoV307({arquivos,resumoArquivos,movs,encontrados,nao,pagos,baixados,duplicados,totalRegistros,totalIrregulares,qtd400,qtd240,qtdOutro});
   }catch(e){alert('Não foi possível ler os arquivos de retorno Bradesco.\n\n'+(e.message||e));}
   finally{if(input)input.value='';}
+}
+function mostrarPreviaRetornoBradescoV307(d){
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const moeda=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}),fd=v=>v?String(v).split('-').reverse().join('/'):'—';
+  const rows=d.movs.map(x=>`<tr><td>${esc(x.arquivo)}</td><td>${esc(x.nosso_numero||'—')}</td><td>${esc(x.numero_documento||'—')}</td><td>${esc(x.codigo_ocorrencia)}</td><td><b>${esc(x.ocorrencia)}</b></td><td>${fd(x.data_ocorrencia)}</td><td style="text-align:right">${moeda(x.valor_pago||x.valor_titulo)}</td><td>${x.encontrado?'✅ Encontrado':'⚠️ Não encontrado'}</td><td>${esc(x.status_atual||'—')}</td></tr>`).join('');
+  const w=window.open('','_blank');if(!w)return alert('Libere pop-ups para abrir a prévia do retorno Bradesco.');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Prévia retorno Bradesco</title><style>body{font:12px Arial;margin:18px}h1{font-size:20px}.cards{display:flex;gap:8px;flex-wrap:wrap}.c{border:1px solid #ccc;border-radius:8px;padding:8px 12px}.av{background:#fff8e1;padding:10px;border-left:4px solid #f9a825;margin:12px 0}table{width:100%;border-collapse:collapse;font-size:10px}th,td{padding:5px;border-bottom:1px solid #ddd;text-align:left}th{background:#eee;position:sticky;top:0}.ok{background:#1976d2;color:#fff;border:0;border-radius:6px;padding:10px 14px;font-weight:bold;cursor:pointer}.sec{background:#eee;border:0;border-radius:6px;padding:10px 14px;cursor:pointer}@media print{button{display:none}}</style></head><body><h1>Sofisticatto — Prévia do retorno Bradesco</h1><div class="cards"><div class="c"><b>${d.arquivos.length}</b><br>arquivos</div><div class="c"><b>${d.movs.length}</b><br>movimentações únicas</div><div class="c"><b>${d.duplicados}</b><br>duplicadas ignoradas</div><div class="c"><b>${d.encontrados.length}</b><br>encontradas no portal</div><div class="c"><b>${d.nao.length}</b><br>não encontradas</div><div class="c"><b>${d.pagos.length}</b><br>liquidações</div><div class="c"><b>${d.baixados.length}</b><br>baixas</div></div><div class="av"><b>Nenhuma alteração foi feita ainda.</b> O botão Aplicar atualizações seguras só atualiza títulos já encontrados pelo Nosso Número. Não cria boletos e não salva os arquivos RET.</div><p><button class="ok" onclick="opener.aplicarRetornoBradescoV307();this.disabled=true;this.textContent='Processando…'">✅ Aplicar atualizações seguras</button> <button class="sec" onclick="print()">🖨 Imprimir prévia</button></p><table><thead><tr><th>Arquivo</th><th>Nosso Número</th><th>Documento</th><th>Cód.</th><th>Ocorrência</th><th>Data</th><th>Valor</th><th>Portal</th><th>Status atual</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);w.document.close();
+}
+async function aplicarRetornoBradescoV307(){
+  const d=window.retornoBradescoDiagnosticoV301,movs=d?.movimentos||[];if(!movs.length)return alert('Importe os arquivos de retorno Bradesco primeiro.');
+  const aplicaveis=movs.filter(x=>x.encontrado&&(x.acao==='pago'||x.acao==='cancelado'));
+  if(!aplicaveis.length)return alert('Nenhuma liquidação/baixa encontrada para títulos existentes no Portal. Nenhum registro foi alterado.');
+  if(!confirm(`Foram encontradas ${aplicaveis.length} atualização(ões) seguras em títulos Bradesco existentes.\n\nAplicar agora?`))return;
+  let ok=0,iguais=0,erros=0;
+  for(const x of aplicaveis){
+    const novo=x.acao==='pago'?'pago':'cancelado',reg=x.portal;if(String(reg.status||'')===novo){iguais++;continue;}
+    const upd={status:novo,atualizado_em:new Date().toISOString()};
+    // Somente campos que já existem no projeto são alterados. Nenhum arquivo RET é persistido.
+    const r=await banco.from('cobrancas_bancarias').update(upd).eq('id',reg.id).eq('banco','bradesco');if(r.error)erros++;else ok++;
+  }
+  alert(`Retorno Bradesco processado.\n\nAtualizados: ${ok}\nJá estavam corretos: ${iguais}\nErros: ${erros}\n\nOs arquivos RET não foram salvos no Supabase.`);await carregarCobrancasBancarias();
 }
 
 // V290 — Relatórios bancários separados por banco, sempre em ordem de vencimento.
