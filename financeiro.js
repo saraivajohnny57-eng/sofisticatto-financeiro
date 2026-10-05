@@ -8340,15 +8340,18 @@ function dividirValorParcelasBoleto(total,quantidade){
   const base=Math.floor(centavos/qtd);
   const resto=centavos-(base*qtd);
 
-  // V139 — Regra de distribuição conforme o padrão usado pela Sofisticatto no BB Cobrança:
-  // • sobra de 1 centavo: o centavo vai para a PRIMEIRA parcela;
+  // V319 — Regra de distribuição de centavos da Sofisticatto.
+  // Alteração isolada: preserva toda a lógica anterior e ajusta somente o caso de 2 parcelas.
+  // • 2 parcelas + sobra de 1 centavo: o centavo fica na ÚLTIMA parcela.
+  // • 3 ou mais parcelas + sobra de 1 centavo: o centavo fica na PRIMEIRA parcela.
   // • sobra de 2 ou mais centavos: distribui 1 centavo por parcela, começando das ÚLTIMAS.
-  // Exemplos:
-  // R$ 199,99 / 3 => 66,67 | 66,66 | 66,66
-  // R$ 200,00 / 3 => 66,66 | 66,67 | 66,67
+  // Exemplos confirmados:
+  // R$ 655,55 / 2 => 327,77 | 327,78
+  // R$ 1.311,09 / 4 => 327,78 | 327,77 | 327,77 | 327,77
+  // R$ 1.311,11 / 4 => 327,77 | 327,78 | 327,78 | 327,78
   const valores=Array(qtd).fill(base);
   if(resto===1){
-    valores[0]+=1;
+    valores[qtd===2 ? 1 : 0]+=1;
   }else if(resto>1){
     for(let i=qtd-resto;i<qtd;i++) if(i>=0) valores[i]+=1;
   }
