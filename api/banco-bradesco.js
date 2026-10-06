@@ -496,7 +496,9 @@ function montarPayloadRegistroReal(body,banco){
   if(cnpj.length!==14)erros.push('CNPJ do beneficiário');if(negociacao.length!==18)erros.push('nuNegociacao com 18 dígitos');if(!carteira)erros.push('idProduto/carteira');
   const cep8=dig(body?.cep);let logradouroOriginal=String(body?.logradouro||'').trim(), numeroOriginal=String(body?.numero||'').trim();
   if(!numeroOriginal||/^S\/?N$/i.test(numeroOriginal)){const m=logradouroOriginal.match(/^(.*?)(?:\s+(?:N[º°]?|NÚMERO|NUMERO)\s*[.:#-]?\s*|,\s*)(\d+[A-Z0-9\/-]*)\s*$/i);if(m){logradouroOriginal=m[1].trim();numeroOriginal=m[2].trim();}}
-  const logradouro=textoBradesco(logradouroOriginal,70), numero=textoBradesco(numeroOriginal,10);
+  // V322: o Bradesco limita logradouroPagador a 40 posições.
+  // A redução ocorre SOMENTE no payload bancário; o cadastro/histórico mantém o endereço original completo.
+  const logradouro=textoBradesco(logradouroOriginal,40), numero=textoBradesco(numeroOriginal,10);
   const complemento=textoBradesco(body?.complemento,40), bairro=textoBradesco(body?.bairro,40), municipio=textoBradesco(body?.municipio,40), uf=String(body?.uf||'').replace(/[^A-Za-z]/g,'').trim().toUpperCase().slice(0,2);
   if(cep8.length!==8)erros.push('CEP');if(!logradouro)erros.push('logradouro');if(!numero)erros.push('número');if(!bairro)erros.push('bairro');if(!municipio)erros.push('município');if(!/^[A-Z]{2}$/.test(uf))erros.push('UF');
   const hoje=new Date().toISOString().slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(vencimento)&&new Date(vencimento+'T12:00:00')<=new Date(hoje+'T12:00:00'))erros.push('vencimento deve ser posterior à data de emissão');
