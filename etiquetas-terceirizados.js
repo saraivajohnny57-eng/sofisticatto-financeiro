@@ -61,17 +61,17 @@ function tercBarcodeFormato(x){
 }
 function tercGerarGraficos(){
  const url=(typeof ETIQUETA_INSTAGRAM_URL!=='undefined'?ETIQUETA_INSTAGRAM_URL:'https://www.instagram.com/sofisticatto.cosmeticos/');
- const logo=(typeof logoEtiquetaUrl==='function'?logoEtiquetaUrl():'')||'/assinatura-johnny.png';
+ const logo='/assets/sofisticatto-logo.jpeg';
  const x=tercAtual;
  document.querySelectorAll('#tercPreview .tercQrReal').forEach(el=>{
   el.innerHTML='';
   new QRCode(el,{text:url,width:110,height:110,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
  });
  document.querySelectorAll('#tercPreview .tercCodigoSvg').forEach(el=>{
-  try{JsBarcode(el,String(x.codigo_barras||x.codigo).trim(),{format:tercBarcodeFormato(x),displayValue:true,fontSize:16,height:68,width:1.65,margin:1,textMargin:4});}
+  try{JsBarcode(el,String(x.codigo_barras||x.codigo).trim(),{format:tercBarcodeFormato(x),displayValue:true,fontSize:15,height:48,width:1.65,margin:1,textMargin:4});}
   catch(e){el.outerHTML='<div style="color:#b00">Código de barras inválido</div>';}
  });
- document.querySelectorAll('#tercPreview .tercLogoReal').forEach(el=>{el.src=logo;el.style.display='block';el.onerror=()=>{if(el.src.indexOf('/assinatura-johnny.png')===-1)el.src='/assinatura-johnny.png';};});
+ document.querySelectorAll('#tercPreview .tercLogoReal').forEach(el=>{el.src=logo;el.style.display='block';el.onerror=()=>{el.style.display='none';tercMensagem('Logo oficial não encontrada em /assets/sofisticatto-logo.jpeg.');};});
 }
 function tercFolhaPronta(){
  const el=tercId('tercPreview').querySelector('.tercFolha');
@@ -113,7 +113,7 @@ function tercEstilos(){
  .tercProduto{font-size:4mm;font-weight:800;text-align:center;min-height:13mm;max-height:19mm;display:flex;align-items:center;justify-content:center;overflow-wrap:anywhere}
  .tercDetalhes{font-size:3.8mm;line-height:1.55;flex:1}
  .tercRodape{border-top:.3mm solid #111;font-size:3.2mm;padding-top:1mm;height:29mm;overflow:hidden;flex-shrink:0}
- .tercCodigoSvg{display:block;width:95%;height:23mm;margin:1mm auto 0;max-width:100%;overflow:visible}
+ .tercCodigoSvg{display:block;width:47.5mm;height:19mm;margin:1mm auto 0;max-width:100%;overflow:visible}
  .tercDupla .tercBloco{width:50%}
  @media print{html,body{width:150mm;margin:0;padding:0}.tercFolha{break-after:page;page-break-after:always}.tercFolha:last-child{break-after:auto;page-break-after:auto}}
  `;
