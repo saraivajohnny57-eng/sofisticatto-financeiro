@@ -82,6 +82,13 @@ function tercFolhaPronta(){
   if(canvas){const foto=document.createElement('img');foto.src=canvas.toDataURL('image/png');foto.className='tercQrImagem';q.replaceChildren(foto);}
   else if(img){const foto=img.cloneNode(true);foto.className='tercQrImagem';q.replaceChildren(foto);}
  });
+ // SVGs are serialized with their full namespace and are self-contained in the print window.
+ clone.querySelectorAll('.tercCodigoSvg').forEach(svg=>{
+  svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+  const vb=svg.getAttribute('viewBox');
+  if(vb)svg.setAttribute('viewBox',vb);
+ });
  return clone.outerHTML;
 }
 function tercBlocoEtiqueta(x,unidades){
@@ -96,16 +103,16 @@ function tercEstilos(){
  *{box-sizing:border-box}
  .tercFolha{width:150mm;height:100mm;display:flex;background:#fff;color:#000;font-family:Arial,sans-serif;padding:2mm;overflow:hidden}
  .tercBloco{flex:1;min-width:0;border:.4mm solid #111;display:flex;flex-direction:column;overflow:hidden;padding:2mm}
- .tercTopo{height:34%;display:flex;align-items:center;justify-content:space-around;gap:1mm}
- .tercLogoReal{width:58%;max-height:23mm;object-fit:contain}
+ .tercTopo{height:32%;display:flex;align-items:center;justify-content:space-around;gap:1mm}
+ .tercLogoReal{width:56%;max-height:22mm;object-fit:contain}
  .tercInstagram{display:flex;flex-direction:column;align-items:center;justify-content:center;width:36%}
  .tercQrReal{width:22mm;height:22mm;display:flex;align-items:center;justify-content:center}
  .tercQrReal canvas,.tercQrReal img,.tercQrImagem{width:22mm!important;height:22mm!important;object-fit:contain}
  .tercQrTexto{font-size:2.7mm;font-weight:bold;letter-spacing:.7mm;margin-top:1mm}
  .tercProduto{font-size:4.3mm;font-weight:800;text-align:center;min-height:15%;display:flex;align-items:center;justify-content:center;overflow-wrap:anywhere}
  .tercDetalhes{font-size:4mm;line-height:1.6;flex:1}
- .tercRodape{border-top:.3mm solid #111;font-size:3.2mm;padding-top:1mm;height:25mm;overflow:hidden}
- .tercCodigoSvg{display:block;width:90%;height:20mm;margin:1mm auto 0;max-width:100%}
+ .tercRodape{border-top:.3mm solid #111;font-size:3.2mm;padding-top:1mm;height:30mm;overflow:visible;flex-shrink:0}
+ .tercCodigoSvg{display:block;width:95%;height:25mm;margin:1mm auto 0;max-width:100%;overflow:visible}
  .tercDupla .tercBloco{width:50%}
  @media print{html,body{width:150mm;margin:0;padding:0}.tercFolha{break-after:page;page-break-after:always}.tercFolha:last-child{break-after:auto;page-break-after:auto}}
  `;
@@ -128,9 +135,18 @@ async function imprimirEtiquetaTerc(){
  if(!tercAtual)return tercMensagem('Busque uma etiqueta antes de imprimir.');
  try{
   await renderEtiquetaTerc();
+  // Convert external logos to data URIs so printing cannot lose them in about:blank.
+  const preview=tercId('tercPreview');
+  await Promise.all(Array.from(preview.querySelectorAll('img.tercLogoReal')).map(async img=>{
+   if(!img.src||img.src.startsWith('data:'))return;
+   try{const r=await fetch(img.src,{mode:'cors'});if(!r.ok)throw Error('logo');const blob=await r.blob();
+    const uri=await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.onerror=reject;fr.readAsDataURL(blob)});
+    img.src=uri;
+   }catch(e){/* Preserve the original URL when cross-origin conversion is blocked. */}
+  }));
   const folha=tercFolhaPronta();if(!folha)return tercMensagem('Não foi possível montar a etiqueta.');
   const n=Math.min(200,Math.max(1,Number(tercId('tercQtd').value)||1));
-  const page=`<!doctype html><html><head><meta charset="utf-8"><title>Etiqueta ${tercEscape(tercAtual.codigo)}</title><style>${tercEstilos()}@media screen{body{background:#ddd}.tercFolha{margin:10px auto;box-shadow:0 1px 8px #999}}</style></head><body>${Array(n).fill(folha).join('')}<script>window.onload=async()=>{await Promise.all(Array.from(document.images).map(i=>i.decode().catch(()=>{})));window.print()}<\/script></body></html>`;
+  const page=`<!doctype html><html><head><meta charset="utf-8"><title>Etiqueta ${tercEscape(tercAtual.codigo)}</title><style>${tercEstilos()}@media screen{body{background:#ddd}.tercFolha{margin:10px auto;box-shadow:0 1px 8px #999}}</style></head><body>${Array(n).fill(folha).join('')}<script>window.onload=async()=>{await Promise.all(Array.from(document.images).map(i=>i.decode().catch(()=>{})));await document.fonts.ready;window.print()}<\/script></body></html>`;
   const win=window.open('','_blank');if(!win)return tercMensagem('Permita pop-ups para imprimir.');
   win.document.open();win.document.write(page);win.document.close();
  }catch(e){tercMensagem('Erro ao imprimir: '+e.message);}
