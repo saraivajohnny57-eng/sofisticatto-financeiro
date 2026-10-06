@@ -304,6 +304,7 @@ function iniciarSistema(){
   document.getElementById("usuarioInfo").innerHTML = "Usuário: <b>" + usuarioLogado.login + "</b><br>Tipo: <b>" + usuarioLogado.tipo + "</b>";
   atualizarBotaoNotificacao();
   document.getElementById("btnAdmin").style.display = usuarioLogado.tipo === "admin" ? "block" : "none";
+  document.getElementById("btnEtiquetasTerceirizados").style.display = ["admin","financeiro"].includes(usuarioLogado.tipo) ? "block" : "none";
   document.getElementById("btnEnvioDocumentos").style.display = (usuarioLogado.tipo === "financeiro" || usuarioEhComercialRastreio()) ? "block" : "none";
   const btnIntegracaoBancaria=document.getElementById("btnIntegracaoBancaria");
   if(btnIntegracaoBancaria) btnIntegracaoBancaria.style.display = ["financeiro","banco","admin","cobranca"].includes(usuarioLogado.tipo) ? "block" : "none";
@@ -334,10 +335,12 @@ function mostrarSecao(secao){
   document.getElementById("envioDocumentos").style.display = "none";
   const integracaoBancariaSec=document.getElementById("integracaoBancaria"); if(integracaoBancariaSec)integracaoBancariaSec.style.display="none";
   const corridasSec=document.getElementById("corridas"); if(corridasSec)corridasSec.style.display="none";
+  const tercSec=document.getElementById("etiquetasTerceirizados");if(tercSec)tercSec.style.display="none";
 
   if(usuarioLogado?.tipo==="entregador" && secao!=="corridas"){
     secao="corridas";
   }
+  if(secao==="etiquetasTerceirizados" && !["admin","financeiro"].includes(usuarioLogado?.tipo)){alert("Acesso restrito.");secao="dashboard";}
   if(usuarioEhCobrancaV293() && secao!=="integracaoBancaria"){ secao="integracaoBancaria"; }
   if(secao === "envioDocumentos" && !usuarioPodeModuloEmail()){
     alert("Seu usuário não possui acesso a esta área.");
@@ -359,6 +362,7 @@ function mostrarSecao(secao){
     if(typeof aplicarPadraoBancoCobrancaManual==="function") aplicarPadraoBancoCobrancaManual();
     if(typeof carregarStatusBancoBB==="function") setTimeout(()=>carregarStatusBancoBB(),50);
   }
+  if(secao === "etiquetasTerceirizados") listarEtiquetasTerc();
   if(secao === "corridas") carregarModuloCorridas?.();
 }
 
