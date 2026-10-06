@@ -3,16 +3,24 @@ let tercAtual=null;
 const tercId=id=>document.getElementById(id);
 const tercEscape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const tercMensagem=s=>{if(tercId('tercAviso'))tercId('tercAviso').textContent=s};
+async function tercApi(acao,payload){
+ let key=typeof bbAdminKey==='function'?bbAdminKey():'';
+ if(!key&&typeof garantirAutorizacaoIntegracoesV315==='function')key=await garantirAutorizacaoIntegracoesV315();
+ async function request(k){return fetch('/api/etiquetas-terceirizados?acao='+encodeURIComponent(acao),{method:payload?'POST':'GET',headers:{'Content-Type':'application/json','x-integrations-admin-key':k},body:payload?JSON.stringify(payload):undefined});}
+ let r=await request(key);
+ if(r.status===401&&typeof garantirAutorizacaoIntegracoesV315==='function'){key=await garantirAutorizacaoIntegracoesV315(true);r=await request(key);}
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok||!data.ok)throw new Error(data.erro||'Erro HTTP '+r.status);
+ return data.data;
+}
 async function buscarEtiquetaTerc(){
  const codigo=tercId('tercBuscaCodigo').value.trim();if(!codigo)return tercMensagem('Digite um código.');
- const {data,error}=await banco.from('etiquetas_terceirizados').select('*').eq('codigo',codigo).maybeSingle();
- if(error)return tercMensagem('Não foi possível consultar. Verifique o SQL de instalação. '+error.message);
+ let data;try{data=await tercApi('buscar',{codigo});}catch(e){return tercMensagem('Não foi possível consultar: '+e.message);}
  if(!data){tercAtual=null;tercMensagem('Código não cadastrado. Preencha o cadastro na janela aberta.');abrirCadastroTerc(codigo);return;}
  tercAtual=data;tercMensagem('Etiqueta encontrada: '+data.descricao);renderEtiquetaTerc();
 }
 async function listarEtiquetasTerc(){
- const {data,error}=await banco.from('etiquetas_terceirizados').select('codigo,descricao,grupo').order('descricao').limit(200);
- if(error){tercMensagem('Para usar o cadastro, execute o SQL incluído no pacote. '+error.message);return;}
+ let data;try{data=await tercApi('listar');}catch(e){return tercMensagem('Não foi possível listar: '+e.message);}
  tercId('tercLista').innerHTML=(data||[]).map(x=>`<button class="btn azul" style="margin:3px" onclick="tercId('tercBuscaCodigo').value=${JSON.stringify(x.codigo).replace(/</g,'\\u003c')};buscarEtiquetaTerc()">${tercEscape(x.codigo)} — ${tercEscape(x.descricao)}</button>`).join('')||'Nenhuma etiqueta cadastrada.';
 }
 function abrirCadastroTerc(codigo=''){
@@ -32,10 +40,8 @@ async function salvarCadastroTerc(){
  const item={codigo,descricao,grupo:get('tercGrupo'),marca:get('tercMarca'),codigo_barras:get('tercBarras'),largura_mm:largura,altura_mm:altura,texto:get('tercTexto'),imagem_url:imagem||null,modelo:get('tercModelo'),atualizado_em:new Date().toISOString()};
  // Atualizações usam o código original, sem sobrescrever outro produto por engano.
  const original=tercAtual?.codigo;
- if(original&&original!==codigo){const check=await banco.from('etiquetas_terceirizados').select('codigo').eq('codigo',codigo).maybeSingle();if(check.data)return tercId('tercModalAviso').textContent='Este novo código já pertence a outro produto.';}
- const r=original?await banco.from('etiquetas_terceirizados').update(item).eq('codigo',original).select().single():await banco.from('etiquetas_terceirizados').insert(item).select().single();
- if(r.error)return tercId('tercModalAviso').textContent='Erro ao salvar: '+r.error.message;
- tercAtual=r.data;tercId('tercBuscaCodigo').value=codigo;fecharCadastroTerc();renderEtiquetaTerc();listarEtiquetasTerc();tercMensagem('Cadastro salvo no Supabase.');
+ let data;try{data=await tercApi('salvar',{item,original:original||null});}catch(e){return tercId('tercModalAviso').textContent='Erro ao salvar: '+e.message;}
+ tercAtual=data;tercId('tercBuscaCodigo').value=codigo;fecharCadastroTerc();renderEtiquetaTerc();listarEtiquetasTerc();tercMensagem('Cadastro salvo no Supabase.');
 }
 
 function tercCamposVariaveis(){
