@@ -7535,6 +7535,64 @@ async function imprimirBoletosFiltradosV178(){
     if(falhas.length)alert(`O PDF único foi gerado com ${blobs.length} boleto(s), mas ${falhas.length} boleto(s) não puderam ser incluídos.\n\nNenhum título foi reemitido.\n\n${falhas.slice(0,8).join('\n')}${falhas.length>8?'\n...':''}`);
   }catch(e){alert('Não foi possível gerar o PDF único dos boletos filtrados.\n\n'+(e.message||e));}
 }
+
+// V323 — Salvar PDF por filtro.
+// Usa somente boletos já emitidos e os filtros atuais do Histórico.
+// Parcelas do mesmo banco + cliente + pedido/NF são reunidas em um único PDF.
+function nomeSeguroPdfV323(v){
+  return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g,' ').replace(/\s+/g,' ').trim().slice(0,120)||'BOLETO';
+}
+function chavePedidoPdfV323(r){
+  const banco=codigoBancoCobranca(r?.banco_nome||r?.banco||'');
+  const cli=String(r?.cliente_id||r?.cpf_cnpj||r?.cliente_nome||'').replace(/\D/g,'')||cobNorm(r?.cliente_nome||'');
+  const pedido=String(r?.numero_nf||r?.referencia||'SEM-PEDIDO').trim().toUpperCase();
+  return `${banco}|${cli}|${pedido}`;
+}
+async function salvarPdfPorFiltroV323(){
+  const btn=document.getElementById('cobBtnSalvarPdfFiltroV323'), texto=btn?.textContent||'💾 Salvar PDF por filtro';
+  if(btn){btn.disabled=true;btn.textContent='Salvando PDFs...';}
+  try{
+    const mapa=new Map();
+    for(const x of cobrancasFiltradasHistoricoV178()){
+      const banco=codigoBancoCobranca(x?.banco_nome||x?.banco||''), ok=['aberto','pago','vencido'].includes(String(x?.status||''));
+      const emitido=(banco==='bb'&&ok&&!!String(x?.nosso_numero||'').trim())||(banco==='bradesco'&&ok&&!!String(x?.linha_digitavel||'').trim());
+      if(!emitido)continue;
+      const k=String(x.id||`${banco}|${x.nosso_numero||x.linha_digitavel||''}|${x.numero_nf||''}|${x.parcela_numero||1}`);
+      if(!mapa.has(k))mapa.set(k,x);
+    }
+    const lista=[...mapa.values()];
+    if(!lista.length)return alert('Nenhum boleto já emitido foi encontrado nos filtros atuais.');
+
+    const grupos=new Map();
+    for(const r of lista){const k=chavePedidoPdfV323(r);if(!grupos.has(k))grupos.set(k,[]);grupos.get(k).push(r);}
+    for(const regs of grupos.values())regs.sort((a,b)=>Number(a.parcela_numero||1)-Number(b.parcela_numero||1)||String(a.vencimento||'').localeCompare(String(b.vencimento||'')));
+
+    if(!window.showDirectoryPicker)return alert('Use Google Chrome ou Microsoft Edge no computador para escolher a pasta e salvar vários PDFs.');
+    const parcelados=[...grupos.values()].filter(g=>g.length>1).length;
+    if(!confirm(`SALVAR PDF POR FILTRO\n\nBoletos encontrados: ${lista.length}\nArquivos que serão salvos: ${grupos.size}\nPedidos parcelados que serão agrupados: ${parcelados}\n\nAs parcelas do mesmo pedido serão reunidas em um único PDF.\nNenhum boleto será reemitido.\n\nContinuar?`))return;
+    const pasta=await window.showDirectoryPicker({mode:'readwrite'});
+    let salvos=0,boletos=0;const falhas=[];
+    for(const regs of grupos.values()){
+      const base=regs[0], banco=codigoBancoCobranca(base?.banco_nome||base?.banco||''), blobs=[];
+      try{
+        for(const r of regs){
+          const blob=banco==='bb'?await gerarPdfImpressaoNormalBb([r]):await gerarBlobVisualizacaoBradescoV281(r);
+          if(!blob)throw new Error(`Não foi possível montar a parcela ${r.parcela_numero||1}.`);
+          blobs.push(blob);
+        }
+        const final=blobs.length===1?blobs[0]:await mesclarPdfsBb(blobs);
+        const cliente=nomeSeguroPdfV323(base.cliente_nome||'CLIENTE'), pedido=nomeSeguroPdfV323(base.numero_nf||base.referencia||'SEM PEDIDO');
+        const nome=`${cliente} - ${pedido} - ${banco==='bb'?'BB':'BRADESCO'}${regs.length>1?` - ${regs.length} parcelas`:''}.pdf`;
+        await salvarBlobNaPastaCobrancaMassa(pasta,nome,final);
+        salvos++;boletos+=regs.length;
+      }catch(e){falhas.push(`${base.cliente_nome||'Cliente'} • ${base.numero_nf||base.referencia||'sem pedido'}: ${e?.message||e}`);}
+    }
+    alert(`✅ SALVAR PDF POR FILTRO CONCLUÍDO\n\nArquivos salvos: ${salvos}\nBoletos incluídos: ${boletos}\nFalhas: ${falhas.length}${falhas.length?`\n\n${falhas.slice(0,8).join('\n')}`:''}`);
+  }catch(e){if(e?.name!=='AbortError')alert('Não foi possível salvar os PDFs filtrados.\n\n'+(e?.message||e));}
+  finally{if(btn){btn.disabled=false;btn.textContent=texto;}}
+}
+
 function bradescoCodigoBarras44DaLinha(linha){
   const d=String(linha||'').replace(/\D/g,'');
   if(d.length!==47)return '';
