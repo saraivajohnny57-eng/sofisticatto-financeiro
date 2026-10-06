@@ -9719,7 +9719,15 @@ async function emitirBoletosEmMassa(){
             if(!blob&&ret?.base64){const bin=atob(String(ret.base64).replace(/^data:application\/pdf;base64,/,''));const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);blob=new Blob([arr],{type:'application/pdf'});}
           }else if(cod==='bradesco'){
             ret=await emitirBradescoOperacional(p,{confirmar:false});
-            const rr=ret?.registro||{};if(!(Number(rr.http_status)>=200&&Number(rr.http_status)<300))throw new Error(`Bradesco HTTP ${rr.http_status||'—'}.`);
+            const rr=ret?.registro||{};
+            if(!(Number(rr.http_status)>=200&&Number(rr.http_status)<300)){
+              // V321 — preserva a rejeição como segura, mas mostra o motivo real devolvido
+              // pelo Bradesco para permitir corrigir somente o cadastro/campo recusado.
+              const detalhe=String(ret?.detalhe_bradesco||rr?.detalhe_bradesco||bradescoDetalheResposta(rr?.resposta_bradesco)||'').trim();
+              const erro=new Error(`Bradesco HTTP ${rr.http_status||'—'}${detalhe?` — ${detalhe}`:''}`);
+              erro.bradescoResponse=rr?.resposta_bradesco||ret;
+              throw erro;
+            }
             if(pasta)blob=await obterBlobBoletoBradescoMassa(ret);
           }else throw new Error('Banco sem integração de emissão.');
           await marcarFilaLoteV279(p,'emitido',loteId,{lote_erro:null});
