@@ -2,11 +2,34 @@ const crypto=require('crypto');
 function detalheRespostaBradesco(d){
   if(typeof d==='string'){try{d=JSON.parse(d)}catch(_){return d.slice(0,1800)}}
   if(!d||typeof d!=='object')return null;
-  const partes=[];
-  for(const k of ['mensagem','message','descricao','detail','erro','error','motivo','causa','mensagemErro','mensagemRetorno']){const v=d?.[k];if(v!==undefined&&v!==null&&typeof v!=='object'&&String(v).trim())partes.push(String(v).trim())}
-  for(const k of ['codigo','codigoErro','codigoRetorno','code']){const v=d?.[k];if(v!==undefined&&v!==null&&String(v).trim()&&!partes.some(x=>x.includes(String(v))))partes.unshift(`${k}: ${v}`)}
-  for(const k of ['erros','errors','errosValidacao','mensagens','messages']){const arr=d?.[k];if(Array.isArray(arr))for(const item of arr.slice(0,12)){if(typeof item==='string'&&item.trim())partes.push(item.trim());else if(item&&typeof item==='object'){const v=item.mensagem??item.message??item.descricao??item.detail??item.erro??item.error;if(v)partes.push(String(v).trim())}}}
-  return partes.length?[...new Set(partes)].join(' | '):null;
+  // V321 — diagnóstico de rejeição: percorre estruturas aninhadas da resposta do banco,
+  // sem devolver payload, credenciais ou dados de autenticação.
+  const partes=[], vistos=new Set();
+  const chavesMensagem=/^(mensagem|message|descricao|detail|erro|error|motivo|causa|mensagemErro|mensagemRetorno|msg|texto)$/i;
+  const chavesCodigo=/^(codigo|codigoErro|codigoRetorno|code|codErro|status)$/i;
+  const chavesCampo=/^(campo|field|propriedade|property|parametro|parameter)$/i;
+  function add(v,prefixo=''){
+    if(v===undefined||v===null||typeof v==='object')return;
+    const t=String(v).trim(); if(!t)return;
+    const x=(prefixo?prefixo+': ':'')+t;
+    if(!vistos.has(x)){vistos.add(x);partes.push(x)}
+  }
+  function walk(v,prof=0){
+    if(prof>6||v===null||v===undefined)return;
+    if(Array.isArray(v)){for(const item of v.slice(0,30))walk(item,prof+1);return;}
+    if(typeof v!=='object')return;
+    for(const [k,val] of Object.entries(v)){
+      if(chavesMensagem.test(k))add(val);
+      else if(chavesCodigo.test(k))add(val,'código');
+      else if(chavesCampo.test(k))add(val,'campo');
+      if(val&&typeof val==='object')walk(val,prof+1);
+    }
+  }
+  walk(d);
+  if(!partes.length){
+    try{return JSON.stringify(d).slice(0,1800)}catch(_){return null}
+  }
+  return partes.slice(0,30).join(' | ').slice(0,1800);
 }
 
 const https=require('https');
