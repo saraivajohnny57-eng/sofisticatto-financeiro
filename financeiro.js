@@ -3887,56 +3887,138 @@ function adicionarArquivosEmail(novosArquivos){
   prepararEnviosEmail();
 }
 
+// V324 — identificação inteligente + conferência/edição na Prévia dos envios.
+function emailNomeComparacaoV324(v){
+  return normalizarNomeEmail(v||"")
+    .replace(/\b(ltda|me|eireli|epp|sa|s a|comercio|comercial)\b/g," ")
+    .replace(/\s+/g," ").trim();
+}
+function emailDiceV324(a,b){
+  a=emailNomeComparacaoV324(a); b=emailNomeComparacaoV324(b);
+  if(!a||!b)return 0;if(a===b)return 1;
+  const bg=x=>{const m=new Map();for(let i=0;i<x.length-1;i++){const z=x.slice(i,i+2);m.set(z,(m.get(z)||0)+1)}return m};
+  const A=bg(a),B=bg(b);let inter=0,total=0;
+  A.forEach(v=>total+=v);B.forEach(v=>total+=v);
+  A.forEach((v,k)=>inter+=Math.min(v,B.get(k)||0));
+  return total?2*inter/total:0;
+}
+function emailAliasV324(){
+  try{return JSON.parse(localStorage.getItem("sof_email_alias_cliente_v324")||"{}")||{}}catch{return{}}
+}
+function emailSalvarAliasV324(nome,id){
+  try{const m=emailAliasV324();m[normalizarNomeEmail(nome)]=String(id);localStorage.setItem("sof_email_alias_cliente_v324",JSON.stringify(m))}catch{}
+}
+function localizarClienteInteligenteEmailV324(nome){
+  const ativos=emailClientes.filter(c=>c.ativo!==false);
+  const alias=emailAliasV324()[normalizarNomeEmail(nome)];
+  if(alias){const c=ativos.find(x=>String(x.id)===String(alias));if(c)return {cliente:c,score:1,fonte:"confirmado"};}
+  const exato=ativos.find(c=>normalizarNomeEmail(c.nome)===normalizarNomeEmail(nome));
+  if(exato)return {cliente:exato,score:1,fonte:"exato"};
+  const rank=ativos.map(c=>({cliente:c,score:emailDiceV324(nome,c.nome)})).sort((a,b)=>b.score-a.score);
+  if(rank[0]&&rank[0].score>=0.88&&(rank[0].score-(rank[1]?.score||0))>=0.06)return {...rank[0],fonte:"provavel"};
+  return {cliente:null,score:rank[0]?.score||0,fonte:"nao_confirmado"};
+}
+function atualizarItemEnvioV324(item,cliente){
+  item.cliente=cliente||null;
+  item.vendedora=cliente?emailVendedoras.find(v=>String(v.id)===String(cliente.vendedora_id)):null;
+  item.para=(cliente?.emails||[]).length?[...(cliente.emails||[])]:item.vendedora?.email?[item.vendedora.email]:[];
+  item.cc=(cliente?.emails||[]).length&&item.vendedora?.email?[item.vendedora.email]:[];
+  item.somenteVendedora=!!cliente&&!(cliente.emails||[]).length&&!!item.vendedora?.email;
+  item.status=cliente&&((cliente.emails||[]).length||item.vendedora?.email)&&(!usuarioEhComercialRastreio()||!!emailRemetenteUsuario())?"pronto":"pendente";
+}
 function prepararEnviosEmail(){
-  const tabela = document.getElementById("emailTabelaPrevia");
-  if(!tabela) return;
+  const tabela=document.getElementById("emailTabelaPrevia");if(!tabela)return;
   atualizarRemetenteAtualEmail();
-
-  const arquivosValidos = emailArquivosSelecionados.filter(arquivoCompativelModoEmail);
-  const grupos = new Map();
-
-  arquivosValidos.forEach(arquivo => {
-    const nome = nomeClienteDoArquivoEmail(arquivo);
-    const chave = normalizarNomeEmail(nome);
-    if(!grupos.has(chave)) grupos.set(chave,{nome,arquivos:[]});
-    grupos.get(chave).arquivos.push(arquivo);
+  const arquivosValidos=emailArquivosSelecionados.filter(arquivoCompativelModoEmail),grupos=new Map();
+  arquivosValidos.forEach(arquivo=>{const nome=nomeClienteDoArquivoEmail(arquivo),chave=normalizarNomeEmail(nome);if(!grupos.has(chave))grupos.set(chave,{nome,arquivos:[]});grupos.get(chave).arquivos.push(arquivo)});
+  emailEnviosPreparados=[...grupos.values()].map(grupo=>{
+    const achado=localizarClienteInteligenteEmailV324(grupo.nome),cliente=achado.cliente;
+    const item={clienteNome:grupo.nome,cliente:null,vendedora:null,para:[],cc:[],assunto:grupo.nome,corpo:textoCorpoEmail(),arquivos:grupo.arquivos,status:"pendente",somenteVendedora:false,identificacaoFonte:achado.fonte,identificacaoScore:achado.score};
+    atualizarItemEnvioV324(item,cliente);return item;
   });
-
-  emailEnviosPreparados = [...grupos.values()].map(grupo => {
-    const cliente = emailClientes.find(item => normalizarNomeEmail(item.nome) === normalizarNomeEmail(grupo.nome) && item.ativo !== false);
-    const vendedora = cliente ? emailVendedoras.find(item => item.id === cliente.vendedora_id) : null;
-    return {
-      clienteNome:grupo.nome,
-      cliente,
-      vendedora,
-      para:(cliente?.emails || []).length ? (cliente.emails || []) : (vendedora?.email ? [vendedora.email] : []),
-      cc:(cliente?.emails || []).length && vendedora?.email ? [vendedora.email] : [],
-      assunto:grupo.nome,
-      corpo:textoCorpoEmail(),
-      arquivos:grupo.arquivos,
-      status:cliente && ((cliente?.emails || []).length || vendedora?.email) && (!usuarioEhComercialRastreio() || !!emailRemetenteUsuario()) ? "pronto" : "pendente",
-      somenteVendedora:!!cliente && !(cliente.emails || []).length && !!vendedora?.email
-    };
-  });
-
-  document.getElementById("emailQtdSelecionados").innerHTML = emailArquivosSelecionados.length + " arquivo(s)";
-  document.getElementById("emailKpiArquivos").innerHTML = arquivosValidos.length;
-  document.getElementById("emailKpiClientes").innerHTML = emailEnviosPreparados.length;
-  document.getElementById("emailKpiProntos").innerHTML = emailEnviosPreparados.filter(item => item.status === "pronto").length;
-  document.getElementById("emailKpiPendentes").innerHTML = emailEnviosPreparados.filter(item => item.status !== "pronto").length;
-
-  tabela.innerHTML = emailEnviosPreparados.length ? emailEnviosPreparados.map((item,indice) => `
-    <tr>
-      <td><b>${escaparHtmlEmail(item.clienteNome)}</b><br><small>${escaparHtmlEmail(item.assunto)}</small></td>
-      <td>${item.para.length ? item.para.map(escaparHtmlEmail).join("<br>") : "—"}</td>
-      <td>${item.cc.length ? item.cc.map(escaparHtmlEmail).join("<br>") : "—"}</td>
-      <td class="email-arquivos">${item.arquivos.map(arquivo => `• ${escaparHtmlEmail(arquivo.name)} <small>(${(arquivo.size/1024).toFixed(0)} KB)</small>`).join("<br>")}</td>
-      <td class="${item.status === "pronto" ? "email-status-ok" : "email-status-erro"}">${item.status === "pronto" ? (item.somenteVendedora ? "Pronto — somente vendedora" : "Pronto") : (!emailRemetenteUsuario() && usuarioEhComercialRastreio() ? "Remetente do usuário não cadastrado" : "Cliente/e-mail não cadastrado")}</td>
-      <td>${item.status === "pronto"
-        ? `<button class="btn verde" onclick="enviarEmailIndividual(${indice},this)">Enviar</button>`
-        : `<button class="btn azul" onclick="cadastrarClientePendenteEmail('${encodeURIComponent(item.clienteNome)}')">Cadastrar</button>`}
-      </td>
-    </tr>`).join("") : `<tr><td colspan="6">Nenhum arquivo compatível com o tipo escolhido.</td></tr>`;
+  document.getElementById("emailQtdSelecionados").innerHTML=emailArquivosSelecionados.length+" arquivo(s)";
+  document.getElementById("emailKpiArquivos").innerHTML=arquivosValidos.length;
+  document.getElementById("emailKpiClientes").innerHTML=emailEnviosPreparados.length;
+  document.getElementById("emailKpiProntos").innerHTML=emailEnviosPreparados.filter(i=>i.status==="pronto").length;
+  document.getElementById("emailKpiPendentes").innerHTML=emailEnviosPreparados.filter(i=>i.status!=="pronto").length;
+  tabela.innerHTML=emailEnviosPreparados.length?emailEnviosPreparados.map((item,indice)=>{
+    const cpf=item.cliente?.cpf_cnpj||"—";
+    const ident=item.cliente?(item.identificacaoFonte==="provavel"?`<small style="color:#9a6b00;">⚠ identificação provável</small>`:`<small style="color:#17854a;">✓ cadastro identificado</small>`):`<small style="color:#b42318;">⚠ confirme o cliente</small>`;
+    return `<tr>
+      <td><b>${escaparHtmlEmail(item.cliente?.nome||item.clienteNome)}</b><br>${ident}<br><small>Arquivo: ${escaparHtmlEmail(item.clienteNome)}</small></td>
+      <td><b>${escaparHtmlEmail(cpf)}</b></td>
+      <td>${item.para.length?item.para.map(escaparHtmlEmail).join("<br>"):"—"}</td>
+      <td>${item.cc.length?item.cc.map(escaparHtmlEmail).join("<br>"):"—"}</td>
+      <td class="email-arquivos">${item.arquivos.map(a=>`• ${escaparHtmlEmail(a.name)} <small>(${(a.size/1024).toFixed(0)} KB)</small>`).join("<br>")}</td>
+      <td class="${item.status==="pronto"?"email-status-ok":"email-status-erro"}">${item.status==="pronto"?(item.somenteVendedora?"Pronto — somente vendedora":"Pronto"):"Cliente/e-mail não cadastrado"}</td>
+      <td><button class="btn azul" onclick="abrirConferenciaEmailV324(${indice})">✏️ Conferir / editar</button>${item.status==="pronto"?`<button class="btn verde" onclick="enviarEmailIndividual(${indice},this)">Enviar</button>`:""}</td>
+    </tr>`}).join(""):`<tr><td colspan="7">Nenhum arquivo compatível com o tipo escolhido.</td></tr>`;
+}
+function candidatosEmailV324(q){
+  const busca=String(q||"").trim(),dig=busca.replace(/\D/g,""),norm=normalizarNomeEmail(busca);
+  return emailClientes.filter(c=>c.ativo!==false).map(c=>{
+    let score=emailDiceV324(busca,c.nome);
+    if(dig&&String(c.cpf_cnpj||"").replace(/\D/g,"").includes(dig))score=2;
+    if(norm&&normalizarNomeEmail(c.nome).includes(norm))score=Math.max(score,1.5);
+    return {c,score};
+  }).filter(x=>!busca||x.score>.28).sort((a,b)=>b.score-a.score).slice(0,12);
+}
+function renderCandidatosEmailV324(){
+  const box=document.getElementById("emailV324Candidatos"),q=document.getElementById("emailV324Busca")?.value||"";
+  if(!box)return;
+  const arr=candidatosEmailV324(q);
+  box.innerHTML=arr.length?arr.map(({c})=>`<button type="button" onclick="selecionarClienteEmailV324('${c.id}')" style="display:block;width:100%;text-align:left;padding:10px;margin:5px 0;border:1px solid #ddd;border-radius:9px;background:#fff;cursor:pointer;"><b>${escaparHtmlEmail(c.nome)}</b><br><small>CPF/CNPJ: ${escaparHtmlEmail(c.cpf_cnpj||"não informado")} • ${(c.emails||[]).map(escaparHtmlEmail).join("; ")||"sem e-mail"}</small></button>`).join(""):`<div style="padding:10px;color:#777;">Nenhum cliente encontrado. Pesquise por nome, CPF ou CNPJ.</div>`;
+}
+function selecionarClienteEmailV324(id){
+  const c=emailClientes.find(x=>String(x.id)===String(id));if(!c)return;
+  document.getElementById("emailV324ClienteId").value=c.id;
+  document.getElementById("emailV324Nome").textContent=c.nome||"";
+  document.getElementById("emailV324Cpf").textContent=c.cpf_cnpj||"Não informado";
+  document.getElementById("emailV324Emails").value=(c.emails||[]).join("; ");
+  const v=emailVendedoras.find(x=>String(x.id)===String(c.vendedora_id));
+  document.getElementById("emailV324VendNome").textContent=v?.nome||"Não vinculada";
+  document.getElementById("emailV324VendEmail").value=v?.email||"";
+  document.getElementById("emailV324VendedoraId").value=v?.id||"";
+}
+function fecharConferenciaEmailV324(){document.getElementById("emailModalV324")?.remove()}
+function abrirConferenciaEmailV324(indice){
+  const item=emailEnviosPreparados[indice];if(!item)return;
+  fecharConferenciaEmailV324();
+  const d=document.createElement("div");d.id="emailModalV324";d.dataset.indice=indice;
+  d.style.cssText="position:fixed;inset:0;background:#0008;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;";
+  d.innerHTML=`<div style="background:#fff;border-radius:16px;width:min(760px,96vw);max-height:90vh;overflow:auto;padding:22px;box-shadow:0 18px 55px #0004;">
+    <h2 style="margin-top:0;">Conferir cliente e e-mails</h2>
+    <div style="background:#f6f3ff;padding:10px;border-radius:9px;margin-bottom:12px;"><b>Nome encontrado no arquivo:</b> ${escaparHtmlEmail(item.clienteNome)}</div>
+    <label><b>Pesquisar outro cliente por nome, CPF ou CNPJ</b></label>
+    <input id="emailV324Busca" oninput="renderCandidatosEmailV324()" placeholder="Digite nome, CPF ou CNPJ" style="width:100%;padding:11px;margin:6px 0 8px;box-sizing:border-box;">
+    <div id="emailV324Candidatos" style="max-height:190px;overflow:auto;margin-bottom:14px;"></div>
+    <input type="hidden" id="emailV324ClienteId"><input type="hidden" id="emailV324VendedoraId">
+    <div style="border-top:1px solid #ddd;padding-top:12px;"><b>Cliente selecionado:</b> <span id="emailV324Nome">—</span><br><b>CPF/CNPJ:</b> <span id="emailV324Cpf">—</span></div>
+    <label style="display:block;margin-top:10px;"><b>E-mail(s) do cliente</b></label><textarea id="emailV324Emails" rows="2" style="width:100%;box-sizing:border-box;padding:9px;"></textarea>
+    <div style="margin-top:12px;"><b>Vendedora:</b> <span id="emailV324VendNome">—</span></div>
+    <label style="display:block;margin-top:6px;"><b>E-mail da vendedora / CC</b></label><input id="emailV324VendEmail" style="width:100%;box-sizing:border-box;padding:9px;">
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;"><button class="btn" onclick="fecharConferenciaEmailV324()">Cancelar</button><button class="btn verde" onclick="salvarConferenciaEmailV324()">Salvar no cadastro</button></div>
+  </div>`;
+  document.body.appendChild(d);
+  if(item.cliente)selecionarClienteEmailV324(item.cliente.id);
+  document.getElementById("emailV324Busca").value=item.cliente?.nome||item.clienteNome;
+  renderCandidatosEmailV324();
+}
+async function salvarConferenciaEmailV324(){
+  const modal=document.getElementById("emailModalV324"),indice=Number(modal?.dataset.indice),item=emailEnviosPreparados[indice];
+  const id=document.getElementById("emailV324ClienteId")?.value,c=emailClientes.find(x=>String(x.id)===String(id));
+  if(!item||!c)return alert("Selecione o cliente correto antes de salvar.");
+  const emails=separarEmailsEmail(document.getElementById("emailV324Emails").value),vendId=document.getElementById("emailV324VendedoraId").value,vendEmail=document.getElementById("emailV324VendEmail").value.trim();
+  const rc=await banco.from("email_clientes").update({emails,atualizado_em:new Date().toISOString()}).eq("id",c.id);
+  if(rc.error)return alert("Erro ao salvar e-mail do cliente: "+rc.error.message);
+  if(vendId){
+    const rv=await banco.from("email_vendedoras").update({email:vendEmail,atualizado_em:new Date().toISOString()}).eq("id",vendId);
+    if(rv.error)return alert("Cliente salvo, mas houve erro ao salvar o e-mail da vendedora: "+rv.error.message);
+  }
+  emailSalvarAliasV324(item.clienteNome,c.id);
+  fecharConferenciaEmailV324();
+  await carregarVendedorasEmail();await carregarClientesEmail();
+  alert("Cadastro atualizado. A associação deste nome de arquivo com o cliente também foi confirmada neste computador.");
 }
 
 function cadastrarClientePendenteEmail(nomeCodificado){
