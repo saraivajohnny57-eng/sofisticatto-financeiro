@@ -9553,8 +9553,16 @@ async function gerarBlobVisualizacaoBradescoV281(registro){
   if(typeof carregarBibliotecasEtiqueta==='function') await carregarBibliotecasEtiqueta();
   if(!window.html2canvas||!window.jspdf?.jsPDF) throw new Error('Bibliotecas de PDF indisponíveis.');
   const lista=Array.isArray(cobrancasBancarias)?cobrancasBancarias:[];
-  const jaExiste=lista.some(x=>String(x.id)===String(registro.id));
-  if(!jaExiste) lista.push(registro);
+  // V320: durante a emissão em massa, a lista em memória pode ainda conter a versão
+  // anterior do mesmo registro (sem linha digitável/código de barras), embora o
+  // Histórico no Supabase já tenha sido atualizado pelo Bradesco. O botão verde
+  // funciona depois porque a lista é recarregada. Para o salvamento automático,
+  // usamos temporariamente o registro fresco recém-lido do Histórico e depois
+  // restauramos a lista exatamente como estava. Isto NÃO reemite o boleto.
+  const indiceExistente=lista.findIndex(x=>String(x.id)===String(registro.id));
+  const registroAnterior=indiceExistente>=0?lista[indiceExistente]:null;
+  if(indiceExistente>=0) lista[indiceExistente]=registro;
+  else lista.push(registro);
   let html='';
   const openOriginal=window.open;
   try{
@@ -9562,7 +9570,8 @@ async function gerarBlobVisualizacaoBradescoV281(registro){
     abrirBoletoBradescoRegistro(registro.id);
   }finally{
     window.open=openOriginal;
-    if(!jaExiste){const i=lista.findIndex(x=>x===registro);if(i>=0)lista.splice(i,1);}
+    if(indiceExistente>=0) lista[indiceExistente]=registroAnterior;
+    else {const i=lista.findIndex(x=>x===registro);if(i>=0)lista.splice(i,1);}
   }
   if(!html) throw new Error('Não foi possível montar a visualização do boleto Bradesco.');
   // Retira ações/avisos e scripts externos; o código de barras é desenhado no documento principal.
