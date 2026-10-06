@@ -48,43 +48,90 @@ function tercCamposVariaveis(){
  return {lote:tercId('tercLote')?.value||'',fab:tercId('tercFab')?.value||'',val:tercId('tercVal')?.value||'',
  unidades:tercId('tercUnidades')?.value||'',unidades2:tercId('tercUnidades2')?.value||''};
 }
+
+async function tercCarregarGraficos(){
+ if(typeof carregarBibliotecasEtiqueta==='function')await carregarBibliotecasEtiqueta();
+ if(!window.QRCode||!window.JsBarcode)throw new Error('Bibliotecas de QR Code ou código de barras indisponíveis.');
+}
+function tercBarcodeFormato(x){
+ const cod=String(x.codigo_barras||x.codigo||'').replace(/\s/g,'');
+ if(/^\d{13}$/.test(cod))return 'EAN13';
+ if(/^\d{8}$/.test(cod))return 'EAN8';
+ return 'CODE128';
+}
+function tercGerarGraficos(){
+ const url=(typeof ETIQUETA_INSTAGRAM_URL!=='undefined'?ETIQUETA_INSTAGRAM_URL:'https://www.instagram.com/sofisticatto.cosmeticos/');
+ const logo=(typeof logoEtiquetaUrl==='function'?logoEtiquetaUrl():'')||'';
+ const x=tercAtual;
+ document.querySelectorAll('#tercPreview .tercQrReal').forEach(el=>{
+  el.innerHTML='';
+  new QRCode(el,{text:url,width:110,height:110,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+ });
+ document.querySelectorAll('#tercPreview .tercCodigoSvg').forEach(el=>{
+  try{JsBarcode(el,String(x.codigo_barras||x.codigo).trim(),{format:tercBarcodeFormato(x),displayValue:true,fontSize:15,height:62,width:1.65,margin:0,textMargin:3});}
+  catch(e){el.outerHTML='<div style="color:#b00">Código de barras inválido</div>';}
+ });
+ document.querySelectorAll('#tercPreview .tercLogoReal').forEach(el=>{if(logo||x.imagem_url){el.src=x.imagem_url||logo;el.style.display='block';}});
+}
+function tercFolhaPronta(){
+ const el=tercId('tercPreview').querySelector('.tercFolha');
+ if(!el)return '';
+ const clone=el.cloneNode(true);
+ clone.querySelectorAll('.tercQrReal').forEach(q=>{
+  const canvas=q.querySelector('canvas'),img=q.querySelector('img');
+  if(canvas){const foto=document.createElement('img');foto.src=canvas.toDataURL('image/png');foto.className='tercQrImagem';q.replaceChildren(foto);}
+  else if(img){const foto=img.cloneNode(true);foto.className='tercQrImagem';q.replaceChildren(foto);}
+ });
+ return clone.outerHTML;
+}
 function tercBlocoEtiqueta(x,unidades){
- const v=tercCamposVariaveis(),logo=x.imagem_url?`<img src="${tercEscape(x.imagem_url)}" style="max-width:45%;max-height:19mm;object-fit:contain">`:`<div style="font-size:5mm;color:#554b92;font-style:italic">Sofisticatto<small style="display:block;font-size:2mm;letter-spacing:2px">COSMÉTICOS</small></div>`;
- const barcode=tercEscape(x.codigo_barras||x.codigo);
- return `<div class="tercBloco"><div class="tercTopo">${logo}<div class="tercQr">INSTAGRAM<br>▦</div></div>
+ const v=tercCamposVariaveis();
+ return `<div class="tercBloco"><div class="tercTopo"><img class="tercLogoReal" alt="Sofisticatto" style="display:none"><div class="tercInstagram"><div class="tercQrReal"></div><span class="tercQrTexto">INSTAGRAM</span></div></div>
  <div class="tercProduto">${tercEscape(x.descricao)}</div>
- <div class="tercDetalhes">LOTE: ${tercEscape(v.lote)}<br>FAB: ${tercEscape(v.fab)}<br>VAL: ${tercEscape(v.val)}<br>CONTÉM ${tercEscape(unidades)} UN.</div>
- <div class="tercRodape">CÓDIGO: ${tercEscape(x.codigo)}<div class="tercBarras">${barcode}</div></div></div>`;
+ <div class="tercDetalhes">LOTE: <b>${tercEscape(v.lote)}</b><br>FAB: <b>${tercEscape(v.fab)}</b><br>VAL: <b>${tercEscape(v.val)}</b><br>CONTÉM <b>${tercEscape(unidades)}</b> UN.</div>
+ <div class="tercRodape">CÓDIGO: ${tercEscape(x.codigo)}<svg class="tercCodigoSvg" xmlns="http://www.w3.org/2000/svg"></svg></div></div>`;
 }
 function tercEstilos(){
- return `.tercFolha{width:150mm;height:100mm;display:flex;background:#fff;color:#000;font-family:Arial,sans-serif;box-sizing:border-box;padding:2mm;overflow:hidden}
- .tercBloco{flex:1;min-width:0;border:0.35mm solid #111;display:flex;flex-direction:column;overflow:hidden;padding:2mm}
- .tercTopo{height:28%;display:flex;align-items:center;justify-content:space-around}
- .tercQr{font-size:2.8mm;text-align:center;font-weight:bold}
- .tercProduto{font-size:5mm;font-weight:800;text-align:center;min-height:15%;display:flex;align-items:center;justify-content:center;overflow-wrap:anywhere}
- .tercDetalhes{font-size:4.2mm;line-height:1.6;flex:1}
- .tercRodape{border-top:.3mm solid #111;font-size:3.3mm;padding-top:1mm}
- .tercBarras{font-family:monospace;font-size:5mm;letter-spacing:1mm;text-align:center;border-top:3mm repeating-linear-gradient(90deg,#111 0mm,#111 .5mm,#fff .5mm,#fff 1mm);padding-top:2mm;margin:1mm 2mm 0;overflow:hidden;white-space:nowrap}
+ return `@page{size:150mm 100mm;margin:0}
+ *{box-sizing:border-box}
+ .tercFolha{width:150mm;height:100mm;display:flex;background:#fff;color:#000;font-family:Arial,sans-serif;padding:2mm;overflow:hidden}
+ .tercBloco{flex:1;min-width:0;border:.4mm solid #111;display:flex;flex-direction:column;overflow:hidden;padding:2mm}
+ .tercTopo{height:34%;display:flex;align-items:center;justify-content:space-around;gap:1mm}
+ .tercLogoReal{width:58%;max-height:23mm;object-fit:contain}
+ .tercInstagram{display:flex;flex-direction:column;align-items:center;justify-content:center;width:36%}
+ .tercQrReal{width:22mm;height:22mm;display:flex;align-items:center;justify-content:center}
+ .tercQrReal canvas,.tercQrReal img,.tercQrImagem{width:22mm!important;height:22mm!important;object-fit:contain}
+ .tercQrTexto{font-size:2.7mm;font-weight:bold;letter-spacing:.7mm;margin-top:1mm}
+ .tercProduto{font-size:4.3mm;font-weight:800;text-align:center;min-height:15%;display:flex;align-items:center;justify-content:center;overflow-wrap:anywhere}
+ .tercDetalhes{font-size:4mm;line-height:1.6;flex:1}
+ .tercRodape{border-top:.3mm solid #111;font-size:3.2mm;padding-top:1mm;height:25mm;overflow:hidden}
+ .tercCodigoSvg{display:block;width:90%;height:20mm;margin:1mm auto 0;max-width:100%}
  .tercDupla .tercBloco{width:50%}
- @media print{@page{size:150mm 100mm;margin:0}body{margin:0}.tercFolha{break-after:page;page-break-after:always}}
+ @media print{html,body{width:150mm;margin:0;padding:0}.tercFolha{break-after:page;page-break-after:always}.tercFolha:last-child{break-after:auto;page-break-after:auto}}
  `;
 }
 function tercFolhaHTML(){
  const x=tercAtual,v=tercCamposVariaveis(),dupla=(tercId('tercModeloImpressao')?.value||x.modelo)==='dupla';
  return `<div class="tercFolha ${dupla?'tercDupla':''}">${tercBlocoEtiqueta(x,v.unidades)}${dupla?tercBlocoEtiqueta(x,v.unidades2):''}</div>`;
 }
-function renderEtiquetaTerc(){
+async function renderEtiquetaTerc(){
  if(!tercAtual)return;
  const x=tercAtual,modelo=tercId('tercModeloImpressao');
  if(modelo&&modelo.dataset.codigo!==x.codigo){modelo.value=x.modelo||'inteira';modelo.dataset.codigo=x.codigo;}
  const pv=tercId('tercPreview');
  pv.style.width='min(100%,750px)';pv.style.height='auto';pv.style.aspectRatio='3 / 2';pv.style.padding='0';
- pv.innerHTML=`<style>${tercEstilos()}#tercPreview .tercFolha{width:100%;height:100%;font-size:inherit}#tercPreview .tercBloco{padding:1.5%}#tercPreview .tercProduto{font-size:clamp(10px,1.5vw,20px)}#tercPreview .tercDetalhes{font-size:clamp(9px,1.2vw,16px)}#tercPreview .tercRodape{font-size:clamp(8px,1vw,14px)}#tercPreview .tercBarras{font-size:clamp(10px,1.4vw,18px)}#tercPreview .tercTopo{font-size:clamp(10px,1.5vw,20px)}</style>${tercFolhaHTML()}`;
- tercId('tercInfoModelo').textContent=`150 × 100 mm • ${x.grupo||'Sem grupo'} • layout aproximado dos modelos BarTender`;
+ pv.innerHTML=`<style>${tercEstilos()}#tercPreview .tercFolha{width:100%;height:100%}#tercPreview .tercBloco{padding:1.5%}#tercPreview .tercProduto{font-size:clamp(10px,1.5vw,20px)}#tercPreview .tercDetalhes{font-size:clamp(9px,1.2vw,16px)}#tercPreview .tercRodape{font-size:clamp(8px,1vw,14px)}</style>${tercFolhaHTML()}`;
+ tercId('tercInfoModelo').textContent=`150 × 100 mm • ${x.grupo||'Sem grupo'} • QR Code e código de barras reais`;
+ try{await tercCarregarGraficos();tercGerarGraficos();}catch(e){tercMensagem('Falha ao carregar gráficos: '+e.message);}
 }
-function imprimirEtiquetaTerc(){
+async function imprimirEtiquetaTerc(){
  if(!tercAtual)return tercMensagem('Busque uma etiqueta antes de imprimir.');
- const n=Math.min(200,Math.max(1,Number(tercId('tercQtd').value)||1));
- const page=`<!doctype html><html><head><meta charset="utf-8"><title>Etiqueta ${tercEscape(tercAtual.codigo)}</title><style>${tercEstilos()}@media screen{body{background:#ddd}.tercFolha{margin:10px auto;box-shadow:0 1px 8px #999}}</style></head><body>${Array.from({length:n},()=>tercFolhaHTML()).join('')}<script>window.onload=()=>window.print()<\/script></body></html>`;
- const win=window.open('','_blank');if(!win)return tercMensagem('Permita pop-ups para imprimir.');win.document.open();win.document.write(page);win.document.close();
+ try{
+  await renderEtiquetaTerc();
+  const folha=tercFolhaPronta();if(!folha)return tercMensagem('Não foi possível montar a etiqueta.');
+  const n=Math.min(200,Math.max(1,Number(tercId('tercQtd').value)||1));
+  const page=`<!doctype html><html><head><meta charset="utf-8"><title>Etiqueta ${tercEscape(tercAtual.codigo)}</title><style>${tercEstilos()}@media screen{body{background:#ddd}.tercFolha{margin:10px auto;box-shadow:0 1px 8px #999}}</style></head><body>${Array(n).fill(folha).join('')}<script>window.onload=async()=>{await Promise.all(Array.from(document.images).map(i=>i.decode().catch(()=>{})));window.print()}<\/script></body></html>`;
+  const win=window.open('','_blank');if(!win)return tercMensagem('Permita pop-ups para imprimir.');
+  win.document.open();win.document.write(page);win.document.close();
+ }catch(e){tercMensagem('Erro ao imprimir: '+e.message);}
 }
