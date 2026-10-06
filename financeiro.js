@@ -3976,9 +3976,16 @@ function selecionarClienteEmailV324(id){
   document.getElementById("emailV324Cpf").textContent=c.cpf_cnpj||"Não informado";
   document.getElementById("emailV324Emails").value=(c.emails||[]).join("; ");
   const v=emailVendedoras.find(x=>String(x.id)===String(c.vendedora_id));
-  document.getElementById("emailV324VendNome").textContent=v?.nome||"Não vinculada";
-  document.getElementById("emailV324VendEmail").value=v?.email||"";
+  const sel=document.getElementById("emailV326VendSelect");
+  if(sel)sel.value=v?.id||"";
+  selecionarVendedoraEmailV326();
+}
+// V326: escolha explícita da vendedora, carregada do cadastro existente.
+function selecionarVendedoraEmailV326(){
+  const id=document.getElementById("emailV326VendSelect")?.value||"";
+  const v=emailVendedoras.find(x=>String(x.id)===String(id));
   document.getElementById("emailV324VendedoraId").value=v?.id||"";
+  document.getElementById("emailV324VendEmail").value=v?.email||"";
 }
 function fecharConferenciaEmailV324(){document.getElementById("emailModalV324")?.remove()}
 function abrirConferenciaEmailV324(indice){
@@ -3995,7 +4002,11 @@ function abrirConferenciaEmailV324(indice){
     <input type="hidden" id="emailV324ClienteId"><input type="hidden" id="emailV324VendedoraId">
     <div style="border-top:1px solid #ddd;padding-top:12px;"><b>Cliente selecionado:</b> <span id="emailV324Nome">—</span><br><b>CPF/CNPJ:</b> <span id="emailV324Cpf">—</span></div>
     <label style="display:block;margin-top:10px;"><b>E-mail(s) do cliente</b></label><textarea id="emailV324Emails" rows="2" style="width:100%;box-sizing:border-box;padding:9px;"></textarea>
-    <div style="margin-top:12px;"><b>Vendedora:</b> <span id="emailV324VendNome">—</span></div>
+    <label style="display:block;margin-top:12px;"><b>Vendedora vinculada ao cliente</b></label>
+    <select id="emailV326VendSelect" onchange="selecionarVendedoraEmailV326()" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:9px;">
+      <option value="">Selecione uma vendedora</option>
+      ${emailVendedoras.filter(v=>v.ativo!==false).map(v=>`<option value="${escaparHtmlEmail(String(v.id))}">${escaparHtmlEmail(v.nome||'Sem nome')}</option>`).join('')}
+    </select>
     <label style="display:block;margin-top:6px;"><b>E-mail da vendedora / CC</b></label><input id="emailV324VendEmail" style="width:100%;box-sizing:border-box;padding:9px;">
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;"><button class="btn" onclick="fecharConferenciaEmailV324()">Cancelar</button><button class="btn verde" onclick="salvarConferenciaEmailV324()">Salvar no cadastro</button></div>
   </div>`;
@@ -4009,7 +4020,9 @@ async function salvarConferenciaEmailV324(){
   const id=document.getElementById("emailV324ClienteId")?.value,c=emailClientes.find(x=>String(x.id)===String(id));
   if(!item||!c)return alert("Selecione o cliente correto antes de salvar.");
   const emails=separarEmailsEmail(document.getElementById("emailV324Emails").value),vendId=document.getElementById("emailV324VendedoraId").value,vendEmail=document.getElementById("emailV324VendEmail").value.trim();
-  const rc=await banco.from("email_clientes").update({emails,atualizado_em:new Date().toISOString()}).eq("id",c.id);
+  if(!vendId)return alert("Selecione a vendedora correta antes de salvar.");
+  if(usuarioEhVendedoraRastreio() && !idsVendedoraUsuario().has(String(vendId)))return alert("Você só pode vincular clientes à sua vendedora.");
+  const rc=await banco.from("email_clientes").update({emails,vendedora_id:vendId,atualizado_em:new Date().toISOString()}).eq("id",c.id);
   if(rc.error)return alert("Erro ao salvar e-mail do cliente: "+rc.error.message);
   if(vendId){
     const rv=await banco.from("email_vendedoras").update({email:vendEmail,atualizado_em:new Date().toISOString()}).eq("id",vendId);
@@ -7621,6 +7634,13 @@ async function imprimirBoletosFiltradosV178(){
 // V323 — Salvar PDF por filtro.
 // Usa somente boletos já emitidos e os filtros atuais do Histórico.
 // Parcelas do mesmo banco + cliente + pedido/NF são reunidas em um único PDF.
+// V325 — padrão único de nomes de PDFs, sem alterar a emissão ou o conteúdo.
+function nomePadraoBoletoV325(cliente,pedido,parcela,total){
+  const nome=String(cliente||'CLIENTE').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[<>:"/\\|?*\x00-\x1F]/g,' ').replace(/\s+/g,' ').trim();
+  const numero=String(pedido||'SEM NUMERO').replace(/[<>:"/\\|?*\x00-\x1F]/g,' ').trim();
+  const sufixo=Number(total)>1&&Number(parcela)>0?` - ${String(parcela).padStart(2,'0')}de${String(total).padStart(2,'0')}`:'';
+  return `${nome} - Boleto ${numero}${sufixo}.pdf`;
+}
 function nomeSeguroPdfV323(v){
   return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .replace(/[<>:"/\\|?*\x00-\x1F]/g,' ').replace(/\s+/g,' ').trim().slice(0,120)||'BOLETO';
@@ -7665,7 +7685,7 @@ async function salvarPdfPorFiltroV323(){
         }
         const final=blobs.length===1?blobs[0]:await mesclarPdfsBb(blobs);
         const cliente=nomeSeguroPdfV323(base.cliente_nome||'CLIENTE'), pedido=nomeSeguroPdfV323(base.numero_nf||base.referencia||'SEM PEDIDO');
-        const nome=`${cliente} - ${pedido} - ${banco==='bb'?'BB':'BRADESCO'}${regs.length>1?` - ${regs.length} parcelas`:''}.pdf`;
+        const nome=nomePadraoBoletoV325(base.cliente_nome,base.numero_nf||base.referencia);
         await salvarBlobNaPastaCobrancaMassa(pasta,nome,final);
         salvos++;boletos+=regs.length;
       }catch(e){falhas.push(`${base.cliente_nome||'Cliente'} • ${base.numero_nf||base.referencia||'sem pedido'}: ${e?.message||e}`);}
@@ -9329,11 +9349,9 @@ async function gerarPdfImpressaoNormalBb(registros){
 }
 function nomePdfImpressaoNormalBb(registros){
   const r=(registros||[])[0]||{};
-  const n=String(r.cliente_nome||'CLIENTE').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,' ');
-  const nf=String(r.numero_nf||r.numero_titulo||'BOLETOS').replace(/[^a-zA-Z0-9_-]/g,'');
-  const qtd=(registros||[]).length;
-  return `${n||'CLIENTE'} - ${nf||'BOLETOS'} - Impressao Normal${qtd>1?' - '+qtd+' parcelas':''}.pdf`;
+  return nomePadraoBoletoV325(r.cliente_nome,r.numero_nf||r.numero_titulo);
 }
+
 async function abrirImpressaoNormalBbRegistro(id){
   const x=(cobrancasBancarias||[]).find(a=>String(a.id)===String(id))||(cobrancaMassaPreparadas||[]).find(a=>String(a.id)===String(id));
   if(!x)return alert('Cobrança não encontrada.');
@@ -9681,9 +9699,9 @@ async function obterBlobBoletoBradescoMassa(ret){
   return null;
 }
 function nomeArquivoBoletoMassa(g,p){
-  const seguro=String(g.rel.nome||'CLIENTE').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,' ');
-  const parc=`${String(p.parcela_numero||1).padStart(2,'0')}de${String(p.parcela_total||g.parcelas.length).padStart(2,'0')}`;
-  return `${seguro} - ${parc} - ${Number(p.valor||0).toFixed(2).replace('.',',')}.pdf`;
+  // Durante a emissão, cada parcela Bradesco é salva separadamente para
+  // preservar o fluxo validado. O botão por filtro reúne as parcelas depois.
+  return nomePadraoBoletoV325(g.rel.nome,p.numero_nf||g.rel.numero_nf||g.rel.numero_titulo||p.numero_titulo,p.parcela_numero,p.parcela_total||g.parcelas.length);
 }
 
 // V282 — gera automaticamente o MESMO boleto exibido pelo botão "Visualizar boleto"
