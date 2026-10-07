@@ -77,10 +77,18 @@ function tercFolhaPronta(){
  const el=tercId('tercPreview').querySelector('.tercFolha');
  if(!el)return '';
  const clone=el.cloneNode(true);
- clone.querySelectorAll('.tercQrReal').forEach(q=>{
-  const canvas=q.querySelector('canvas'),img=q.querySelector('img');
-  if(canvas){const foto=document.createElement('img');foto.src=canvas.toDataURL('image/png');foto.className='tercQrImagem';q.replaceChildren(foto);}
-  else if(img){const foto=img.cloneNode(true);foto.className='tercQrImagem';q.replaceChildren(foto);}
+ clone.querySelectorAll('.tercQrReal').forEach((q,index)=>{
+  // QRCode.js gera um canvas oculto e uma imagem visível. Em alguns navegadores
+  // o canvas oculto fica vazio; priorize a imagem pronta da prévia original.
+  const original=el.querySelectorAll('.tercQrReal')[index];
+  const visivel=original?.querySelector('img[src^="data:image/"]');
+  const canvas=original?.querySelector('canvas');
+  let uri=visivel?.getAttribute('src')||'';
+  if(!uri&&canvas){try{uri=canvas.toDataURL('image/png');}catch(e){}}
+  if(!uri)throw new Error('QR Code não foi gerado. Tente novamente.');
+  const foto=document.createElement('img');
+  foto.src=uri;foto.alt='QR Code Instagram';foto.className='tercQrImagem';
+  q.replaceChildren(foto);
  });
  // SVGs are serialized with their full namespace and are self-contained in the print window.
  clone.querySelectorAll('.tercCodigoSvg').forEach(svg=>{
@@ -107,10 +115,10 @@ function tercEstilos(){
  .tercBloco{flex:1;min-width:0;border:.35mm solid #111;display:flex;flex-direction:column;overflow:hidden;padding:1.6mm}
  .tercTopo{height:29mm;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:1mm;padding:0 1mm}
  .tercLogoReal{width:55%;height:21mm;object-fit:contain;object-position:center}
- .tercInstagram{width:39%;height:28mm;display:flex;align-items:flex-start;justify-content:flex-end;gap:.7mm;overflow:visible}
+ .tercInstagram{width:39%;height:25mm;display:flex;align-items:flex-start;justify-content:flex-end;gap:.7mm;overflow:visible}
  .tercQrInsta{font-size:3.3mm;font-weight:900;letter-spacing:0;writing-mode:vertical-rl;text-orientation:upright;line-height:1;align-self:center;white-space:nowrap}
- .tercQrCentro{width:23mm;height:28mm;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;position:relative;border-top:.6mm solid #111;border-right:.6mm solid #111;padding:1mm .8mm 0 0}
- .tercQrCentro:after{content:'';position:absolute;right:0;bottom:4.3mm;width:5mm;border-bottom:.6mm solid #111}
+ .tercQrCentro{width:23mm;height:24mm;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;position:relative;border-top:.6mm solid #111;border-right:.6mm solid #111;padding:1mm .8mm 0 0}
+ .tercQrCentro:after{content:'';position:absolute;right:0;top:23.5mm;width:5mm;border-bottom:.6mm solid #111}
  .tercQrReal{width:21mm;height:21mm;display:flex;align-items:center;justify-content:center;flex-shrink:0}
  .tercQrReal canvas,.tercQrReal img,.tercQrImagem{width:21mm!important;height:21mm!important;object-fit:contain}
  .tercQrGram{font-size:3.1mm;font-weight:900;letter-spacing:.8mm;line-height:1.3;white-space:nowrap}
