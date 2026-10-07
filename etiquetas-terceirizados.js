@@ -115,13 +115,13 @@ function tercEstilos(){
  .tercBloco{flex:1;min-width:0;border:.35mm solid #111;display:flex;flex-direction:column;overflow:hidden;padding:1.6mm}
  .tercTopo{height:29mm;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:1mm;padding:0 1mm}
  .tercLogoReal{width:55%;height:21mm;object-fit:contain;object-position:center}
- .tercInstagram{width:39%;height:25mm;display:flex;align-items:flex-start;justify-content:flex-end;gap:.7mm;overflow:visible}
- .tercQrInsta{font-size:3.3mm;font-weight:900;letter-spacing:0;writing-mode:vertical-rl;text-orientation:upright;line-height:1;align-self:flex-start;margin-top:1mm;white-space:nowrap;flex-shrink:0}
- .tercQrCentro{width:23mm;height:24mm;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;position:relative;border-top:.6mm solid #111;border-right:.6mm solid #111;padding:1mm .8mm 0 0}
+ .tercInstagram{width:39%;height:25mm;display:flex;align-items:flex-start;justify-content:flex-end;gap:1.1mm;overflow:visible}
+ .tercQrInsta{font-size:3.3mm;font-weight:900;letter-spacing:0;writing-mode:vertical-rl;text-orientation:upright;line-height:1;align-self:flex-start;margin-top:.1mm;white-space:nowrap;flex-shrink:0;position:relative;z-index:3;background:#fff;padding-right:.35mm
+ .tercQrCentro{width:22mm;height:24mm;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;position:relative;border-top:.6mm solid #111;border-right:.6mm solid #111;padding:1mm .8mm 0 0}
  .tercQrCentro:after{content:'';position:absolute;right:-.6mm;bottom:0;width:5.2mm;height:.6mm;background:#111}
- .tercQrReal{width:21mm;height:21mm;display:flex;align-items:center;justify-content:center;flex-shrink:0}
- .tercQrReal canvas,.tercQrReal img,.tercQrImagem{width:21mm!important;height:21mm!important;object-fit:contain}
- .tercQrGram{font-size:3.1mm;font-weight:900;letter-spacing:1.35mm;line-height:1.1;white-space:nowrap;align-self:flex-start;margin-left:-4.7mm;position:relative;z-index:1;background:#fff;padding-right:.7mm;margin-top:-.2mm}
+ .tercQrReal{width:20mm;height:20mm;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+ .tercQrReal canvas,.tercQrReal img,.tercQrImagem{width:20mm!important;height:20mm!important;object-fit:contain}
+ .tercQrGram{font-size:3.1mm;font-weight:900;letter-spacing:1.35mm;line-height:1.1;white-space:nowrap;align-self:flex-start;margin-left:-4.1mm;position:relative;z-index:1;background:#fff;padding-right:.7mm;margin-top:-.2mm}
  .tercProduto{font-size:3.8mm;font-weight:800;text-align:center;height:12mm;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow-wrap:anywhere;line-height:1.22}
  .tercDetalhes{font-size:3.8mm;line-height:1.62;flex:1;padding-left:.6mm}
  .tercRodape{border-top:.35mm solid #111;font-size:3.3mm;padding-top:1mm;height:29mm;overflow:hidden;flex-shrink:0}
@@ -140,7 +140,8 @@ async function renderEtiquetaTerc(){
  if(modelo&&modelo.dataset.codigo!==x.codigo){modelo.value=x.modelo||'inteira';modelo.dataset.codigo=x.codigo;}
  const pv=tercId('tercPreview');
  pv.style.width='min(100%,750px)';pv.style.height='auto';pv.style.aspectRatio='3 / 2';pv.style.padding='0';
- pv.innerHTML=`<style>${tercEstilos()}#tercPreview .tercFolha{width:100%;height:100%}#tercPreview .tercBloco{padding:1.5%}</style>${tercFolhaHTML()}`;
+ pv.innerHTML=`<style>${tercEstilos()}#tercPreview .tercFolha{width:150mm;height:100mm;transform-origin:top left;transform:scale(var(--tercPreviewScale,1))}</style>${tercFolhaHTML()}`;
+ const escala=pv.clientWidth/(150*96/25.4);pv.style.setProperty('--tercPreviewScale',String(escala));
  tercId('tercInfoModelo').textContent=`150 × 100 mm • ${x.grupo||'Sem grupo'} • QR Code e código de barras reais`;
  try{await tercCarregarGraficos();tercGerarGraficos();}catch(e){tercMensagem('Falha ao carregar gráficos: '+e.message);}
 }
