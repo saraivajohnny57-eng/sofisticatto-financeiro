@@ -121,7 +121,7 @@ function tercEstilos(){
  .tercQrCentro:after{content:'';position:absolute;right:-.6mm;bottom:0;width:3.8mm;height:.6mm;background:#111}
  .tercQrReal{width:21mm;height:21mm;display:flex;align-items:center;justify-content:center;flex-shrink:0}
  .tercQrReal canvas,.tercQrReal img,.tercQrImagem{width:21mm!important;height:21mm!important;object-fit:contain}
- .tercQrGram{font-size:3.1mm;font-weight:900;letter-spacing:1.35mm;line-height:1.1;white-space:nowrap;align-self:flex-start;margin-left:-5.0mm;position:relative;z-index:1;background:#fff;padding-right:.7mm;margin-top:-.2mm}
+ .tercQrGram{font-size:3.1mm;font-weight:900;letter-spacing:1.35mm;line-height:1.1;white-space:nowrap;align-self:flex-start;margin-left:-2.0mm;position:relative;z-index:1;background:#fff;padding-right:.7mm;margin-top:-.2mm}
  .tercProduto{font-size:3.8mm;font-weight:800;text-align:center;height:12mm;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow-wrap:anywhere;line-height:1.22}
  .tercDetalhes{font-size:3.8mm;line-height:1.62;flex:1;padding-left:.6mm}
  .tercRodape{border-top:.35mm solid #111;font-size:3.3mm;padding-top:1mm;height:29mm;overflow:hidden;flex-shrink:0}
