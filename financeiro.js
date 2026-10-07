@@ -10738,3 +10738,65 @@ async function diagnosticarTituloExternoBbV297(){
 // V298 — mapeamento real BB externo: nomeSacadoCobranca, numeroInscricaoSacadoCobranca, numeroTituloCedenteCobranca, dataVencimentoTituloCobranca e valorOriginalTituloCobranca.
 
 // V316 — filtro de vencimento aplicado aos relatórios completos e individuais BB/Bradesco.
+
+
+// V343 — vínculo comercial compartilhado entre cotação e rastreamento.
+async function v343CarregarComercial(){
+  if(!(emailVendedoras||[]).length)await carregarVendedorasEmail();
+  if(!(emailClientes||[]).length)await carregarClientesEmail();
+}
+function v343Cliente(nome,id){
+  const normal=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  return (emailClientes||[]).find(c=>id&&String(c.id)===String(id)) || (emailClientes||[]).find(c=>normal(c.nome)===normal(nome)) || null;
+}
+function v343NomeVendedora(cliente){return (emailVendedoras||[]).find(v=>String(v.id)===String(cliente?.vendedora_id||''))?.nome||'';}
+async function v343EscolherVendedora(cliente,{obrigatoria=false}={}){
+  if(!cliente?.id){if(obrigatoria)alert('Selecione um cliente cadastrado para vincular a vendedora.');return null;}
+  await v343CarregarComercial();
+  const lista=(emailVendedoras||[]).filter(v=>v.id&&v.nome);
+  if(!lista.length){alert('Nenhuma vendedora cadastrada. Cadastre uma na aba Vendedoras.');return null;}
+  return new Promise(resolve=>{
+    const fundo=document.createElement('div');fundo.style.cssText='position:fixed;inset:0;z-index:999999;background:#0008;display:flex;align-items:center;justify-content:center;padding:16px';
+    const painel=document.createElement('div');painel.style.cssText='background:white;border-radius:16px;padding:24px;max-width:480px;width:100%;box-shadow:0 15px 55px #0004;color:#30285c';
+    const titulo=document.createElement('h3');titulo.textContent='Vendedora do cliente';titulo.style.margin='0 0 10px';
+    const info=document.createElement('p');info.textContent=cliente.nome||'Cliente';
+    const select=document.createElement('select');select.style.cssText='width:100%;padding:12px;border:1px solid #b8afe3;border-radius:9px;margin:8px 0 18px';
+    select.appendChild(new Option('Selecione uma vendedora',''));
+    lista.forEach(v=>select.appendChild(new Option(v.nome,String(v.id))));
+    select.value=String(cliente.vendedora_id||'');
+    const acoes=document.createElement('div');acoes.style.cssText='display:flex;gap:10px;justify-content:flex-end';
+    const cancelar=document.createElement('button');cancelar.textContent='Cancelar';cancelar.className='btn';
+    const salvar=document.createElement('button');salvar.textContent='Salvar vendedora';salvar.className='btn azul';
+    const encerrar=v=>{fundo.remove();resolve(v)};
+    cancelar.onclick=()=>encerrar(null);
+    salvar.onclick=async()=>{
+      if(!select.value){alert('Escolha uma vendedora cadastrada.');return;}
+      salvar.disabled=true;salvar.textContent='Salvando...';
+      try{
+        const r=await banco.from('email_clientes').update({vendedora_id:select.value}).eq('id',cliente.id).select('id,vendedora_id').single();
+        if(r.error)throw r.error;
+        cliente.vendedora_id=select.value;
+        const local=(emailClientes||[]).find(c=>String(c.id)===String(cliente.id));if(local)local.vendedora_id=select.value;
+        encerrar(select.value);
+      }catch(e){alert('Não foi possível salvar a vendedora: '+e.message);salvar.disabled=false;salvar.textContent='Salvar vendedora';}
+    };
+    acoes.append(cancelar,salvar);painel.append(titulo,info,select,acoes);fundo.append(painel);document.body.append(fundo);
+  });
+}
+async function v343GarantirVendedoraCotacao(nome,id){
+  await v343CarregarComercial();
+  const cliente=v343Cliente(nome,id);
+  if(!cliente){alert('Selecione um cliente cadastrado antes de realizar a cotação.');return null;}
+  if(!cliente.vendedora_id){const escolhido=await v343EscolherVendedora(cliente,{obrigatoria:true});if(!escolhido)return null;}
+  v343AtualizarIndicadorCotacao();return cliente;
+}
+function v343AtualizarIndicadorCotacao(){
+  const el=document.getElementById('v343VendedoraCotacao');if(!el)return;
+  const cliente=v343Cliente(document.getElementById('freteClienteNome')?.value,document.getElementById('freteCliente')?.value);
+  el.textContent=cliente?(v343NomeVendedora(cliente)||'Não vinculada — selecione uma vendedora'):'Selecione um cliente';
+}
+async function v343EditarVendedoraCotacao(){
+  await v343CarregarComercial();const cliente=v343Cliente(document.getElementById('freteClienteNome')?.value,document.getElementById('freteCliente')?.value);
+  if(!cliente)return alert('Selecione um cliente cadastrado.');
+  await v343EscolherVendedora(cliente);v343AtualizarIndicadorCotacao();
+}

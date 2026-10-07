@@ -3595,6 +3595,21 @@ async function abrirLinhaTempoRastreio(id){
     const nome=rastro.frete_transportadoras?.nome||"Transportadora";
     document.getElementById("rastTimelineTitulo").textContent=rastro.parceiro_nome||"Linha do tempo do rastreio";
     document.getElementById("rastTimelineMeta").innerHTML=`${escaparHtmlEmail(nome)} &nbsp;•&nbsp; NF ${escaparHtmlEmail(rastro.numero_nfe||"—")} &nbsp;•&nbsp; ${escaparHtmlEmail(rastro.protocolo_rastreio||rastro.numero_cte||"sem protocolo")}`;
+    // V343 — consulta cadastro sem alterar o registro de rastreio.
+    try{
+      await v343CarregarComercial();
+      const cli=v343Cliente(rastro.parceiro_nome);
+      const meta=document.getElementById('rastTimelineMeta');
+      const bloco=document.createElement('span');bloco.style.marginLeft='10px';
+      const atualizar=()=>{bloco.textContent=' • Vendedora: '+(cli?v343NomeVendedora(cli)||'Não vinculada':'Cliente não localizado');};
+      atualizar();meta.append(bloco);
+      if(cli && !cli.vendedora_id){
+        const botao=document.createElement('button');botao.className='btn azul';botao.style.cssText='margin-left:8px;padding:5px 9px;font-size:12px';botao.textContent='Selecionar vendedora';
+        botao.onclick=async()=>{if(await v343EscolherVendedora(cli)){atualizar();botao.remove();}};
+        meta.append(botao);
+      }
+    }catch(e){console.warn('Vendedora do rastreio:',e);}
+
     let eventos=[];let avisoAoVivo="";
     const vivo=await atualizarTimelineAoAbrir(rastro,nome);
     if(vivo?.erroTimeline)avisoAoVivo=vivo.erroTimeline;

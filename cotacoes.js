@@ -1213,6 +1213,11 @@ async function salvarCotacaoFrete(statusForcado = null){
     return;
   }
 
+  // A cotação só prossegue após vincular a vendedora ao cadastro do cliente.
+  const comercial=await v343GarantirVendedoraCotacao(dados.cliente_nome,dados.cliente_id);
+  if(!comercial)return null;
+  dados.cliente_id=comercial.id;
+
   const decisaoCliente = await perguntarAtualizacaoClienteFrete(dados);
 
   if(decisaoCliente?.acao==="cancelar" || decisaoCliente?.acao==="erro"){
