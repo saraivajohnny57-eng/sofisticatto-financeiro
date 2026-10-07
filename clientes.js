@@ -149,7 +149,6 @@ function selecionarClienteFretePorId(id){
   }
 
   preencherClienteFrete();
-  if(typeof v343AtualizarIndicadorCotacao==='function')v343AtualizarIndicadorCotacao();
 }
 
 async function buscarClienteFreteNoBanco(){
@@ -266,7 +265,6 @@ function preencherClienteFrete(){
   };
 
   set("freteClienteNome", cliente.nome);
-  if(typeof v343AtualizarIndicadorCotacao==='function')v343AtualizarIndicadorCotacao();
   set("freteCpfCnpj", cliente.cpf_cnpj || cliente.documento || cliente.cnpj_cpf);
   set("freteCep", cliente.cep);
   set("freteCidade", cliente.cidade);

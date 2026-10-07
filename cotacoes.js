@@ -808,7 +808,39 @@ async function selecionarOpcaoCorreios(chave,indice){
 }
 
 
-function gerarCotacoesFrete(){
+async function garantirVendedoraFrete(dados){
+  let cliente=(typeof clienteFretePorId==='function'&&clienteFretePorId(dados.cliente_id))||(typeof clienteFretePorNome==='function'&&clienteFretePorNome(dados.cliente_nome));
+  if(!cliente?.id){alert('Selecione um cliente cadastrado para vincular a vendedora.');return false;}
+  if(cliente.vendedora_id)return true;
+  if(typeof carregarVendedorasEmail==='function')await carregarVendedorasEmail();
+  const lista=(typeof emailVendedoras!=='undefined'?emailVendedoras:[]).filter(v=>v.id);
+  if(!lista.length){alert('Cadastre uma vendedora na aba Vendedoras antes de continuar.');return false;}
+  const id=await selecionarVendedoraSofisticatto('Selecione a vendedora para a cotação de '+dados.cliente_nome);
+  if(!id)return false;
+  const r=await banco.from('email_clientes').update({vendedora_id:id}).eq('id',cliente.id).select().single();
+  if(r.error){alert('Não foi possível salvar a vendedora: '+r.error.message);return false;}
+  if(typeof emailClientes!=='undefined'){const i=emailClientes.findIndex(x=>String(x.id)===String(cliente.id));if(i>=0)emailClientes[i]=r.data;}
+  return true;
+}
+async function selecionarVendedoraSofisticatto(titulo){
+  if(typeof carregarVendedorasEmail==='function'&&(!Array.isArray(emailVendedoras)||!emailVendedoras.length))await carregarVendedorasEmail();
+  const lista=(emailVendedoras||[]).filter(x=>x.id);
+  return new Promise(resolve=>{
+    const fundo=document.createElement('div');fundo.style.cssText='position:fixed;inset:0;background:#181331a8;z-index:200000;display:flex;align-items:center;justify-content:center;padding:15px';
+    const caixa=document.createElement('div');caixa.style.cssText='background:white;border-radius:16px;padding:22px;width:min(470px,95vw);color:#4d4694';
+    const h=document.createElement('h3');h.textContent=titulo;h.style.marginBottom='12px';
+    const busca=document.createElement('input');busca.placeholder='Pesquisar vendedora pelo nome';busca.style.marginBottom='8px';
+    const select=document.createElement('select');select.size=Math.min(7,Math.max(2,lista.length));select.style.cssText='width:100%;margin-bottom:15px';
+    function montar(){const q=busca.value.toLocaleLowerCase('pt-BR');select.replaceChildren();lista.filter(x=>String(x.nome||'').toLocaleLowerCase('pt-BR').includes(q)).forEach(x=>{const op=document.createElement('option');op.value=x.id;op.textContent=x.nome||'Sem nome';select.append(op);});}
+    busca.oninput=montar;montar();const acoes=document.createElement('div');acoes.style.cssText='display:flex;gap:8px;justify-content:flex-end';
+    const cancelar=document.createElement('button');cancelar.textContent='Cancelar';cancelar.className='btn roxo';
+    const salvar=document.createElement('button');salvar.textContent='Salvar vendedora';salvar.className='btn verde';
+    const fim=id=>{fundo.remove();resolve(id)};cancelar.onclick=()=>fim(null);salvar.onclick=()=>{if(!select.value)return alert('Escolha uma vendedora.');fim(select.value)};
+    acoes.append(cancelar,salvar);caixa.append(h,busca,select,acoes);fundo.append(caixa);document.body.append(fundo);
+  });
+}
+async function gerarCotacoesFrete(){
+  if(!await garantirVendedoraFrete(dadosFormularioFrete()))return;
   if(typeof validarCoberturaSelecionada==='function' && !validarCoberturaSelecionada()) return;
   const dados = dadosFormularioFrete();
 
@@ -1213,11 +1245,6 @@ async function salvarCotacaoFrete(statusForcado = null){
     return;
   }
 
-  // A cotação só prossegue após vincular a vendedora ao cadastro do cliente.
-  const comercial=await v343GarantirVendedoraCotacao(dados.cliente_nome,dados.cliente_id);
-  if(!comercial)return null;
-  dados.cliente_id=comercial.id;
-
   const decisaoCliente = await perguntarAtualizacaoClienteFrete(dados);
 
   if(decisaoCliente?.acao==="cancelar" || decisaoCliente?.acao==="erro"){
@@ -1228,6 +1255,7 @@ async function salvarCotacaoFrete(statusForcado = null){
     dados.cliente_id = decisaoCliente.cliente.id;
   }
 
+  if(!await garantirVendedoraFrete(dados))return;
   const cliente = clienteFretePorId(dados.cliente_id);
 
   const registro = {
