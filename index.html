@@ -33,7 +33,7 @@
 </div>
 
 <div class="sidebar">
-  <button type="button" id="toggleMenuSof" onclick="alternarMenuSof()" title="Recolher ou expandir menu" aria-label="Recolher ou expandir menu">☰ <span>Menu</span></button>
+  <button type="button" id="toggleMenuSof" onclick="alternarMenuSof()" title="Recolher ou expandir menu" aria-label="Recolher ou expandir menu"><span class="sof-hamburger" aria-hidden="true">☰</span> <span>Menu</span></button>
   <div>
     <div class="logo"><h1>Sofisticatto</h1><p>COSMÉTICOS</p></div>
     <div id="usuarioInfo" class="usuario-logado"></div>
@@ -43,17 +43,17 @@
       <div id="listaNotificacoes" style="max-height:230px;overflow:auto;margin-top:10px;"></div>
     </div>
     <div class="menu" style="margin-top:15px;">
-      <button id="btnDashboard" onclick="mostrarSecao('dashboard')">Dashboard</button>
-      <button id="btnRelatorios" onclick="mostrarSecao('relatorios')">Relatórios</button>
-      <button id="btnHistoricoFinanceiro" onclick="mostrarSecao('historico')">Histórico</button>
-      <button id="btnCorridas" onclick="mostrarSecao('corridas')" style="display:none;">🚚 Corridas <span id="badgeCorridasAlertas" class="badge-corridas">0</span></button>
-      <button id="btnEnvioDocumentos" onclick="mostrarSecao('envioDocumentos')" style="display:none;">Envio de Documentos</button>
-      <button id="btnIntegracaoBancaria" onclick="mostrarSecao('integracaoBancaria')" style="display:none;">🏦 Integração Bancária</button>
-      <button id="btnEtiquetasTerceirizados" onclick="mostrarSecao('etiquetasTerceirizados')" style="display:none;">🏷️ Etiquetas Terceirizados</button>
-      <button id="btnAdmin" onclick="mostrarSecao('admin')" style="display:none;">Admin</button>
+      <button title="Início" aria-label="Início" id="btnDashboard" onclick="mostrarSecao('dashboard')"><span class="sof-nav-icon" aria-hidden="true">⌂</span><span class="sof-nav-label">Início</span></button>
+      <button title="Relatórios" aria-label="Relatórios" id="btnRelatorios" onclick="mostrarSecao('relatorios')"><span class="sof-nav-icon" aria-hidden="true">▥</span><span class="sof-nav-label">Relatórios</span></button>
+      <button title="Histórico" aria-label="Histórico" id="btnHistoricoFinanceiro" onclick="mostrarSecao('historico')"><span class="sof-nav-icon" aria-hidden="true">◷</span><span class="sof-nav-label">Histórico</span></button>
+      <button title="Corridas" aria-label="Corridas" id="btnCorridas" onclick="mostrarSecao('corridas')" style="display:none;"><span class="sof-nav-icon" aria-hidden="true">🚚</span><span class="sof-nav-label">Corridas</span><span id="badgeCorridasAlertas" class="badge-corridas">0</span></button>
+      <button title="Envio de Documentos" aria-label="Envio de Documentos" id="btnEnvioDocumentos" onclick="mostrarSecao('envioDocumentos')" style="display:none;"><span class="sof-nav-icon" aria-hidden="true">➤</span><span class="sof-nav-label">Envio de Documentos</span></button>
+      <button title="Integração Bancária" aria-label="Integração Bancária" id="btnIntegracaoBancaria" onclick="mostrarSecao('integracaoBancaria')" style="display:none;"><span class="sof-nav-icon" aria-hidden="true">▤</span><span class="sof-nav-label">Integração Bancária</span></button>
+      <button title="Etiquetas Terceirizados" aria-label="Etiquetas Terceirizados" id="btnEtiquetasTerceirizados" onclick="mostrarSecao('etiquetasTerceirizados')" style="display:none;"><span class="sof-nav-icon" aria-hidden="true">◇</span><span class="sof-nav-label">Etiquetas Terceirizados</span></button>
+      <button title="Administração" aria-label="Administração" id="btnAdmin" onclick="mostrarSecao('admin')" style="display:none;"><span class="sof-nav-icon" aria-hidden="true">⚙</span><span class="sof-nav-label">Administração</span></button>
     </div>
   </div>
-  <button class="logout" onclick="sair()">Sair</button>
+  <button class="logout" onclick="sair()" title="Sair"><span class="sof-nav-icon" aria-hidden="true">⇥</span><span class="sof-nav-label">Sair</span></button>
 </div>
 
 <div class="main">
@@ -3794,8 +3794,9 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 <script>
-function alternarMenuSof(){const x=document.body.classList.toggle("sof-menu-fechado");try{localStorage.setItem("sof-menu-fechado",x?"1":"0")}catch(e){}}
+function alternarMenuSof(){const x=document.body.classList.toggle("sof-menu-fechado");const b=document.getElementById("toggleMenuSof");if(b)b.setAttribute("aria-expanded",String(!x));try{localStorage.setItem("sof-menu-fechado",x?"1":"0")}catch(e){}}
 try{if(localStorage.getItem("sof-menu-fechado")==="1")document.body.classList.add("sof-menu-fechado")}catch(e){}
+document.getElementById("toggleMenuSof")?.setAttribute("aria-expanded",String(!document.body.classList.contains("sof-menu-fechado")));
 </script>
 </body>
 </html>

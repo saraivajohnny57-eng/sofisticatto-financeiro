@@ -2359,3 +2359,22 @@ body.sof-menu-fechado .sidebar .menu button::first-letter{font-size:18px}
 body.sof-menu-fechado .sidebar .logout{font-size:11px;padding:9px 2px}
 body.sof-menu-fechado #toggleMenuSof span{display:none}
 @media(max-width:768px){body.sof-menu-fechado .sidebar{width:100%;padding:10px}body.sof-menu-fechado .sidebar .menu,body.sof-menu-fechado .sidebar .logout{display:none}body.sof-menu-fechado .sidebar .logo{display:none}}
+
+/* V344: dock flutuante de ícones. Apenas navegação; não altera os módulos. */
+.sidebar .menu button{display:flex;align-items:center;justify-content:flex-start;gap:12px;text-align:left;position:relative}
+.sof-nav-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px;font-size:21px;line-height:1;min-width:24px}
+.sof-nav-label{font-size:inherit;white-space:normal}
+.sidebar .logout{display:flex;align-items:center;justify-content:center;gap:9px}
+body.sof-menu-fechado .sidebar{position:fixed!important;left:12px;top:50%;transform:translateY(-50%);width:60px!important;max-height:calc(100dvh - 24px);padding:9px 6px!important;z-index:1100;border-radius:30px;background:#fff;box-shadow:0 9px 35px #3b326044;overflow-y:auto;overflow-x:visible;justify-content:flex-start;gap:8px}
+body.sof-menu-fechado .main{margin-left:0!important;width:100%!important;flex:1!important;padding-left:82px!important}
+body.sof-menu-fechado .sidebar .menu{display:flex!important;flex-direction:column;gap:5px;margin-top:6px!important}
+body.sof-menu-fechado .sidebar .menu button{width:46px;min-height:46px;padding:8px!important;margin:0;border-radius:15px;justify-content:center;font-size:initial!important;overflow:visible!important}
+body.sof-menu-fechado .sidebar .menu button::first-letter{font-size:inherit}
+body.sof-menu-fechado .sidebar .sof-nav-label,body.sof-menu-fechado .sidebar .badge-corridas{display:none!important}
+body.sof-menu-fechado .sidebar .sof-nav-icon{font-size:23px!important;min-width:25px}
+body.sof-menu-fechado .sidebar .logout{display:flex!important;justify-content:center;width:46px;min-height:42px;padding:8px!important;margin-top:8px;font-size:initial!important}
+body.sof-menu-fechado #toggleMenuSof{width:46px;height:46px;padding:6px!important;margin:0;border-radius:50%;background:#5a4fa3;color:#fff;font-size:21px}
+body.sof-menu-fechado .sidebar .logo,body.sof-menu-fechado .sidebar .usuario-logado,body.sof-menu-fechado .sidebar .notificacao-box{display:none!important}
+body.sof-menu-fechado .sidebar .menu button:hover{background:#ddd5f7}
+@media(max-width:768px){body.sof-menu-fechado .sidebar{left:7px;top:50%;width:56px!important;padding:7px 5px!important}body.sof-menu-fechado .main{padding-left:68px!important;padding-right:10px!important}body.sof-menu-fechado .sidebar .menu{display:flex!important}body.sof-menu-fechado .sidebar .logout{display:flex!important}}
+@media print{body.sof-menu-fechado .sidebar{display:none!important}body.sof-menu-fechado .main{padding-left:0!important}}
