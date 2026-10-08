@@ -8127,11 +8127,11 @@ function renderHistoricoCobrancas(){
     const emitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bb'&&x.nosso_numero;
     const bradescoEmitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bradesco'&&x.linha_digitavel;
     const acoes=bradescoEmitido
-      ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar boleto</button> <button class="btn verde" onclick="imprimirPedidoBradescoV264('${x.id}')">📄 Imprimir pedido</button> <button class="btn" style="background:#c62828;color:#fff;" data-verifica-bradesco="${x.id}" onclick="verificarStatusBradescoV277('${x.id}')">🔄 Verificar Bradesco</button>`
+      ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar boleto</button> <button class="btn verde" onclick="imprimirPedidoBradescoV264('${x.id}')">📄 Imprimir pedido</button> <button class="btn" style="background:#c62828;color:#fff;" data-verifica-bradesco="${x.id}" onclick="verificarStatusBradescoV277('${x.id}')">🔄 Verificar Bradesco</button> <button class="btn" onclick="abrirBaixaSubstituicaoV352('${x.id}')">🔁 Baixar / substituir</button>`
       :(x.banco==='bradesco'&&x.status==='pendente_integracao'
         ?`<button class="btn vermelho" onclick="verificarConciliarTituloBradescoV271('${x.id}')">🔎 Verificar Bradesco</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
         :(emitido
-      ?`<button class="btn azul" onclick="abrirImpressaoNormalBbRegistro('${x.id}')">🖨 Impressão Normal</button> <button class="btn verde" onclick="abrirBoletoOficialBbRegistro('${x.id}')">🏦 2ª via BB</button>`
+      ?`<button class="btn azul" onclick="abrirImpressaoNormalBbRegistro('${x.id}')">🖨 Impressão Normal</button> <button class="btn verde" onclick="abrirBoletoOficialBbRegistro('${x.id}')">🏦 2ª via BB</button> <button class="btn" onclick="abrirBaixaSubstituicaoV352('${x.id}')">🔁 Baixar / substituir</button>`
         :(x.banco==='bb'&&x.status==='pendente_integracao'
           ?`<button class="btn verde" onclick="verificarConciliarTituloBb('${x.id}')">🔎 Verificar no BB</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
           :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`)));
@@ -10785,3 +10785,37 @@ async function diagnosticarTituloExternoBbV297(){
 // V298 — mapeamento real BB externo: nomeSacadoCobranca, numeroInscricaoSacadoCobranca, numeroTituloCedenteCobranca, dataVencimentoTituloCobranca e valorOriginalTituloCobranca.
 
 // V316 — filtro de vencimento aplicado aos relatórios completos e individuais BB/Bradesco.
+
+// V352 — Preparação segura de baixa/substituição: NÃO executa baixa bancária
+// enquanto endpoints, autorização e confirmação de status não estiverem validados.
+function abrirBaixaSubstituicaoV352(id){
+  if(negarOperacaoCobrancaV293())return;
+  const x=(cobrancasBancarias||[]).find(r=>String(r.id)===String(id));
+  if(!x)return alert('Título não encontrado.');
+  if(!['aberto','vencido'].includes(String(x.status||'')))return alert('A operação está disponível apenas para boletos em aberto ou vencidos.');
+  if(document.getElementById('modalBaixaV352'))document.getElementById('modalBaixaV352').remove();
+  const modal=document.createElement('div');modal.id='modalBaixaV352';
+  modal.style.cssText='position:fixed;inset:0;background:#0009;z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px';
+  const escV=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  modal.innerHTML=`<section role="dialog" aria-modal="true" aria-label="Baixa ou substituição de boleto" style="width:min(560px,96vw);background:white;border-radius:14px;padding:22px;max-height:90vh;overflow:auto;font:14px Arial;color:#252525">
+  <h2 style="margin:0 0 12px;color:#51459b">Baixar ou substituir boleto</h2>
+  <p><b>${escV(x.cliente_nome)}</b> • ${escV(x.banco==='bb'?'Banco do Brasil':'Bradesco')}<br>Pedido: ${escV(x.numero_nf||'—')} • Nosso Número: ${escV(x.nosso_numero||'—')}<br>Valor atual: <b>${cobMoeda(x.valor)}</b> • Vencimento: ${escV(x.vencimento||'—')}</p>
+  <label style="display:block;margin:12px 0"><input type="radio" name="baixaOpcaoV352" value="baixa" checked> Somente dar baixa no boleto</label>
+  <label style="display:block;margin:12px 0"><input type="radio" name="baixaOpcaoV352" value="substituir"> Dar baixa e emitir outro com o valor correto</label>
+  <div id="baixaNovosDadosV352" style="display:none;border:1px solid #ddd;padding:12px;border-radius:8px">
+  <label>Valor correto (R$) <input id="baixaValorV352" type="text" inputmode="decimal" placeholder="600,37" style="width:100%;padding:10px;margin:5px 0 10px"></label>
+  <label>Novo vencimento <input id="baixaVencV352" type="date" value="${escV(x.vencimento||'')}" style="width:100%;padding:10px;margin:5px 0"></label></div>
+  <p style="background:#fff3d9;border-left:4px solid #e8a12b;padding:10px;line-height:1.45"><b>Integração de baixa ainda não habilitada.</b> Esta tela permite conferir e preparar a solicitação. Ela não cancela o título no banco nem emite outro boleto. Não utilize o botão antigo “Cancelar” como baixa bancária.</p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="baixaFecharV352" class="btn">Fechar</button><button type="button" id="baixaCopiarV352" class="btn azul">Copiar solicitação</button></div></section>`;
+  document.body.appendChild(modal);
+  const dados=modal.querySelector('#baixaNovosDadosV352');
+  modal.querySelectorAll('[name=baixaOpcaoV352]').forEach(el=>el.addEventListener('change',()=>dados.style.display=modal.querySelector('[name=baixaOpcaoV352]:checked').value==='substituir'?'block':'none'));
+  modal.querySelector('#baixaFecharV352').onclick=()=>modal.remove();
+  modal.querySelector('#baixaCopiarV352').onclick=async()=>{
+    const substituir=modal.querySelector('[name=baixaOpcaoV352]:checked').value==='substituir';
+    const valor=modal.querySelector('#baixaValorV352').value.trim(),venc=modal.querySelector('#baixaVencV352').value;
+    if(substituir&&(!(cobNum(valor)>0)||!/^\d{4}-\d{2}-\d{2}$/.test(venc)))return alert('Informe o valor correto e o novo vencimento.');
+    const texto=['SOLICITAÇÃO PARA CONFERÊNCIA MANUAL — NÃO EXECUTADA',`Banco: ${x.banco}`,`Cliente: ${x.cliente_nome}`,`Pedido: ${x.numero_nf||''}`,`Nosso Número: ${x.nosso_numero||''}`,`Valor original: ${cobMoeda(x.valor)}`,`Ação: ${substituir?'Baixar e emitir novo':'Somente baixar'}`,...(substituir?[`Novo valor: ${cobMoeda(cobNum(valor))}`,`Novo vencimento: ${venc}`]:[]),'Verificar situação bancária e possíveis tarifas antes de executar.'].join('\n');
+    try{await navigator.clipboard.writeText(texto);alert('Solicitação copiada. Nenhuma operação foi realizada no banco.')}catch(_){window.prompt('Copie a solicitação:',texto)}
+  };
+}
