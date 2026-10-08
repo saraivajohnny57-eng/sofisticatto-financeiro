@@ -1,5 +1,6 @@
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
+const {validar:validarUsuarioEmail}=require("./_email-auth");
 
 function supabaseConfig(){
   let url=String(process.env.SUPABASE_URL||process.env.NEXT_PUBLIC_SUPABASE_URL||"").trim();
@@ -60,6 +61,7 @@ module.exports = async function handler(req, res) {
       anexos_storage = []
     } = req.body || {};
 
+    const identidade=await validarUsuarioEmail(req);
     const destinatarios = listaEmails(para);
     const copias = listaEmails(cc);
 
@@ -119,12 +121,7 @@ module.exports = async function handler(req, res) {
     let arquivosTemporarios=[];
     if(refs.length){
       if(!storageUrl||!storageKey) return responder(res,503,{ok:false,erro:'Storage de e-mail indisponível: configure SUPABASE_SERVICE_ROLE_KEY.'});
-      const bearer=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'').trim();
-      if(!bearer) return responder(res,401,{ok:false,erro:'Sessão necessária para enviar anexos.'});
-      const auth=await fetch(`${storageUrl}/auth/v1/user`,{headers:{apikey:storageKey,Authorization:`Bearer ${bearer}`}});
-      if(!auth.ok) return responder(res,401,{ok:false,erro:'Sessão expirada. Entre novamente no portal.'});
-      const usuario=await auth.json();
-      if(!usuario?.id) return responder(res,401,{ok:false,erro:'Sessão inválida.'});
+      const usuario=identidade.usuario;
       if(refs.length>30) return responder(res,400,{ok:false,erro:'Máximo de 30 anexos por e-mail.'});
       let total=0;
       for(const ref of refs){

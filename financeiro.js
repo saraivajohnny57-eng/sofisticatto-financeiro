@@ -4096,40 +4096,40 @@ async function registrarHistoricoEmail(item,status,erro=""){
   if(resposta.error) console.error("Erro ao registrar histórico de e-mail:",resposta.error);
 }
 
+// V348: o login legado usa usuarios, não Supabase Auth. Revalidação restrita ao envio.
+let senhaEmailV348='';
 async function executarEnvioEmail(item){
-  const sessao=await banco.auth.getSession();
-  const usuario=sessao?.data?.session?.user;
-  const token=sessao?.data?.session?.access_token;
-  if(!usuario?.id||!token) throw new Error('Sua sessão expirou. Entre novamente para enviar os documentos.');
+  if(!senhaEmailV348){
+    const senha=window.prompt('Para enviar documentos, confirme a senha do seu usuário do portal:');
+    if(!senha) throw new Error('Envio cancelado: confirmação de senha necessária.');
+    senhaEmailV348=senha;
+  }
+  const credenciais={login:String(usuarioLogado?.login||''),senha:senhaEmailV348};
   const tamanhoTotal=item.arquivos.reduce((s,a)=>s+(Number(a.size)||0),0);
   if(tamanhoTotal>22*1024*1024) throw new Error('Os anexos excedem 22 MB no total. Divida em dois envios.');
-  const anexos_storage=[];
   const identificador=(globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const anexos_storage=[];
   let indice=0;
-  for(const arquivo of item.arquivos){
-    if(arquivo.size>22*1024*1024) throw new Error(`O arquivo ${arquivo.name} excede 22 MB.`);
-    const caminho=`${usuario.id}/${identificador}/${indice++}`;
-    const {error}=await banco.storage.from('email-anexos-temporarios').upload(caminho,arquivo,{
-      contentType:arquivo.type||'application/octet-stream',upsert:false
-    });
-    if(error) throw new Error(`Falha ao carregar ${arquivo.name}: ${error.message}. Verifique o SQL da V347.`);
-    anexos_storage.push({caminho,nome:arquivo.name,tipo:arquivo.type||'application/octet-stream'});
+  try{
+    for(const arquivo of item.arquivos){
+      if(arquivo.size>2.5*1024*1024) throw new Error(`O arquivo ${arquivo.name} ultrapassa 2,5 MB por arquivo. Divida ou reduza este arquivo.`);
+      const conteudo_base64=await arquivoParaBase64Email(arquivo);
+      const resp=await fetch('/api/email-anexo-upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...credenciais,lote:identificador,indice:indice++,nome:arquivo.name,tipo:arquivo.type||'application/octet-stream',conteudo_base64})});
+      const dados=await resp.json().catch(()=>({}));
+      if(!resp.ok||!dados.ok){if(resp.status===401)senhaEmailV348='';throw new Error(dados.erro||`Falha no upload de ${arquivo.name} (${resp.status}).`);}
+      anexos_storage.push({caminho:dados.caminho,nome:arquivo.name,tipo:arquivo.type||'application/octet-stream'});
+    }
+    const payload={...credenciais,remetente:emailRemetenteUsuario(),nome_remetente:nomeRemetenteUsuario(),para:item.para,cc:item.cc,assunto:item.assunto,texto:item.corpo,html:montarHtmlCompletoEmail(item.corpo),cliente_id:item.cliente?.id||null,enviado_por:usuarioLogado.login,tipo_envio:emailModoAtual,anexos_storage};
+    const resposta=await fetch('/api/enviar-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const dados=await resposta.json().catch(()=>({}));
+    if(!resposta.ok||!dados.ok){if(resposta.status===401)senhaEmailV348='';throw new Error(dados.erro||`Falha no serviço de envio (${resposta.status}).`);}
+    return dados;
+  }catch(erro){
+    if(anexos_storage.length){
+      try{await fetch('/api/email-anexo-limpar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...credenciais,caminhos:anexos_storage.map(a=>a.caminho)})});}catch(_e){}
+    }
+    throw erro;
   }
-  const payload={
-    remetente:emailRemetenteUsuario(),nome_remetente:nomeRemetenteUsuario(),
-    para:item.para,cc:item.cc,assunto:item.assunto,texto:item.corpo,
-    html:montarHtmlCompletoEmail(item.corpo),cliente_id:item.cliente?.id||null,
-    enviado_por:usuarioLogado.login,tipo_envio:emailModoAtual,anexos_storage
-  };
-  const resposta = await fetch(`/api/enviar-email`,{
-    method:"POST",
-    headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},
-    body:JSON.stringify(payload)
-  });
-
-  const texto = await resposta.text();
-  if(!resposta.ok) throw new Error(texto || "Falha no serviço de envio.");
-  return texto;
 }
 
 function mostrarAvisoEmail(mensagem,sucesso=false){
