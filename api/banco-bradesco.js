@@ -665,6 +665,29 @@ module.exports=async function(req,res){
       if(!cred.client_id||!cred.client_secret)throw new Error('Credenciais incompletas.');
       return json(res,200,{ok:true,teste:{configuracao_valida:true,mtls_valido:true,credenciais_validas:true,certificado:meta},mensagem:`Configuração local do Bradesco ${amb==='producao'?'Produção':'Sandbox'} validada. Nenhum boleto foi emitido.`});
     }
+    // V354: diagnóstico SOMENTE LEITURA da tentativa anterior; não reenvia baixa.
+    if(action==='diagnosticar-baixa-v354'){
+      if(amb!=='producao')throw new Error('Diagnóstico disponível apenas para títulos de Produção.');
+      const id=String(req.body?.id||'').trim();
+      if(!/^[a-f0-9-]{36}$/i.test(id))throw new Error('Identificador do boleto inválido.');
+      const rows=await supabaseRest('cobrancas_bancarias',{query:`?id=eq.${encodeURIComponent(id)}&select=*&limit=1`});
+      const reg=Array.isArray(rows)?rows[0]:null;
+      if(!reg||reg.banco!=='bradesco')throw new Error('Boleto Bradesco não encontrado.');
+      const tentativa=await obter(idRegistro(amb,'baixa-v353-'+id));
+      if(!tentativa)return json(res,200,{ok:true,tentativa_encontrada:false,mensagem:'Não há tentativa de baixa V353 registrada para este título. Nenhuma operação bancária foi executada.'});
+      const t=descriptografar(tentativa)||{};
+      // Não devolve payload de solicitação, CPF/CNPJ, negociação, segredos nem resposta integral.
+      const resposta=t.resposta||{};
+      const chaves=Object.keys(resposta).slice(0,25);
+      const resumo={estado:t.estado||tentativa.metadata?.estado||'DESCONHECIDO',http_status:t.http_status??null,registrado_em:t.finalizada_em||t.iniciada_em||tentativa.atualizado_em||null,campos_resposta:chaves,mensagem_bancaria:typeof resposta.mensagem==='string'?resposta.mensagem.slice(0,240):null,codigo_resposta:typeof resposta.codigo==='string'?resposta.codigo.slice(0,60):null,possivel_eco_da_solicitacao:!!(resposta.cpfCnpj&&resposta.nossoNumero&&resposta.codigoBaixa!==undefined)};
+      let consulta=null;
+      try{
+        const q=await consultarTituloBradesco(amb,reg);
+        if(q.http_status>=200&&q.http_status<300){const st=interpretarConsultaBradesco(q.data,reg);consulta={http_status:q.http_status,codigo_status:st.codStatus,descricao:st.descricao,baixado:st.baixado,pago:st.pago,status:st.statusNovo};}
+        else consulta={http_status:q.http_status,erro:'Consulta bancária não confirmou o estado do título.'};
+      }catch(_){consulta={erro:'Consulta bancária indisponível. Não repita a baixa.'};}
+      return json(res,200,{ok:true,tentativa_encontrada:true,tentativa:resumo,consulta,baixa_confirmada:consulta?.baixado===true,reenviar_baixa_permitido:false,mensagem:consulta?.baixado?'Consulta oficial indica título baixado. Confirme com o Bradesco antes de emitir substituto.':'Baixa não confirmada. Trava mantida; nenhuma nova solicitação de baixa foi enviada.'});
+    }
     // V353: baixa real Bradesco, protegida por habilitação explícita e trava persistente.
     if(action==='baixar-titulo-producao-v353'){
       if(amb!=='producao')throw new Error('Baixa real disponível somente em Produção.');
@@ -701,9 +724,11 @@ module.exports=async function(req,res){
         ret=await requestBradescoJson({url:'https://openapi.bradesco.com.br/boleto/cobranca-baixa/v1/baixar',token:auth.access_token,mtls,body:payload});
       }catch(e){await salvar(trava,amb,'baixa',{estado:'RESULTADO_INCERTO',registro_id:id,erro:String(e.message||e),finalizada_em:new Date().toISOString()},{estado:'RESULTADO_INCERTO'});throw new Error('Resultado da baixa incerto. NÃO repita a operação. Consulte o banco: '+String(e.message||e));}
       const msg=String(ret.data?.mensagem||'');
+      // V354: nunca inferir confirmação a partir de HTTP 200 ou do eco do payload.
+      // A resposta real da tentativa fica criptografada para diagnóstico posterior.
       const sucesso=ret.http_status===200 && /CBTT0532|SOLICITACAO DE BAIXA EFETUADA/i.test(msg);
       await salvar(trava,amb,'baixa',{estado:sucesso?'BAIXA_ACEITA':'RESPOSTA_BANCARIA',registro_id:id,http_status:ret.http_status,resposta:ret.data,finalizada_em:new Date().toISOString()},{estado:sucesso?'BAIXA_ACEITA':'RESPOSTA_BANCARIA'});
-      if(!sucesso)throw new Error('Bradesco não confirmou a baixa: '+(detalheRespostaBradesco(ret.data)||'Resposta não conclusiva'));
+      if(!sucesso)throw new Error('Baixa NÃO confirmada. HTTP '+ret.http_status+'. Resposta bancária preservada na trava de segurança. Utilize o diagnóstico V354; não repita a operação.');
       await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(id)}`,body:{status:'cancelado',bradesco_status_detalhe:msg,bradesco_ultima_consulta:new Date().toISOString(),atualizado_em:new Date().toISOString()}});
       return json(res,200,{ok:true,baixa_confirmada:true,registro_id:id,mensagem:msg,substituicao_automatica:false});
     }
