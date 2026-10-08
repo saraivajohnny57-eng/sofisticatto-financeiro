@@ -1,0 +1,12 @@
+SOFISTICATTO FINANCEIRO V353 — BAIXA BRADESCO
+
+1. Esta versão adiciona solicitação REAL de baixa para boletos Bradesco registrados e em aberto/vencidos.
+2. Para habilitar: configure ENABLE_BRADESCO_BAIXA_REAL=1 no ambiente de produção da Vercel e publique novamente. Sem essa variável, nenhuma baixa real será enviada.
+3. O botão exige a autorização de integrações já utilizada no sistema, confirmação adicional e digitação do Nosso Número.
+4. Antes da baixa, consulta o título no Bradesco. A solicitação usa POST /boleto/cobranca-baixa/v1/baixar e código 57, conforme manual 1.6.3. Só considera sucesso quando o banco retorna confirmação CBTT0532.
+5. Existe uma trava persistente por título para evitar reenvio após tentativa ou resultado incerto. Se falhar ou ficar incerto, consulte o banco e não repita a solicitação.
+6. NÃO há emissão automática de boleto substituto nesta versão. Após a baixa confirmada, emitir um novo boleto pelo fluxo normal, com identificador novo; não reutilizar o Seu Número do título cancelado.
+7. A baixa REAL no Banco do Brasil continua DESABILITADA, até validação do endpoint e regras.
+8. A operação pode gerar tarifa conforme o contrato bancário.
+9. Sem migração SQL nova. Não utilizar o botão antigo de Cancelar como baixa bancária.
+10. ATENÇÃO: Esta implementação passou apenas por verificação estática, não por teste bancário de produção. Realizar primeiro teste controlado com autorização e conferência bancária.

@@ -10805,12 +10805,33 @@ function abrirBaixaSubstituicaoV352(id){
   <div id="baixaNovosDadosV352" style="display:none;border:1px solid #ddd;padding:12px;border-radius:8px">
   <label>Valor correto (R$) <input id="baixaValorV352" type="text" inputmode="decimal" placeholder="600,37" style="width:100%;padding:10px;margin:5px 0 10px"></label>
   <label>Novo vencimento <input id="baixaVencV352" type="date" value="${escV(x.vencimento||'')}" style="width:100%;padding:10px;margin:5px 0"></label></div>
-  <p style="background:#fff3d9;border-left:4px solid #e8a12b;padding:10px;line-height:1.45"><b>Integração de baixa ainda não habilitada.</b> Esta tela permite conferir e preparar a solicitação. Ela não cancela o título no banco nem emite outro boleto. Não utilize o botão antigo “Cancelar” como baixa bancária.</p>
-  <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="baixaFecharV352" class="btn">Fechar</button><button type="button" id="baixaCopiarV352" class="btn azul">Copiar solicitação</button></div></section>`;
+  <p style="background:#fff3d9;border-left:4px solid #e8a12b;padding:10px;line-height:1.45"><b>Baixa real Bradesco disponível somente após habilitação no servidor.</b> A baixa é irreversível e pode gerar tarifa. Banco do Brasil e emissão automática de substituição continuam indisponíveis. Confirme o retorno bancário antes de emitir outro boleto.</p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="baixaFecharV352" class="btn">Fechar</button><button type="button" id="baixaCopiarV352" class="btn azul">Copiar solicitação</button><button type="button" id="baixaRealV353" class="btn verde">Confirmar baixa no Bradesco</button></div></section>`;
   document.body.appendChild(modal);
   const dados=modal.querySelector('#baixaNovosDadosV352');
   modal.querySelectorAll('[name=baixaOpcaoV352]').forEach(el=>el.addEventListener('change',()=>dados.style.display=modal.querySelector('[name=baixaOpcaoV352]:checked').value==='substituir'?'block':'none'));
   modal.querySelector('#baixaFecharV352').onclick=()=>modal.remove();
+  const btnReal=modal.querySelector('#baixaRealV353');
+  if(x.banco!=='bradesco'){
+    btnReal.disabled=true;btnReal.title='Baixa real do Banco do Brasil ainda não integrada';
+  }
+  btnReal.onclick=async()=>{
+    if(x.banco!=='bradesco')return;
+    const substituir=modal.querySelector('[name=baixaOpcaoV352]:checked').value==='substituir';
+    const valor=modal.querySelector('#baixaValorV352').value.trim(),venc=modal.querySelector('#baixaVencV352').value;
+    if(substituir&&(!(cobNum(valor)>0)||!/^\d{4}-\d{2}-\d{2}$/.test(venc)))return alert('Informe valor e vencimento do novo boleto.');
+    if(!confirm(`ATENÇÃO — BAIXA REAL NO BRADESCO\n\nCliente: ${x.cliente_nome}\nNosso Número: ${x.nosso_numero}\nValor atual: ${cobMoeda(x.valor)}\n\nO boleto será CANCELADO NO BANCO. Pode haver tarifa.\n\n${substituir?'A nova emissão NÃO será automática. Após a baixa confirmada, emita o novo boleto pelo fluxo normal.':'Nenhum novo boleto será emitido.'}\n\nConfirma solicitar a baixa?`))return;
+    const digitado=prompt('Para autorizar a baixa, digite exatamente: BAIXAR '+String(x.nosso_numero||''));
+    if(digitado!==`BAIXAR ${x.nosso_numero}`)return alert('Confirmação não corresponde. Nada foi enviado.');
+    btnReal.disabled=true;
+    try{
+      const out=await bradescoReqProducao('baixar-titulo-producao-v353',{id:x.id,nosso_numero:x.nosso_numero,confirmacao:'BAIXAR_TITULO_PRODUCAO'});
+      if(!out.baixa_confirmada)throw new Error('Banco não confirmou a baixa.');
+      modal.remove();if(typeof carregarCobrancasBancarias==='function')await carregarCobrancasBancarias();
+      alert('Baixa confirmada pelo Bradesco. '+(substituir?'O NOVO BOLETO NÃO FOI EMITIDO. Use a emissão normal e confira o número único para não reutilizar o título antigo.':'Nenhum novo boleto foi emitido.'));
+    }catch(e){alert('Baixa não concluída ou resultado não confirmado: '+e.message+'\nConsulte o Bradesco antes de repetir.');}
+    finally{btnReal.disabled=false;}
+  };
   modal.querySelector('#baixaCopiarV352').onclick=async()=>{
     const substituir=modal.querySelector('[name=baixaOpcaoV352]:checked').value==='substituir';
     const valor=modal.querySelector('#baixaValorV352').value.trim(),venc=modal.querySelector('#baixaVencV352').value;
