@@ -7567,6 +7567,14 @@ async function carregarCobrancasBancarias(){
 function cobStatus(s){return {pendente_integracao:'Pendente integração',aberto:'Aberto',pago:'Pago',vencido:'Vencido',cancelado:'Cancelado'}[s]||s||'—';}
 function dataEmissaoCobrancaV177(x){return String(x?.emitido_em||x?.created_at||'').slice(0,10);}
 function limparFiltroDataEmissaoCobrancas(){const a=document.getElementById('cobDataEmissaoIni'),b=document.getElementById('cobDataEmissaoFim');if(a)a.value='';if(b)b.value='';renderHistoricoCobrancas();}
+function limparFiltroHorarioCobrancas(){['cobHoraIni','cobHoraFim'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});renderHistoricoCobrancas();}
+function horaEmissaoLocalCobrancaV351(x){
+  const raw=x?.emitido_em||x?.created_at;
+  if(!raw)return '';
+  const dt=new Date(raw);
+  if(Number.isNaN(dt.getTime()))return '';
+  return new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(dt);
+}
 function mostrarAbaTesteBancario(banco='bb'){
   const ehBB=banco==='bb';
   const pBB=document.getElementById('cobTestePainelBB');
@@ -7592,9 +7600,12 @@ function cobrancasFiltradasHistoricoV178(){
   const q=cobNorm(document.getElementById('cobBuscaHistorico')?.value||''), fs=statusSelecionadosV294(), fb=document.getElementById('cobFiltroBanco')?.value||'';
   const di=document.getElementById('cobDataEmissaoIni')?.value||'', df=document.getElementById('cobDataEmissaoFim')?.value||'';
   const vi=document.getElementById('cobDataVencIni')?.value||'', vf=document.getElementById('cobDataVencFim')?.value||'';
+  const hi=document.getElementById('cobHoraIni')?.value||'', hf=document.getElementById('cobHoraFim')?.value||'';
   return (cobrancasBancarias||[]).filter(x=>{
     if(usuarioEhCobrancaV293() && !cobrancaJaEmitidaV293(x)) return false;
     const de=dataEmissaoCobrancaV177(x), ve=String(x?.vencimento||'').slice(0,10);
+    const hora=horaEmissaoLocalCobrancaV351(x);
+    if((hi||hf)&&(!hora||(hi&&hora<hi)||(hf&&hora>hf)))return false;
     return (!q||cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia,x.nosso_numero].join(' ')).includes(q))&&(!fb||codigoBancoCobranca(x?.banco_nome||x?.banco||'')===fb)&&(fs.length===0||tituloCasaStatusV294(x,fs))&&(!di||de>=di)&&(!df||de<=df)&&(!vi||ve>=vi)&&(!vf||ve<=vf);
   });
 }
@@ -8523,7 +8534,7 @@ function dividirValorParcelasBoleto(total,quantidade){
   // O cálculo em inteiros evita diferenças de ponto flutuante.
   const quociente=Math.floor(centavos/qtd);
   const resto=centavos%qtd;
-  const parcelaPadrao=quociente+(resto*2>qtd?1:0);
+  const parcelaPadrao=quociente+(resto*2>=qtd?1:0);
   const valores=Array(qtd).fill(parcelaPadrao);
   valores[0]=centavos-parcelaPadrao*(qtd-1);
   return valores.map(v=>v/100);
