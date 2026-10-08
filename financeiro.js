@@ -8517,10 +8517,13 @@ function dataSomadaBoleto(dataBase,dias){
 function dividirValorParcelasBoleto(total,quantidade){
   const qtd=Math.max(1,Math.trunc(Number(quantidade)||1));
   const centavos=Math.round(Number(total||0)*100);
-  // V349: arredondar cada parcela ao centavo mais próximo e concentrar
-  // exclusivamente na primeira parcela a diferença necessária para fechar o total.
-  // Aritmética em centavos inteiros evita erros de ponto flutuante.
-  const parcelaPadrao=Math.round(centavos/qtd);
+  // V350: parcelas posteriores usam o valor mais próximo em centavos;
+  // em empate exato de meio centavo, arredondam para baixo, reservando
+  // a diferença para a PRIMEIRA parcela (ex.: 6710,81 / 2 -> 3355,41 + 3355,40).
+  // O cálculo em inteiros evita diferenças de ponto flutuante.
+  const quociente=Math.floor(centavos/qtd);
+  const resto=centavos%qtd;
+  const parcelaPadrao=quociente+(resto*2>qtd?1:0);
   const valores=Array(qtd).fill(parcelaPadrao);
   valores[0]=centavos-parcelaPadrao*(qtd-1);
   return valores.map(v=>v/100);
