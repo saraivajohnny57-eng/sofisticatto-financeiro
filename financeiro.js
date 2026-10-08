@@ -8517,24 +8517,12 @@ function dataSomadaBoleto(dataBase,dias){
 function dividirValorParcelasBoleto(total,quantidade){
   const qtd=Math.max(1,Math.trunc(Number(quantidade)||1));
   const centavos=Math.round(Number(total||0)*100);
-  const base=Math.floor(centavos/qtd);
-  const resto=centavos-(base*qtd);
-
-  // V319 — Regra de distribuição de centavos da Sofisticatto.
-  // Alteração isolada: preserva toda a lógica anterior e ajusta somente o caso de 2 parcelas.
-  // • 2 parcelas + sobra de 1 centavo: o centavo fica na ÚLTIMA parcela.
-  // • 3 ou mais parcelas + sobra de 1 centavo: o centavo fica na PRIMEIRA parcela.
-  // • sobra de 2 ou mais centavos: distribui 1 centavo por parcela, começando das ÚLTIMAS.
-  // Exemplos confirmados:
-  // R$ 655,55 / 2 => 327,77 | 327,78
-  // R$ 1.311,09 / 4 => 327,78 | 327,77 | 327,77 | 327,77
-  // R$ 1.311,11 / 4 => 327,77 | 327,78 | 327,78 | 327,78
-  const valores=Array(qtd).fill(base);
-  if(resto===1){
-    valores[qtd===2 ? 1 : 0]+=1;
-  }else if(resto>1){
-    for(let i=qtd-resto;i<qtd;i++) if(i>=0) valores[i]+=1;
-  }
+  // V349: arredondar cada parcela ao centavo mais próximo e concentrar
+  // exclusivamente na primeira parcela a diferença necessária para fechar o total.
+  // Aritmética em centavos inteiros evita erros de ponto flutuante.
+  const parcelaPadrao=Math.round(centavos/qtd);
+  const valores=Array(qtd).fill(parcelaPadrao);
+  valores[0]=centavos-parcelaPadrao*(qtd-1);
   return valores.map(v=>v/100);
 }
 function gerarParcelasBoleto(){
