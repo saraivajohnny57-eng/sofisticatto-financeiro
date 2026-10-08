@@ -56,7 +56,8 @@ module.exports = async function handler(req, res) {
       assunto,
       texto,
       html,
-      anexos = []
+      anexos = [],
+      anexos_storage = []
     } = req.body || {};
 
     const destinatarios = listaEmails(para);
@@ -111,6 +112,38 @@ module.exports = async function handler(req, res) {
         }))
       : [];
 
+    // V347: anexos grandes são enviados diretamente ao Storage antes do envio SMTP.
+    // Nunca confiar em caminhos informados pelo cliente sem validar a sessão e a propriedade.
+    const refs = Array.isArray(anexos_storage) ? anexos_storage : [];
+    const {url:storageUrl,key:storageKey}=supabaseConfig();
+    let arquivosTemporarios=[];
+    if(refs.length){
+      if(!storageUrl||!storageKey) return responder(res,503,{ok:false,erro:'Storage de e-mail indisponível: configure SUPABASE_SERVICE_ROLE_KEY.'});
+      const bearer=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'').trim();
+      if(!bearer) return responder(res,401,{ok:false,erro:'Sessão necessária para enviar anexos.'});
+      const auth=await fetch(`${storageUrl}/auth/v1/user`,{headers:{apikey:storageKey,Authorization:`Bearer ${bearer}`}});
+      if(!auth.ok) return responder(res,401,{ok:false,erro:'Sessão expirada. Entre novamente no portal.'});
+      const usuario=await auth.json();
+      if(!usuario?.id) return responder(res,401,{ok:false,erro:'Sessão inválida.'});
+      if(refs.length>30) return responder(res,400,{ok:false,erro:'Máximo de 30 anexos por e-mail.'});
+      let total=0;
+      for(const ref of refs){
+        const caminho=String(ref?.caminho||'');
+        if(!caminho.startsWith(`${usuario.id}/`) || !/^[a-zA-Z0-9_./-]+$/.test(caminho) || caminho.includes('..')){
+          return responder(res,403,{ok:false,erro:'Referência de anexo não autorizada.'});
+        }
+        const nome=String(ref?.nome||'anexo').replace(/[\r\n]/g,' ').slice(0,180);
+        const endpoint=`${storageUrl}/storage/v1/object/email-anexos-temporarios/${caminho.split('/').map(encodeURIComponent).join('/')}`;
+        const ar=await fetch(endpoint,{headers:{apikey:storageKey,Authorization:`Bearer ${storageKey}`}});
+        if(!ar.ok) throw new Error(`Não foi possível recuperar o anexo ${nome} (${ar.status}).`);
+        const buffer=Buffer.from(await ar.arrayBuffer());
+        total+=buffer.length;
+        if(total>22*1024*1024) return responder(res,413,{ok:false,erro:'Os anexos somam mais de 22 MB. Divida o envio em mensagens menores.'});
+        arquivos.push({filename:nome,content:buffer,contentType:String(ref?.tipo||'application/octet-stream')});
+        arquivosTemporarios.push(caminho);
+      }
+    }
+
     const resultado = await transporter.sendMail({
       from: `"${nomeRemetente}" <${emailRemetente}>`,
       replyTo: emailRemetente,
@@ -122,6 +155,13 @@ module.exports = async function handler(req, res) {
       attachments: arquivos
     });
 
+    // Limpeza após SMTP confirmar o aceite. Uma falha na limpeza não reenvia o e-mail.
+    if(arquivosTemporarios.length){
+      try{await fetch(`${storageUrl}/storage/v1/object/email-anexos-temporarios`,{
+        method:'DELETE',headers:{apikey:storageKey,Authorization:`Bearer ${storageKey}`,'Content-Type':'application/json'},
+        body:JSON.stringify({prefixes:arquivosTemporarios})
+      });}catch(e){console.warn('Limpeza de anexos temporários:',e.message);}
+    }
     return responder(res, 200, {
       ok: true,
       mensagem: "E-mail enviado com sucesso.",

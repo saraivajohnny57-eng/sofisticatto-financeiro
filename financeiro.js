@@ -1443,30 +1443,21 @@ async function consultarCepRelatorio(cep){
 }
 async function validarCadastroClienteParaBancosComCep(cliente){
   const base=validarCadastroClienteParaBancos(cliente);
-  const problemas=[...base.problemas];
+  const problemas=[...base.problemas],avisos=[];
   const cep=somenteDigitosRelatorioCadastro(cliente?.cep);
   let cepDados=null;
+  // A consulta externa é informativa: CEP geral ou indisponibilidade da base não bloqueiam o relatório.
   if(cep.length===8){
     cepDados=await consultarCepRelatorio(cep);
     if(cepDados.ok){
       const cidade=normalizarTextoCepRelatorio(cliente?.cidade||cliente?.municipio);
       const cidadeCep=normalizarTextoCepRelatorio(cepDados.cidade);
-      const uf=String(cliente?.uf||"").trim().toUpperCase();
-      if(!uf){
-        problemas.push(`UF não informada. Pelo CEP ${formatarCepCadastroRelatorio(cep)}, a UF correta é ${cepDados.uf}.`);
-      }else if(uf!==cepDados.uf){
-        problemas.push(`UF incompatível com o CEP: cadastro ${uf}, mas o CEP indica ${cepDados.uf}.`);
-      }
-      if(!cidade){
-        problemas.push(`Cidade não informada. Pelo CEP, a cidade é ${cepDados.cidade}.`);
-      }else if(cidadeCep!==normalizarTextoCepRelatorio(cidade)){
-        problemas.push(`Cidade incompatível com o CEP: cadastro “${cidade}”, mas o CEP indica “${cepDados.cidade}”.`);
-      }
-    }else if(!cepDados.indisponivel){
-      problemas.push(cepDados.erro||"CEP não encontrado.");
-    }
+      const uf=String(cliente?.uf||'').trim().toUpperCase();
+      if(uf&&uf!==cepDados.uf)avisos.push(`UF diferente da consulta de CEP: cadastro ${uf}, consulta ${cepDados.uf}.`);
+      if(cidade&&cidadeCep!==cidade)avisos.push(`Cidade diferente da consulta de CEP: cadastro “${cliente?.cidade||cliente?.municipio}”, consulta “${cepDados.cidade}”.`);
+    }else avisos.push(`${cepDados.erro||'CEP não localizado.'} Confira o endereço; o CEP informado será mantido.`);
   }
-  return {ok:problemas.length===0,problemas,dados:base.dados,cepConsulta:cepDados};
+  return {ok:problemas.length===0,problemas,avisos,dados:base.dados,cepConsulta:cepDados};
 }
 function formatarCepCadastroRelatorio(v){const d=somenteDigitosRelatorioCadastro(v).slice(0,8);return d.length>5?`${d.slice(0,5)}-${d.slice(5)}`:d;}
 function renderizarAvisoCadastroClienteRelatorioComProblemas(cliente,problemas,abrirEditor=false){
@@ -1534,6 +1525,7 @@ async function salvarEdicaoCadastroClienteRelatorio(){
   }
   const validacao=await validarCadastroClienteParaBancosComCep({...c,...dados});
   if(!validacao.ok){if(out){out.className="relatorio-cadastro-editor-aviso erro";out.innerHTML=`<b>⚠️ Ainda falta corrigir:</b><ul>${validacao.problemas.map(x=>`<li>${escaparHtmlEmail(x)}</li>`).join("")}</ul>`;}return;}
+  if(out&&validacao.avisos?.length){out.className="relatorio-cadastro-editor-aviso";out.innerHTML=`<b>⚠️ Aviso de CEP (não impede salvar):</b><ul>${validacao.avisos.map(x=>`<li>${escaparHtmlEmail(x)}</li>`).join("")}</ul>`;}
   const btn=document.getElementById("btnSalvarCadastroClienteRelatorio");if(btn){btn.disabled=true;btn.textContent="Salvando...";}
   try{
     const resposta=await banco.from("email_clientes").update(dados).eq("id",id);if(resposta.error)throw resposta.error;
@@ -1607,6 +1599,7 @@ async function salvarRelatorio(){
   if(clienteId&&!cliente)return alert("O cliente selecionado não foi localizado no cadastro. Pesquise novamente.");
   if(cliente){
     const cadastro=await validarCadastroClienteParaBancosComCep(cliente);
+    if(cadastro.avisos?.length)mostrarBalaoSistema("Aviso sobre CEP",cadastro.avisos.join(" "));
     if(!cadastro.ok){
       renderizarAvisoCadastroClienteRelatorioComProblemas(cliente,cadastro.problemas,true);
       alert('O relatório não pode continuar enquanto o cadastro do cliente tiver pendências bancárias. Corrija os itens indicados no cadastro.');
@@ -4104,10 +4097,33 @@ async function registrarHistoricoEmail(item,status,erro=""){
 }
 
 async function executarEnvioEmail(item){
-  const payload = await montarPayloadEmail(item);
+  const sessao=await banco.auth.getSession();
+  const usuario=sessao?.data?.session?.user;
+  const token=sessao?.data?.session?.access_token;
+  if(!usuario?.id||!token) throw new Error('Sua sessão expirou. Entre novamente para enviar os documentos.');
+  const tamanhoTotal=item.arquivos.reduce((s,a)=>s+(Number(a.size)||0),0);
+  if(tamanhoTotal>22*1024*1024) throw new Error('Os anexos excedem 22 MB no total. Divida em dois envios.');
+  const anexos_storage=[];
+  const identificador=(globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  let indice=0;
+  for(const arquivo of item.arquivos){
+    if(arquivo.size>22*1024*1024) throw new Error(`O arquivo ${arquivo.name} excede 22 MB.`);
+    const caminho=`${usuario.id}/${identificador}/${indice++}`;
+    const {error}=await banco.storage.from('email-anexos-temporarios').upload(caminho,arquivo,{
+      contentType:arquivo.type||'application/octet-stream',upsert:false
+    });
+    if(error) throw new Error(`Falha ao carregar ${arquivo.name}: ${error.message}. Verifique o SQL da V347.`);
+    anexos_storage.push({caminho,nome:arquivo.name,tipo:arquivo.type||'application/octet-stream'});
+  }
+  const payload={
+    remetente:emailRemetenteUsuario(),nome_remetente:nomeRemetenteUsuario(),
+    para:item.para,cc:item.cc,assunto:item.assunto,texto:item.corpo,
+    html:montarHtmlCompletoEmail(item.corpo),cliente_id:item.cliente?.id||null,
+    enviado_por:usuarioLogado.login,tipo_envio:emailModoAtual,anexos_storage
+  };
   const resposta = await fetch(`/api/enviar-email`,{
     method:"POST",
-    headers:{"Content-Type":"application/json"},
+    headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},
     body:JSON.stringify(payload)
   });
 
@@ -9920,8 +9936,9 @@ async function emitirBoletosEmMassa(){
                 blob=await gerarBlobVisualizacaoBradescoV281(reg);
               }
               if(!blob)throw new Error('Boleto emitido, mas não foi possível gerar o PDF automaticamente.');
-              await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,p),blob);
-              await marcarPdfLoteV281(p,'salvo',null);
+              // V346: aguarda todas as parcelas para salvar um único PDF por cliente.
+              // O status 'salvo' só será marcado depois da gravação efetiva do arquivo.
+
             }catch(ePdf){
               pdfErro=mensagemErroV279(ePdf);
               await marcarPdfLoteV281(p,'pendente',pdfErro);
@@ -9937,6 +9954,34 @@ async function emitirBoletosEmMassa(){
           // Resultado incerto é barreira de segurança: para o lote inteiro. Não avançamos
           // para novos títulos até o operador conferir o banco.
           if(estado==='resultado_incerto')throw Object.assign(new Error(`RESULTADO INCERTO em ${g.rel.nome}, parcela ${p.parcela_numero||1}. O lote foi interrompido para evitar duplicidade. Confira o banco antes de qualquer nova tentativa.`),{v279Interromper:true});
+        }
+      }
+      // V346 — Bradesco: agrupar as parcelas emitidas deste relatório em um único PDF.
+      // Em caso de falha de alguma parcela, preservar PDFs individuais e avisar;
+      // nunca anunciar um arquivo parcial como se estivesse completo.
+      if(pasta&&cod==='bradesco'&&okGrupo.length){
+        const completos=okGrupo.every(x=>x.blob&&!x.pdfErro)&&okGrupo.length===g.parcelas.length;
+        if(completos){
+          try{
+            const ordenados=[...okGrupo].sort((a,b)=>String(a.p.vencimento||'').localeCompare(String(b.p.vencimento||''))||Number(a.p.parcela_numero||0)-Number(b.p.parcela_numero||0));
+            const combinado=await mesclarPdfsBb(ordenados.map(x=>x.blob));
+            const nome=nomePadraoBoletoV325(g.rel.nome,g.rel.numero_nf||g.rel.numero_titulo||g.parcelas[0]?.numero_nf||'BOLETOS');
+            await salvarBlobNaPastaCobrancaMassa(pasta,nome,combinado);
+            for(const x of okGrupo){x.blobCombinado=combinado;await marcarPdfLoteV281(x.p,'salvo',null);}
+          }catch(eAgrupar){
+            console.warn('V346: não foi possível agrupar Bradesco; salvando parcelas separadamente.',eAgrupar);
+            for(const x of okGrupo){
+              try{await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,x.p),x.blob);await marcarPdfLoteV281(x.p,'salvo',null)}
+              catch(e){x.pdfErro=mensagemErroV279(e);await marcarPdfLoteV281(x.p,'pendente',x.pdfErro)}
+            }
+            alert(`Os boletos de ${g.rel.nome} foram emitidos, mas não puderam ser agrupados. As parcelas disponíveis foram salvas individualmente.\n\n${mensagemErroV279(eAgrupar)}`);
+          }
+        }else{
+          for(const x of okGrupo.filter(x=>x.blob&&!x.pdfErro)){
+            try{await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,x.p),x.blob);await marcarPdfLoteV281(x.p,'salvo',null)}
+            catch(e){x.pdfErro=mensagemErroV279(e);await marcarPdfLoteV281(x.p,'pendente',x.pdfErro)}
+          }
+          alert(`Atenção: ${g.rel.nome} teve ${okGrupo.length} de ${g.parcelas.length} boleto(s) emitido(s) neste lote. PDFs disponíveis foram salvos separadamente; não foi gerado um PDF agrupado incompleto.`);
         }
       }
       if(pasta&&cod==='bb'&&blobsGrupo.length){const combinado=await mesclarPdfsBb(blobsGrupo);const nome=nomePdfImpressaoNormalBb(g.parcelas);await salvarBlobNaPastaCobrancaMassa(pasta,nome,combinado);okGrupo.forEach(x=>x.blobCombinado=combinado);}
