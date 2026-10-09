@@ -10806,12 +10806,41 @@ function abrirBaixaSubstituicaoV352(id){
   <label>Valor correto (R$) <input id="baixaValorV352" type="text" inputmode="decimal" placeholder="600,37" style="width:100%;padding:10px;margin:5px 0 10px"></label>
   <label>Novo vencimento <input id="baixaVencV352" type="date" value="${escV(x.vencimento||'')}" style="width:100%;padding:10px;margin:5px 0"></label></div>
   <p style="background:#fff3d9;border-left:4px solid #e8a12b;padding:10px;line-height:1.45"><b>Baixa real Bradesco disponível somente após habilitação no servidor.</b> A baixa é irreversível e pode gerar tarifa. Banco do Brasil e emissão automática de substituição continuam indisponíveis. Confirme o retorno bancário antes de emitir outro boleto.</p>
-  <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="baixaFecharV352" class="btn">Fechar</button><button type="button" id="baixaCopiarV352" class="btn azul">Copiar solicitação</button><button type="button" id="baixaRealV353" class="btn verde">Confirmar baixa no Bradesco</button></div></section>`;
+  <div id="baixaResultadoV355" role="status" aria-live="polite" style="display:none;border:1px solid #ddd;background:#f8f9fc;padding:12px;border-radius:8px;margin:12px 0;line-height:1.5"></div>
+  <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="baixaDiagnosticoV355" class="btn azul">Consultar situação da baixa</button><button type="button" id="baixaFecharV352" class="btn">Fechar</button><button type="button" id="baixaCopiarV352" class="btn azul">Copiar solicitação</button><button type="button" id="baixaRealV353" class="btn verde">Confirmar baixa no Bradesco</button></div></section>`;
   document.body.appendChild(modal);
   const dados=modal.querySelector('#baixaNovosDadosV352');
   modal.querySelectorAll('[name=baixaOpcaoV352]').forEach(el=>el.addEventListener('change',()=>dados.style.display=modal.querySelector('[name=baixaOpcaoV352]:checked').value==='substituir'?'block':'none'));
   modal.querySelector('#baixaFecharV352').onclick=()=>modal.remove();
   const btnReal=modal.querySelector('#baixaRealV353');
+  const btnDiagnostico=modal.querySelector('#baixaDiagnosticoV355');
+  const painelDiagnostico=modal.querySelector('#baixaResultadoV355');
+  async function diagnosticarBaixaV355(){
+    if(x.banco!=='bradesco')return;
+    btnDiagnostico.disabled=true;
+    painelDiagnostico.style.display='block';
+    painelDiagnostico.textContent='Consultando registro da tentativa e situação oficial no Bradesco. Nenhuma baixa será enviada...';
+    try{
+      const r=await bradescoReqProducao('diagnosticar-baixa-v354',{id:x.id});
+      const t=r.tentativa||{},c=r.consulta||{};
+      const linhas=[r.tentativa_encontrada?'Tentativa anterior encontrada.':'Nenhuma tentativa V353 encontrada.',
+        r.tentativa_encontrada?'Estado da tentativa: '+String(t.estado||'não informado'):'',
+        t.http_status!=null?'HTTP da tentativa: '+String(t.http_status):'',
+        t.possivel_eco_da_solicitacao?'A resposta armazenada parece conter os dados enviados, não uma confirmação explícita.':'',
+        c.codigo_status!=null?'Código da consulta: '+String(c.codigo_status):'',
+        c.descricao?'Situação no banco: '+String(c.descricao):'',
+        c.baixado===true?'A consulta indica título baixado. Confirme com o banco antes de emitir outro.':c.pago===true?'O banco indica título pago. Não solicite baixa.':'',
+        c.erro?'Consulta inconclusiva: '+String(c.erro):'',
+        'Nova solicitação de baixa: BLOQUEADA até verificação bancária.'];
+      painelDiagnostico.textContent=linhas.filter(Boolean).join('\n');
+      painelDiagnostico.style.whiteSpace='pre-line';
+      if(r.tentativa_encontrada){btnReal.disabled=true;btnReal.title='Tentativa anterior registrada; nenhuma nova baixa será enviada.';}
+    }catch(e){painelDiagnostico.textContent='Não foi possível concluir o diagnóstico: '+e.message+'\nNão repita a baixa.';btnReal.disabled=true;}
+    finally{btnDiagnostico.disabled=false;}
+  }
+  btnDiagnostico.onclick=diagnosticarBaixaV355;
+  if(x.banco==='bradesco')void diagnosticarBaixaV355();
+
   if(x.banco!=='bradesco'){
     btnReal.disabled=true;btnReal.title='Baixa real do Banco do Brasil ainda não integrada';
   }
@@ -10829,8 +10858,8 @@ function abrirBaixaSubstituicaoV352(id){
       if(!out.baixa_confirmada)throw new Error('Banco não confirmou a baixa.');
       modal.remove();if(typeof carregarCobrancasBancarias==='function')await carregarCobrancasBancarias();
       alert('Baixa confirmada pelo Bradesco. '+(substituir?'O NOVO BOLETO NÃO FOI EMITIDO. Use a emissão normal e confira o número único para não reutilizar o título antigo.':'Nenhum novo boleto foi emitido.'));
-    }catch(e){alert('Baixa não concluída ou resultado não confirmado: '+e.message+'\nConsulte o Bradesco antes de repetir.');}
-    finally{btnReal.disabled=false;}
+    }catch(e){alert('Baixa não concluída ou resultado não confirmado: '+e.message+'\nConsulte o Bradesco antes de repetir.');await diagnosticarBaixaV355();}
+    finally{if(!painelDiagnostico.textContent.includes('Tentativa anterior encontrada.'))btnReal.disabled=false;}
   };
   modal.querySelector('#baixaCopiarV352').onclick=async()=>{
     const substituir=modal.querySelector('[name=baixaOpcaoV352]:checked').value==='substituir';
