@@ -125,6 +125,37 @@ window.remessaPrepararSelecionadosV360=async function(){
  if(preparados.length)gravar(lista);
  alert(preparados.length+' parcela(s) preparadas como rascunho local. Nenhuma emissão ou registro bancário foi realizado.'+(erros.length?'\n\nPendências ('+erros.length+'):\n'+erros.slice(0,12).join('\n'):''));
 };
+// V361: compartilhamento de rascunhos com Supabase, sem operações bancárias.
+// O identificador local é preservado para permitir importação idempotente.
+const TABELA_V361='remessas_preparacao';
+function dbV361(){return typeof banco!=='undefined'&&banco&&typeof banco.from==='function'?banco:null}
+function statusV361(msg){const e=$('remSyncStatusV361');if(e)e.textContent=msg}
+window.remessaSincronizarV361=async function(){
+ const db=dbV361();if(!db){statusV361('Sessão do Supabase indisponível.');return}
+ if(!confirm('Enviar os rascunhos locais para o Supabase? Os registros serão compartilhados com os usuários autenticados autorizados pela política do banco de dados. Nenhuma operação bancária será realizada.'))return;
+ const locais=ler();if(!locais.length){statusV361('Não há rascunhos locais para enviar.');return}
+ const dados=locais.map(x=>({id_local:x.id,banco:x.banco,cliente:x.cliente,documento:x.documento,pedido:x.pedido,valor_centavos:x.valor,vencimento:x.vencimento,observacoes:x.observacoes||'',situacao:x.situacao==='aprovado'?'aprovado':'rascunho'}));
+ statusV361('Enviando rascunhos ao Supabase...');
+ const {error}=await db.from(TABELA_V361).upsert(dados,{onConflict:'id_local'});
+ if(error){statusV361('Não foi possível salvar: '+error.message+'. Confira se executou SQL_V361_REMESSAS_PREPARACAO.sql.');return}
+ statusV361(dados.length+' título(s) enviados ao Supabase. Nenhum boleto foi registrado.');
+};
+window.remessaImportarV361=async function(){
+ const db=dbV361();if(!db){statusV361('Sessão do Supabase indisponível.');return}
+ statusV361('Consultando títulos compartilhados...');
+ const {data,error}=await db.from(TABELA_V361).select('id_local,banco,cliente,documento,pedido,valor_centavos,vencimento,observacoes,situacao,criado_em').order('criado_em',{ascending:false}).limit(1000);
+ if(error){statusV361('Erro na consulta: '+error.message);return}
+ const locais=ler(),existentes=new Set(locais.map(x=>x.id));let novos=0,divergentes=0;
+ for(const x of data||[]){if(existentes.has(x.id_local)){divergentes++;continue}locais.push({id:x.id_local,banco:x.banco,cliente:x.cliente,documento:x.documento,pedido:x.pedido,valor:x.valor_centavos,vencimento:x.vencimento,observacoes:x.observacoes,situacao:x.situacao,criadoEm:x.criado_em});existentes.add(x.id_local);novos++}
+ if(novos)gravar(locais);
+ statusV361(novos+' título(s) importados, '+divergentes+' já existentes preservados. Importação não altera registros locais existentes.');
+};
+window.remessaAprovarLoteV361=function(){
+ const a=ler(),rascunhos=a.filter(x=>x.situacao==='rascunho');if(!rascunhos.length){alert('Não há rascunhos para aprovar.');return}
+ if(!confirm('Aprovar '+rascunhos.length+' rascunho(s) para conferência interna? Isso NÃO gera boletos ou remessa bancária.'))return;
+ for(const d of rascunhos){d.situacao='aprovado';d.aprovadoEm=new Date().toISOString()}
+ gravar(a);statusV361(rascunhos.length+' título(s) aprovados localmente. Use Enviar ao Supabase para compartilhar.');
+};
 const renderOriginalV359=render;
 window.remessaRenderV357=function(){renderOriginalV359();if(!relatoriosEmAndamentoV359.length)window.remessaCarregarRelatoriosV359()};
 

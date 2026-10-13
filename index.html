@@ -3043,8 +3043,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
   </div>
 
   <div id="cobAbaRemessas" class="cobranca-card cobranca-aba-interna" style="display:none;padding:20px;">
-    <h3>📤 Preparação de remessas — V360</h3>
-    <p><strong>Etapa inicial, sem integração bancária.</strong> Prepare, corrija e aprove rascunhos para conferência. Ainda não gera boleto pagável, Nosso Número, linha digitável, arquivo CNAB nem transmite ao BB ou Bradesco. Os dados ficam <strong>somente neste navegador</strong> e não são compartilhados entre computadores.</p>
+    <h3>📤 Preparação de remessas — V361</h3>
+    <p><strong>Etapa inicial, sem integração bancária.</strong> Prepare, corrija e aprove rascunhos para conferência. Ainda não gera boleto pagável, Nosso Número, linha digitável, arquivo CNAB nem transmite ao BB ou Bradesco. Os rascunhos são locais inicialmente; após executar o SQL V361, você pode compartilhá-los pelo Supabase usando os botões de sincronização.</p>
     <div style="padding:12px;background:#fff4d8;border:1px solid #e8c36d;border-radius:10px;margin-bottom:14px">⚠️ Não envie o arquivo de conferência ao banco nem o trate como remessa. Para emissão real, continue usando as abas de emissão existentes.</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px">
       <label>Banco<select id="remBanco"><option value="bradesco">Bradesco</option><option value="bb">Banco do Brasil</option></select></label>
@@ -3062,6 +3062,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
       <div style="display:flex;gap:9px;flex-wrap:wrap;margin:10px 0"><button type="button" class="btn azul" onclick="remessaSelecionarTodosV360(true)">Selecionar relatórios</button><button type="button" class="btn" onclick="remessaSelecionarTodosV360(false)">Limpar seleção</button><button type="button" class="btn verde" onclick="remessaPrepararSelecionadosV360()">Preparar selecionados (sem registro)</button></div><div id="remRelatoriosStatus" style="font-size:12px;margin-bottom:8px" aria-live="polite">Clique em Atualizar relatórios para consultar.</div>
       <div style="overflow-x:auto;max-height:360px;overflow-y:auto"><table style="width:100%"><thead><tr><th>Selecionar</th><th>Cliente</th><th>Banco</th><th>Pedido / NF</th><th>Valor total</th><th>Parcelas</th><th>Ação</th></tr></thead><tbody id="remRelatoriosLista"><tr><td colspan="7">Aguardando consulta.</td></tr></tbody></table></div>
     </section>
+    <section style="padding:12px;border:1px solid #c6b9df;border-radius:10px;background:#f7f5ff;margin:12px 0"><strong>V361 • Lotes de conferência compartilhados</strong><p style="margin:6px 0">Aprovação interna e compartilhamento de rascunhos. Não gera boleto, código de barras, CNAB ou transmissão bancária.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn verde" style="color:#fff;background:#157f49" onclick="remessaAprovarLoteV361()">Aprovar todos os rascunhos</button><button type="button" class="btn azul" style="color:#fff;background:#2385c6" onclick="remessaSincronizarV361()">Enviar rascunhos ao Supabase</button><button type="button" class="btn" style="color:#fff;background:#5748a8" onclick="remessaImportarV361()">Importar rascunhos compartilhados</button></div><p id="remSyncStatusV361" role="status" style="font-size:12px;margin:8px 0 0">Execute SQL_V361_REMESSAS_PREPARACAO.sql antes de sincronizar. Os rascunhos locais existentes serão preservados.</p></section>
     <p style="padding:10px;border:1px solid #b6a7d8;border-radius:8px;background:#f5f1ff">Aprovar = liberar para conferência interna, <strong>não gera boleto com código de barras</strong>. O envio de remessa ao banco permanecerá desabilitado até homologação de CNAB e confirmação do convênio.</p><p id="remResumo">0 títulos</p>
     <div style="overflow-x:auto"><table style="width:100%"><thead><tr><th>Banco</th><th>Cliente / Pedido</th><th>Valor</th><th>Vencimento</th><th>Situação</th><th>Ações</th></tr></thead><tbody id="remLista"><tr><td colspan="6">Nenhum título preparado.</td></tr></tbody></table></div>
   </div>
@@ -3822,7 +3823,7 @@ function alternarMenuSof(){const x=document.body.classList.toggle("sof-menu-fech
 try{if(localStorage.getItem("sof-menu-fechado")==="1")document.body.classList.add("sof-menu-fechado")}catch(e){}
 document.getElementById("toggleMenuSof")?.setAttribute("aria-expanded",String(!document.body.classList.contains("sof-menu-fechado")));
 </script>
-<script src="remessas-preparacao.js?v=358"></script>
+<script src="remessas-preparacao.js?v=361"></script>
 </body>
 </html>
 
