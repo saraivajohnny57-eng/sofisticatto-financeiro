@@ -2812,6 +2812,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <button id="cobTabHistorico" class="cobranca-subtab ativa" onclick="mostrarAbaIntegracaoBancaria('historico')">📚 Histórico</button>
     <button id="cobTabEmissao" class="cobranca-subtab" onclick="mostrarAbaIntegracaoBancaria('emissao')">💳 Emissão de boleto</button>
     <button id="cobTabMassa" class="cobranca-subtab" onclick="mostrarAbaIntegracaoBancaria('massa')">📦 Emissão em massa</button>
+    <button id="cobTabRemessas" class="cobranca-subtab" onclick="mostrarAbaIntegracaoBancaria('remessas')">📤 Remessas</button>
     <button id="cobTabCredenciais" class="cobranca-subtab" onclick="mostrarAbaIntegracaoBancaria('credenciais')">🔐 Credenciais e diagnóstico</button>
   </div>
   <div class="cobranca-integracao-aviso"><b>Banco do Brasil:</b> integração ativa. <span><b>Bradesco:</b> Produção ativa para emissão individual e em massa, com registro no Histórico.</span></div>
@@ -3041,6 +3042,23 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
   </div>
 
+  <div id="cobAbaRemessas" class="cobranca-card cobranca-aba-interna" style="display:none;padding:20px;">
+    <h3>📤 Preparação de remessas — V357</h3>
+    <p><strong>Etapa inicial, sem integração bancária.</strong> Prepare, corrija e aprove rascunhos para conferência. Ainda não gera boleto pagável, Nosso Número, linha digitável, arquivo CNAB nem transmite ao BB ou Bradesco. Os dados ficam <strong>somente neste navegador</strong> e não são compartilhados entre computadores.</p>
+    <div style="padding:12px;background:#fff4d8;border:1px solid #e8c36d;border-radius:10px;margin-bottom:14px">⚠️ Não envie o arquivo de conferência ao banco nem o trate como remessa. Para emissão real, continue usando as abas de emissão existentes.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px">
+      <label>Banco<select id="remBanco"><option value="bradesco">Bradesco</option><option value="bb">Banco do Brasil</option></select></label>
+      <label>Cliente<input id="remCliente" placeholder="Nome / Razão social"></label>
+      <label>CPF/CNPJ<input id="remDocumento" placeholder="Somente números"></label>
+      <label>Pedido / NF<input id="remPedido" placeholder="Número do pedido"></label>
+      <label>Valor (R$)<input id="remValor" type="number" min="0.01" step="0.01"></label>
+      <label>Vencimento<input id="remVencimento" type="date"></label>
+      <label>Observações<input id="remObservacoes" placeholder="Opcional"></label>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"><button class="btn verde" onclick="remessaPrepararV357()">➕ Adicionar rascunho</button><button class="btn azul" onclick="remessaRenderV357()">↻ Atualizar lista</button><button class="btn" onclick="remessaExportarV357()">⬇ Exportar conferência (JSON, não CNAB)</button></div>
+    <p id="remResumo">0 títulos</p>
+    <div style="overflow-x:auto"><table style="width:100%"><thead><tr><th>Banco</th><th>Cliente / Pedido</th><th>Valor</th><th>Vencimento</th><th>Situação</th><th>Ações</th></tr></thead><tbody id="remLista"><tr><td colspan="6">Nenhum título preparado.</td></tr></tbody></table></div>
+  </div>
   <div id="cobAbaMassa" class="cobranca-card cobranca-massa-card cobranca-aba-interna" style="display:none;">
     <div class="cobranca-massa-topo">
       <div><h3>📚 Fila do Relatório Financeiro</h3><p>Puxa os lançamentos do relatório. O banco definido pelo usuário Banco é respeitado e as parcelas do mesmo cliente permanecem juntas.</p></div>
@@ -3798,5 +3816,6 @@ function alternarMenuSof(){const x=document.body.classList.toggle("sof-menu-fech
 try{if(localStorage.getItem("sof-menu-fechado")==="1")document.body.classList.add("sof-menu-fechado")}catch(e){}
 document.getElementById("toggleMenuSof")?.setAttribute("aria-expanded",String(!document.body.classList.contains("sof-menu-fechado")));
 </script>
+<script src="remessas-preparacao.js?v=357"></script>
 </body>
 </html>

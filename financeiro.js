@@ -7590,9 +7590,10 @@ function mostrarAbaTesteBancario(banco='bb'){
 }
 function mostrarAbaIntegracaoBancaria(aba='historico'){
   if(usuarioEhCobrancaV293() && aba!=='historico') aba='historico';
-  const mapa={historico:'cobAbaHistorico',emissao:'cobAbaEmissao',massa:'cobAbaMassa',credenciais:'cobAbaCredenciais'};
+  const mapa={historico:'cobAbaHistorico',emissao:'cobAbaEmissao',massa:'cobAbaMassa',remessas:'cobAbaRemessas',credenciais:'cobAbaCredenciais'};
   Object.entries(mapa).forEach(([k,id])=>{const el=document.getElementById(id),bt=document.getElementById('cobTab'+k.charAt(0).toUpperCase()+k.slice(1));if(el)el.style.display=k===aba?(k==='emissao'?'grid':'block'):'none';if(bt)bt.classList.toggle('ativa',k===aba);});
   if(aba==='historico'&&typeof carregarCobrancasBancarias==='function')carregarCobrancasBancarias();
+  if(aba==='remessas'&&typeof remessaRenderV357==='function')remessaRenderV357();
   if(aba==='massa'&&typeof carregarFilaCobrancaMassa==='function')carregarFilaCobrancaMassa();
   if(aba==='credenciais'){if(typeof carregarStatusBancoBB==='function')carregarStatusBancoBB(false);if(typeof carregarStatusBradesco==='function')carregarStatusBradesco(false);}
 }
@@ -10152,7 +10153,7 @@ async function carregarStatusBancoBB(mostrarErro=false){
     if(det){let txt=c.configurado?`ATIVO\nTitular: ${c.titular||'—'}\nCNPJ: ${c.cnpj||'—'}\nEmissor: ${c.emissor||'—'}\nValidade: ${bbFmtData(c.valido_de)} até ${bbFmtData(c.valido_ate)}\nCadeia pública: ${c.quantidade_cadeia||'—'} certificado(s)`:'Nenhum certificado A1 ativo neste ambiente.';if(pend.configurado)txt+=`\n\nA1 ARMAZENADO (NÃO EXIGIDO PELA COBRANÇAS V2)\nTitular: ${pend.titular||'—'}\nValidade: ${bbFmtData(pend.valido_ate)}\nO Portal Developers BB informou que esta aplicação não exige mTLS.`;det.textContent=txt;}
     const scopes=document.getElementById('bbScopes');if(scopes&&!scopes.value&&cred.scopes)scopes.value=cred.scopes;
     if(pend.configurado){bbAviso(`✅ Credenciais OAuth podem ser testadas normalmente. A Cobranças v2 desta aplicação não exige mTLS; o A1 salvo fica apenas disponível no portal e não bloqueia a conexão.`,'ok');}
-    else if(cred.configuradas){bbAviso(`✅ Credenciais OAuth cadastradas. Cobranças v2: mTLS não exigido. Pronto para testar a autenticação com o BB.`,'ok');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='Banco do Brasil • credenciais prontas para teste'}}
+    else if(cred.configuradas){bbAviso(`✅ Credenciais OAuth cadastradas. Cobranças v2: mTLS não exigido. Pronto para testar a autenticação com o BB.`,'ok');if(topo){topo.className='cobranca-bank-status aberto';topo.textContent='BB • Produção Ativa'}}
     else if(c.vencido){bbAviso(`ℹ️ O A1 armazenado venceu em ${bbFmtData(c.valido_ate)}, mas a Cobranças v2 desta aplicação não exige mTLS. Isso não bloqueia o OAuth.`,'alerta');if(topo){topo.className='cobranca-bank-status pendente';topo.textContent='Banco do Brasil • salvar credenciais OAuth'}}
     else if(!cred.configuradas){bbAviso('Salve App Key, Client ID e Client Secret para testar a autenticação OAuth. O A1 não é obrigatório para a Cobranças v2 desta aplicação.','alerta');if(topo){topo.className='cobranca-bank-status pendente';topo.textContent='Banco do Brasil • credenciais pendentes'}}
     else {bbAviso('Configuração bancária carregada. Salve as credenciais OAuth para continuar.','alerta')}
