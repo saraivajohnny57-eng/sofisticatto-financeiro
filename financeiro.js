@@ -7957,6 +7957,30 @@ function imprimirRelatorioBancarioCompletoV313(){return imprimirRelatorioBancari
 
 
 // V307 — conciliação segura de múltiplos retornos Bradesco CNAB 400.
+// V367 — Consulta automática de carteira Bradesco sem upload .RET e sem alteração de títulos.
+async function consultarCarteiraBradescoV367(){
+  const btn=document.getElementById('btnConsultaAutomaticaBradescoV367');
+  if(btn?.disabled)return;
+  if(btn){btn.disabled=true;btn.textContent='🏦 Consultando Bradesco…';}
+  try{
+    const resp=await bradescoReqProducao('listar-pendencias-carteira',{});
+    if(resp?.ok===false)throw new Error(resp?.mensagem||'Consulta recusada pelo Bradesco');
+    const titulos=Array.isArray(resp?.titulos)?resp.titulos:[];
+    const local=await banco.from('cobrancas_bancarias').select('*').eq('banco','bradesco').order('created_at',{ascending:false}).limit(5000);
+    if(local.error)throw local.error;
+    const normal=v=>String(v??'').replace(/\D/g,'').replace(/^0+/,'');
+    const idx=new Map();
+    for(const x of local.data||[]){const k=normal(x.nosso_numero);if(!k)continue;const arr=idx.get(k)||[];arr.push(x);idx.set(k,arr);}
+    const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const moeda=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    let portal=0,externos=0,ambiguos=0;
+    const rows=titulos.map(t=>{const nn=normal(t.nosso_numero),matches=idx.get(nn)||[];let origem='Banco (externo)';if(matches.length===1){origem='Portal';portal++;}else if(matches.length>1){origem='Conferir vínculo';ambiguos++;}else externos++;
+      return `<tr><td>${esc(t.cliente||'—')}</td><td>${esc(t.seu_numero||'—')}</td><td>${esc(t.nosso_numero||'—')}</td><td>${esc(t.vencimento||'—')}</td><td>${moeda(t.valor)}</td><td>${esc(t.status_banco||t.status||'Não informado')}</td><td>${esc(origem)}</td></tr>`;}).join('');
+    const w=window.open('','_blank');if(!w)throw new Error('Permita pop-ups para abrir o relatório.');
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Consulta automática Bradesco</title><style>body{font:12px Arial;margin:20px}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left}th{background:#eee}p{line-height:1.5}.alerta{padding:12px;background:#fff8e1;border-left:4px solid #d99b00}@media print{button{display:none}}</style></head><body><h1>Sofisticatto — Consulta automática Bradesco</h1><p><b>${titulos.length}</b> título(s) retornado(s) • ${portal} associado(s) ao Portal • ${externos} externo(s) • ${ambiguos} vínculo(s) ambíguo(s)</p><p class="alerta"><b>Consulta somente leitura.</b> Este relatório utiliza o recurso de pendências já integrado. Não comprova a inexistência de títulos pagos, cancelados ou baixados que deixaram a carteira de pendências. Nenhum boleto foi criado ou alterado. A consulta automática de liquidações históricas depende de recurso bancário adicional.</p><button onclick="print()">🖨 Imprimir</button><table><thead><tr><th>Cliente</th><th>Documento</th><th>Nosso Número</th><th>Vencimento</th><th>Valor</th><th>Status informado pelo banco</th><th>Origem</th></tr></thead><tbody>${rows||'<tr><td colspan="7">Nenhum título retornado.</td></tr>'}</tbody></table></body></html>`);w.document.close();
+  }catch(e){alert('Falha na consulta automática do Bradesco.\n\n'+(e.message||e));}
+  finally{if(btn){btn.disabled=false;btn.textContent='🏦 Consultar Bradesco automaticamente';}}
+}
 // Alteração isolada: somente o importador de retorno. Os arquivos continuam locais no navegador.
 function abrirRetornoBradescoV301(){
   const i=document.getElementById('cobRetornoBradescoV301');
