@@ -8011,18 +8011,39 @@ async function lerRetornoBradescoV301(input){
     if(q.error)throw q.error; const locais=q.data||[];
     const idx=new Map();for(const b of locais){const k=brRetNossoV307(b.nosso_numero||'');if(k&&!idx.has(k))idx.set(k,b);}
     for(const x of movs){x.portal=idx.get(x.nosso_chave)||null;x.encontrado=!!x.portal;x.status_atual=x.portal?.status||'';}
+    // V366: consulta somente leitura da carteira bancária já existente no Histórico.
+    // A consulta de pendências não inclui necessariamente títulos liquidados.
+    let consultaBancoErro='';let carteiraBanco=[];
+    try{
+      const resp=await bradescoReqProducao('listar-pendencias-carteira',{});
+      carteiraBanco=Array.isArray(resp?.titulos)?resp.titulos:[];
+    }catch(e){consultaBancoErro=String(e?.message||e);}
+    const idxBanco=new Map();
+    for(const t of carteiraBanco){
+      const chave=brRetNossoV307(t.nosso_numero);
+      if(chave){const a=idxBanco.get(chave)||[];a.push(t);idxBanco.set(chave,a);}
+    }
+    for(const x of movs){
+      if(x.encontrado)continue;
+      const candidatos=idxBanco.get(x.nosso_chave)||[];
+      // Não associar números repetidos/ambíguos. Sem escrita no Supabase.
+      if(candidatos.length===1){x.banco_externo=candidatos[0];x.encontrado_banco=true;}
+      else if(candidatos.length>1)x.ambiguo_banco=true;
+    }
     const encontrados=movs.filter(x=>x.encontrado),nao=movs.filter(x=>!x.encontrado),pagos=movs.filter(x=>x.acao==='pago'),baixados=movs.filter(x=>x.acao==='cancelado');
+    const encontradosBanco=movs.filter(x=>x.encontrado_banco);
+
     window.retornoBradescoDiagnosticoV301={versao:'V307',arquivos:resumoArquivos,quantidade_arquivos:arquivos.length,registros_lidos:totalRegistros,movimentos_detalhe:detalhes400,movimentos_unicos:movs.length,registros_duplicados_ignorados:duplicados,linhas_irregulares:totalIrregulares,movimentos:movs};
-    mostrarPreviaRetornoBradescoV307({arquivos,resumoArquivos,movs,encontrados,nao,pagos,baixados,duplicados,totalRegistros,totalIrregulares,qtd400,qtd240,qtdOutro});
+    mostrarPreviaRetornoBradescoV307({arquivos,resumoArquivos,movs,encontrados,nao,pagos,baixados,duplicados,totalRegistros,totalIrregulares,qtd400,qtd240,qtdOutro,encontradosBanco,consultaBancoErro,carteiraBancoQtd:carteiraBanco.length});
   }catch(e){alert('Não foi possível ler os arquivos de retorno Bradesco.\n\n'+(e.message||e));}
   finally{if(input)input.value='';}
 }
 function mostrarPreviaRetornoBradescoV307(d){
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const moeda=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}),fd=v=>v?String(v).split('-').reverse().join('/'):'—';
-  const rows=d.movs.map(x=>`<tr><td>${esc(x.arquivo)}</td><td>${esc(x.nosso_numero||'—')}</td><td>${esc(x.numero_documento||'—')}</td><td>${esc(x.codigo_ocorrencia)}</td><td><b>${esc(x.ocorrencia)}</b></td><td>${fd(x.data_ocorrencia)}</td><td style="text-align:right">${moeda(x.valor_pago||x.valor_titulo)}</td><td>${x.encontrado?'✅ Encontrado':'⚠️ Não encontrado'}</td><td>${esc(x.status_atual||'—')}</td></tr>`).join('');
+  const rows=d.movs.map(x=>`<tr><td>${esc(x.arquivo)}</td><td>${esc(x.nosso_numero||'—')}</td><td>${esc(x.numero_documento||'—')}</td><td>${esc(x.codigo_ocorrencia)}</td><td><b>${esc(x.ocorrencia)}</b></td><td>${fd(x.data_ocorrencia)}</td><td style="text-align:right">${moeda(x.valor_pago||x.valor_titulo)}</td><td>${x.encontrado?'✅ Portal':x.encontrado_banco?'🏦 Banco (somente leitura)':x.ambiguo_banco?'⚠️ Ambíguo':'⚠️ Não encontrado'}</td><td>${esc(x.status_atual||'—')}</td></tr>`).join('');
   const w=window.open('','_blank');if(!w)return alert('Libere pop-ups para abrir a prévia do retorno Bradesco.');
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Prévia retorno Bradesco</title><style>body{font:12px Arial;margin:18px}h1{font-size:20px}.cards{display:flex;gap:8px;flex-wrap:wrap}.c{border:1px solid #ccc;border-radius:8px;padding:8px 12px}.av{background:#fff8e1;padding:10px;border-left:4px solid #f9a825;margin:12px 0}table{width:100%;border-collapse:collapse;font-size:10px}th,td{padding:5px;border-bottom:1px solid #ddd;text-align:left}th{background:#eee;position:sticky;top:0}.ok{background:#1976d2;color:#fff;border:0;border-radius:6px;padding:10px 14px;font-weight:bold;cursor:pointer}.sec{background:#eee;border:0;border-radius:6px;padding:10px 14px;cursor:pointer}@media print{button{display:none}}</style></head><body><h1>Sofisticatto — Prévia do retorno Bradesco</h1><div class="cards"><div class="c"><b>${d.arquivos.length}</b><br>arquivos</div><div class="c"><b>${d.movs.length}</b><br>movimentações únicas</div><div class="c"><b>${d.duplicados}</b><br>duplicadas ignoradas</div><div class="c"><b>${d.encontrados.length}</b><br>encontradas no portal</div><div class="c"><b>${d.nao.length}</b><br>não encontradas</div><div class="c"><b>${d.pagos.length}</b><br>liquidações</div><div class="c"><b>${d.baixados.length}</b><br>baixas</div></div><div class="av"><b>Nenhuma alteração foi feita ainda.</b> O botão Aplicar atualizações seguras só atualiza títulos já encontrados pelo Nosso Número. Não cria boletos e não salva os arquivos RET.</div><p><button class="ok" onclick="opener.aplicarRetornoBradescoV307();this.disabled=true;this.textContent='Processando…'">✅ Aplicar atualizações seguras</button> <button class="sec" onclick="print()">🖨 Imprimir prévia</button></p><table><thead><tr><th>Arquivo</th><th>Nosso Número</th><th>Documento</th><th>Cód.</th><th>Ocorrência</th><th>Data</th><th>Valor</th><th>Portal</th><th>Status atual</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);w.document.close();
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Prévia retorno Bradesco</title><style>body{font:12px Arial;margin:18px}h1{font-size:20px}.cards{display:flex;gap:8px;flex-wrap:wrap}.c{border:1px solid #ccc;border-radius:8px;padding:8px 12px}.av{background:#fff8e1;padding:10px;border-left:4px solid #f9a825;margin:12px 0}table{width:100%;border-collapse:collapse;font-size:10px}th,td{padding:5px;border-bottom:1px solid #ddd;text-align:left}th{background:#eee;position:sticky;top:0}.ok{background:#1976d2;color:#fff;border:0;border-radius:6px;padding:10px 14px;font-weight:bold;cursor:pointer}.sec{background:#eee;border:0;border-radius:6px;padding:10px 14px;cursor:pointer}@media print{button{display:none}}</style></head><body><h1>Sofisticatto — Prévia do retorno Bradesco</h1><div class="cards"><div class="c"><b>${d.arquivos.length}</b><br>arquivos</div><div class="c"><b>${d.movs.length}</b><br>movimentações únicas</div><div class="c"><b>${d.duplicados}</b><br>duplicadas ignoradas</div><div class="c"><b>${d.encontrados.length}</b><br>encontradas no portal</div><div class="c"><b>${d.nao.length}</b><br>não encontradas</div><div class="c"><b>${d.pagos.length}</b><br>liquidações</div><div class="c"><b>${d.baixados.length}</b><br>baixas</div></div><div class="av"><b>V366 — Consulta bancária:</b> ${d.encontradosBanco?.length||0} movimento(s) associado(s) à carteira de pendências do Bradesco (somente leitura); ${d.carteiraBancoQtd||0} título(s) consultado(s). ${d.consultaBancoErro?"Consulta indisponível: "+esc(d.consultaBancoErro)+". ":""}Títulos pagos podem não constar da consulta de pendências. <b>Nenhuma alteração foi feita ainda.</b> O botão Aplicar atualizações seguras só atualiza títulos já encontrados pelo Nosso Número. Não cria boletos e não salva os arquivos RET.</div><p><button class="ok" onclick="opener.aplicarRetornoBradescoV307();this.disabled=true;this.textContent='Processando…'">✅ Aplicar atualizações seguras</button> <button class="sec" onclick="print()">🖨 Imprimir prévia</button></p><table><thead><tr><th>Arquivo</th><th>Nosso Número</th><th>Documento</th><th>Cód.</th><th>Ocorrência</th><th>Data</th><th>Valor</th><th>Portal</th><th>Status atual</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);w.document.close();
 }
 async function aplicarRetornoBradescoV307(){
   const d=window.retornoBradescoDiagnosticoV301,movs=d?.movimentos||[];if(!movs.length)return alert('Importe os arquivos de retorno Bradesco primeiro.');
