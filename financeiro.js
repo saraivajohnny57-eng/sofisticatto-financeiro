@@ -7973,7 +7973,7 @@ function brRetNossoV307(v){return String(v||'').replace(/\D/g,'').replace(/^0+/,
 function brRetOcorrenciaV307(c){
   const m={
     '02':['Entrada confirmada','info'],'03':['Entrada rejeitada','info'],'06':['Liquidação','pago'],
-    '09':['Baixa','cancelado'],'10':['Baixa solicitada','cancelado'],'11':['Títulos em carteira','info'],
+    '09':['Baixa','info'],'10':['Baixa solicitada (aguardar confirmação bancária)','info'],'11':['Títulos em carteira','info'],
     '12':['Abatimento concedido','info'],'13':['Abatimento cancelado','info'],'14':['Vencimento alterado','info'],
     '15':['Liquidação em cartório','pago'],'17':['Liquidação após baixa','pago'],'19':['Confirmação instrução protesto','info'],
     '20':['Confirmação sustação protesto','info'],'21':['Acerto do depositário','info'],'22':['Título com pagamento cancelado','info'],
