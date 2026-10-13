@@ -48,14 +48,14 @@ function render(){const el=$('remLista');if(!el)return;const a=ler();el.innerHTM
 let relatoriosEmAndamentoV359=[];
 window.remessaCarregarRelatoriosV359=async function(){
  const tb=$('remRelatoriosLista'),status=$('remRelatoriosStatus');if(!tb)return;
- tb.innerHTML='<tr><td colspan="6">Consultando relatórios...</td></tr>';if(status)status.textContent='Consultando lançamentos em andamento...';
+ tb.innerHTML='<tr><td colspan="7">Consultando relatórios...</td></tr>';if(status)status.textContent='Consultando lançamentos em andamento...';
  try{
   const db=typeof banco!=='undefined'?banco:null;if(!db)throw Error('Sessão do Supabase indisponível.');
   const {data,error}=await db.from('boletos').select('*').neq('status','Finalizado').order('valor',{ascending:false}).limit(500);
   if(error)throw error;
   relatoriosEmAndamentoV359=data||[];
   window.remessaFiltrarRelatoriosV359();
- }catch(e){relatoriosEmAndamentoV359=[];tb.innerHTML='<tr><td colspan="6">Não foi possível carregar os relatórios.</td></tr>';if(status)status.textContent='Erro ao consultar: '+String(e.message||e)}
+ }catch(e){relatoriosEmAndamentoV359=[];tb.innerHTML='<tr><td colspan="7">Não foi possível carregar os relatórios.</td></tr>';if(status)status.textContent='Erro ao consultar: '+String(e.message||e)}
 };
 window.remessaFiltrarRelatoriosV359=function(){
  const tb=$('remRelatoriosLista'),status=$('remRelatoriosStatus');if(!tb)return;
@@ -66,8 +66,8 @@ window.remessaFiltrarRelatoriosV359=function(){
   const cond=escape(r.condicao_pagamento||'Não definida');
   const bancoTexto=escape(r.banco||'Não definido');
   const pedido=escape(r.numero_nf||r.pedido||r.nf||'—');
-  return `<tr><td>${escape(r.nome||'—')}</td><td>${bancoTexto}</td><td>${pedido}</td><td>${dinheiro(Number(r.valor)||0)}</td><td>${cond}${ps.length?' · '+ps.length+' parcela(s)':''}</td><td><button type="button" class="btn azul" onclick="remessaUsarRelatorioV359(${i})">Usar dados</button></td></tr>`;
- }).join(''):'<tr><td colspan="6">Nenhum relatório em andamento corresponde à pesquisa.</td></tr>';
+  return `<tr><td><input type="checkbox" class="remSelecionarV360" data-i="${i}" aria-label="Selecionar relatório ${escape(r.nome||'')}"></td><td>${escape(r.nome||'—')}</td><td>${bancoTexto}</td><td>${pedido}</td><td>${dinheiro(Number(r.valor)||0)}</td><td>${cond}${ps.length?' · '+ps.length+' parcela(s)':''}</td><td><button type="button" class="btn azul" onclick="remessaUsarRelatorioV359(${i})">Usar dados</button></td></tr>`;
+ }).join(''):'<tr><td colspan="7">Nenhum relatório em andamento corresponde à pesquisa.</td></tr>';
  if(status)status.textContent=`${rows.length} relatório(s) exibido(s) · ${relatoriosEmAndamentoV359.length} carregado(s). Somente leitura; máximo de 500 por consulta.`;
 };
 window.remessaUsarRelatorioV359=async function(i){
@@ -84,6 +84,46 @@ window.remessaUsarRelatorioV359=async function(i){
  $('remObservacoes').value='Origem: relatório financeiro '+String(r.id||'')+(ps.length>1?' — conferir e preparar cada parcela separadamente':'');
  $('remBuscaStatus').textContent='Dados importados do relatório. Confira CPF/CNPJ, vencimento e parcelas antes de adicionar um rascunho.';
  $('remCliente').focus();
+};
+// V360: preparação em lote apenas de rascunhos locais, nunca boletos ou remessas bancárias.
+window.remessaSelecionarTodosV360=function(marcar){document.querySelectorAll('#remRelatoriosLista .remSelecionarV360').forEach(c=>c.checked=!!marcar)};
+window.remessaPrepararSelecionadosV360=async function(){
+ const indices=[...document.querySelectorAll('#remRelatoriosLista .remSelecionarV360:checked')].map(c=>Number(c.dataset.i));
+ if(!indices.length){alert('Selecione um ou mais relatórios.');return}
+ const db=typeof banco!=='undefined'?banco:null;
+ if(!db){alert('Supabase indisponível.');return}
+ if(!confirm('Preparar '+indices.length+' relatório(s) como rascunhos locais? Nenhum boleto será emitido ou enviado ao banco.'))return;
+ const lista=ler(), erros=[], preparados=[];
+ for(const i of indices){
+  const r=relatoriosEmAndamentoV359[i];if(!r)continue;
+  const nome=String(r.nome||'').trim(), pedido=String(r.numero_nf||r.pedido||r.nf||'').trim();
+  const bc=String(r.banco||'').toLowerCase(), bancoNome=bc.includes('bradesco')?'bradesco':bc.includes('brasil')||bc==='bb'?'bb':null;
+  if(!nome||!pedido||!bancoNome){erros.push(nome||'Relatório '+i+': banco, cliente ou pedido ausente');continue}
+  let doc='';
+  if(r.cliente_id){try{const q=await db.from('email_clientes').select('cpf_cnpj').eq('id',r.cliente_id).maybeSingle();doc=String(q.data?.cpf_cnpj||'').replace(/\D/g,'')}catch(e){}}
+  if(!/^\d{11}$|^\d{14}$/.test(doc)){
+   const q=await db.from('email_clientes').select('cpf_cnpj').ilike('nome',nome).limit(2);
+   if(!q.error&&q.data?.length===1)doc=String(q.data[0].cpf_cnpj||'').replace(/\D/g,'');
+  }
+  if(!/^\d{11}$|^\d{14}$/.test(doc)){erros.push(nome+': CPF/CNPJ não encontrado; selecione o cliente manualmente');continue}
+  let parcelas=Array.isArray(r.parcelas_json)?r.parcelas_json:[];
+  // Nunca inventar vencimento ou divisão: cada parcela precisa conter valor e data explícitos.
+  if(!parcelas.length){erros.push(nome+': parcelas não disponíveis no relatório');continue}
+  const itens=[];
+  for(let n=0;n<parcelas.length;n++){
+   const p=parcelas[n], data=String(p.vencimento||p.data_vencimento||p.data||'');
+   const bruto=p.valor??p.valor_parcela??p.valorParcela;
+   const valor=typeof bruto==='number'?bruto:Number(String(bruto||'').replace(/\./g,'').replace(',','.'));
+   const centavos=Math.round(valor*100);
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(data)||!Number.isSafeInteger(centavos)||centavos<=0){erros.push(nome+': parcela '+(n+1)+' sem valor ou vencimento confiável');itens.length=0;break}
+   const chave=pedido+'-'+(n+1)+'de'+parcelas.length;
+   if(lista.some(x=>x.banco===bancoNome&&x.documento===doc&&x.pedido===chave)){erros.push(nome+': parcela '+(n+1)+' já preparada');continue}
+   itens.push({id:id(),banco:bancoNome,cliente:nome,documento:doc,pedido:chave,valor:centavos,vencimento:data,observacoes:'Origem: relatório '+String(r.id||'')+'; parcela '+(n+1)+'/'+parcelas.length,situacao:'rascunho',criadoEm:new Date().toISOString()});
+  }
+  if(itens.length){lista.push(...itens);preparados.push(...itens)}
+ }
+ if(preparados.length)gravar(lista);
+ alert(preparados.length+' parcela(s) preparadas como rascunho local. Nenhuma emissão ou registro bancário foi realizado.'+(erros.length?'\n\nPendências ('+erros.length+'):\n'+erros.slice(0,12).join('\n'):''));
 };
 const renderOriginalV359=render;
 window.remessaRenderV357=function(){renderOriginalV359();if(!relatoriosEmAndamentoV359.length)window.remessaCarregarRelatoriosV359()};
