@@ -3084,6 +3084,14 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <div style="overflow:auto;max-height:280px"><table style="width:100%;border-collapse:collapse"><thead><tr><th><input type="checkbox" id="remV363Todos" onchange="remessaV363SelecionarTodos(this.checked)" aria-label="Selecionar todos"></th><th>Banco</th><th>Cliente / Pedido</th><th>Valor</th><th>Vencimento</th><th>Conferência</th></tr></thead><tbody id="remV363Lista"><tr><td colspan="6">Clique em Carregar aprovados.</td></tr></tbody></table></div>
 </section>
 <section style="padding:14px;border:1px solid #b6a7d8;border-radius:10px;background:#f8f7fd;margin:12px 0" aria-label="Conferências congeladas V364"><strong>V364 • Conferências congeladas (somente local)</strong><p style="margin:8px 0">Selecione títulos aprovados na tabela acima e salve uma cópia dos dados e sua impressão digital SHA-256. O sistema identifica alterações posteriores no rascunho. <strong>Não gera boleto, Nosso Número, código de barras ou CNAB.</strong></p><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn verde" style="background:#147d48;color:#fff" onclick="remessaV364Congelar()">Congelar conferências selecionadas</button><button type="button" class="btn azul" style="background:#247eb9;color:#fff" onclick="remessaV364Conferir()">Verificar alterações</button><button type="button" class="btn" style="background:#5849a5;color:#fff" onclick="remessaV364Exportar()">Exportar cópias JSON</button></div><p id="remV364Status" role="status" style="font-size:13px;margin:8px 0">Conferências salvas somente neste navegador.</p><div style="overflow:auto;max-height:280px"><table style="width:100%"><thead><tr><th>Banco</th><th>Cliente / Pedido</th><th>Valor</th><th>Vencimento</th><th>Integridade</th><th>SHA-256</th></tr></thead><tbody id="remV364Lista"><tr><td colspan="6">Clique em Verificar alterações.</td></tr></tbody></table></div></section>
+<section aria-label="Etapa de emissão por remessa V368" style="padding:14px;border:1px solid #b6a7d8;border-radius:10px;background:#f9f8ff;margin:14px 0">
+<h4 style="margin:0 0 8px">V368 • Pré-emissão Bradesco — auditoria de prontidão</h4>
+<p>Confira rascunhos aprovados e cópias congeladas antes de habilitar a emissão por remessa. Esta etapa <strong>não gera boletos, Nosso Número, linha digitável, PDF bancário ou arquivo .REM</strong>.</p>
+<button type="button" class="btn azul" onclick="remessaV368Auditar()">🔍 Verificar títulos para futura emissão</button>
+<p id="remV368Status" role="status" style="font-size:12px;margin:10px 0">Clique para conferir os títulos aprovados do Bradesco.</p>
+<div style="overflow:auto;max-height:320px"><table style="width:100%"><thead><tr><th>Cliente</th><th>Pedido</th><th>CPF/CNPJ</th><th>Valor</th><th>Vencimento</th><th>Validação interna</th></tr></thead><tbody id="remV368Lista"><tr><td colspan="6">Aguardando conferência.</td></tr></tbody></table></div>
+<p style="color:#8a3817;font-size:12px"><strong>Emissão real bloqueada:</strong> antes de disponibilizar boleto ao cliente, validar com Bradesco o convênio da carteira 09, a composição do Nosso Número, dígito verificador, linha digitável e a remessa CNAB. A emissão direta pela API permanece disponível nas telas atuais.</p>
+</section>
 <p style="padding:10px;border:1px solid #b6a7d8;border-radius:8px;background:#f5f1ff">Aprovar = liberar para conferência interna, <strong>não gera boleto com código de barras</strong>. O envio de remessa ao banco permanecerá desabilitado até homologação de CNAB e confirmação do convênio.</p><p id="remResumo">0 títulos</p>
     <div style="overflow-x:auto"><table style="width:100%"><thead><tr><th>Banco</th><th>Cliente / Pedido</th><th>Valor</th><th>Vencimento</th><th>Situação</th><th>Ações</th></tr></thead><tbody id="remLista"><tr><td colspan="6">Nenhum título preparado.</td></tr></tbody></table></div>
   </div>
@@ -3847,6 +3855,7 @@ document.getElementById("toggleMenuSof")?.setAttribute("aria-expanded",String(!d
 <script src="remessas-preparacao.js?v=361"></script>
 <script src="remessas-conferencia-v363.js?v=363"></script>
 <script src="remessas-snapshots-v364.js?v=364"></script>
+<script src="remessas-emissao-v368.js?v=368"></script>
 </body>
 </html>
 
