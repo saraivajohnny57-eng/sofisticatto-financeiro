@@ -3043,12 +3043,12 @@ SOFISTICATTO COSMÉTICOS</textarea>
   </div>
 
   <div id="cobAbaRemessas" class="cobranca-card cobranca-aba-interna" style="display:none;padding:20px;">
-    <h3>📤 Preparação de remessas — V357</h3>
+    <h3>📤 Preparação de remessas — V358</h3>
     <p><strong>Etapa inicial, sem integração bancária.</strong> Prepare, corrija e aprove rascunhos para conferência. Ainda não gera boleto pagável, Nosso Número, linha digitável, arquivo CNAB nem transmite ao BB ou Bradesco. Os dados ficam <strong>somente neste navegador</strong> e não são compartilhados entre computadores.</p>
     <div style="padding:12px;background:#fff4d8;border:1px solid #e8c36d;border-radius:10px;margin-bottom:14px">⚠️ Não envie o arquivo de conferência ao banco nem o trate como remessa. Para emissão real, continue usando as abas de emissão existentes.</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px">
       <label>Banco<select id="remBanco"><option value="bradesco">Bradesco</option><option value="bb">Banco do Brasil</option></select></label>
-      <label>Cliente<input id="remCliente" placeholder="Nome / Razão social"></label>
+      <label style="position:relative">Cliente — busca inteligente<input id="remCliente" placeholder="Buscar por nome, CPF ou CNPJ" autocomplete="off" oninput="remessaBuscarClientesV358()" onfocus="remessaBuscarClientesV358()" aria-controls="remSugestoes" aria-autocomplete="list" aria-expanded="false"><div id="remSugestoes" role="listbox" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:80;max-height:230px;overflow-y:auto;background:white;border:1px solid #aaa;border-radius:8px;box-shadow:0 6px 18px #0002"></div><small id="remBuscaStatus" style="display:block;color:#666;font-size:11px">Pesquise no cadastro de clientes do portal.</small></label>
       <label>CPF/CNPJ<input id="remDocumento" placeholder="Somente números"></label>
       <label>Pedido / NF<input id="remPedido" placeholder="Número do pedido"></label>
       <label>Valor (R$)<input id="remValor" type="number" min="0.01" step="0.01"></label>
@@ -3056,6 +3056,12 @@ SOFISTICATTO COSMÉTICOS</textarea>
       <label>Observações<input id="remObservacoes" placeholder="Opcional"></label>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"><button class="btn verde" onclick="remessaPrepararV357()">➕ Adicionar rascunho</button><button class="btn azul" onclick="remessaRenderV357()">↻ Atualizar lista</button><button class="btn" onclick="remessaExportarV357()">⬇ Exportar conferência (JSON, não CNAB)</button></div>
+    <section style="border:1px solid #ddd8ec;border-radius:12px;padding:14px;margin:14px 0;background:#faf9ff" aria-label="Relatórios em andamento para remessas">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><h4 style="margin:0 0 5px">📋 Relatórios em andamento</h4><small>Consulte os lançamentos do Relatório Financeiro e aproveite os dados para preparar rascunhos. Nenhuma emissão ou registro bancário é realizado aqui.</small></div><button type="button" class="btn azul" onclick="remessaCarregarRelatoriosV359()">↻ Atualizar relatórios</button></div>
+      <label style="display:block;margin:12px 0 8px">Pesquisar relatório por cliente ou pedido / NF<input id="remFiltroRelatorios" type="search" placeholder="Nome, pedido ou NF" oninput="remessaFiltrarRelatoriosV359()" style="width:100%;max-width:440px"></label>
+      <div id="remRelatoriosStatus" style="font-size:12px;margin-bottom:8px" aria-live="polite">Clique em Atualizar relatórios para consultar.</div>
+      <div style="overflow-x:auto;max-height:360px;overflow-y:auto"><table style="width:100%"><thead><tr><th>Cliente</th><th>Banco</th><th>Pedido / NF</th><th>Valor total</th><th>Parcelas</th><th>Ação</th></tr></thead><tbody id="remRelatoriosLista"><tr><td colspan="6">Aguardando consulta.</td></tr></tbody></table></div>
+    </section>
     <p id="remResumo">0 títulos</p>
     <div style="overflow-x:auto"><table style="width:100%"><thead><tr><th>Banco</th><th>Cliente / Pedido</th><th>Valor</th><th>Vencimento</th><th>Situação</th><th>Ações</th></tr></thead><tbody id="remLista"><tr><td colspan="6">Nenhum título preparado.</td></tr></tbody></table></div>
   </div>
@@ -3816,6 +3822,6 @@ function alternarMenuSof(){const x=document.body.classList.toggle("sof-menu-fech
 try{if(localStorage.getItem("sof-menu-fechado")==="1")document.body.classList.add("sof-menu-fechado")}catch(e){}
 document.getElementById("toggleMenuSof")?.setAttribute("aria-expanded",String(!document.body.classList.contains("sof-menu-fechado")));
 </script>
-<script src="remessas-preparacao.js?v=357"></script>
+<script src="remessas-preparacao.js?v=358"></script>
 </body>
 </html>
