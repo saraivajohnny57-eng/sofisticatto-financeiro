@@ -367,7 +367,7 @@ async function abrirColetaComDadosCotacao(cotacao,resposta,transportadora,agenda
       "";
   }
   if(ce("coletaDataApi")&&!ce("coletaDataApi").value){
-    ce("coletaDataApi").value=/accert/i.test(transportadora?.nome||"")?dataHojeColeta():dataAmanhaColeta();
+    ce("coletaDataApi").value=/accert|(^|\s)tg(\s|$)|tgt/i.test(transportadora?.nome||"")?dataHojeColeta():dataAmanhaColeta();
   }
   atualizarAreaApiColeta();
 
@@ -531,7 +531,7 @@ function atualizarAreaApiColeta(){
     const btn=ce("btnAgendarAccertApi");
     if(titulo)titulo.textContent=`🚚 Coleta automática ${nomeSSW} / SSW`;
     if(btn)btn.textContent=`Agendar na ${nomeSSW} / SSW`;
-    if(coletaEhAccert()&&ce("coletaDataApi")){
+    if((coletaEhAccert()||coletaEhTG())&&ce("coletaDataApi")){
       const atual=cv("coletaDataApi");
       if(!atual||atual===dataAmanhaColeta())ce("coletaDataApi").value=dataHojeColeta();
     }
@@ -3397,6 +3397,7 @@ async function agendarColetaAccertSSW(){
   if(!coletaEhSSW())return alert("Selecione uma transportadora com integração SSW ativa.");
   const dataHora=formatarDataHoraApiColeta();
   if(!dataHora)return alert("Informe a data e o horário limite da coleta.");
+  if(new Date(dataHora).getTime()<=Date.now())return alert("O horário limite da coleta já passou. Para solicitar coleta hoje, informe um horário futuro aceito pela transportadora; caso contrário escolha outra data.");
   if(!cv("coletaCepDestino"))return alert("Informe o CEP do destino.");
   if(!(numeroColetaApi(cv("coletaVolumes"))>0))return alert("Informe a quantidade de volumes.");
   if(!(numeroColetaApi(cv("coletaPeso"))>0))return alert("Informe o peso total.");
