@@ -603,6 +603,25 @@ module.exports=async function(req,res){
       await salvar(idRegistro(amb,'credenciais'),amb,'credenciais',{client_id,client_secret},{client_id_configurado:true});
       return json(res,200,{ok:true,mensagem:'Credenciais Bradesco salvas com criptografia no backend.'});
     }
+    // V379: acesso administrativo restrito aos parâmetros necessários para remessa.
+    if(action==='obter-parametros-remessa-v379'){
+      if(amb!=='producao')throw new Error('Utilize a configuração de produção para a remessa.');
+      const reg=await obter(idRegistro(amb,'dados-bancarios'));
+      const d=reg?(descriptografar(reg)||{}):{};
+      return json(res,200,{ok:true,agencia:String(d.agencia||''),conta:String(d.conta||''),dv_conta:String(d.dv_conta||''),carteira:String(d.carteira||'')});
+    }
+    if(action==='salvar-dv-remessa-v379'){
+      if(amb!=='producao')throw new Error('Configure o DV na produção.');
+      const dv=String(req.body?.dv_conta||'').trim().toUpperCase();
+      if(!/^[0-9P]$/.test(dv))throw new Error('DV inválido: informe um dígito ou P.');
+      const reg=await obter(idRegistro(amb,'dados-bancarios'));
+      if(!reg)throw new Error('Cadastre primeiro os dados bancários do Bradesco.');
+      const d=descriptografar(reg)||{};
+      if(!d.agencia||!d.conta)throw new Error('Agência e conta não configuradas.');
+      d.dv_conta=dv;
+      await salvar(idRegistro(amb,'dados-bancarios'),amb,'dados-bancarios',d,{campos_configurados:Object.keys(d).filter(k=>!!d[k])});
+      return json(res,200,{ok:true,mensagem:'DV da conta salvo na configuração criptografada.'});
+    }
     if(action==='obter-dados-bancarios'){
       return json(res,200,{ok:true,dados_bancarios:await dadosBancariosStatus(amb)});
     }
