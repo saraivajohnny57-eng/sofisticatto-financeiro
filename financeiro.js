@@ -7425,6 +7425,24 @@ function bbStatusExtraHtml(x){
   }
   return extras.join(' ');
 }
+// V380 — consulta individual oficial BB, sem depender da janela da sincronização em lote.
+async function verificarStatusBbV380(id){
+  const reg=(cobrancasBancarias||[]).find(x=>String(x.id)===String(id));
+  if(!reg||String(reg.banco||'').toLowerCase()!=='bb')return alert('Boleto BB não encontrado no Histórico.');
+  const botoes=[...document.querySelectorAll('[data-verifica-bb="'+String(id).replace(/"/g,'')+'"]')];
+  botoes.forEach(b=>b.disabled=true);
+  try{
+    const j=await bbReq('sincronizar-status',{method:'POST',body:{id:String(id),limite:1}});
+    const r=j?.resumo||{};
+    if(!r.consultados||r.erros?.length)throw new Error(r.erros?.[0]?.erro||'O banco não confirmou a consulta deste título.');
+    const q=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(2000);
+    if(q.error)throw q.error;
+    cobrancasBancarias=q.data||[];renderHistoricoCobrancas();
+    const atual=cobrancasBancarias.find(x=>String(x.id)===String(id));
+    alert('Banco do Brasil consultado.\n\nSituação oficial registrada: '+cobStatus(atual?.status)+(atual?.bb_descontado?' / Descontado':'')+'.');
+  }catch(e){alert('Não foi possível confirmar a situação deste boleto no BB.\n\n'+(e.message||e));}
+  finally{botoes.forEach(b=>b.disabled=false);}
+}
 async function sincronizarStatusBbV176(silencioso=false){
   if(bbStatusSyncEmAndamentoV176)return;
   bbStatusSyncEmAndamentoV176=true;
@@ -7884,7 +7902,7 @@ async function consultarPendenciasCarteiraV294(banco,opcoes={}){
     window.carteiraExternaV294=window.carteiraExternaV294||{};window.carteiraExternaV294[banco]=pendExternas;
     window.carteiraCompletaV296=window.carteiraCompletaV296||{};window.carteiraCompletaV296[banco]=combinado;
     const resumoBB=banco==='bb'&&j?.resumo?`\n${Number(j.resumo.vencidos||0)} vencido(s) ainda pendente(s) no BB.\n${Number(j.resumo.a_vencer||0)} título(s) a vencer no BB.`:'';
-    if(!opcoes.silencioso)alert(`${banco==='bb'?'Banco do Brasil':'Bradesco'} — consulta somente leitura concluída.\n\n${tit.length} pendência(s) encontrada(s) no banco.${resumoBB}\n${encontradosNoPortal.length} também estão no Portal Sofisticatto.\n${externos.length} existem somente no banco.\n${combinado.length} título(s) disponível(is) no relatório consolidado.\n\nNenhum boleto foi emitido, alterado ou salvo no Storage.`);
+    if(!opcoes.silencioso)alert(`${banco==='bb'?'Banco do Brasil':'Bradesco'} — consulta de pendências (não atualiza o Histórico) concluída.\n\n${tit.length} pendência(s) encontrada(s) no banco.${resumoBB}\n${encontradosNoPortal.length} também estão no Portal Sofisticatto.\n${externos.length} existem somente no banco.\n${combinado.length} título(s) disponível(is) no relatório consolidado.\n\nNenhum boleto foi emitido, alterado ou salvo no Storage.`);
     if(combinado.length&&opcoes.abrirRelatorio!==false)imprimirPendenciasConsolidadasV296(banco,combinado);
     return true;
   }catch(e){if(!opcoes.silencioso)alert(`Não foi possível listar a carteira ${banco==='bb'?'BB':'Bradesco'}:\n\n${e.message}\n\nA consulta é somente leitura e nenhum boleto foi alterado.`);else throw e;return false;}
@@ -8204,7 +8222,7 @@ function renderHistoricoCobrancas(){
       :(x.banco==='bradesco'&&x.status==='pendente_integracao'
         ?`<button class="btn vermelho" onclick="verificarConciliarTituloBradescoV271('${x.id}')">🔎 Verificar Bradesco</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
         :(emitido
-      ?`<button class="btn azul" onclick="abrirImpressaoNormalBbRegistro('${x.id}')">🖨 Impressão Normal</button> <button class="btn verde" onclick="abrirBoletoOficialBbRegistro('${x.id}')">🏦 2ª via BB</button> <button class="btn" onclick="abrirBaixaSubstituicaoV352('${x.id}')">🔁 Baixar / substituir</button>`
+      ?`<button class="btn azul" onclick="abrirImpressaoNormalBbRegistro('${x.id}')">🖨 Impressão Normal</button> <button class="btn verde" onclick="abrirBoletoOficialBbRegistro('${x.id}')">🏦 2ª via BB</button> <button class="btn" style="background:#1565c0;color:#fff" data-verifica-bb="${x.id}" onclick="verificarStatusBbV380('${x.id}')">🔄 Verificar BB</button> <button class="btn" onclick="abrirBaixaSubstituicaoV352('${x.id}')">🔁 Baixar / substituir</button>`
         :(x.banco==='bb'&&x.status==='pendente_integracao'
           ?`<button class="btn verde" onclick="verificarConciliarTituloBb('${x.id}')">🔎 Verificar no BB</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
           :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`)));

@@ -235,8 +235,12 @@ async function sincronizarStatusBoletosBradesco(amb,entrada={}){
   const limite=Math.max(1,Math.min(100,Number(entrada.limite||60)));
   // V286: também revisa títulos localmente cancelados/baixados. A fonte de verdade
   // da sincronização é a resposta atual do Bradesco, não o estado previamente salvo.
-  const rows=await supabaseRest('cobrancas_bancarias',{query:`?nosso_numero=not.is.null&select=*&order=created_at.desc&limit=${limite}`});
-  const candidatos=(Array.isArray(rows)?rows:[]).filter(r=>String(r.banco||'').toLowerCase()==='bradesco'&&['aberto','pago','vencido','cancelado'].includes(String(r.status||'')));
+  // V380: evitar que títulos antigos fiquem eternamente fora da janela dos 80 recentes.
+  const rows=await supabaseRest('cobrancas_bancarias',{query:'?nosso_numero=not.is.null&select=*&order=created_at.desc&limit=2000'});
+  const candidatos=(Array.isArray(rows)?rows:[])
+    .filter(r=>String(r.banco||'').toLowerCase()==='bradesco'&&['aberto','pago','vencido','cancelado'].includes(String(r.status||'')))
+    .sort((a,b)=>String(a.bradesco_ultima_consulta||'').localeCompare(String(b.bradesco_ultima_consulta||'')))
+    .slice(0,limite);
   if(!candidatos.length)return {consultados:0,atualizados:0,pagos:0,descontados:0,erros:[]};
   const resumo={consultados:0,atualizados:0,pagos:0,descontados:0,erros:[]},agora=new Date().toISOString();
   const processar=async reg=>{

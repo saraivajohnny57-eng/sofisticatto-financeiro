@@ -426,8 +426,14 @@ async function sincronizarStatusBoletosBb(amb,entrada={}){
   const limite=Math.max(1,Math.min(100,Number(entrada.limite||60)));
   // V289 — inclui também títulos localmente cancelados/baixados para permitir
   // reconciliação posterior caso o estado oficial do BB tenha sido alterado.
-  const rows=await supabaseRest('cobrancas_bancarias',{query:`?nosso_numero=not.is.null&select=*&order=created_at.desc&limit=${limite}`});
-  const candidatos=(Array.isArray(rows)?rows:[]).filter(r=>String(r.banco||'').toLowerCase()==='bb'||/banco do brasil/i.test(String(r.banco_nome||'')));
+  // V380: primeiro selecionar os títulos do banco correto; distribuir consultas entre
+  // títulos nunca consultados e os consultados há mais tempo, não apenas os recém-emitidos.
+  const rows=await supabaseRest('cobrancas_bancarias',{query:'?nosso_numero=not.is.null&select=*&order=created_at.desc&limit=2000'});
+  const alvoId=String(entrada.id||'').trim();
+  const candidatos=(Array.isArray(rows)?rows:[])
+    .filter(r=>(String(r.banco||'').toLowerCase()==='bb'||/banco do brasil/i.test(String(r.banco_nome||'')))&&(!alvoId||String(r.id)===alvoId))
+    .sort((a,b)=>String(a.bb_ultima_consulta||'').localeCompare(String(b.bb_ultima_consulta||'')))
+    .slice(0,alvoId?1:limite);
   if(!candidatos.length)return {consultados:0,atualizados:0,pagos:0,descontados:0,parciais:0,erros:[]};
   const oauth=await obterTokenOAuth(amb);
   const resumo={consultados:0,atualizados:0,pagos:0,descontados:0,parciais:0,erros:[]};
