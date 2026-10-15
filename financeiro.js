@@ -520,6 +520,7 @@ function montarTabela(){
       nomeCampo = `<input id="edit_nome_${item.id}" value="${item.nome || ""}" oninput="marcarEdicaoRelatorio()">`;
       valorCampo = `<input type="text" id="edit_valor_${item.id}" value="${valorParaInput(item.valor || 0)}" inputmode="decimal" oninput="mascaraValor(this);marcarEdicaoRelatorio()">`;
       botoes += `<button class="btn azul" onclick="editarRelatorio('${item.id}')">Editar</button>`;
+      botoes += `<button class="btn azul" type="button" onclick="editarVencimentosRelatorioV375('${item.id}')">📅 Vencimentos</button>`;
       if(item.banco){
         if(bancoSuportaCobrancaIntegrada(item.banco)){
           const jaEmitido=relatorioTotalmenteEmitidoV262(item);
@@ -545,6 +546,7 @@ function montarTabela(){
       bancoCampo = montarSelectBanco(item.id, item.banco || "");
       observacaoCampo = `<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação" oninput="marcarBancoRelatorioAlterado('${item.id}')">`;
       botoes += `<button class="btn azul" onclick="editarRelatorio('${item.id}')">Editar</button>`;
+      botoes += `<button class="btn azul" type="button" onclick="editarVencimentosRelatorioV375('${item.id}')">📅 Vencimentos</button>`;
       if(item.banco){
         if(bancoSuportaCobrancaIntegrada(item.banco)){
           const jaEmitido=relatorioTotalmenteEmitidoV262(item);
@@ -1851,6 +1853,31 @@ async function editarRelatorio(id){
   await banco.from("boletos").update(dados).eq("id",id);
   limparEdicaoRelatorio();
   alert("Relatório atualizado!");
+  carregarRelatorios();
+}
+
+// V375: edição segura de parcelas ainda não registradas. Boletos emitidos exigem alteração no banco.
+async function editarVencimentosRelatorioV375(id){
+  if(!['financeiro','admin'].includes(String(usuarioLogado?.tipo||'')))return alert('Sem permissão para editar vencimentos.');
+  const rel=(todosBoletos||[]).find(x=>String(x.id)===String(id));
+  if(!rel)return alert('Relatório não encontrado.');
+  const emitidas=cobrancasDoRelatorioV261(rel,parcelasRelatoriosFinanceiro).filter(x=>['aberto','pago','vencido','cancelado'].includes(String(x.status||'').toLowerCase())||x.nosso_numero);
+  if(emitidas.length)return alert('Este relatório possui boleto(s) registrado(s). O vencimento não pode ser alterado apenas no portal: é necessária confirmação da alteração no banco. Nenhuma data foi modificada.');
+  const parcelas=Array.isArray(rel.parcelas_json)?rel.parcelas_json.map(x=>({...x})):[];
+  if(!parcelas.length)return alert('Este relatório ainda não possui parcelas definidas. Defina as parcelas antes de editar seus vencimentos.');
+  const novas=[];
+  for(let i=0;i<parcelas.length;i++){
+    const anterior=String(parcelas[i].vencimento||'').slice(0,10);
+    const entrada=prompt(`Vencimento da parcela ${i+1}/${parcelas.length} (AAAA-MM-DD):`,anterior);
+    if(entrada===null)return;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(entrada)||Number.isNaN(new Date(entrada+'T12:00:00').getTime())||new Date(entrada+'T12:00:00').toISOString().slice(0,10)!==entrada)return alert('Data inválida. Nenhuma alteração foi salva.');
+    novas.push(entrada);
+  }
+  if(!confirm('Salvar as novas datas de vencimento das '+parcelas.length+' parcela(s) ainda não emitidas?'))return;
+  parcelas.forEach((x,i)=>{x.vencimento=novas[i]});
+  const {error}=await banco.from('boletos').update({parcelas_json:parcelas}).eq('id',id);
+  if(error)return alert('Não foi possível salvar: '+error.message);
+  alert('Vencimentos atualizados no relatório. Nenhum boleto bancário foi alterado.');
   carregarRelatorios();
 }
 

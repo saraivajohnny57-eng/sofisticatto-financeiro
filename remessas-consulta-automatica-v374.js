@@ -11,7 +11,7 @@
  if(!Array.isArray(data)){out.textContent='Ainda não há consulta nesta sessão. Clique em Consultar Bradesco.';return;}
  const q=String($('remV374Busca')?.value||'').trim().toLocaleLowerCase('pt-BR');
  const list=data.filter(x=>!q||[x.cliente,x.cpf_cnpj,x.seu_numero,x.nosso_numero].some(v=>String(v||'').toLocaleLowerCase('pt-BR').includes(q)));
- const body=list.map(x=>`<tr><td>${esc(x.cliente||'—')}</td><td>${esc(x.seu_numero||'—')}</td><td>${esc(x.nosso_numero||'—')}</td><td>${date(x.vencimento)}</td><td>${money(x.valor)}</td><td>${status(x)}${x.descontado?' / Descontado':''}</td><td>${esc(x.origem||'BANCO')}</td></tr>`).join('');
+ const body=list.map(x=>`<tr><td>${esc(x.cliente||'—')}</td><td>${esc(/^\d+[,.]\d{2}$/.test(String(x.seu_numero||'').trim())?'— (verificar no Histórico)':(x.seu_numero||'—'))}</td><td>${esc(x.nosso_numero||'—')}</td><td>${date(x.vencimento)}</td><td>${money(x.valor)}</td><td>${status(x)}${x.descontado?' / Descontado':''}</td><td>${esc(x.origem||'BANCO')}</td></tr>`).join('');
  out.innerHTML=`<p><strong>${list.length}</strong> título(s) exibido(s) de <strong>${data.length}</strong> pendência(s) consolidadas. <small>Consulta de pendências: títulos pagos ou baixados podem não constar desta listagem.</small></p><div style="overflow:auto;max-height:400px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th>Cliente</th><th>Documento</th><th>Nosso Número</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Origem</th></tr></thead><tbody>${body||'<tr><td colspan="7">Nenhum título encontrado.</td></tr>'}</tbody></table></div><p style="font-size:12px">Somente leitura: nenhum título ou status foi alterado nesta consulta.</p>`;
  }
  window.remV374Render=render;
