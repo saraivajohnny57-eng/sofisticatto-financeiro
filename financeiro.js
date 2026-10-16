@@ -10960,3 +10960,65 @@ function abrirBaixaSubstituicaoV352(id){
     try{await navigator.clipboard.writeText(texto);alert('Solicitação copiada. Nenhuma operação foi realizada no banco.')}catch(_){window.prompt('Copie a solicitação:',texto)}
   };
 }
+
+
+// V381 - Comprovantes/canhotos de entrega por filtro, sem nova emissão nem consulta ao banco.
+// Um comprovante por título; usa somente registros emitidos presentes no Histórico.
+async function imprimirCanhotosPorFiltroV381(){
+  const botao=document.getElementById('cobBtnCanhotosFiltroV381');
+  const texto=botao?.textContent||'Imprimir canhotos por filtro';
+  const unicos=new Map();
+  for(const r of cobrancasFiltradasHistoricoV178()){
+    const banco=codigoBancoCobranca(r?.banco_nome||r?.banco||'');
+    if(!['aberto','pago','vencido'].includes(String(r?.status||'')))continue;
+    if(banco==='bb'&&!String(r?.nosso_numero||'').trim())continue;
+    if(banco==='bradesco'&&!String(r?.linha_digitavel||'').trim())continue;
+    if(banco!=='bb'&&banco!=='bradesco')continue;
+    const chave=String(r.id||`${banco}|${r.nosso_numero||r.linha_digitavel}|${r.numero_nf||''}|${r.parcela_numero||1}`);
+    if(!unicos.has(chave))unicos.set(chave,{...r,_bancoCanhoto:banco});
+  }
+  const lista=[...unicos.values()].sort((a,b)=>String(a.vencimento||'9999-12-31').localeCompare(String(b.vencimento||'9999-12-31'))||String(a.cliente_nome||'').localeCompare(String(b.cliente_nome||''),'pt-BR')||Number(a.parcela_numero||1)-Number(b.parcela_numero||1));
+  if(!lista.length)return alert('Nenhum boleto emitido encontrado nos filtros atuais. Títulos cancelados e pendentes não entram.');
+  if(!confirm(`Gerar um PDF A4 com ${lista.length} canhoto(s), em ordem de vencimento?\n\nBanco do Brasil: ${lista.filter(x=>x._bancoCanhoto==='bb').length}\nBradesco: ${lista.filter(x=>x._bancoCanhoto==='bradesco').length}\n\nSerão impressos somente comprovantes de entrega, sem ficha de compensação e sem nova emissão.`))return;
+  try{
+    if(botao){botao.disabled=true;botao.textContent='Montando canhotos...';}
+    await carregarScriptUmaVez('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js','PDFLib');
+    const {PDFDocument,StandardFonts,rgb}=PDFLib;
+    const pdf=await PDFDocument.create(), normal=await pdf.embedFont(StandardFonts.Helvetica), negrito=await pdf.embedFont(StandardFonts.HelveticaBold);
+    const W=595.28,H=841.89, M=30, CH=183, GAP=12, porPagina=4;
+    const cor=rgb(0.17,0.17,0.17), cinza=rgb(.42,.42,.42);
+    const seguro=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[\u2010-\u2015]/g,'-').replace(/[^\x20-\x7E]/g,' ').replace(/\s+/g,' ').trim();
+    const cortar=(txt,max,font,size)=>{let t=seguro(txt);while(t.length&&font.widthOfTextAtSize(t,size)>max)t=t.slice(0,-1);return t;};
+    const data=v=>{const a=String(v||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(a)?`${a.slice(8,10)}/${a.slice(5,7)}/${a.slice(0,4)}`:'-';};
+    const linha=(pg,x1,y1,x2,y2)=>pg.drawLine({start:{x:x1,y:y1},end:{x:x2,y:y2},thickness:.65,color:cor});
+    const txt=(pg,t,x,y,opt={})=>pg.drawText(cortar(t,opt.max||500,opt.bold?negrito:normal,opt.size||9),{x,y,font:opt.bold?negrito:normal,size:opt.size||9,color:opt.color||cor});
+    const campo=(pg,rotulo,valor,x,y,largura)=>{txt(pg,rotulo,x,y,{size:7,color:cinza,max:largura});txt(pg,valor,x,y-12,{size:9,bold:true,max:largura});};
+    for(let i=0;i<lista.length;i++){
+      const r=lista[i],pg=i%porPagina===0?pdf.addPage([W,H]):pdf.getPages()[pdf.getPageCount()-1];
+      const topo=H-M-(i%porPagina)*(CH+GAP), esq=M,dir=W-M, larg=dir-esq;
+      pg.drawRectangle({x:esq,y:topo-CH,width:larg,height:CH,borderColor:cor,borderWidth:.8});
+      txt(pg,'SOFISTICATTO COSMETICOS',esq+10,topo-17,{size:11,bold:true,max:240});
+      txt(pg,'CANHOTO / COMPROVANTE DE ENTREGA',esq+285,topo-17,{size:8,bold:true,max:245});
+      linha(pg,esq,topo-25,dir,topo-25);
+      txt(pg,r._bancoCanhoto==='bb'?'BANCO DO BRASIL - 001':'BRADESCO - 237',esq+10,topo-39,{size:9,bold:true});
+      txt(pg,`Vencimento: ${data(r.vencimento)}`,dir-165,topo-39,{size:9,bold:true,max:155});
+      linha(pg,esq,topo-45,dir,topo-45);
+      campo(pg,'Pagador / Cliente',r.cliente_nome||'-',esq+10,topo-58,larg-20);
+      campo(pg,'Documento / NF',r.numero_nf||r.numero_titulo||'-',esq+10,topo-88,145);
+      campo(pg,'Nosso Numero',r.nosso_numero||'-',esq+165,topo-88,170);
+      campo(pg,'Valor do titulo',cobMoeda(r.valor),esq+355,topo-88,larg-365);
+      linha(pg,esq,topo-108,dir,topo-108);
+      txt(pg,'Recebi(emos) o boleto/titulo acima identificado.',esq+10,topo-121,{size:8,max:larg-20});
+      txt(pg,'Data: ____/____/________',esq+10,topo-146,{size:9});
+      txt(pg,'Assinatura: __________________________',esq+180,topo-146,{size:9});
+      txt(pg,'Entregador: ___________________',esq+10,topo-166,{size:8});
+      txt(pg,`Parcela: ${r.parcela_numero||1}`,dir-112,topo-166,{size:8});
+      if(i%porPagina!==porPagina-1&&i!==lista.length-1){txt(pg,'- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -',M+55,topo-CH-8,{size:7,color:cinza,max:430});}
+    }
+    const blob=new Blob([await pdf.save()],{type:'application/pdf'}),url=URL.createObjectURL(blob);
+    const janela=window.open(url,'_blank');
+    if(!janela){const a=document.createElement('a');a.href=url;a.download=`Canhotos por vencimento - ${new Date().toISOString().slice(0,10)}.pdf`;a.click();}
+    setTimeout(()=>URL.revokeObjectURL(url),180000);
+  }catch(e){console.error('Canhotos V381',e);alert('Nao foi possivel gerar os canhotos: '+(e?.message||e));}
+  finally{if(botao){botao.disabled=false;botao.textContent=texto;}}
+}
