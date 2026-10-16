@@ -8218,7 +8218,7 @@ function renderHistoricoCobrancas(){
     const emitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bb'&&x.nosso_numero;
     const bradescoEmitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bradesco'&&x.linha_digitavel;
     const acoes=bradescoEmitido
-      ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar boleto</button> <button class="btn verde" onclick="imprimirPedidoBradescoV264('${x.id}')">📄 Imprimir pedido</button> <button class="btn" style="background:#c62828;color:#fff;" data-verifica-bradesco="${x.id}" onclick="verificarStatusBradescoV277('${x.id}')">🔄 Verificar Bradesco</button> <button class="btn" onclick="abrirBaixaSubstituicaoV352('${x.id}')">🔁 Baixar / substituir</button>`
+      ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar boleto</button> <button class="btn" style="background:#7b3f9e;color:#fff" onclick="abrirSegundaViaAtualizadaBradescoV383('${x.id}')">📅 2ª via atualizada</button> <button class="btn verde" onclick="imprimirPedidoBradescoV264('${x.id}')">📄 Imprimir pedido</button> <button class="btn" style="background:#c62828;color:#fff;" data-verifica-bradesco="${x.id}" onclick="verificarStatusBradescoV277('${x.id}')">🔄 Verificar Bradesco</button> <button class="btn" onclick="abrirBaixaSubstituicaoV352('${x.id}')">🔁 Baixar / substituir</button>`
       :(x.banco==='bradesco'&&x.status==='pendente_integracao'
         ?`<button class="btn vermelho" onclick="verificarConciliarTituloBradescoV271('${x.id}')">🔎 Verificar Bradesco</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
         :(emitido
@@ -11046,4 +11046,28 @@ async function imprimirCanhotosPorFiltroV381(){
     setTimeout(()=>URL.revokeObjectURL(url),180000);
   }catch(e){console.error('Canhotos V382',e);alert('Nao foi possivel gerar os canhotos: '+(e?.message||e));}
   finally{if(botao){botao.disabled=false;botao.textContent=texto;}}
+}
+
+
+// V383 — Acesso assistido à 2ª via oficial Bradesco.
+// Não simula o site, não contorna CAPTCHA, não altera valores/linhas digitáveis.
+function abrirSegundaViaAtualizadaBradescoV383(id){
+  const x=(cobrancasBancarias||[]).find(r=>String(r.id)===String(id));
+  if(!x||String(x.banco||'').toLowerCase()!=='bradesco')return alert('Título Bradesco não encontrado.');
+  if(['pago','cancelado'].includes(String(x.status||'').toLowerCase()))return alert('Este título está marcado como pago ou cancelado. Consulte o status bancário antes de solicitar outra via.');
+  const soNumeros=v=>String(v||'').replace(/\D/g,'');
+  const doc=soNumeros(x.cpf_cnpj||x.documento_pagador||'');
+  const nosso=soNumeros(x.nosso_numero||'');
+  const beneficiario='05451985000195'; // CNPJ Sofisticatto: conferir com cadastro bancário antes de usar
+  const oficial='https://www.ib12.bradesco.com.br/ibpfsegundaviaboleto/segundaViaBoletoMontarCPFCNPJ.do';
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const modal=document.createElement('div');
+  modal.id='bradesco-segunda-via-v383';
+  modal.style.cssText='position:fixed;inset:0;z-index:2147483000;background:#0009;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML=`<section role="dialog" aria-modal="true" aria-label="Segunda via atualizada Bradesco" style="background:white;color:#202020;border-radius:14px;padding:22px;width:min(620px,95vw);max-height:90vh;overflow:auto;box-shadow:0 12px 40px #0005;font:14px Arial"><h2 style="margin:0 0 12px">Bradesco — 2ª via atualizada</h2><p><b>Cliente:</b> ${esc(x.cliente_nome||'—')}<br><b>NF:</b> ${esc(x.numero_nf||'—')}<br><b>Vencimento original:</b> ${esc(x.vencimento||'—')}</p><p style="background:#fff3cd;padding:10px;border-radius:8px">A 2ª via oficial vencida é atualizada pelo banco para pagamento na data de emissão. Esta função <b>não altera o vencimento, o valor nem o boleto no Histórico</b>. O site exige CAPTCHA preenchido manualmente.</p><div style="display:grid;gap:9px">${[['CPF/CNPJ do pagador',doc],['CPF/CNPJ do beneficiário',beneficiario],['Nosso Número (confira no boleto)',nosso]].map(([nome,valor])=>`<label style="display:block"><b>${esc(nome)}</b><div style="display:flex;gap:8px;margin-top:4px"><input readonly value="${esc(valor)}" style="flex:1;min-width:0;padding:9px;border:1px solid #ccc;border-radius:6px"><button type="button" data-copiar="${esc(valor)}" style="padding:8px 12px;cursor:pointer">Copiar</button></div></label>`).join('')}</div><p style="font-size:12px;color:#555">Se o Nosso Número estiver incompleto ou ausente, consulte o boleto original. Confirme o CNPJ do beneficiário antes de continuar.</p><div style="display:flex;flex-wrap:wrap;gap:9px;justify-content:flex-end"><button type="button" data-fechar style="padding:10px;cursor:pointer">Fechar</button><button type="button" data-site style="padding:10px 14px;background:#a11b27;color:white;border:0;border-radius:6px;cursor:pointer">Abrir 2ª via oficial Bradesco ↗</button></div></section>`;
+  document.body.appendChild(modal);
+  modal.querySelector('[data-fechar]').onclick=()=>modal.remove();
+  modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+  modal.querySelectorAll('[data-copiar]').forEach(b=>b.onclick=async()=>{const valor=b.getAttribute('data-copiar');if(!valor)return alert('Dado indisponível no Histórico. Consulte o boleto original.');try{await navigator.clipboard.writeText(valor);b.textContent='Copiado ✓';}catch(e){alert('Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.');}});
+  modal.querySelector('[data-site]').onclick=()=>{const w=window.open(oficial,'_blank','noopener,noreferrer');if(!w)alert('Libere pop-ups para abrir o site oficial do Bradesco.');};
 }
