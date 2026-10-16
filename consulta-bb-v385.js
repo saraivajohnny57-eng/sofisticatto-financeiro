@@ -16,27 +16,37 @@ function render(){const out=$('bbV385Resultado');if(!out)return;if(!data()){out.
 function segundaVia(x){
  if(!x)return;
  const regs=Array.isArray(window.cobrancasBancarias)?window.cobrancasBancarias:[];
- const nn=digits(x.nosso_numero),doc=digits(x.cpf_cnpj);
+ const nn=digits(x.nosso_numero),doc=digits(x.cpf_cnpj),ref=String(x.seu_numero||'').trim();
+ // Correspondência exata: nunca usar somente o nome do cliente ou uma referência parcial.
  const candidatos=regs.filter(r=>/^(bb|banco do brasil)$/i.test(String(r.banco||r.banco_nome||'').trim()) && nn && digits(r.nosso_numero)===nn);
  const local=candidatos.find(r=>!doc||digits(r.cpf_cnpj||r.documento_pagador)===doc);
- if(local && typeof window.abrirBoletoOficialBbRegistro==='function'){
+ if(local?.id && typeof window.abrirBoletoOficialBbRegistro==='function'){
    window.abrirBoletoOficialBbRegistro(local.id);return;
  }
- // Boletos registrados diretamente no banco não têm ID no Histórico.
- // Reaproveita a consulta oficial já existente; não grava nem importa registros.
+ // Títulos originados no banco: só abrir endereço específico efetivamente devolvido pela API.
+ // Não repetir consultas para títulos já pesquisados nesta sessão.
+ const key=nn+'|'+doc;
+ const cache=window.__bbSegundaViaLinksV387||(window.__bbSegundaViaLinksV387=new Map());
  const w=window.open('about:blank','_blank');
- if(w)w.document.write('<p style="font-family:Arial;padding:24px">Buscando segunda via oficial do Banco do Brasil…</p>');
+ if(w)w.document.write('<p style="font-family:Arial;padding:24px">Verificando o link oficial do boleto no Banco do Brasil…</p>');
  (async()=>{
    try{
      let url=String(x.pdf_url||x.urlImagemBoleto||x.url_boleto||'').trim();
-     if(!/^https:\/\//i.test(url) && nn && typeof window.obterUrlBoletoOficialBb==='function')
+     if(!/^https:\/\//i.test(url))url=cache.get(key)||'';
+     if(!url && nn && typeof window.obterUrlBoletoOficialBb==='function'){
        url=await window.obterUrlBoletoOficialBb({nosso_numero:nn,cpf_cnpj:doc});
-     const destino=/^https:\/\//i.test(url)?url:'https://boleto.apps.bb.com.br/segunda-via-final';
-     if(w)w.location.replace(destino);else window.open(destino,'_blank');
-     if(!/^https:\/\//i.test(url))alert('O BB não retornou um link direto para este título. A página oficial foi aberta; pode ser necessário preencher os dados manualmente.');
-   }catch(e){if(w)w.location.replace('https://boleto.apps.bb.com.br/segunda-via-final');alert('Não foi possível obter o link direto do BB: '+(e.message||e));}
+       if(url)cache.set(key,url);
+     }
+     if(/^https:\/\//i.test(url)){
+       if(w)w.location.replace(url);else window.open(url,'_blank');
+     }else{
+       if(w)w.close();
+       alert('O Banco do Brasil não disponibilizou um link específico para este título. Não é possível preencher automaticamente a página oficial sem esse link.\n\nNosso Número: '+(nn||'não informado')+'\nReferência: '+(ref||'não informada')+'\n\nNenhum boleto foi alterado.');
+     }
+   }catch(e){if(w)w.close();alert('Falha na consulta do link oficial BB: '+(e.message||e)+'\nNenhum boleto foi alterado.');}
  })();
 }
+
 window.bbV385Render=render;
 window.bbV385MudarReferencia=function(){const p=$('bbV385Referencia')?.value==='periodo';$('bbV385Datas').style.display=p?'flex':'none';render()};
 let ultimaConsulta=0;
