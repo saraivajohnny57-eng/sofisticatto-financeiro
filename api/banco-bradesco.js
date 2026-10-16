@@ -755,6 +755,19 @@ module.exports=async function(req,res){
       await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(id)}`,body:{status:'cancelado',bradesco_status_detalhe:msg,bradesco_ultima_consulta:new Date().toISOString(),atualizado_em:new Date().toISOString()}});
       return json(res,200,{ok:true,baixa_confirmada:true,registro_id:id,mensagem:msg,substituicao_automatica:false});
     }
+    // V389: consulta INDIVIDUAL, apenas leitura, inclusive título emitido no banco.
+    // Não exige registro no Histórico e não atualiza o Supabase.
+    if(action==='consultar-segunda-via-v389'){
+      if(amb!=='producao')throw new Error('Consulta individual disponível apenas em Produção.');
+      const nn=String(req.body?.nosso_numero||'').replace(/\D/g,'');
+      if(!nn||nn.length>20)throw new Error('Nosso Número inválido.');
+      const q=await consultarTituloBradesco(amb,{nosso_numero:nn});
+      if(q.http_status<200||q.http_status>=300)throw new Error(detalheRespostaBradesco(q.data)||`Bradesco HTTP ${q.http_status}`);
+      const d=q.data||{},t=d.titulo||d.Titulo||d.boleto||d;
+      const buscar=(...ks)=>{for(const obj of [t,d,t?.dados,d?.dados])for(const k of ks){const v=obj?.[k];if(v!==null&&v!==undefined&&String(v).trim())return String(v)}return null};
+      const sit=interpretarConsultaBradesco(d,{nosso_numero:nn});
+      return json(res,200,{ok:true,somente_leitura:true,consulta:{nosso_numero:nn,linha_digitavel:buscar('linhaDigitavel','linha_digitavel','linhaDig'),codigo_barras:buscar('cdBarras','codigoBarras','codigoBarraNumerico','codigo_barras'),url_boleto:buscar('urlImagemBoleto','urlBoleto','pdfUrl'),vencimento:sit.vencimento,status:sit.statusNovo,status_descricao:sit.descricao,valor_titulo:sit.valorTitulo,valor_boleto:sit.valorBoleto,valor_pago:sit.valorPago,juros:buscar('vlJuros','valorJuros'),multa:buscar('vlMulta','valorMulta')}});
+    }
     if(action==='consultar-status-titulo'){
       if(amb!=='producao')throw new Error('A consulta de status desta versão está liberada para Produção.');
       const id=String(req.body?.id||'').trim();
