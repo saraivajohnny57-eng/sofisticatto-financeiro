@@ -10962,8 +10962,8 @@ function abrirBaixaSubstituicaoV352(id){
 }
 
 
-// V381 - Comprovantes/canhotos de entrega por filtro, sem nova emissão nem consulta ao banco.
-// Um comprovante por título; usa somente registros emitidos presentes no Histórico.
+// V382 - Canhotos fiéis ao layout da Impressão Normal, com logomarcas e CPF/CNPJ.
+// Geração local, sem API bancária e sem modificar títulos.
 async function imprimirCanhotosPorFiltroV381(){
   const botao=document.getElementById('cobBtnCanhotosFiltroV381');
   const texto=botao?.textContent||'Imprimir canhotos por filtro';
@@ -10973,52 +10973,77 @@ async function imprimirCanhotosPorFiltroV381(){
     if(!['aberto','pago','vencido'].includes(String(r?.status||'')))continue;
     if(banco==='bb'&&!String(r?.nosso_numero||'').trim())continue;
     if(banco==='bradesco'&&!String(r?.linha_digitavel||'').trim())continue;
-    if(banco!=='bb'&&banco!=='bradesco')continue;
+    if(!['bb','bradesco'].includes(banco))continue;
     const chave=String(r.id||`${banco}|${r.nosso_numero||r.linha_digitavel}|${r.numero_nf||''}|${r.parcela_numero||1}`);
     if(!unicos.has(chave))unicos.set(chave,{...r,_bancoCanhoto:banco});
   }
   const lista=[...unicos.values()].sort((a,b)=>String(a.vencimento||'9999-12-31').localeCompare(String(b.vencimento||'9999-12-31'))||String(a.cliente_nome||'').localeCompare(String(b.cliente_nome||''),'pt-BR')||Number(a.parcela_numero||1)-Number(b.parcela_numero||1));
   if(!lista.length)return alert('Nenhum boleto emitido encontrado nos filtros atuais. Títulos cancelados e pendentes não entram.');
-  if(!confirm(`Gerar um PDF A4 com ${lista.length} canhoto(s), em ordem de vencimento?\n\nBanco do Brasil: ${lista.filter(x=>x._bancoCanhoto==='bb').length}\nBradesco: ${lista.filter(x=>x._bancoCanhoto==='bradesco').length}\n\nSerão impressos somente comprovantes de entrega, sem ficha de compensação e sem nova emissão.`))return;
+  if(!confirm(`Imprimir ${lista.length} canhoto(s) no modelo dos boletos completos, por vencimento?\n\nBB: ${lista.filter(x=>x._bancoCanhoto==='bb').length} | Bradesco: ${lista.filter(x=>x._bancoCanhoto==='bradesco').length}\n\nSem nova emissão ou alteração bancária.`))return;
   try{
-    if(botao){botao.disabled=true;botao.textContent='Montando canhotos...';}
+    if(botao){botao.disabled=true;botao.textContent='Montando canhotos originais...';}
     await carregarScriptUmaVez('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js','PDFLib');
     const {PDFDocument,StandardFonts,rgb}=PDFLib;
-    const pdf=await PDFDocument.create(), normal=await pdf.embedFont(StandardFonts.Helvetica), negrito=await pdf.embedFont(StandardFonts.HelveticaBold);
-    const W=595.28,H=841.89, M=30, CH=183, GAP=12, porPagina=4;
-    const cor=rgb(0.17,0.17,0.17), cinza=rgb(.42,.42,.42);
+    const pdf=await PDFDocument.create(), normal=await pdf.embedFont(StandardFonts.Helvetica), bold=await pdf.embedFont(StandardFonts.HelveticaBold);
+    const W=595.28,H=841.89,M=26,CW=W-2*M,CH=190,GAP=11,POR=4;
+    const preto=rgb(.06,.06,.06),cinza=rgb(.36,.36,.36);
     const seguro=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[\u2010-\u2015]/g,'-').replace(/[^\x20-\x7E]/g,' ').replace(/\s+/g,' ').trim();
-    const cortar=(txt,max,font,size)=>{let t=seguro(txt);while(t.length&&font.widthOfTextAtSize(t,size)>max)t=t.slice(0,-1);return t;};
-    const data=v=>{const a=String(v||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(a)?`${a.slice(8,10)}/${a.slice(5,7)}/${a.slice(0,4)}`:'-';};
-    const linha=(pg,x1,y1,x2,y2)=>pg.drawLine({start:{x:x1,y:y1},end:{x:x2,y:y2},thickness:.65,color:cor});
-    const txt=(pg,t,x,y,opt={})=>pg.drawText(cortar(t,opt.max||500,opt.bold?negrito:normal,opt.size||9),{x,y,font:opt.bold?negrito:normal,size:opt.size||9,color:opt.color||cor});
-    const campo=(pg,rotulo,valor,x,y,largura)=>{txt(pg,rotulo,x,y,{size:7,color:cinza,max:largura});txt(pg,valor,x,y-12,{size:9,bold:true,max:largura});};
+    const fmtData=v=>{const a=String(v||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(a)?`${a.slice(8,10)}/${a.slice(5,7)}/${a.slice(0,4)}`:'-';};
+    const fmtDoc=v=>{const d=String(v||'').replace(/\D/g,'');return d.length===11?d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4'):d.length===14?d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5'):'';};
+    const line=(pg,x,y,x2,y2,w=.55)=>pg.drawLine({start:{x,y},end:{x:x2,y:y2},thickness:w,color:preto});
+    const rect=(pg,x,y,w,h)=>pg.drawRectangle({x,y,width:w,height:h,borderColor:preto,borderWidth:.65});
+    const text=(pg,value,x,y,width,size=7,font=normal,align='left')=>{
+      let t=seguro(value),sz=size;
+      while(t.length&&sz>4.0&&font.widthOfTextAtSize(t,sz)>width)sz-=.2;
+      while(t.length&&font.widthOfTextAtSize(t,sz)>width)t=t.slice(0,-1);
+      const xx=align==='right'?x+width-font.widthOfTextAtSize(t,sz):align==='center'?x+(width-font.widthOfTextAtSize(t,sz))/2:x;
+      pg.drawText(t,{x:xx,y,size:sz,font,color:preto});
+    };
+    const cell=(pg,x,top,w,h,label,value,opts={})=>{
+      rect(pg,x,top-h,w,h);
+      text(pg,label,x+5,top-9,w-10,opts.labelSize||5,normal);
+      text(pg,value,x+5,top-h+6,w-10,opts.valueSize||7,opts.bold?bold:normal,opts.align||'left');
+    };
+    const loadImg=async(path,type)=>{
+      try{const resp=await fetch(new URL(path,location.href).href,{cache:'force-cache'});if(!resp.ok)throw Error(String(resp.status));const bytes=new Uint8Array(await resp.arrayBuffer());return type==='png'?await pdf.embedPng(bytes):await pdf.embedJpg(bytes)}catch(e){console.warn('Logo canhoto indisponível:',path,e);return null}
+    };
+    const [bbLogo,bradescoLogo,sofLogo]=await Promise.all([loadImg('assets/bb-logo.png','png'),loadImg('assets/bradesco-logo.png','png'),loadImg('assets/sofisticatto-logo.jpeg','jpg')]);
+    const drawImg=(pg,img,x,y,w,h)=>{if(!img)return false;const scale=Math.min(w/img.width,h/img.height);pg.drawImage(img,{x:x+(w-img.width*scale)/2,y:y+(h-img.height*scale)/2,width:img.width*scale,height:img.height*scale});return true;};
     for(let i=0;i<lista.length;i++){
-      const r=lista[i],pg=i%porPagina===0?pdf.addPage([W,H]):pdf.getPages()[pdf.getPageCount()-1];
-      const topo=H-M-(i%porPagina)*(CH+GAP), esq=M,dir=W-M, larg=dir-esq;
-      pg.drawRectangle({x:esq,y:topo-CH,width:larg,height:CH,borderColor:cor,borderWidth:.8});
-      txt(pg,'SOFISTICATTO COSMETICOS',esq+10,topo-17,{size:11,bold:true,max:240});
-      txt(pg,'CANHOTO / COMPROVANTE DE ENTREGA',esq+285,topo-17,{size:8,bold:true,max:245});
-      linha(pg,esq,topo-25,dir,topo-25);
-      txt(pg,r._bancoCanhoto==='bb'?'BANCO DO BRASIL - 001':'BRADESCO - 237',esq+10,topo-39,{size:9,bold:true});
-      txt(pg,`Vencimento: ${data(r.vencimento)}`,dir-165,topo-39,{size:9,bold:true,max:155});
-      linha(pg,esq,topo-45,dir,topo-45);
-      campo(pg,'Pagador / Cliente',r.cliente_nome||'-',esq+10,topo-58,larg-20);
-      campo(pg,'Documento / NF',r.numero_nf||r.numero_titulo||'-',esq+10,topo-88,145);
-      campo(pg,'Nosso Numero',r.nosso_numero||'-',esq+165,topo-88,170);
-      campo(pg,'Valor do titulo',cobMoeda(r.valor),esq+355,topo-88,larg-365);
-      linha(pg,esq,topo-108,dir,topo-108);
-      txt(pg,'Recebi(emos) o boleto/titulo acima identificado.',esq+10,topo-121,{size:8,max:larg-20});
-      txt(pg,'Data: ____/____/________',esq+10,topo-146,{size:9});
-      txt(pg,'Assinatura: __________________________',esq+180,topo-146,{size:9});
-      txt(pg,'Entregador: ___________________',esq+10,topo-166,{size:8});
-      txt(pg,`Parcela: ${r.parcela_numero||1}`,dir-112,topo-166,{size:8});
-      if(i%porPagina!==porPagina-1&&i!==lista.length-1){txt(pg,'- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -',M+55,topo-CH-8,{size:7,color:cinza,max:430});}
+      const r=lista[i],pg=i%POR===0?pdf.addPage([W,H]):pdf.getPages()[pdf.getPageCount()-1];
+      const top=H-M-(i%POR)*(CH+GAP),left=M,bb=r._bancoCanhoto==='bb';
+      const headH=41,rowH=27,finH=32,recH=29,payH=34;
+      const bankW=139,codeW=54,titleW=78,logoW=92,linhaW=CW-bankW-codeW-titleW-logoW;
+      rect(pg,left,top-headH,CW,headH);
+      const bankImg=bb?bbLogo:bradescoLogo;
+      if(!drawImg(pg,bankImg,left+5,top-headH+6,bankW-10,headH-12))text(pg,bb?'BANCO DO BRASIL':'BRADESCO',left+7,top-headH+16,bankW-14,12,bold);
+      let x=left+bankW;line(pg,x,top-headH,x,top);text(pg,bb?'001-9':'237-2',x+2,top-headH+12,codeW-4,13,bold,'center');
+      x+=codeW;line(pg,x,top-headH,x,top);text(pg,r.linha_digitavel||'',x+3,top-headH+14,linhaW-6,8,bold,'center');
+      x+=linhaW;line(pg,x,top-headH,x,top);text(pg,'Recibo de Entrega',x+3,top-headH+16,titleW-6,8,bold,'center');
+      x+=titleW;line(pg,x,top-headH,x,top);
+      if(!drawImg(pg,sofLogo,x+3,top-headH+3,logoW-6,headH-6))text(pg,'Sofisticatto',x+3,top-headH+16,logoW-6,10,bold,'center');
+      let y=top-headH;const rightW=181,leftW=CW-rightW;
+      cell(pg,left,y,leftW,rowH,'Nome do Beneficiario/CNPJ/CPF','SOFISTICATTO COSMETICOS - CNPJ: 05.451.985/0001-95',{valueSize:6});
+      cell(pg,left+leftW,y,rightW,rowH,'Agencia / Codigo do Beneficiario',bb?'03483-5 / 19039-X':'2274-8 / 0280052-7',{valueSize:7});
+      y-=rowH;
+      const cpf=fmtDoc(r.cpf_cnpj||r.cliente_cpf_cnpj||r.documento_pagador||r.pagador_documento||'');
+      cell(pg,left,y,leftW,rowH,'Pagador / CNPJ / CPF',`${r.cliente_nome||'-'}${cpf?' - '+cpf:''}`,{valueSize:7,bold:true});
+      cell(pg,left+leftW,y,rightW,rowH,'Nosso Numero',r.nosso_numero||'-',{valueSize:8});
+      y-=rowH;
+      const widths=[110,102,60,58,CW-330];
+      const vals=[['Data de Vencimento',fmtData(r.vencimento)],['Nr Documento',r.numero_nf||r.numero_titulo||'-'],['Especie','DM'],['Moeda','R$'],['Valor do Documento',cobMoeda(r.valor)]];
+      let fx=left;vals.forEach((a,j)=>{cell(pg,fx,y,widths[j],finH,a[0],a[1],{valueSize:j===4?9:7,bold:j===4,align:j===4?'right':'center'});fx+=widths[j]});
+      y-=finH;
+      const recWidths=[189,153,95,CW-437],recLabels=['Recebi(emos) o boleto com essas caracteristicas.','Assinatura','Data da Entrega','Nome'];
+      let rx=left;recLabels.forEach((label,j)=>{rect(pg,rx,y-recH,recWidths[j],recH);text(pg,label,rx+5,y-16,recWidths[j]-10,j===0?5:6);rx+=recWidths[j]});
+      y-=recH;rect(pg,left,y-payH,CW,payH);text(pg,'Local de Pagamento',left+7,y-11,CW-14,5);text(pg,bb?'Pagavel em qualquer banco.':'Pagavel preferencialmente na Rede Bradesco e Bradesco Expresso',left+7,y-26,CW-14,8,bold);
+      y-=payH;
+      if(i%POR!==POR-1&&i!==lista.length-1){line(pg,left+42,y-9,left+CW,y-9,.45);text(pg,'Corte aqui',left,y-11,40,5,normal);}
     }
-    const blob=new Blob([await pdf.save()],{type:'application/pdf'}),url=URL.createObjectURL(blob);
+    const bytes=await pdf.save(),blob=new Blob([bytes],{type:'application/pdf'}),url=URL.createObjectURL(blob);
     const janela=window.open(url,'_blank');
-    if(!janela){const a=document.createElement('a');a.href=url;a.download=`Canhotos por vencimento - ${new Date().toISOString().slice(0,10)}.pdf`;a.click();}
+    if(!janela){const a=document.createElement('a');a.href=url;a.download=`Canhotos originais por vencimento - ${new Date().toISOString().slice(0,10)}.pdf`;a.click();}
     setTimeout(()=>URL.revokeObjectURL(url),180000);
-  }catch(e){console.error('Canhotos V381',e);alert('Nao foi possivel gerar os canhotos: '+(e?.message||e));}
+  }catch(e){console.error('Canhotos V382',e);alert('Nao foi possivel gerar os canhotos: '+(e?.message||e));}
   finally{if(botao){botao.disabled=false;botao.textContent=texto;}}
 }
