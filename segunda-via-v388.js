@@ -11,6 +11,12 @@ function validateLine(line){
  return mod10(line.slice(0,9))===Number(line[9])&&mod10(line.slice(10,20))===Number(line[20])&&mod10(line.slice(21,31))===Number(line[31]);
 }
 function barcodeFromLine(line){return line.slice(0,4)+line.slice(32,33)+line.slice(33,47)+line.slice(4,9)+line.slice(10,20)+line.slice(21,31)}
+function barcodeAmount(bar){
+ // Padrão FEBRABAN cobrança: posições 10 a 19 do código de barras (10 dígitos, centavos).
+ if(!/^\d{44}$/.test(bar)||!['001','237'].includes(bar.slice(0,3)))return null;
+ return Number(bar.slice(9,19))/100;
+}
+function barcodeBankMatches(bank,bar){return bar.length===44&&bar.slice(0,3)===(bank==='bb'?'001':'237')}
 function asText(v){return v===null||v===undefined||String(v).trim()===''?'Não informado':String(v)}
 async function consultarIndividual(bank,x,el){
  const btn=el.querySelector('[data-consultar]');btn.disabled=true;btn.textContent='Consultando banco...';
@@ -26,12 +32,15 @@ async function consultarIndividual(bank,x,el){
   const line=dig(val('linha_digitavel','linhaDigitavel','linhaDig'));
   const rawBar=dig(val('codigo_barras','codigoBarraNumerico','codigoBarras','cdBarras'));
   const lineOk=validateLine(line), bar=rawBar.length===44?rawBar:(lineOk?barcodeFromLine(line):'');
+  const barValid=barcodeBankMatches(bank,bar);
+  const barAmount=barValid?barcodeAmount(bar):null;
+  const rawAmount=barAmount===null?'Não disponível':money(barAmount);
   const url=val('urlImagemBoleto','url_boleto','urlBoleto','pdfUrl');
   const safeUrl=(()=>{try{const u=new URL(url);return u.protocol==='https:'&&/^(?:[a-z0-9-]+\.)*(?:bb\.com\.br|bradesco\.com\.br)$/i.test(u.hostname)?u.href:''}catch{return ''}})();
   const result=el.querySelector('[data-resultado]');
   const bankValue=val('valor_boleto','valorBoleto','valorMoedaBol','valor_titulo','valorTitulo');
-  const warning=bank==='bradesco'&&bankValue?'O valor retornado pela API não possui confirmação de unidade monetária ou de atualização por encargos.':'Não há confirmação de valor atualizado com encargos.';
-  result.innerHTML=`<div style="border-top:1px solid #ddd;padding-top:10px"><b>Consulta individual concluída.</b> Nenhum registro foi modificado.<table style="width:100%;border-collapse:collapse;margin-top:8px"><tbody>${[['Linha digitável da consulta',lineOk?line:(line?'Formato ou dígitos verificadores inválidos':'Não retornada')],['Código de barras',bar.length===44?bar:'Não retornado'],['Valor bruto retornado pela API',asText(bankValue)],['Vencimento retornado',asText(val('vencimento','dataVencimento','dataVencimentoTitulo'))],['Status retornado',asText(val('status_descricao','status','situacao'))]].map(([k,v])=>`<tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd">${esc(k)}</th><td style="padding:6px;border-bottom:1px solid #ddd;overflow-wrap:anywhere">${esc(v)}</td></tr>`).join('')}</tbody></table><p style="font-size:12px;color:#934800">${esc(warning)} Esta consulta não autoriza criar uma nova linha digitável ou alterar o boleto original.</p>${safeUrl?'<button data-url type="button">Abrir documento oficial retornado pelo banco</button>':''}</div>`;
+  const warning=barValid?'Valor codificado extraído do código de barras, mas isso não confirma a atualização dos encargos nem a aceitação do pagamento pelo banco.':'Não foi possível validar um código de barras bancário deste banco. Não há confirmação de valor atualizado com encargos.';
+  result.innerHTML=`<div style="border-top:1px solid #ddd;padding-top:10px"><b>Consulta individual concluída.</b> Nenhum registro foi modificado.<table style="width:100%;border-collapse:collapse;margin-top:8px"><tbody>${[['Linha digitável da consulta',lineOk?line:(line?'Formato ou dígitos verificadores inválidos':'Não retornada')],['Código de barras',barValid?bar:(bar?'Banco ou formato inconsistente':'Não retornado')],['Valor codificado no código de barras',rawAmount],['Valor bruto retornado pela API',asText(bankValue)],['Vencimento retornado',asText(val('vencimento','dataVencimento','dataVencimentoTitulo'))],['Status retornado',asText(val('status_descricao','status','situacao'))]].map(([k,v])=>`<tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd">${esc(k)}</th><td style="padding:6px;border-bottom:1px solid #ddd;overflow-wrap:anywhere">${esc(v)}</td></tr>`).join('')}</tbody></table><p style="font-size:12px;color:#934800">${esc(warning)} Esta consulta não autoriza criar uma nova linha digitável ou alterar o boleto original.</p>${safeUrl?'<button data-url type="button">Abrir documento oficial retornado pelo banco</button>':''}</div>`;
   if(safeUrl)result.querySelector('[data-url]').onclick=()=>window.open(safeUrl,'_blank','noopener');
   const original=el.querySelector('[data-original-note]');if(original)original.textContent='Dados acima: consulta da carteira. Dados abaixo: resposta individual do banco (sem alteração no Histórico).';
  }catch(e){el.querySelector('[data-resultado]').textContent='Não foi possível consultar o título: '+(e.message||e)}finally{btn.disabled=false;btn.textContent='Consultar título individual na API'}
