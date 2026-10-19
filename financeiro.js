@@ -8210,15 +8210,15 @@ function renderHistoricoCobrancas(){
   const tb=document.getElementById('cobHistoricoTabela'); if(!tb)return;
   const lista=cobrancasFiltradasHistoricoV178();
   const baseKpi=usuarioEhCobrancaV293()?(cobrancasBancarias||[]).filter(cobrancaJaEmitidaV293):(cobrancasBancarias||[]);
-  document.getElementById('cobKpiAbertos').textContent=baseKpi.filter(x=>['aberto','pendente_integracao'].includes(x.status)).length;
+  document.getElementById('cobKpiAbertos').textContent=baseKpi.filter(x=>['aberto','pendente_integracao'].includes(x.status)&&!dataVencidaV314(x.vencimento)).length;
   document.getElementById('cobKpiPagos').textContent=baseKpi.filter(x=>x.status==='pago').length;
-  document.getElementById('cobKpiVencidos').textContent=baseKpi.filter(x=>x.status==='vencido').length;
+  document.getElementById('cobKpiVencidos').textContent=baseKpi.filter(x=>(x.status==='vencido'||x.status==='aberto')&&dataVencidaV314(x.vencimento)).length;
   document.getElementById('cobKpiTotal').textContent=cobMoeda(baseKpi.filter(x=>['aberto','pendente_integracao','vencido'].includes(x.status)).reduce((a,b)=>a+Number(b.valor||0),0));
   tb.innerHTML=lista.length?lista.map(x=>{
     const emitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bb'&&x.nosso_numero;
     const bradescoEmitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bradesco'&&x.linha_digitavel;
     const acoes=bradescoEmitido
-      ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar boleto</button> <button class="btn" style="background:#7b3f9e;color:#fff" onclick="abrirSegundaViaAtualizadaBradescoV383('${x.id}')">📅 2ª via atualizada</button> <button class="btn verde" onclick="imprimirPedidoBradescoV264('${x.id}')">📄 Imprimir pedido</button> <button class="btn" style="background:#c62828;color:#fff;" data-verifica-bradesco="${x.id}" onclick="verificarStatusBradescoV277('${x.id}')">🔄 Verificar Bradesco</button> <button class="btn" onclick="abrirBaixaSubstituicaoV352('${x.id}')">🔁 Baixar / substituir</button>`
+      ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar boleto</button> <button class="btn" style="background:#7b3f9e;color:#fff" onclick="abrirSegundaViaBradescoHistoricoV400('${x.id}')">📅 2ª via atualizada</button> <button class="btn verde" onclick="imprimirPedidoBradescoV264('${x.id}')">📄 Imprimir pedido</button> <button class="btn" style="background:#c62828;color:#fff;" data-verifica-bradesco="${x.id}" onclick="verificarStatusBradescoV277('${x.id}')">🔄 Verificar Bradesco</button> <button class="btn" onclick="abrirBaixaSubstituicaoV352('${x.id}')">🔁 Baixar / substituir</button>`
       :(x.banco==='bradesco'&&x.status==='pendente_integracao'
         ?`<button class="btn vermelho" onclick="verificarConciliarTituloBradescoV271('${x.id}')">🔎 Verificar Bradesco</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
         :(emitido
@@ -8226,7 +8226,7 @@ function renderHistoricoCobrancas(){
         :(x.banco==='bb'&&x.status==='pendente_integracao'
           ?`<button class="btn verde" onclick="verificarConciliarTituloBb('${x.id}')">🔎 Verificar no BB</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
           :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`)));
-    return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${dataEmissaoCobrancaV177(x)?new Date(dataEmissaoCobrancaV177(x)+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)} ${bradescoStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}${x.bradesco_data_pagamento?`<div class="bb-status-meta">Pagamento: ${new Date(x.bradesco_data_pagamento+'T12:00:00').toLocaleDateString('pt-BR')}${x.bradesco_valor_pago!=null?' • Pago '+cobMoeda(x.bradesco_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
+    return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${dataEmissaoCobrancaV177(x)?new Date(dataEmissaoCobrancaV177(x)+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${((x.status==='aberto'||x.status==='vencido')&&dataVencidaV314(x.vencimento))?'Vencido / Em aberto':cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)} ${bradescoStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}${x.bradesco_data_pagamento?`<div class="bb-status-meta">Pagamento: ${new Date(x.bradesco_data_pagamento+'T12:00:00').toLocaleDateString('pt-BR')}${x.bradesco_valor_pago!=null?' • Pago '+cobMoeda(x.bradesco_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
   }).join(''):'<tr><td colspan="8">Nenhuma cobrança encontrada.</td></tr>';
 }
 
@@ -11064,6 +11064,21 @@ async function imprimirCanhotosPorFiltroV381(){
   finally{if(botao){botao.disabled=false;botao.textContent=texto;}}
 }
 
+
+// V400: histórico abre a consulta individual Bradesco, não o antigo atalho CAPTCHA.
+function abrirSegundaViaBradescoHistoricoV400(id){
+  const x=(cobrancasBancarias||[]).find(r=>String(r.id)===String(id));
+  if(!x||String(x.banco||'').toLowerCase()!=='bradesco')return alert('Título Bradesco não encontrado.');
+  if(['pago','cancelado'].includes(String(x.status||'').toLowerCase()))return alert('Título pago ou cancelado: segunda via para pagamento indisponível.');
+  if(typeof window.sv388Abrir!=='function')return alert('Módulo de consulta individual indisponível. Atualize a página (Ctrl+F5).');
+  window.sv388Abrir('bradesco',{
+    ...x,cliente:x.cliente_nome,referencia:x.numero_nf||x.seu_numero,
+    seu_numero:x.seu_numero||x.numero_nf,cpf_cnpj:x.cpf_cnpj,
+    codigo_barras:x.codigo_barras,linha_digitavel:x.linha_digitavel
+  });
+  const consultar=document.querySelector('#sv388 [data-consultar]');
+  if(consultar)consultar.click();
+}
 
 // V383 — Acesso assistido à 2ª via oficial Bradesco.
 // Não simula o site, não contorna CAPTCHA, não altera valores/linhas digitáveis.
