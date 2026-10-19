@@ -71,6 +71,31 @@ async function consultarIndividual(bank,x,el){
   const warning=barValid?'Valor codificado extraído do código de barras, mas isso não confirma a atualização dos encargos nem a aceitação do pagamento pelo banco.':'Não foi possível validar um código de barras bancário deste banco. Não há confirmação de valor atualizado com encargos.';
   result.innerHTML=`<div style="border-top:1px solid #ddd;padding-top:10px"><b>Consulta individual concluída.</b> Nenhum registro foi modificado.<table style="width:100%;table-layout:fixed;border-collapse:collapse;margin-top:8px"><tbody>${[['Linha digitável da consulta',lineOk?line:(line?'Formato ou dígitos verificadores inválidos':'Não retornada')],['Código de barras',barValid?bar:(bar?'Banco ou formato inconsistente':'Não retornado')],['Valor codificado no código de barras',rawAmount],['Valor bruto retornado pela API',asText(bankValue)],['Vencimento retornado',asText(val('vencimento','dataVencimento','dataVencimentoTitulo'))],['Status retornado',asText(val('status_descricao','status','situacao'))]].map(([k,v])=>`<tr><th style="text-align:left;width:48%;padding:6px;border-bottom:1px solid #ddd;overflow-wrap:anywhere">${esc(k)}</th><td style="padding:6px;border-bottom:1px solid #ddd;overflow-wrap:anywhere">${esc(v)}</td></tr>`).join('')}</tbody></table><p style="font-size:12px;color:#934800">${esc(warning)} Esta consulta não autoriza criar uma nova linha digitável ou alterar o boleto original.</p>${safeUrl?'<button data-url type="button">Abrir documento oficial retornado pelo banco</button>':''}</div>`;
   if(safeUrl)result.querySelector('[data-url]').onclick=()=>window.open(safeUrl,'_blank','noopener');
+  // V399: BB — habilitar PDF somente com dados de pagamento verificáveis da consulta individual.
+  if(bank==='bb'){
+    const status=val('status_descricao','status','situacao','codigoEstadoTituloCobranca').toUpperCase();
+    const dt=val('vencimento','dataVencimento','dataVencimentoTitulo','dataVencimentoBoleto');
+    const due=(s)=>{if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;if(/^\d{2}\.\d{2}\.\d{4}$/.test(s))return s.slice(6)+'-'+s.slice(3,5)+'-'+s.slice(0,2);return ''};
+    const orig=due(String(x.vencimento||''));
+    const vencido=!!orig&&orig<todayLocal();
+    const updated=due(dt);
+    const acceptable=validateLine(line)&&barValid&&barcodeDvOk(bar)&&barAmount!==null&&(!rawBar||rawBar===bar)&&!(/PAGO|LIQUIDADO|CANCELADO|BAIXADO/.test(status))&&(!vencido||updated===todayLocal());
+    const info=document.createElement('div');info.style.cssText='margin-top:10px;padding:10px;border:1px solid #aab8c7;border-radius:7px;background:#f4f7fc';
+    info.innerHTML='<b>Banco do Brasil — segunda via individual</b><p style="font-size:12px">'+(acceptable?'Dados bancários de pagamento presentes e consistentes. Confirme o beneficiário, vencimento e valor no aplicativo BB antes do pagamento.':'A consulta individual ainda não trouxe todos os dados necessários para uma segunda via pagável'+(vencido?' com validade para hoje':'')+'. Não serão inventados código de barras, linha digitável nem encargos.')+'</p>';
+    result.appendChild(info);
+    if(acceptable){
+      const b=document.createElement('button');b.type='button';b.textContent='Gerar PDF BB com dados consultados';b.style.cssText='padding:9px;background:#2256a3;color:#fff;border:0;border-radius:5px';info.appendChild(b);
+      b.onclick=()=>{
+        const win=window.open('','_blank');if(!win){alert('Permita pop-ups para gerar o PDF.');return}
+        const fmt=line.replace(/(\d{5})(\d{5})(\d{5})(\d{6})(\d{5})(\d{6})(\d)(\d{14})/,'$1.$2 $3.$4 $5.$6 $7 $8');
+        const row=(k,v)=>'<tr><th>'+esc(k)+'</th><td>'+esc(v)+'</td></tr>';
+        const doc=asText(x.seu_numero||x.referencia||'');
+        const html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Segunda via BB — '+esc(doc)+'</title><style>@page{size:A4;margin:16mm}body{font:12px Arial;color:#171717}header{border-bottom:3px solid #f6d30b;padding:12px 0;font-size:21px;font-weight:bold}small{font-size:10px;color:#444}table{border-collapse:collapse;width:100%;margin:20px 0}td,th{border:1px solid #777;padding:9px;text-align:left}th{width:35%;background:#f6f6f6}.line{font:17px monospace;overflow-wrap:anywhere;margin:15px 0}.bar{width:100%;height:75px}footer{margin-top:22px;font-size:10px}@media print{button{display:none}}</style></head><body><header>Banco do Brasil <span style="float:right;font-size:14px">001-9</span></header><h2>2ª via — dados de pagamento consultados</h2><div class="line">'+esc(fmt)+'</div><table>'+row('Beneficiário',asText(val('nomeBeneficiario','beneficiario','nome_beneficiario')||'Conferir no aplicativo BB'))+row('Pagador',asText(x.cliente||x.cliente_nome))+row('CPF/CNPJ do pagador',asText(x.cpf_cnpj||x.documento_pagador))+row('Nosso Número',nn)+row('Seu Número / documento',doc)+row('Vencimento / validade retornada',dt)+row('Valor codificado',money(barAmount))+row('Consulta',todayLocal().split('-').reverse().join('/'))+'</table><div>'+itfSvg(bar)+'</div><footer>Documento Sofisticatto com dados de pagamento consultados na API do Banco do Brasil em '+todayLocal().split('-').reverse().join('/')+'. Confira beneficiário, valor e vencimento no aplicativo bancário antes de pagar. Esta impressão não substitui documento oficial disponibilizado pelo banco.</footer><p><button onclick="window.print()">Imprimir / Salvar como PDF</button></p></body></html>';
+        win.document.write(html);win.document.close();win.focus();
+      };
+    }
+  }
+
   // V393: exibir os dados retornados pelo banco, sem fabricar boleto oficial.
   // A linha deve pertencer ao Bradesco e o valor da API deve coincidir com o código.
   if(bank==='bradesco'&&lineOk&&barValid&&barAmount!==null&&/^\d+$/.test(bankValue)&&Number(bankValue)===Math.round(barAmount*100)){
