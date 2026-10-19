@@ -642,10 +642,11 @@ async function cotarAutomaticamenteBraspress(transportadoraId,tipoFrete){
   try{
     const adm=await obterChaveIntegracoesCotacao(); if(!adm)throw new Error("Chave administrativa não informada.");
     const salva=await salvarCotacaoFrete("rascunho"); if(!salva)throw new Error("Não foi possível salvar a cotação antes da consulta.");
-    const convite=(window.integracoesTransportadoras||integracoesTransportadoras||[]).find(i=>/braspress/i.test(String(i.transportadora_nome||"")));
-    if(!convite)throw new Error("A configuração Braspress não foi localizada. Salve novamente o cadastro rápido na Central de Integrações.");
+    // V393: cotação não depende da lista de convites carregada no navegador.
+    // O backend recupera as credenciais de produção do cofre criptografado.
+    const convite=(Array.isArray(window.integracoesTransportadoras)?window.integracoesTransportadoras:[]).find(i=>/braspress/i.test(String(i.transportadora_nome||"")));
     const r=await fetch("/api/integracoes?action=cotar-braspress",{method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":adm},body:JSON.stringify({
-      convite_id:convite.id,ambiente:"producao",cnpjDestinatario:documento,cepDestino:cep,vlrMercadoria:Number(dados.valor_nf),peso:Number(dados.peso_total),volumes:Number(dados.volumes),
+      convite_id:convite?.id||null,ambiente:"producao",cnpjDestinatario:documento,cepDestino:cep,vlrMercadoria:Number(dados.valor_nf),peso:Number(dados.peso_total),volumes:Number(dados.volumes),
       modal:"R",tipoFrete:tipoFrete==="FOB"?"2":"1",altura_cm:medidas.altura_cm||10,largura_cm:medidas.largura_cm||10,comprimento_cm:medidas.comprimento_cm||10
     })});
     const d=await r.json().catch(()=>({})); if(!r.ok)throw new Error(d.erro||`HTTP ${r.status}`);
