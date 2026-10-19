@@ -8,6 +8,29 @@ const dig=v=>String(v??'').replace(/\D/g,'');
 const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 function pick(o,...names){for(const n of names){if(o&&o[n]!=null&&String(o[n]).trim())return o[n]}return ''}
 const cache=new Map();
+// V401 — rota oficial BB, sem tentar contornar CAPTCHA ou fabricar documento bancário.
+const BB_SEGUNDA_VIA_OFICIAL_V401='https://boleto.apps.bb.com.br/segunda-via-final';
+function bbDadosSegundaViaV401(x){
+ const beneficiary='05451985000195'; // CNPJ Sofisticatto, conferir no boleto original.
+ return {pagador:dig(pick(x,'cpf_cnpj','documento_pagador')),beneficiario:beneficiary,nosso:dig(pick(x,'nosso_numero')),seu:String(pick(x,'seu_numero','referencia')||'').trim()};
+}
+function bbAjudaOficialV401(x){
+ const d=bbDadosSegundaViaV401(x), box=document.createElement('section');
+ box.style.cssText='margin-top:12px;padding:12px;border:1px solid #d4bc57;border-radius:8px;background:#fff9e8';
+ const title=document.createElement('b');title.textContent='Segunda via oficial BB — alternativa quando a API não fornece boleto pagável';box.appendChild(title);
+ const msg=document.createElement('p');msg.style.cssText='font-size:12px;line-height:1.5';msg.textContent='O Banco do Brasil exige confirmação no próprio site para calcular juros/multa e disponibilizar o PDF atualizado. Copie os dados abaixo e confira o CNPJ do beneficiário no boleto original. A página oficial pode solicitar CAPTCHA.';box.appendChild(msg);
+ for(const [label,value] of [['CPF/CNPJ do pagador',d.pagador],['CPF/CNPJ do beneficiário (conferir)',d.beneficiario],['Nosso Número (sem DV, se solicitado)',d.nosso],['Seu Número',d.seu]]){
+  const r=document.createElement('div');r.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid #eadcae';
+  const lbl=document.createElement('span');lbl.style.cssText='min-width:185px;font-size:12px';lbl.textContent=label;
+  const val=document.createElement('code');val.style.cssText='flex:1;overflow-wrap:anywhere';val.textContent=value||'Não informado';r.append(lbl,val);
+  if(value){const copy=document.createElement('button');copy.type='button';copy.textContent='Copiar';copy.style.cssText='padding:5px 9px';copy.onclick=async()=>{try{await navigator.clipboard.writeText(value);copy.textContent='Copiado'}catch{window.prompt('Copie o dado:',value)}};r.appendChild(copy)}
+  box.appendChild(r);
+ }
+ const a=document.createElement('a');a.href=BB_SEGUNDA_VIA_OFICIAL_V401;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir 2ª via oficial do Banco do Brasil ↗';a.style.cssText='display:inline-block;margin-top:12px;padding:10px 12px;border-radius:6px;background:#175c9e;color:white;text-decoration:none;font-weight:bold';box.appendChild(a);
+ const note=document.createElement('p');note.style.cssText='font-size:11px;color:#675c3b';note.textContent='O PDF atualizado será emitido pelo BB, não pela Sofisticatto. Nenhum registro ou título é alterado por esta ação.';box.appendChild(note);
+ return box;
+}
+
 function validateLine(line){
  if(line.length!==47)return false;
  const mod10=s=>{let sum=0,m=2;for(let i=s.length-1;i>=0;i--){let n=Number(s[i])*m;sum+=n>9?n-9:n;m=m===2?1:2}return (10-sum%10)%10};
@@ -64,7 +87,7 @@ async function consultarIndividual(bank,x,el){
   const barValid=barcodeBankMatches(bank,bar);
   const barAmount=barValid?barcodeAmount(bar):null;
   const rawAmount=barAmount===null?'Não disponível':money(barAmount);
-  const url=val('urlImagemBoleto','url_boleto','urlBoleto','pdfUrl');
+  const url=val('urlImagemBoleto','url_imagem_boleto','url_boleto','urlBoleto','pdfUrl','pdf_url','linkBoleto','link_boleto','urlSegundaVia','urlSegundaViaBoleto');
   const safeUrl=(()=>{try{const u=new URL(url);return u.protocol==='https:'&&/^(?:[a-z0-9-]+\.)*(?:bb\.com\.br|bradesco\.com\.br)$/i.test(u.hostname)?u.href:''}catch{return ''}})();
   const result=el.querySelector('[data-resultado]');
   const bankValue=val('valor_boleto','valorBoleto','valorMoedaBol','valor_titulo','valorTitulo');
@@ -83,6 +106,7 @@ async function consultarIndividual(bank,x,el){
     const info=document.createElement('div');info.style.cssText='margin-top:10px;padding:10px;border:1px solid #aab8c7;border-radius:7px;background:#f4f7fc';
     info.innerHTML='<b>Banco do Brasil — segunda via individual</b><p style="font-size:12px">'+(acceptable?'Dados bancários de pagamento presentes e consistentes. Confirme o beneficiário, vencimento e valor no aplicativo BB antes do pagamento.':'A consulta individual ainda não trouxe todos os dados necessários para uma segunda via pagável'+(vencido?' com validade para hoje':'')+'. Não serão inventados código de barras, linha digitável nem encargos.')+'</p>';
     result.appendChild(info);
+    if(!acceptable)result.appendChild(bbAjudaOficialV401(x));
     if(acceptable){
       const b=document.createElement('button');b.type='button';b.textContent='Gerar PDF BB com dados consultados';b.style.cssText='padding:9px;background:#2256a3;color:#fff;border:0;border-radius:5px';info.appendChild(b);
       b.onclick=()=>{
