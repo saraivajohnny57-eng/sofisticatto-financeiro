@@ -17,6 +17,25 @@ function barcodeAmount(bar){
  return Number(bar.slice(9,19))/100;
 }
 function barcodeBankMatches(bank,bar){return bar.length===44&&bar.slice(0,3)===(bank==='bb'?'001':'237')}
+// V394: código ITF-2of5, padrão de impressão dos boletos de cobrança.
+function itfSvg(digits){
+ if(!/^\d{44}$/.test(digits))throw new Error('Código de barras inválido.');
+ const patterns=['00110','10001','01001','11000','00101','10100','01100','00011','10010','01010'];
+ let x=12;let bars='<rect x="'+x+'" y="0" width="2" height="64"/>';x+=3;bars+='<rect x="'+x+'" y="0" width="2" height="64"/>';x+=3;
+ for(let i=0;i<digits.length;i+=2){const a=patterns[Number(digits[i])],b=patterns[Number(digits[i+1])];for(let j=0;j<5;j++){let w=a[j]==='1'?5:2;bars+='<rect x="'+x+'" y="0" width="'+w+'" height="64"/>';x+=w;x+=b[j]==='1'?5:2}}
+ bars+='<rect x="'+x+'" y="0" width="5" height="64"/>';x+=7;bars+='<rect x="'+x+'" y="0" width="2" height="64"/>';x+=14;
+ return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+x+' 64" style="width:100%;height:80px;display:block" preserveAspectRatio="none">'+bars+'</svg>';
+}
+function barcodeDvOk(bar){if(!/^\d{44}$/.test(bar))return false;let sum=0,w=2;for(let i=43;i>=0;i--){if(i===4)continue;sum+=Number(bar[i])*w;w=w===9?2:w+1}const r=sum%11;const dv=(r===0||r===1||r===10)?1:11-r;return dv===Number(bar[4])}
+function brDate(d){const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]+'/'+m[1]:String(d||'')}
+function todayLocal(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function makePaymentHtml(x,line,bar,amount,returnedDate){
+ const formatted=line.replace(/(\d{5})(\d{5})(\d{5})(\d{6})(\d{5})(\d{6})(\d)(\d{14})/,'$1.$2 $3.$4 $5.$6 $7 $8');
+ const doc=esc(pick(x,'seu_numero','referencia'));const payer=esc(pick(x,'cliente','cliente_nome'));const cpf=esc(pick(x,'cpf_cnpj','documento_pagador'));
+ const beneficiary='SOFISTICATTO INDUSTRIA, COMERCIO E EXPOR';const cnpj='00.451.985/0001-95';
+ const fields=(receipt)=>'<div class="line"><b>Beneficiário</b><span>'+beneficiary+' — CNPJ '+cnpj+'</span></div><div class="triple"><div><small>Data da consulta</small>'+brDate(todayLocal())+'</div><div><small>Nº do documento</small>'+doc+'</div><div><small>Nosso Número</small>'+esc(pick(x,'nosso_numero'))+'</div></div><div class="triple"><div><small>Vencimento informado pela API</small>'+brDate(returnedDate)+'</div><div><small>Valor do documento</small>'+money(amount)+'</div><div><small>Banco</small>237 — Bradesco</div></div><div class="line"><b>Pagador</b><span>'+payer+' — '+cpf+'</span></div>';
+ return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Dados de pagamento Bradesco - '+doc+'</title><style>@page{size:A4;margin:14mm}body{font:12px Arial,sans-serif;color:#111;max-width:800px;margin:auto}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #222;padding:12px 0;font-size:19px;font-weight:bold}.line{border-bottom:1px solid #aaa;padding:9px 0}.line b{display:block;font-size:10px}.triple{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid #aaa}.triple div{padding:8px;border-right:1px solid #aaa}.triple small{display:block;font-size:10px;color:#555;margin-bottom:5px}.digit{font-family:monospace;font-size:15px;font-weight:bold;overflow-wrap:anywhere}.notice{background:#fff1c7;border:1px solid #ad8023;padding:12px;margin:12px 0;line-height:1.5}.separator{border-top:1px dashed #555;margin:30px 0}.barcode{margin-top:20px;max-width:650px}.actions{margin:15px 0}@media print{.actions{display:none}}</style></head><body><div class="actions"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div><div class="notice"><b>Documento gerado pelo Sofisticatto com dados consultados na API Bradesco.</b> Não é uma via emitida pelo site do banco. Confira beneficiário, valor e validade no aplicativo bancário antes de pagar. Dados consultados em '+brDate(todayLocal())+'. Para pagamento em outra data, faça nova consulta.</div><div class="header"><span>bradesco | 237-2</span><span>Dados de pagamento</span></div><p class="digit">'+formatted+'</p>'+fields(true)+'<div class="separator"></div><div class="header"><span>bradesco | 237-2</span><span>Ficha para pagamento</span></div><p class="digit">'+formatted+'</p>'+fields(false)+'<p><b>Valor informado pelo banco: '+money(amount)+'</b></p><div class="barcode">'+itfSvg(bar)+'</div><p style="font-family:monospace;text-align:center">'+bar+'</p></body></html>';
+}
 function asText(v){return v===null||v===undefined||String(v).trim()===''?'Não informado':String(v)}
 async function consultarIndividual(bank,x,el){
  const btn=el.querySelector('[data-consultar]');btn.disabled=true;btn.textContent='Consultando banco...';
@@ -49,6 +68,28 @@ async function consultarIndividual(bank,x,el){
    area.innerHTML='<b>Dados de pagamento conferidos com a consulta do Bradesco</b><p style="font-size:12px">A linha digitável e o valor retornados pela API são consistentes. Confirme no aplicativo bancário o beneficiário, o valor e a data de validade antes de pagar. Isto não é uma segunda via oficial em PDF.</p><p><b>Valor:</b> '+esc(money(barAmount))+'</p><p style="font-family:monospace;overflow-wrap:anywhere">'+esc(line.replace(/(\d{5})(\d{5})(\d{5})(\d{6})(\d{5})(\d{6})(\d)(\d{14})/,'$1.$2 $3.$4 $5.$6 $7 $8'))+'</p><button type="button" data-copyline>Copiar linha digitável</button>';
    result.appendChild(area);
    area.querySelector('[data-copyline]').onclick=async()=>{try{await navigator.clipboard.writeText(line);area.querySelector('[data-copyline]').textContent='Linha copiada ✓'}catch{alert('Não foi possível copiar. Selecione a linha manualmente.')}};
+   const pdfBtn=document.createElement('button');pdfBtn.type='button';pdfBtn.textContent='Gerar PDF com dados atualizados';pdfBtn.style.cssText='margin-left:8px;padding:8px;background:#205ca3;color:#fff;border:0;border-radius:5px';area.appendChild(pdfBtn);
+   pdfBtn.onclick=async()=>{
+    // Abrir no gesto do usuário para evitar bloqueador de pop-ups; só imprimir após consulta nova.
+    const w=window.open('','_blank');if(!w){alert('Não foi possível abrir a janela de impressão.');return}
+    w.document.write('<!doctype html><html><meta charset="utf-8"><body>Consultando novamente o Bradesco para emitir dados atualizados...</body></html>');w.document.close();pdfBtn.disabled=true;
+    try{
+     const j=await bradescoReqProducao('consultar-segunda-via-v389',{nosso_numero:dig(x.nosso_numero)});
+     const rr=j.consulta||{};const objs2=[rr,rr.boleto,rr.titulo,rr.dados,rr.consulta,rr.data].filter(o=>o&&typeof o==='object');
+     const v2=(...keys)=>{for(const o of objs2)for(const k of keys)if(o[k]!==undefined&&o[k]!==null&&String(o[k]).trim())return String(o[k]);return ''};
+     const l2=dig(v2('linha_digitavel','linhaDigitavel','linhaDig'));
+     const b2=barcodeFromLine(l2);
+     const value2=v2('valor_boleto','valorBoleto','valorMoedaBol','valor_titulo','valorTitulo');
+     const dt=v2('vencimento','dataVencimento','dataVencimentoTitulo');
+     if(!validateLine(l2)||!barcodeBankMatches('bradesco',b2)||!barcodeDvOk(b2))throw new Error('Linha digitável ou código de barras não passaram na validação.');
+     if(!/^\d+$/.test(value2)||Number(value2)!==Math.round(barcodeAmount(b2)*100))throw new Error('Valor retornado pela API não coincide com o código de barras.');
+     if(!/^\d{4}-\d{2}-\d{2}$/.test(dt)||dt!==todayLocal())throw new Error('A data de vencimento/validade retornada ('+dt+') não corresponde à data de hoje. Confirme a regra de validade antes de gerar o PDF.');
+     const status=v2('status_descricao','status','situacao').toUpperCase();if(/PAGO|LIQUIDADO|CANCELADO|BAIXADO/.test(status))throw new Error('Título não está disponível para pagamento: '+status);
+     w.document.open();w.document.write(makePaymentHtml(x,l2,b2,barcodeAmount(b2),dt));w.document.close();w.focus();
+    }catch(e){w.document.open();w.document.write('<!doctype html><meta charset="utf-8"><p>Não foi possível gerar o PDF: '+esc(e.message||e)+'</p><p>O título original não foi alterado.</p>');w.document.close()}
+    finally{pdfBtn.disabled=false}
+   };
+
   }
   const original=el.querySelector('[data-original-note]');if(original)original.textContent='Dados acima: consulta da carteira. Dados abaixo: resposta individual do banco (sem alteração no Histórico).';
  }catch(e){el.querySelector('[data-resultado]').textContent='Não foi possível consultar o título: '+(e.message||e)}finally{btn.disabled=false;btn.textContent='Consultar título individual na API'}
