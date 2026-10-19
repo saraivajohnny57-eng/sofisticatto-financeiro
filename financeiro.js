@@ -10962,6 +10962,22 @@ function abrirBaixaSubstituicaoV352(id){
 }
 
 
+// V391 — Identificação de cada parcela no recibo de entrega (somente PDF local).
+// Usa o número da parcela armazenado no título; não modifica o documento bancário.
+function numeroDocumentoCanhotoV391(r){
+  const bruto=String(r?.numero_nf||r?.numero_titulo||'').trim();
+  if(!bruto)return '-';
+  const numero=Number(r?.parcela_numero);
+  const total=Number(r?.parcela_total);
+  // Se já houver sufixo de parcela no próprio documento, não duplicar.
+  if(/[-/]\d{1,3}$/.test(bruto))return bruto;
+  // Não inventar a parcela quando o registro não a informa.
+  if(!Number.isInteger(numero)||numero<1||numero>999)return bruto;
+  // Identificar mesmo quando parcela_total estiver ausente (registro parcelado conhecido).
+  if(Number.isInteger(total)&&total===1)return bruto;
+  return `${bruto}-${String(numero).padStart(2,'0')}`;
+}
+
 // V382 - Canhotos fiéis ao layout da Impressão Normal, com logomarcas e CPF/CNPJ.
 // Geração local, sem API bancária e sem modificar títulos.
 async function imprimirCanhotosPorFiltroV381(){
@@ -11031,7 +11047,7 @@ async function imprimirCanhotosPorFiltroV381(){
       cell(pg,left+leftW,y,rightW,rowH,'Nosso Numero',r.nosso_numero||'-',{valueSize:8});
       y-=rowH;
       const widths=[110,102,60,58,CW-330];
-      const vals=[['Data de Vencimento',fmtData(r.vencimento)],['Nr Documento',r.numero_nf||r.numero_titulo||'-'],['Especie','DM'],['Moeda','R$'],['Valor do Documento',cobMoeda(r.valor)]];
+      const vals=[['Data de Vencimento',fmtData(r.vencimento)],['Nr Documento',numeroDocumentoCanhotoV391(r)],['Especie','DM'],['Moeda','R$'],['Valor do Documento',cobMoeda(r.valor)]];
       let fx=left;vals.forEach((a,j)=>{cell(pg,fx,y,widths[j],finH,a[0],a[1],{valueSize:j===4?9:7,bold:j===4,align:j===4?'right':'center'});fx+=widths[j]});
       y-=finH;
       const recWidths=[189,153,95,CW-437],recLabels=['Recebi(emos) o boleto com essas caracteristicas.','Assinatura','Data da Entrega','Nome'];
