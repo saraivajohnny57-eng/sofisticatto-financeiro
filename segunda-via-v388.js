@@ -18,7 +18,7 @@ function bbAjudaOficialV401(x){
  const d=bbDadosSegundaViaV401(x), box=document.createElement('section');
  box.style.cssText='margin-top:12px;padding:12px;border:1px solid #d4bc57;border-radius:8px;background:#fff9e8';
  const title=document.createElement('b');title.textContent='Segunda via oficial BB — alternativa quando a API não fornece boleto pagável';box.appendChild(title);
- const msg=document.createElement('p');msg.style.cssText='font-size:12px;line-height:1.5';msg.textContent='O Banco do Brasil exige confirmação no próprio site para calcular juros/multa e disponibilizar o PDF atualizado. Copie os dados abaixo e confira o CNPJ do beneficiário no boleto original. A página oficial pode solicitar CAPTCHA.';box.appendChild(msg);
+ const msg=document.createElement('p');msg.style.cssText='font-size:12px;line-height:1.5';msg.textContent='A página externa do BB NÃO aceita preenchimento automático pelo portal. Abra o site oficial e use os botões Copiar ao lado de cada dado para colar nos campos correspondentes (Ctrl+V). Confirme o CNPJ do beneficiário no boleto original. O banco pode solicitar CAPTCHA e calcular encargos.';box.appendChild(msg);
  for(const [label,value] of [['CPF/CNPJ do pagador',d.pagador],['CPF/CNPJ do beneficiário (conferir)',d.beneficiario],['Nosso Número (sem DV, se solicitado)',d.nosso],['Seu Número',d.seu]]){
   const r=document.createElement('div');r.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid #eadcae';
   const lbl=document.createElement('span');lbl.style.cssText='min-width:185px;font-size:12px';lbl.textContent=label;
@@ -26,6 +26,7 @@ function bbAjudaOficialV401(x){
   if(value){const copy=document.createElement('button');copy.type='button';copy.textContent='Copiar';copy.style.cssText='padding:5px 9px';copy.onclick=async()=>{try{await navigator.clipboard.writeText(value);copy.textContent='Copiado'}catch{window.prompt('Copie o dado:',value)}};r.appendChild(copy)}
   box.appendChild(r);
  }
+ const all=document.createElement('button');all.type='button';all.textContent='Copiar dados para conferência';all.style.cssText='display:inline-block;margin:12px 8px 0 0;padding:10px;border-radius:6px;background:#f0e3b0;border:1px solid #b6a261;cursor:pointer';all.onclick=async()=>{const texto=[['Pagador',d.pagador],['Beneficiário (conferir)',d.beneficiario],['Nosso Número',d.nosso],['Seu Número',d.seu]].map(([k,v])=>k+': '+(v||'Não informado')).join('\n');try{await navigator.clipboard.writeText(texto);all.textContent='Dados copiados'}catch{window.prompt('Copie os dados:',texto)}};box.appendChild(all);
  const a=document.createElement('a');a.href=BB_SEGUNDA_VIA_OFICIAL_V401;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir 2ª via oficial do Banco do Brasil ↗';a.style.cssText='display:inline-block;margin-top:12px;padding:10px 12px;border-radius:6px;background:#175c9e;color:white;text-decoration:none;font-weight:bold';box.appendChild(a);
  const note=document.createElement('p');note.style.cssText='font-size:11px;color:#675c3b';note.textContent='O PDF atualizado será emitido pelo BB, não pela Sofisticatto. Nenhum registro ou título é alterado por esta ação.';box.appendChild(note);
  return box;
