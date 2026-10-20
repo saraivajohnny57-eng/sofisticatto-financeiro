@@ -513,8 +513,8 @@ async function emitirBoletoPiloto(amb,entrada={}){
   let consulta=null;
   try{consulta=await consultarBoletoBb(amb,nossoNumero,o)}catch(e){console.warn('[BANCO-BB V162] boleto emitido; consulta complementar falhou:',e.message)}
   const conjunto={post:data,consulta:consulta?.data||null};
-  const linhaDigitavel=acharCampoBb(conjunto,['linhaDigitavel','linha_digitavel','linhaDigitavelBoleto']);
-  const codigoBarraNumerico=acharCampoBb(conjunto,['codigoBarraNumerico','codigoBarras','codigoBarra','codigo_barras']);
+  const linhaDigitavel=acharCampoBb(conjunto,['codigoLinhaDigitavel','linhaDigitavel','linha_digitavel','linhaDigitavelBoleto','numeroLinhaDigitavel']);
+  const codigoBarraNumerico=acharCampoBb(conjunto,['codigoBarraNumerico','codigoBarras','codigoBarra','codigo_barras','numeroCodigoBarras']);
   const urlImagemBoleto=acharCampoBb(conjunto,['urlImagemBoleto','url_imagem_boleto','urlBoleto','linkBoleto']);
   const numeroBoletoBB=acharCampoBb(conjunto,['numero','numeroBoletoBB','numeroTituloCliente','nossoNumero'])||nossoNumero;
   return {
