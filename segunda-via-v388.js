@@ -81,9 +81,10 @@ async function consultarIndividual(bank,x,el){
    raw=bank==='bb'?(j.consulta||j):(j.consulta||{});cache.set(key,{raw,time:Date.now()});
   }
   const objs=[raw,raw?.boleto,raw?.titulo,raw?.dados,raw?.consulta,raw?.data].filter(o=>o&&typeof o==='object');
-  const val=(...keys)=>{for(const o of objs)for(const k of keys){if(o[k]!==undefined&&o[k]!==null&&String(o[k]).trim())return String(o[k])}return ''};
-  const line=dig(val('linha_digitavel','linhaDigitavel','linhaDig'));
-  const rawBar=dig(val('codigo_barras','codigoBarraNumerico','codigoBarras','cdBarras'));
+  const camposBb=bank==='bb'?bbCamposV403(raw):[];
+   const val=(...keys)=>{if(bank==='bb')return bbValorV403(camposBb,...keys);for(const o of objs)for(const k of keys){if(o[k]!==undefined&&o[k]!==null&&String(o[k]).trim())return String(o[k])}return ''};
+  const line=dig(val('codigoLinhaDigitavel','linha_digitavel','linhaDigitavel','linhaDig','linhaDigitavelBoleto','numeroLinhaDigitavel'));
+  const rawBar=dig(val('codigoBarraNumerico','codigoBarras','codigoBarra','codigo_barras','cdBarras','numeroCodigoBarras'));
   const lineOk=validateLine(line), bar=rawBar.length===44?rawBar:(lineOk?barcodeFromLine(line):'');
   const barValid=barcodeBankMatches(bank,bar);
   const barAmount=barValid?barcodeAmount(bar):null;
@@ -91,7 +92,7 @@ async function consultarIndividual(bank,x,el){
   const url=val('urlImagemBoleto','url_imagem_boleto','url_boleto','urlBoleto','pdfUrl','pdf_url','linkBoleto','link_boleto','urlSegundaVia','urlSegundaViaBoleto');
   const safeUrl=(()=>{try{const u=new URL(url);return u.protocol==='https:'&&/^(?:[a-z0-9-]+\.)*(?:bb\.com\.br|bradesco\.com\.br)$/i.test(u.hostname)?u.href:''}catch{return ''}})();
   const result=el.querySelector('[data-resultado]');
-  const bankValue=val('valor_boleto','valorBoleto','valorMoedaBol','valor_titulo','valorTitulo');
+  const bankValue=val('valor_boleto','valorBoleto','valorMoedaBol','valor_titulo','valorTitulo','valorAtual','valorAtualizado','valorCobrado','valorTotalCobrado');
   const warning=barValid?'Valor codificado extraído do código de barras, mas isso não confirma a atualização dos encargos nem a aceitação do pagamento pelo banco.':'Não foi possível validar um código de barras bancário deste banco. Não há confirmação de valor atualizado com encargos.';
   result.innerHTML=`<div style="border-top:1px solid #ddd;padding-top:10px"><b>Consulta individual concluída.</b> Nenhum registro foi modificado.<table style="width:100%;table-layout:fixed;border-collapse:collapse;margin-top:8px"><tbody>${[['Linha digitável da consulta',lineOk?line:(line?'Formato ou dígitos verificadores inválidos':'Não retornada')],['Código de barras',barValid?bar:(bar?'Banco ou formato inconsistente':'Não retornado')],['Valor codificado no código de barras',rawAmount],['Valor bruto retornado pela API',asText(bankValue)],['Vencimento retornado',asText(val('vencimento','dataVencimento','dataVencimentoTitulo'))],['Status retornado',asText(val('status_descricao','status','situacao'))]].map(([k,v])=>`<tr><th style="text-align:left;width:48%;padding:6px;border-bottom:1px solid #ddd;overflow-wrap:anywhere">${esc(k)}</th><td style="padding:6px;border-bottom:1px solid #ddd;overflow-wrap:anywhere">${esc(v)}</td></tr>`).join('')}</tbody></table><p style="font-size:12px;color:#934800">${esc(warning)} Esta consulta não autoriza criar uma nova linha digitável ou alterar o boleto original.</p>${safeUrl?'<button data-url type="button">Abrir documento oficial retornado pelo banco</button>':''}</div>`;
   if(safeUrl)result.querySelector('[data-url]').onclick=()=>window.open(safeUrl,'_blank','noopener');
@@ -103,7 +104,8 @@ async function consultarIndividual(bank,x,el){
     const orig=due(String(x.vencimento||''));
     const vencido=!!orig&&orig<todayLocal();
     const updated=due(dt);
-    const acceptable=validateLine(line)&&barValid&&barcodeDvOk(bar)&&barAmount!==null&&(!rawBar||rawBar===bar)&&!(/PAGO|LIQUIDADO|CANCELADO|BAIXADO/.test(status))&&(!vencido||updated===todayLocal());
+    const valorApiCentavos=/^\d+$/.test(bankValue)?Number(bankValue):null;
+     const acceptable=validateLine(line)&&barValid&&barcodeDvOk(bar)&&barAmount!==null&&(!rawBar||rawBar===bar)&&valorApiCentavos!==null&&valorApiCentavos===Math.round(barAmount*100)&&!(/PAGO|LIQUIDADO|CANCELADO|BAIXADO/.test(status))&&(!vencido||updated===todayLocal());
     const info=document.createElement('div');info.style.cssText='margin-top:10px;padding:10px;border:1px solid #aab8c7;border-radius:7px;background:#f4f7fc';
     info.innerHTML='<b>Banco do Brasil — segunda via individual</b><p style="font-size:12px">'+(acceptable?'Dados bancários de pagamento presentes e consistentes. Confirme o beneficiário, vencimento e valor no aplicativo BB antes do pagamento.':'A consulta individual ainda não trouxe todos os dados necessários para uma segunda via pagável'+(vencido?' com validade para hoje':'')+'. Não serão inventados código de barras, linha digitável nem encargos.')+'</p>';
     result.appendChild(info);
