@@ -7,6 +7,37 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const dig=v=>String(v??'').replace(/\D/g,'');
 const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 function pick(o,...names){for(const n of names){if(o&&o[n]!=null&&String(o[n]).trim())return o[n]}return ''}
+// V404 — leitura defensiva de chaves da resposta BB (diagnóstico sem valores sensíveis).
+function bbCamposV403(raw){
+ const out=[];const seen=new WeakSet();
+ function walk(node,path,depth){
+  if(!node||typeof node!=='object'||seen.has(node)||depth>5||out.length>=500)return;
+  seen.add(node);
+  for(const [key,value] of Object.entries(node)){
+   if(out.length>=500)break;
+   const p=path?path+'.'+key:key;
+   if(value!==null&&typeof value==='object'){
+    if(Array.isArray(value)){for(let i=0;i<Math.min(value.length,3);i++)walk(value[i],p+'['+i+']',depth+1)}
+    else walk(value,p,depth+1);
+   }else out.push({path:p,key,value});
+  }
+ }
+ walk(raw,'',0);return out;
+}
+function bbValorV403(campos,...keys){
+ const wanted=new Set(keys.map(k=>String(k).toLowerCase()));
+ const item=campos.find(c=>wanted.has(c.key.toLowerCase())&&c.value!==null&&c.value!==undefined&&String(c.value).trim()!=='');
+ return item?String(item.value):'';
+}
+function bbDiagnosticoV404(campos){
+ const box=document.createElement('details');box.style.cssText='margin:12px 0;padding:10px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc';
+ const summary=document.createElement('summary');summary.textContent='Diagnóstico da API BB (somente nomes dos campos)';summary.style.cssText='cursor:pointer;font-weight:bold';box.appendChild(summary);
+ const desc=document.createElement('p');desc.style.cssText='font-size:12px';desc.textContent='A lista abaixo mostra apenas os caminhos dos campos recebidos. Valores, documentos, tokens e credenciais não são exibidos.';box.appendChild(desc);
+ const pre=document.createElement('pre');pre.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;max-height:240px;overflow-y:auto';
+ // Exibir apenas nomes de campos com caracteres de identificadores; nunca os valores.
+ const safe=campos.map(c=>c.path).filter(p=>/^[A-Za-z_$][\w$]*(?:\[\d+\]|\.[A-Za-z_$][\w$]*)*$/.test(p));
+ pre.textContent=safe.length?safe.join('\n'):'Nenhum campo simples encontrado na resposta.';box.appendChild(pre);return box;
+}
 const cache=new Map();
 // V401 — rota oficial BB, sem tentar contornar CAPTCHA ou fabricar documento bancário.
 const BB_SEGUNDA_VIA_OFICIAL_V401='https://boleto.apps.bb.com.br/segunda-via-final';
@@ -96,6 +127,7 @@ async function consultarIndividual(bank,x,el){
   const warning=barValid?'Valor codificado extraído do código de barras, mas isso não confirma a atualização dos encargos nem a aceitação do pagamento pelo banco.':'Não foi possível validar um código de barras bancário deste banco. Não há confirmação de valor atualizado com encargos.';
   result.innerHTML=`<div style="border-top:1px solid #ddd;padding-top:10px"><b>Consulta individual concluída.</b> Nenhum registro foi modificado.<table style="width:100%;table-layout:fixed;border-collapse:collapse;margin-top:8px"><tbody>${[['Linha digitável da consulta',lineOk?line:(line?'Formato ou dígitos verificadores inválidos':'Não retornada')],['Código de barras',barValid?bar:(bar?'Banco ou formato inconsistente':'Não retornado')],['Valor codificado no código de barras',rawAmount],['Valor bruto retornado pela API',asText(bankValue)],['Vencimento retornado',asText(val('vencimento','dataVencimento','dataVencimentoTitulo'))],['Status retornado',asText(val('status_descricao','status','situacao'))]].map(([k,v])=>`<tr><th style="text-align:left;width:48%;padding:6px;border-bottom:1px solid #ddd;overflow-wrap:anywhere">${esc(k)}</th><td style="padding:6px;border-bottom:1px solid #ddd;overflow-wrap:anywhere">${esc(v)}</td></tr>`).join('')}</tbody></table><p style="font-size:12px;color:#934800">${esc(warning)} Esta consulta não autoriza criar uma nova linha digitável ou alterar o boleto original.</p>${safeUrl?'<button data-url type="button">Abrir documento oficial retornado pelo banco</button>':''}</div>`;
   if(safeUrl)result.querySelector('[data-url]').onclick=()=>window.open(safeUrl,'_blank','noopener');
+  if(bank==='bb')result.appendChild(bbDiagnosticoV404(camposBb));
   // V399: BB — habilitar PDF somente com dados de pagamento verificáveis da consulta individual.
   if(bank==='bb'){
     const status=val('status_descricao','status','situacao','codigoEstadoTituloCobranca').toUpperCase();
