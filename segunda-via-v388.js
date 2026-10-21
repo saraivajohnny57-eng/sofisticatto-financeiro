@@ -38,6 +38,23 @@ function bbCentavosV405(raw,esperado){
  if(/^\d+(?:[.,]\d{1,2})$/.test(v))opcoes.push(Math.round(Number(v.replace(',','.'))*100));
  return opcoes.includes(esperado)?esperado:null;
 }
+// V407: impressão BB com layout de boleto para dados de pagamento comprovados pela API.
+// Títulos vencidos SEM confirmação de encargos não entram nesta função.
+function bbBoletoProfissionalV407({line,bar,pagador,documento,nosso,vencimento,valor,beneficiario}){
+ const safe=v=>esc(String(v??''));
+ const formatado=line.replace(/(\d{5})(\d{5})(\d{5})(\d{6})(\d{5})(\d{6})(\d)(\d{14})/,'$1.$2 $3.$4 $5.$6 $7 $8');
+ const logoSof=typeof SOFISTICATTO_LOGO_V396==='string'?SOFISTICATTO_LOGO_V396:'';
+ const header=`<div class="bankhead"><div class="bb-logo">▱ BANCO DO BRASIL</div><strong>001-9</strong><span class="dig">${safe(formatado)}</span></div>`;
+ const info=`<div class="cells"><div><small>Pagador</small><b>${safe(pagador)}</b></div><div><small>Nosso Número</small><b>${safe(nosso)}</b></div><div><small>Documento</small><b>${safe(documento)}</b></div><div><small>Vencimento</small><b>${safe(brDate(vencimento))}</b></div><div><small>Beneficiário</small><b>${safe(beneficiario)}</b></div><div><small>Valor do documento</small><b>${safe(money(valor))}</b></div></div>`;
+ return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Boleto BB — ${safe(documento)}</title><style>
+ @page{size:A4;margin:13mm}*{box-sizing:border-box}body{font:11px Arial,sans-serif;color:#111;margin:0}.brand{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #ead000;padding:5px 0 9px}.brand img{max-width:120px;max-height:38px;object-fit:contain}.brand span{font-size:11px;color:#555}.bankhead{display:flex;align-items:center;gap:10px;border-top:2px solid #111;border-bottom:1px solid #111;padding:7px 0;white-space:nowrap}.bb-logo{background:#ffe400;color:#123ca1;font-weight:900;padding:6px;font-size:15px;letter-spacing:-.5px}.bankhead strong{font-size:18px}.dig{font:13px monospace;white-space:normal;overflow-wrap:anywhere}.cells{display:grid;grid-template-columns:2fr 1fr;gap:0}.cells>div{min-height:42px;padding:6px;border-bottom:1px solid #888;border-right:1px solid #bbb}.cells small{display:block;color:#444;font-size:9px}.cells b{font-size:11px}.receipt{padding-top:15px}.cut{margin:23px 0 18px;border-top:1px dashed #555;text-align:center;color:#555;font-size:10px}.sheet{padding-top:5px}.pay{display:grid;grid-template-columns:2fr 1fr;border-bottom:1px solid #777}.pay div{padding:8px}.barcode{margin:20px 0 4px;width:78%}.footer{margin-top:15px;font-size:10px;color:#333}.warning{border:1px solid #888;background:#f8f8f8;padding:8px;margin:14px 0}.actions{margin:20px 0}@media print{.actions{display:none}} </style></head><body>
+ <div class="brand"><img src="${logoSof}" alt="Sofisticatto"><span>Dados consultados na API Banco do Brasil</span></div>
+ <section class="receipt"><div style="text-align:right;font-weight:bold;margin-bottom:6px">Recibo do pagador</div>${header}${info}<p>Valor original do título: <b>${safe(money(valor))}</b></p></section>
+ <div class="cut">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -</div>
+ <section class="sheet">${header}<div class="pay"><div><small>Local de pagamento</small><b>Consulte as condições de recebimento no Banco do Brasil</b></div><div><small>Vencimento</small><b>${safe(brDate(vencimento))}</b></div></div>${info}<div class="pay"><div>Instruções: confirmar beneficiário e condições no aplicativo bancário.</div><div><small>(=) Valor do documento</small><b>${safe(money(valor))}</b></div></div><div class="barcode">${itfSvg(bar)}</div></section>
+ <div class="warning"><b>Impressão Sofisticatto com dados retornados pela API BB.</b> Não substitui o PDF oficial do banco. Confira beneficiário, linha digitável e valor antes do pagamento. Não usar para título vencido sem confirmação bancária dos encargos.</div>
+ <div class="footer">Consulta: ${safe(brDate(todayLocal()))}. Nenhum registro foi alterado.</div><div class="actions"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div></body></html>`;
+}
 function bbDataV405(raw){
  const v=String(raw||'').trim();
  if(/^\d{4}-\d{2}-\d{2}/.test(v))return v.slice(0,10);
@@ -171,6 +188,92 @@ async function consultarIndividual(bank,x,el){
     linha('Limite de recebimento pela API',limite||'Não informado');
     linha('Juros — campo API',val('valorJuroMoraTitulo')||'Não informado');
     linha('Multa — campo API',val('valorMultaTituloCobranca')||'Não informado');
+    // V408 — auditoria das regras EFETIVAMENTE retornadas pela API para este título.
+    // Não substituir campos ausentes pelas configurações padrão de novas emissões.
+    const regras=document.createElement('section');
+    regras.style.cssText='margin:10px 0;padding:12px;border:1px solid #9bb8d3;border-radius:7px;background:#f5f9ff;line-height:1.5';
+    const head=document.createElement('strong');head.textContent='V409 — conferência de juros, mora e multa registrados no BB';regras.appendChild(head);
+    const descricao=document.createElement('p');descricao.style.cssText='font-size:12px;margin:6px 0';
+    descricao.textContent='Campos abaixo são extraídos da consulta individual do banco, inclusive quando vêm dentro de juroMora ou multa. Zero retornado não comprova ausência de encargos no pagamento.';
+    regras.appendChild(descricao);
+    const camposRegras=[
+      ['Tipo de juros/mora','codigoTipoJuroMora','tipoJurosMora'],
+      ['Percentual de juros/mora','percentualJuroMoraTitulo','porcentagemJurosMora'],
+      ['Valor configurado de juros/mora','valorJuroMoraTitulo'],
+      ['Início dos juros','dataJuroMoraTitulo','dataInicioJuros','dataJurosMora'],
+      ['Tipo de multa','codigoTipoMulta','tipoMulta'],
+      ['Percentual de multa','percentualMultaTitulo','porcentagemMulta'],
+      ['Valor configurado de multa','valorMultaTituloCobranca'],
+      ['Início da multa','dataMultaTitulo'],
+      ['Data-limite para recebimento','dataLimiteRecebimentoTitulo'],
+      ['Prazo em dias para recebimento','quantidadeDiaPrazoLimiteRecebimento']
+    ];
+    const tbl=document.createElement('table');tbl.style.cssText='width:100%;border-collapse:collapse;font-size:12px';
+    for(const [rotulo,...nomes] of camposRegras){
+      const tr=document.createElement('tr'),th=document.createElement('th'),td=document.createElement('td');
+      th.textContent=rotulo;th.style.cssText='text-align:left;border-bottom:1px solid #d8e4ee;padding:5px;width:53%';
+      const encontrados=camposBb.filter(c=>nomes.some(n=>n.toLowerCase()===c.key.toLowerCase()));
+      td.textContent=encontrados.length?encontrados.map(c=>c.path+': '+String(c.value??'não informado')).join(' | '):'Não retornado pela consulta';
+      td.style.cssText='border-bottom:1px solid #d8e4ee;padding:5px;overflow-wrap:anywhere';tr.append(th,td);tbl.appendChild(tr);
+    }
+    regras.appendChild(tbl);
+    const nota=document.createElement('p');nota.style.cssText='font-size:12px;color:#804500;margin-top:10px';
+    nota.textContent='A emissão de novos títulos no portal tem padrões próprios (juros 5%, multa 2%), mas esses padrões NÃO são prova das condições deste boleto já registrado. Para boleto vencido, este diagnóstico não autoriza imprimir uma segunda via pagável nem altera linha digitável ou valor cobrado.';
+    regras.appendChild(nota);
+    const copiar=document.createElement('button');copiar.type='button';copiar.textContent='Copiar diagnóstico de encargos (sem dados do cliente)';
+    copiar.onclick=()=>{
+      const texto=['Diagnóstico BB V409 — regras retornadas na consulta',...camposRegras.map(([rotulo,...nomes])=>rotulo+': '+(camposBb.filter(c=>nomes.some(n=>n.toLowerCase()===c.key.toLowerCase())).map(c=>c.path+'='+String(c.value??'')).join(' | ')||'Não retornado'))].join('\n');
+      if(navigator.clipboard?.writeText)navigator.clipboard.writeText(texto).then(()=>alert('Diagnóstico copiado.')).catch(()=>alert('Não foi possível copiar.'));
+      else alert('A cópia automática não está disponível neste navegador.');
+    };regras.appendChild(copiar);
+    detalhe.appendChild(regras);
+
+    // V409 — simulador estritamente informativo, baseado nos campos REAIS do título.
+    // Não interpreta código de juros do BB como regra bancária sem documentação validada.
+    const sim=document.createElement('section');
+    sim.style.cssText='margin:10px 0;padding:12px;border:1px solid #a3a3a3;border-radius:7px;background:#fff;line-height:1.5';
+    const simTitle=document.createElement('strong');simTitle.textContent='V409 — simulação de encargos para conferência (não é boleto)';sim.appendChild(simTitle);
+    const simDesc=document.createElement('p');simDesc.style.cssText='font-size:12px;margin:6px 0';
+    simDesc.textContent='A simulação usa percentuais retornados para este título. Escolha explicitamente a interpretação dos juros; o código do tipo de juros, sozinho, não comprova periodicidade. Nenhum resultado autoriza pagamento ou impressão de boleto vencido.';sim.appendChild(simDesc);
+    const campoValor=(...nomes)=>{const a=camposBb.find(c=>nomes.some(n=>n.toLowerCase()===c.key.toLowerCase()));return a?a.value:null};
+    const parseNumero=v=>{if(v===null||v===undefined||String(v).trim()==='')return null;let z=String(v).trim().replace(/[%\sR$]/g,'');if(z.includes(',')&&z.includes('.'))z=z.replace(/\./g,'').replace(',','.');else z=z.replace(',','.');const n=Number(z);return Number.isFinite(n)?n:null};
+    const originalN=parseNumero(campoValor('valorOriginalTituloCobranca'));
+    const jurosPct=parseNumero(campoValor('percentualJuroMoraTitulo'));
+    const multaPct=parseNumero(campoValor('percentualMultaTitulo'));
+    const tipoJ=campoValor('codigoTipoJuroMora'),tipoM=campoValor('codigoTipoMulta');
+    const dataMulta=bbDataV405(campoValor('dataMultaTitulo'));
+    const dataJuros=bbDataV405(campoValor('dataJuroMoraTitulo','dataInicioJuros'));
+    const dataVenc=bbDataV405(campoValor('dataVencimentoTituloCobranca'))||orig;
+    const diaUTC=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');if(!m)return null;const d=Date.UTC(+m[1],+m[2]-1,+m[3]);const dt=new Date(d);return dt.toISOString().slice(0,10)===s?d:null};
+    const dateLine=document.createElement('label');dateLine.textContent='Data prevista para pagamento: ';dateLine.style.cssText='display:block;font-size:12px;margin:8px 0';
+    const dateInput=document.createElement('input');dateInput.type='date';dateInput.value=todayLocal();dateInput.style.cssText='padding:5px;max-width:180px';dateLine.appendChild(dateInput);sim.appendChild(dateLine);
+    const tipoLine=document.createElement('label');tipoLine.textContent='Hipótese de periodicidade dos juros: ';tipoLine.style.cssText='display:block;font-size:12px;margin:8px 0';
+    const period=document.createElement('select');period.style.cssText='padding:5px;max-width:100%';
+    [['','Selecionar hipótese (obrigatório)'],['mes','Percentual ao mês, proporcional a dias/30'],['dia','Percentual ao dia']].forEach(([v,t])=>{const op=document.createElement('option');op.value=v;op.textContent=t;period.appendChild(op)});tipoLine.appendChild(period);sim.appendChild(tipoLine);
+    const officialLine=document.createElement('label');officialLine.textContent='Valor cobrado no PDF oficial (opcional, para comparação): ';officialLine.style.cssText='display:block;font-size:12px;margin:8px 0';
+    const officialInput=document.createElement('input');officialInput.type='text';officialInput.inputMode='decimal';officialInput.placeholder='Ex.: 588,55';officialInput.style.cssText='padding:5px;max-width:130px';officialLine.appendChild(officialInput);sim.appendChild(officialLine);
+    const out=document.createElement('div');out.style.cssText='font-size:12px;padding:8px;background:#f5f5f5;border-radius:5px;white-space:pre-wrap';sim.appendChild(out);
+    const fmt=n=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    const calcular=()=>{
+      const v=diaUTC(dateInput.value),due=diaUTC(dataVenc);
+      const mstart=diaUTC(dataMulta)||due,jstart=diaUTC(dataJuros)||due;
+      const dias=v!==null&&jstart!==null?Math.max(0,Math.round((v-jstart)/86400000)):null;
+      const multaAtiva=v!==null&&mstart!==null&&v>=mstart&&due!==null&&v>due;
+      const info=`Tipo juros BB: ${tipoJ??'não retornado'} | Juros: ${jurosPct===null?'não retornado':jurosPct+'%'}\nTipo multa BB: ${tipoM??'não retornado'} | Multa: ${multaPct===null?'não retornado':multaPct+'%'}\nVencimento: ${dataVenc||'não informado'} | Início multa: ${dataMulta||'não retornado'} | Início juros: ${dataJuros||'não retornado'}\n`;
+      if(originalN===null||jurosPct===null||multaPct===null||!period.value||v===null||due===null||dias===null){out.textContent=info+'Simulação não disponível: confirme valor, percentuais, datas e hipótese de periodicidade. Campos ausentes não são substituídos pelos padrões de novas emissões.';return}
+      if(jurosPct<0||multaPct<0||originalN<0){out.textContent=info+'Valores inválidos para simulação.';return}
+      const juros=Math.round(originalN*(jurosPct/100)*(period.value==='mes'?dias/30:dias)*100)/100;
+      const multa=multaAtiva?Math.round(originalN*multaPct)/100:0;
+      const total=Math.round((originalN+juros+multa)*100)/100;
+      let msg=info+`Dias considerados para juros: ${dias}\nValor original: ${fmt(originalN)}\nJuros simulados: ${fmt(juros)}\nMulta simulada: ${fmt(multa)}\nTOTAL SIMULADO: ${fmt(total)}\n`;
+      const oficial=parseNumero(officialInput.value);
+      if(officialInput.value.trim()&&oficial!==null){const delta=Math.round((total-oficial)*100)/100;msg+=`Valor do PDF informado: ${fmt(oficial)}\nDiferença (simulado - oficial): ${fmt(delta)}\n`}
+      out.textContent=msg+'SIMULAÇÃO NÃO VALIDADA PELO BANCO. Não gerar linha digitável nova nem usar como valor para pagamento.';
+    };
+    [dateInput,period,officialInput].forEach(e=>e.addEventListener('input',calcular));calcular();
+    detalhe.appendChild(sim);
+
+
      linha('Valor atual coincide com código',valorAtualConfere?'Sim':'Não confirmado');
      if(vencido){
        const aviso=document.createElement('div');
@@ -211,13 +314,13 @@ async function consultarIndividual(bank,x,el){
      result.appendChild(oficial);
      if(!acceptable)result.appendChild(bbAjudaOficialV401(x));
     if(acceptable){
-      const b=document.createElement('button');b.type='button';b.textContent='Gerar PDF BB com dados consultados';b.style.cssText='padding:9px;background:#2256a3;color:#fff;border:0;border-radius:5px';info.appendChild(b);
+      const b=document.createElement('button');b.type='button';b.textContent='Imprimir boleto BB — dados validados';b.style.cssText='padding:9px;background:#2256a3;color:#fff;border:0;border-radius:5px';info.appendChild(b);
       b.onclick=()=>{
         const win=window.open('','_blank');if(!win){alert('Permita pop-ups para gerar o PDF.');return}
         const fmt=line.replace(/(\d{5})(\d{5})(\d{5})(\d{6})(\d{5})(\d{6})(\d)(\d{14})/,'$1.$2 $3.$4 $5.$6 $7 $8');
         const row=(k,v)=>'<tr><th>'+esc(k)+'</th><td>'+esc(v)+'</td></tr>';
         const doc=asText(x.seu_numero||x.referencia||'');
-        const html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Segunda via BB — '+esc(doc)+'</title><style>@page{size:A4;margin:16mm}body{font:12px Arial;color:#171717}header{border-bottom:3px solid #f6d30b;padding:12px 0;font-size:21px;font-weight:bold}small{font-size:10px;color:#444}table{border-collapse:collapse;width:100%;margin:20px 0}td,th{border:1px solid #777;padding:9px;text-align:left}th{width:35%;background:#f6f6f6}.line{font:17px monospace;overflow-wrap:anywhere;margin:15px 0}.bar{width:100%;height:75px}footer{margin-top:22px;font-size:10px}@media print{button{display:none}}</style></head><body><header>Banco do Brasil <span style="float:right;font-size:14px">001-9</span></header><h2>2ª via — dados de pagamento consultados</h2><div class="line">'+esc(fmt)+'</div><table>'+row('Beneficiário',asText(val('nomeBeneficiario','beneficiario','nome_beneficiario')||'Conferir no aplicativo BB'))+row('Pagador',asText(x.cliente||x.cliente_nome))+row('CPF/CNPJ do pagador',asText(x.cpf_cnpj||x.documento_pagador))+row('Nosso Número',nn)+row('Seu Número / documento',doc)+row('Vencimento / validade retornada',updated)+row('Valor codificado',money(barAmount))+row('Consulta',todayLocal().split('-').reverse().join('/'))+'</table><div>'+itfSvg(bar)+'</div><footer>Documento Sofisticatto com dados de pagamento consultados na API do Banco do Brasil em '+todayLocal().split('-').reverse().join('/')+'. Confira beneficiário, valor e vencimento no aplicativo bancário antes de pagar. Esta impressão não substitui documento oficial disponibilizado pelo banco.</footer><p><button onclick="window.print()">Imprimir / Salvar como PDF</button></p></body></html>';
+        const html=bbBoletoProfissionalV407({line,bar,pagador:asText(x.cliente||x.cliente_nome),documento:doc,nosso:nn,vencimento:updated,valor:barAmount,beneficiario:asText(val('nomeBeneficiario','beneficiario','nome_beneficiario')||'SOFISTICATTO INDUSTRIA COMERCIO E EXPORT')});
         win.document.write(html);win.document.close();win.focus();
       };
     }
