@@ -11028,7 +11028,7 @@ async function imprimirCanhotosPorFiltroV381(){
     for(let i=0;i<lista.length;i++){
       const r=lista[i],pg=i%POR===0?pdf.addPage([W,H]):pdf.getPages()[pdf.getPageCount()-1];
       const top=H-M-(i%POR)*(CH+GAP),left=M,bb=r._bancoCanhoto==='bb';
-      const headH=41,rowH=27,finH=32,recH=29,payH=34;
+      const headH=32,rowH=22,finH=27,recH=24,payH=23,entregaH=38;
       const bankW=139,codeW=54,titleW=78,logoW=92,linhaW=CW-bankW-codeW-titleW-logoW;
       rect(pg,left,top-headH,CW,headH);
       const bankImg=bb?bbLogo:bradescoLogo;
@@ -11052,7 +11052,30 @@ async function imprimirCanhotosPorFiltroV381(){
       y-=finH;
       const recWidths=[189,153,95,CW-437],recLabels=['Recebi(emos) o boleto com essas caracteristicas.','Assinatura','Data da Entrega','Nome'];
       let rx=left;recLabels.forEach((label,j)=>{rect(pg,rx,y-recH,recWidths[j],recH);text(pg,label,rx+5,y-16,recWidths[j]-10,j===0?5:6);rx+=recWidths[j]});
-      y-=recH;rect(pg,left,y-payH,CW,payH);text(pg,'Local de Pagamento',left+7,y-11,CW-14,5);text(pg,bb?'Pagavel em qualquer banco.':'Pagavel preferencialmente na Rede Bradesco e Bradesco Expresso',left+7,y-26,CW-14,8,bold);
+      y-=recH;
+      // V410: quadro completo de entrega do Bradesco, conservando 4 canhotos por A4.
+      // Somente comprovante de entrega; nenhum dado bancario e modificado.
+      if(!bb){
+        rect(pg,left,y-entregaH,CW,entregaH);
+        text(pg,'COMPROVANTE DE ENTREGA - Motivos de nao entrega (marcar)',left+5,y-10,CW-10,6,bold);
+        const motivos=[
+          'Mudou-se','Ausente','Nao existe N. indicado',
+          'Nao procurado','Recusado','Endereco insuficiente',
+          'Desconhecido','Falecido','Outros (anotar no verso)'
+        ];
+        const colW=(CW-12)/3;
+        motivos.forEach((mot,j)=>{
+          const col=j%3,row=Math.floor(j/3);
+          const xx=left+5+col*colW, yy=y-20-row*8;
+          rect(pg,xx,yy-1,5,5);
+          text(pg,mot,xx+9,yy,colW-13,5.5);
+        });
+      }else{
+        rect(pg,left,y-entregaH,CW,entregaH);
+        text(pg,'COMPROVANTE DE ENTREGA',left+5,y-10,CW-10,6,bold);
+        text(pg,'Observacoes: ______________________________________________________________',left+6,y-26,CW-12,6);
+      }
+      y-=entregaH;rect(pg,left,y-payH,CW,payH);text(pg,'Local de Pagamento',left+7,y-11,CW-14,5);text(pg,bb?'Pagavel em qualquer banco.':'Pagavel preferencialmente na Rede Bradesco e Bradesco Expresso',left+7,y-19,CW-14,7,bold);
       y-=payH;
       if(i%POR!==POR-1&&i!==lista.length-1){line(pg,left+42,y-9,left+CW,y-9,.45);text(pg,'Corte aqui',left,y-11,40,5,normal);}
     }
