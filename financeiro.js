@@ -4123,11 +4123,33 @@ async function registrarHistoricoEmail(item,status,erro=""){
   if(resposta.error) console.error("Erro ao registrar histórico de e-mail:",resposta.error);
 }
 
+// V414: confirmação mascarada, sem window.prompt que expõe caracteres.
+function solicitarSenhaEmailProtegida(){
+  return new Promise((resolve)=>{
+    const fundo=document.createElement('div');
+    fundo.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.65);z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px';
+    const painel=document.createElement('div');
+    painel.style.cssText='background:#fff;border-radius:14px;padding:24px;width:min(420px,100%);box-shadow:0 20px 60px #0004;color:#202536';
+    const titulo=document.createElement('h3');titulo.textContent='Confirmar envio de documentos';titulo.style.margin='0 0 12px';
+    const instr=document.createElement('p');instr.textContent='Digite a senha do seu usuário do portal para autorizar o envio.';
+    const form=document.createElement('form');
+    const campo=document.createElement('input');campo.type='password';campo.required=true;campo.autocomplete='current-password';campo.placeholder='Senha do portal';campo.style.cssText='width:100%;box-sizing:border-box;padding:12px;border:1px solid #aaa;border-radius:8px;margin:8px 0 18px';
+    const botoes=document.createElement('div');botoes.style.cssText='display:flex;justify-content:flex-end;gap:10px';
+    const cancelar=document.createElement('button');cancelar.type='button';cancelar.textContent='Cancelar';cancelar.style.cssText='padding:10px 16px;border:1px solid #bbb;border-radius:8px;background:#eee';
+    const confirmar=document.createElement('button');confirmar.type='submit';confirmar.textContent='Confirmar';confirmar.style.cssText='padding:10px 16px;border:0;border-radius:8px;background:#5145a4;color:#fff';
+    let finalizado=false;
+    function concluir(valor){if(finalizado)return;finalizado=true;document.removeEventListener('keydown',tecla);fundo.remove();resolve(valor)}
+    function tecla(e){if(e.key==='Escape'){e.preventDefault();concluir(null)}}
+    cancelar.onclick=()=>concluir(null);
+    form.onsubmit=(e)=>{e.preventDefault();const valor=campo.value;campo.value='';concluir(valor)};
+    botoes.append(cancelar,confirmar);form.append(campo,botoes);painel.append(titulo,instr,form);fundo.append(painel);document.body.append(fundo);document.addEventListener('keydown',tecla);campo.focus();
+  });
+}
 // V348: o login legado usa usuarios, não Supabase Auth. Revalidação restrita ao envio.
 let senhaEmailV348='';
 async function executarEnvioEmail(item){
   if(!senhaEmailV348){
-    const senha=window.prompt('Para enviar documentos, confirme a senha do seu usuário do portal:');
+    const senha=await solicitarSenhaEmailProtegida();
     if(!senha) throw new Error('Envio cancelado: confirmação de senha necessária.');
     senhaEmailV348=senha;
   }
@@ -4138,13 +4160,21 @@ async function executarEnvioEmail(item){
   const anexos_storage=[];
   let indice=0;
   try{
+    // Dividir arquivos grandes em blocos abaixo do limite HTTP da Vercel.
+    const BLOCO_EMAIL=2*1024*1024;
     for(const arquivo of item.arquivos){
-      if(arquivo.size>2.5*1024*1024) throw new Error(`O arquivo ${arquivo.name} ultrapassa 2,5 MB por arquivo. Divida ou reduza este arquivo.`);
-      const conteudo_base64=await arquivoParaBase64Email(arquivo);
-      const resp=await fetch('/api/email-anexo-upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...credenciais,lote:identificador,indice:indice++,nome:arquivo.name,tipo:arquivo.type||'application/octet-stream',conteudo_base64})});
-      const dados=await resp.json().catch(()=>({}));
-      if(!resp.ok||!dados.ok){if(resp.status===401)senhaEmailV348='';throw new Error(dados.erro||`Falha no upload de ${arquivo.name} (${resp.status}).`);}
-      anexos_storage.push({caminho:dados.caminho,nome:arquivo.name,tipo:arquivo.type||'application/octet-stream'});
+      const partes=[];
+      const quantidade=Math.ceil(arquivo.size/BLOCO_EMAIL);
+      if(!quantidade) throw new Error(`O arquivo ${arquivo.name} está vazio.`);
+      for(let parte=0;parte<quantidade;parte++){
+        const pedaco=arquivo.slice(parte*BLOCO_EMAIL,Math.min((parte+1)*BLOCO_EMAIL,arquivo.size));
+        const conteudo_base64=await arquivoParaBase64Email(pedaco);
+        const resp=await fetch('/api/email-anexo-upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...credenciais,lote:identificador,indice:indice++,nome:arquivo.name,tipo:'application/octet-stream',conteudo_base64})});
+        const dados=await resp.json().catch(()=>({}));
+        if(!resp.ok||!dados.ok){if(resp.status===401)senhaEmailV348='';throw new Error(dados.erro||`Falha no upload de ${arquivo.name} (${resp.status}).`);}
+        partes.push(dados.caminho);
+      }
+      anexos_storage.push({caminhos:partes,nome:arquivo.name,tipo:arquivo.type||'application/octet-stream'});
     }
     const payload={...credenciais,remetente:emailRemetenteUsuario(),nome_remetente:nomeRemetenteUsuario(),para:item.para,cc:item.cc,assunto:item.assunto,texto:item.corpo,html:montarHtmlCompletoEmail(item.corpo),cliente_id:item.cliente?.id||null,enviado_por:usuarioLogado.login,tipo_envio:emailModoAtual,anexos_storage};
     const resposta=await fetch('/api/enviar-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -4153,7 +4183,7 @@ async function executarEnvioEmail(item){
     return dados;
   }catch(erro){
     if(anexos_storage.length){
-      try{await fetch('/api/email-anexo-limpar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...credenciais,caminhos:anexos_storage.map(a=>a.caminho)})});}catch(_e){}
+      try{await fetch('/api/email-anexo-limpar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...credenciais,caminhos:anexos_storage.flatMap(a=>a.caminhos||[a.caminho])})});}catch(_e){}
     }
     throw erro;
   }
