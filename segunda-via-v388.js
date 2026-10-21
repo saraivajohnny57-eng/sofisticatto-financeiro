@@ -40,7 +40,7 @@ function bbCentavosV405(raw,esperado){
 }
 // V407: impressão BB com layout de boleto para dados de pagamento comprovados pela API.
 // Títulos vencidos SEM confirmação de encargos não entram nesta função.
-function bbBoletoProfissionalV407({line,bar,pagador,documento,nosso,vencimento,valor,beneficiario}){
+function bbBoletoProfissionalV407({line,bar,pagador,documento,nosso,vencimento,valor,beneficiario,vencido=false}){
  const safe=v=>esc(String(v??''));
  const formatado=line.replace(/(\d{5})(\d{5})(\d{5})(\d{6})(\d{5})(\d{6})(\d)(\d{14})/,'$1.$2 $3.$4 $5.$6 $7 $8');
  const logoSof=typeof SOFISTICATTO_LOGO_V396==='string'?SOFISTICATTO_LOGO_V396:'';
@@ -51,8 +51,8 @@ function bbBoletoProfissionalV407({line,bar,pagador,documento,nosso,vencimento,v
  <div class="brand"><img src="${logoSof}" alt="Sofisticatto"><span>Dados consultados na API Banco do Brasil</span></div>
  <section class="receipt"><div style="text-align:right;font-weight:bold;margin-bottom:6px">Recibo do pagador</div>${header}${info}<p>Valor original do título: <b>${safe(money(valor))}</b></p></section>
  <div class="cut">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -</div>
- <section class="sheet">${header}<div class="pay"><div><small>Local de pagamento</small><b>Consulte as condições de recebimento no Banco do Brasil</b></div><div><small>Vencimento</small><b>${safe(brDate(vencimento))}</b></div></div>${info}<div class="pay"><div>Instruções: confirmar beneficiário e condições no aplicativo bancário.</div><div><small>(=) Valor do documento</small><b>${safe(money(valor))}</b></div></div><div class="barcode">${itfSvg(bar)}</div></section>
- <div class="warning"><b>Impressão Sofisticatto com dados retornados pela API BB.</b> Não substitui o PDF oficial do banco. Confira beneficiário, linha digitável e valor antes do pagamento. Não usar para título vencido sem confirmação bancária dos encargos.</div>
+ <section class="sheet">${header}<div class="pay"><div><small>Local de pagamento</small><b>Consulte as condições de recebimento no Banco do Brasil</b></div><div><small>Vencimento</small><b>${safe(brDate(vencimento))}</b></div></div>${info}<div class="pay"><div>Instruções: confirmar beneficiário e condições no aplicativo bancário. Após o vencimento, encargos e valor efetivo serão apurados pelo banco recebedor.</div><div><small>(=) Valor do documento</small><b>${safe(money(valor))}</b></div></div><div class="barcode">${itfSvg(bar)}</div></section>
+ <div class="warning"><b>Impressão Sofisticatto com dados retornados pela API BB.</b> Não substitui o PDF oficial do banco. Confira beneficiário, linha digitável e valor antes do pagamento. Para títulos vencidos, juros, multa e valor efetivamente devido são apurados pela instituição recebedora no momento do pagamento. O valor exibido é o nominal, não o total atualizado.</div>
  <div class="footer">Consulta: ${safe(brDate(todayLocal()))}. Nenhum registro foi alterado.</div><div class="actions"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div></body></html>`;
 }
 function bbDataV405(raw){
@@ -312,8 +312,41 @@ async function consultarIndividual(bank,x,el){
        const note=document.createElement('p');note.style.cssText='font-size:11px;color:#655';note.textContent='Visualização local. Este PDF foi selecionado por você, não foi gerado nem validado automaticamente pela API.';preview.appendChild(note);
      };
      result.appendChild(oficial);
+     // V411 — segunda via com o código REGISTRADO, sem cálculo local de encargos.
+     // Não gerar código novo e não afirmar que o valor nominal é o total devido.
+     const situacaoBB=String(val('codigoEstadoTituloCobranca')||'').trim();
+     const statusLivre=String(val('status_descricao','status','situacao')||'').toUpperCase();
+     const bloqueado=/PAGO|LIQUIDADO|CANCELADO|BAIXADO|PROTESTADO|NEGATIVADO/.test(statusLivre);
+     // Código 1 é a situação "normal" na consulta Cobranças v2. Para outros
+     // códigos, exigir avaliação em vez de presumir que está aberto.
+     const situacaoAberta=situacaoBB==='1'||(!situacaoBB&&/EM ABERTO|NORMAL|REGISTRADO/.test(statusLivre));
+     const bbValorRegistrado=valorOriginalConfere||valorAtualConfere;
+     const bbVencimentoConfirmado=!!orig&&updated===orig;
+     const bbLinhaBarraConsistentes=validateLine(line)&&barValid&&barcodeDvOk(bar)&&barraConfere&&barAmount!==null&&(!rawBar||barcodeFromLine(line)===rawBar);
+     const segundaViaDisponivel=bbLinhaBarraConsistentes&&bbValorRegistrado&&bbVencimentoConfirmado&&situacaoAberta&&!bloqueado;
+     const segundaViaBox=document.createElement('section');
+     segundaViaBox.style.cssText='margin:12px 0;padding:12px;border:1px solid #8eb5d4;border-radius:8px;background:#f1f7ff;line-height:1.5';
+     const segundaViaTitulo=document.createElement('strong');segundaViaTitulo.textContent='V411 — Gerar 2ª via BB em PDF (valor nominal)';segundaViaBox.appendChild(segundaViaTitulo);
+     const segundaViaTexto=document.createElement('p');segundaViaTexto.style.cssText='font-size:12px;margin:7px 0';
+     segundaViaTexto.textContent='Usa somente linha digitável e código de barras registrados na API. Não recalcula juros, multa nem altera o título. Em caso de atraso, o banco recebedor apurará os encargos e o total efetivo. Confira os dados no aplicativo bancário antes de pagar.';
+     segundaViaBox.appendChild(segundaViaTexto);
+     if(segundaViaDisponivel){
+       const gerar=document.createElement('button');gerar.type='button';gerar.textContent='📄 Gerar 2ª via BB — Imprimir / Salvar PDF';
+       gerar.style.cssText='background:#2256a3;color:white;border:0;border-radius:6px;padding:10px 12px;cursor:pointer';
+       gerar.onclick=()=>{
+         const w=window.open('','_blank');if(!w){alert('Permita a abertura de janelas para gerar o PDF.');return}
+         const html=bbBoletoProfissionalV407({line,bar,pagador:asText(val('nomePagador','nomeCliente','nome_pagador')||x.cliente||x.cliente_nome),documento:asText(x.seu_numero||x.referencia||''),nosso:nn,vencimento:updated,valor:barAmount,beneficiario:asText(val('nomeBeneficiario','beneficiario','nome_beneficiario')||'SOFISTICATTO COSMETICOS'),vencido});
+         w.document.write(html);w.document.close();w.focus();
+       };
+       segundaViaBox.appendChild(gerar);
+     }else{
+       const motivo=document.createElement('p');motivo.style.cssText='color:#9b3a15;font-size:12px';
+       motivo.textContent='Geração indisponível: a consulta não confirmou simultaneamente situação normal/aberta, vencimento, valor nominal e código bancário válido. Utilize a segunda via oficial do BB.';
+       segundaViaBox.appendChild(motivo);
+     }
+     result.appendChild(segundaViaBox);
      if(!acceptable)result.appendChild(bbAjudaOficialV401(x));
-    if(acceptable){
+    if(acceptable&&!segundaViaDisponivel){
       const b=document.createElement('button');b.type='button';b.textContent='Imprimir boleto BB — dados validados';b.style.cssText='padding:9px;background:#2256a3;color:#fff;border:0;border-radius:5px';info.appendChild(b);
       b.onclick=()=>{
         const win=window.open('','_blank');if(!win){alert('Permita pop-ups para gerar o PDF.');return}
