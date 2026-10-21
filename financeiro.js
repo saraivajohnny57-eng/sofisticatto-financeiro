@@ -9392,12 +9392,12 @@ async function gerarPdfBoletoBb(d,opt={}){
   rect(L,y-instrH,lw,instrH);
   drawTextFit('Instruções de Responsabilidade do Beneficiário',L+4,y-10,lw-8,5.5,bold);
   const jurosDia=(Number(d.valor||0)*0.05/30);
-  drawTextFit(`Juros.....: 5,00% ao mês - (${cobMoeda(jurosDia)} ao dia)`,L+7,y-25,lw-14,5.3,font);
-  drawTextFit('Multa.....: 2,00% após 1 dia corrido do vencimento',L+7,y-39,lw-14,5.3,font);
+  drawTextFit(opt.segundaVia?'Encargos de atraso: apurados pelo banco recebedor.':`Juros.....: 5,00% ao mês - (${cobMoeda(jurosDia)} ao dia)`,L+7,y-25,lw-14,5.3,font);
+  drawTextFit(opt.segundaVia?'Valor do documento: nominal, sem encargos de atraso.':'Multa.....: 2,00% após 1 dia corrido do vencimento',L+7,y-39,lw-14,5.3,font);
   drawTextFit('Instruções de responsabilidade do Beneficiário.',L+7,y-52,lw-14,4.8,font);
   cell(L+lw,y-19,rw,19,'(-) Desconto / Abatimento','—',{align:'right'});
   cell(L+lw,y-38,rw,19,'(+) Juros / Multa','—',{align:'right'});
-  cell(L+lw,y-58,rw,20,'(=) Valor Cobrado',moeda,{bold:true,valueSize:7.6,align:'right'});
+  cell(L+lw,y-58,rw,20,'(=) Valor Cobrado',opt.segundaVia?'A apurar pelo banco':moeda,{bold:true,valueSize:7.6,align:'right'});
   y-=instrH;
 
   const pagH=43;

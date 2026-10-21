@@ -160,6 +160,38 @@ async function consultarIndividual(bank,x,el){
   result.innerHTML=`<div style="border-top:1px solid #ddd;padding-top:10px"><b>Consulta individual concluída.</b> Nenhum registro foi modificado.<table style="width:100%;table-layout:fixed;border-collapse:collapse;margin-top:8px"><tbody>${[['Linha digitável da consulta',lineOk?line:(line?'Formato ou dígitos verificadores inválidos':'Não retornada')],['Código de barras',barValid?bar:(bar?'Banco ou formato inconsistente':'Não retornado')],['Valor codificado no código de barras',rawAmount],['Valor bruto retornado pela API',asText(bankValue)],['Vencimento retornado',asText(val('vencimento','dataVencimento','dataVencimentoTitulo','dataVencimentoTituloCobranca'))],['Status retornado',asText(val('status_descricao','status','situacao','codigoEstadoTituloCobranca'))]].map(([k,v])=>`<tr><th style="text-align:left;width:48%;padding:6px;border-bottom:1px solid #ddd;overflow-wrap:anywhere">${esc(k)}</th><td style="padding:6px;border-bottom:1px solid #ddd;overflow-wrap:anywhere">${esc(v)}</td></tr>`).join('')}</tbody></table><p style="font-size:12px;color:#934800">${esc(warning)} Esta consulta não autoriza criar uma nova linha digitável ou alterar o boleto original.</p>${safeUrl?'<button data-url type="button">Abrir documento oficial retornado pelo banco</button>':''}</div>`;
   if(safeUrl)result.querySelector('[data-url]').onclick=()=>window.open(safeUrl,'_blank','noopener');
   if(bank==='bb')result.appendChild(bbDiagnosticoV404(camposBb));
+  // V412 — consulta BB objetiva: somente geração do PDF no layout da emissão normal.
+  // Dados e status vêm da consulta individual; não há cálculo local de encargos.
+  if(bank==='bb'){
+    result.innerHTML='';
+    const status=val('status_descricao','status','situacao','codigoEstadoTituloCobranca').toUpperCase();
+    const codigoStatus=String(val('codigoEstadoTituloCobranca')||'').trim();
+    const bloqueado=/PAGO|LIQUIDADO|CANCELADO|BAIXADO|PROTESTADO|NEGATIVADO/.test(status)||(codigoStatus!==''&&codigoStatus!=='1');
+    const dataVenc=bbDataV405(val('dataVencimentoTituloCobranca','dataVencimentoTitulo','vencimento'));
+    const valorOrig=val('valorOriginalTituloCobranca');
+    const centavos=barAmount===null?null:Math.round(barAmount*100);
+    const valorOk=centavos!==null&&bbCentavosV405(valorOrig,centavos)!==null;
+    const ok=!bloqueado&&lineOk&&barValid&&barcodeDvOk(bar)&&(!rawBar||rawBar===bar)&&valorOk&&!!dataVenc;
+    const info=document.createElement('div');info.style.cssText='padding:12px;border:1px solid #d9e2ec;border-radius:9px;background:#f8fafc';
+    const heading=document.createElement('strong');heading.textContent=ok?'Boleto localizado no Banco do Brasil':'Segunda via indisponível';info.appendChild(heading);
+    const note=document.createElement('p');note.style.cssText='font-size:12px;line-height:1.5;margin:8px 0';
+    note.textContent=ok?'Documento: '+(x.seu_numero||x.referencia||'—')+' • Vencimento: '+brDate(dataVenc)+' • Valor nominal: '+money(barAmount)+'. Encargos de atraso são apurados pelo banco recebedor.':'Não foi possível confirmar um título aberto com linha digitável, código de barras, vencimento e valor original consistentes na consulta BB. Situação retornada: '+(status||'não informada')+'.';info.appendChild(note);
+    if(ok){
+      const gerar=document.createElement('button');gerar.type='button';gerar.className='btn azul';gerar.textContent='📄 Gerar 2ª via BB em PDF';gerar.style.cssText='padding:12px 18px;font-weight:700;background:#2256a3;color:#fff;border:0;border-radius:7px;cursor:pointer';
+      gerar.onclick=async()=>{
+        gerar.disabled=true;gerar.textContent='Gerando PDF...';
+        try{
+          if(typeof gerarPdfBoletoBb!=='function')throw new Error('Gerador de boleto normal não disponível.');
+          const d={cliente_nome:asText(val('nomePagador','nomeCliente','nome_pagador')||x.cliente_nome||x.cliente),cpf_cnpj:asText(val('numeroInscricaoPagador','numeroCpfCnpjPagador','cpfCnpjPagador')||x.cpf_cnpj||''),endereco:x.endereco||'',numero:x.numero||'',bairro:x.bairro||'',cidade:x.cidade||'',uf:x.uf||'',cep:x.cep||'',numero_titulo:asText(x.seu_numero||x.referencia||''),nosso_numero:nn,linha_digitavel:line,codigo_barras:bar,valor:barAmount,vencimento:dataVenc,emitido_em:bbDataV405(val('dataEmissaoTitulo','dataRegistroTitulo','dataEmissaoTituloCobranca'))||x.emitido_em||''};
+          const blob=await gerarPdfBoletoBb(d,{segundaVia:true});
+          const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='SEGUNDA_VIA_BB_'+String(d.numero_titulo||nn).replace(/[^a-zA-Z0-9_-]/g,'_')+'.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),120000);
+        }catch(e){alert('Não foi possível gerar a segunda via BB: '+(e.message||e))}
+        finally{gerar.disabled=false;gerar.textContent='📄 Gerar 2ª via BB em PDF'}
+      };info.appendChild(gerar);
+    }else info.appendChild(bbAjudaOficialV401(x));
+    result.appendChild(info);
+    return;
+  }
   // V399: BB — habilitar PDF somente com dados de pagamento verificáveis da consulta individual.
   if(bank==='bb'){
     const status=val('status_descricao','status','situacao','codigoEstadoTituloCobranca').toUpperCase();
@@ -400,8 +432,12 @@ function show(bank,x){
  const old=document.getElementById('sv388');if(old)old.remove();
  const el=document.createElement('div');el.id='sv388';el.style='position:fixed;inset:0;z-index:2147483000;background:#0009;display:flex;align-items:center;justify-content:center;padding:12px';
  const nome=bank==='bb'?'Banco do Brasil':'Bradesco';
+ if(bank==='bb'){
+   el.innerHTML=`<section style="background:white;color:#17202a;border-radius:14px;max-width:540px;width:100%;max-height:90vh;overflow:auto;box-sizing:border-box;padding:24px;font:14px Arial"><h2 style="margin:0 0 12px">Banco do Brasil — 2ª via em PDF</h2><div data-resultado style="margin:12px 0">Consultando título no Banco do Brasil...</div><div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap"><button data-close class="btn">Fechar</button><button data-consultar class="btn azul">Atualizar consulta</button></div></section>`;
+ }else{
  el.innerHTML=`<section style="background:white;color:#17202a;border-radius:14px;max-width:720px;width:100%;max-height:92vh;overflow-x:hidden;overflow-y:auto;box-sizing:border-box;padding:24px;font:14px Arial"><h2 style="margin:0 0 8px">${nome} — consulta de segunda via</h2><p style="background:#fff1c2;padding:12px;border-radius:8px"><b>Prévia informativa, não é boleto para pagamento.</b> O sistema não recebeu confirmação de valor atualizado com encargos nem autorização para gerar uma nova linha digitável. Nenhum título será modificado.</p><table style="width:100%;border-collapse:collapse"><tbody>${[['Cliente',pick(x,'cliente','cliente_nome')],['CPF/CNPJ',pick(x,'cpf_cnpj','documento_pagador')],['Referência',pick(x,'seu_numero','referencia')],['Nosso Número',pick(x,'nosso_numero')],['Vencimento original',pick(x,'vencimento')],['Valor nominal',money(x.valor)],['Linha digitável registrada',validLine?line:'Não disponível na consulta'],['Código de barras registrado',validBar?barcode:'Não disponível na consulta']].map(([k,v])=>`<tr><th style="text-align:left;width:45%;padding:8px;border-bottom:1px solid #ddd;overflow-wrap:anywhere">${esc(k)}</th><td style="padding:8px;border-bottom:1px solid #ddd;overflow-wrap:anywhere;word-break:break-word">${esc(v)}</td></tr>`).join('')}</tbody></table><p data-original-note style="font-size:12px;color:#555">${validLine||validBar?'Os dados bancários acima são os registrados na consulta, não uma atualização do valor.':'A consulta da carteira não trouxe linha digitável ou código de barras suficiente para produzir uma segunda via pagável.'}</p><div data-resultado style="margin:12px 0"></div><div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap"><button data-close style="padding:10px">Fechar</button><button data-consultar style="padding:10px;background:#2256a3;color:white">Consultar título individual na API</button><button data-print style="padding:10px">Imprimir prévia informativa</button></div></section>`;
- document.body.appendChild(el);el.querySelector('[data-consultar]').onclick=()=>consultarIndividual(bank,x,el);el.querySelector('[data-close]').onclick=()=>el.remove();el.onclick=e=>{if(e.target===el)el.remove()};if(bank==='bb')el.querySelector('[data-consultar]').click();el.querySelector('[data-print]').onclick=()=>{const win=window.open('','_blank');if(!win){alert('Permita pop-ups para imprimir a prévia.');return;}const html=el.querySelector('section').cloneNode(true);html.querySelector('div:last-child')?.remove();win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Prévia informativa</title></head><body>'+html.outerHTML+'</body></html>');win.document.close();win.focus();win.print()};
+ };
+ document.body.appendChild(el);el.querySelector('[data-consultar]').onclick=()=>consultarIndividual(bank,x,el);el.querySelector('[data-close]').onclick=()=>el.remove();el.onclick=e=>{if(e.target===el)el.remove()};if(bank==='bb')el.querySelector('[data-consultar]').click();if(bank!=='bb')el.querySelector('[data-print]').onclick=()=>{const win=window.open('','_blank');if(!win){alert('Permita pop-ups para imprimir a prévia.');return;}const html=el.querySelector('section').cloneNode(true);html.querySelector('div:last-child')?.remove();win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Prévia informativa</title></head><body>'+html.outerHTML+'</body></html>');win.document.close();win.focus();win.print()};
 }
 window.sv388Abrir=show;
 })();
