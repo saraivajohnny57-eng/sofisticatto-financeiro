@@ -171,13 +171,45 @@ async function consultarIndividual(bank,x,el){
     linha('Limite de recebimento pela API',limite||'Não informado');
     linha('Juros — campo API',val('valorJuroMoraTitulo')||'Não informado');
     linha('Multa — campo API',val('valorMultaTituloCobranca')||'Não informado');
-    linha('Valor atual coincide com código',valorAtualConfere?'Sim':'Não confirmado');
+     linha('Valor atual coincide com código',valorAtualConfere?'Sim':'Não confirmado');
+     if(vencido){
+       const aviso=document.createElement('div');
+       aviso.style.cssText='margin:9px 0;padding:10px;background:#fff2d2;border-left:4px solid #bb7800;line-height:1.5';
+       aviso.innerHTML='<b>Atenção: título vencido.</b> O valor atual da API e o valor codificado no código de barras podem representar somente o valor original. O serviço oficial do BB pode acrescentar juros e multa no campo <b>Valor Cobrado</b> sem alterar a linha digitável. Os campos de juros/multa da consulta não comprovam os encargos exigíveis hoje. Não utilize este valor como confirmação de pagamento.';
+       detalhe.appendChild(aviso);
+     }
     linha('Validação para impressão',acceptable?'Aprovada':'Não aprovada — consulte a segunda via oficial');
     result.appendChild(detalhe);
     const info=document.createElement('div');info.style.cssText='margin-top:10px;padding:10px;border:1px solid #aab8c7;border-radius:7px;background:#f4f7fc';
     info.innerHTML='<b>Banco do Brasil — segunda via individual</b><p style="font-size:12px">'+(acceptable?'Dados bancários de pagamento presentes e consistentes. Confirme o beneficiário, vencimento e valor no aplicativo BB antes do pagamento.':'A API retornou dados do título, mas não confirmou todos os requisitos para uma via pagável'+(vencido?' atualizada e válida para hoje':'')+'. Não serão inventados código de barras, linha digitável nem encargos.')+'</p>';
     result.appendChild(info);
-    if(!acceptable)result.appendChild(bbAjudaOficialV401(x));
+     // V406: permitir utilizar o PDF ORIGINAL fornecido pelo banco dentro do portal,
+     // sem editar valores, códigos ou dados do documento e sem salvar no Supabase.
+     const oficial=document.createElement('section');
+     oficial.style.cssText='margin:12px 0;padding:12px;border:1px solid #e0c258;border-radius:8px;background:#fffaf0';
+     const titulo=document.createElement('b');titulo.textContent='PDF oficial do Banco do Brasil — abrir no portal';oficial.appendChild(titulo);
+     const explicacao=document.createElement('p');explicacao.style.cssText='font-size:12px;line-height:1.5';
+     explicacao.textContent='Se você já baixou a segunda via no site do BB, selecione o PDF aqui para conferir, visualizar e imprimir o documento original sem sair da Sofisticatto. O arquivo não é enviado ao Supabase nem substitui a consulta bancária. Confirme o cliente, Nosso Número e Valor Cobrado no PDF oficial.';
+     oficial.appendChild(explicacao);
+     const upload=document.createElement('input');upload.type='file';upload.accept='.pdf,application/pdf';upload.setAttribute('aria-label','Selecionar PDF oficial do BB');upload.style.cssText='display:block;max-width:100%;margin:10px 0';oficial.appendChild(upload);
+     const fileActions=document.createElement('div');fileActions.style.cssText='display:flex;gap:8px;flex-wrap:wrap';oficial.appendChild(fileActions);
+     const preview=document.createElement('div');oficial.appendChild(preview);
+     let fileUrl='';
+     const release=()=>{if(fileUrl){URL.revokeObjectURL(fileUrl);fileUrl='';}};
+     const watch=new MutationObserver(()=>{if(!document.body.contains(oficial)){release();watch.disconnect();}});
+     watch.observe(document.body,{childList:true,subtree:true});
+     upload.onchange=()=>{
+       release();fileActions.replaceChildren();preview.replaceChildren();
+       const f=upload.files&&upload.files[0];if(!f)return;
+       if(f.size>20*1024*1024||!(/\.pdf$/i.test(f.name))){preview.textContent='Selecione um arquivo PDF de até 20 MB.';return;}
+       fileUrl=URL.createObjectURL(f);
+       const open=document.createElement('button');open.type='button';open.textContent='Abrir PDF oficial';open.onclick=()=>{const w=window.open(fileUrl,'_blank','noopener');if(!w)alert('Permita a abertura de uma nova aba para visualizar o PDF.');};fileActions.appendChild(open);
+       const download=document.createElement('a');download.textContent='Baixar arquivo original';download.href=fileUrl;download.download=f.name;download.style.cssText='padding:6px;color:#17569d';fileActions.appendChild(download);
+       const frame=document.createElement('iframe');frame.title='Visualização do PDF oficial BB selecionado';frame.src=fileUrl;frame.style.cssText='width:100%;height:450px;border:1px solid #ddd;margin-top:10px;background:#fff';preview.appendChild(frame);
+       const note=document.createElement('p');note.style.cssText='font-size:11px;color:#655';note.textContent='Visualização local. Este PDF foi selecionado por você, não foi gerado nem validado automaticamente pela API.';preview.appendChild(note);
+     };
+     result.appendChild(oficial);
+     if(!acceptable)result.appendChild(bbAjudaOficialV401(x));
     if(acceptable){
       const b=document.createElement('button');b.type='button';b.textContent='Gerar PDF BB com dados consultados';b.style.cssText='padding:9px;background:#2256a3;color:#fff;border:0;border-radius:5px';info.appendChild(b);
       b.onclick=()=>{
