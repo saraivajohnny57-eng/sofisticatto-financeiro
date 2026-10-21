@@ -176,6 +176,23 @@ async function consultarIndividual(bank,x,el){
     const heading=document.createElement('strong');heading.textContent=ok?'Boleto localizado no Banco do Brasil':'Segunda via indisponível';info.appendChild(heading);
     const note=document.createElement('p');note.style.cssText='font-size:12px;line-height:1.5;margin:8px 0';
     note.textContent=ok?'Documento: '+(x.seu_numero||x.referencia||'—')+' • Vencimento: '+brDate(dataVenc)+' • Valor nominal: '+money(barAmount)+'. Encargos de atraso são apurados pelo banco recebedor.':'Não foi possível confirmar um título aberto com linha digitável, código de barras, vencimento e valor original consistentes na consulta BB. Situação retornada: '+(status||'não informada')+'.';info.appendChild(note);
+    // V413: dados para preenchimento MANUAL no site oficial do BB, sempre visíveis.
+    const dados=bbDadosSegundaViaV401(x);
+    const dadosBox=document.createElement('div');
+    dadosBox.style.cssText='margin:12px 0;padding:10px;border:1px solid #d7dee8;border-radius:8px;background:white';
+    const tituloDados=document.createElement('strong');tituloDados.textContent='Dados para consultar a 2ª via no site do BB';dadosBox.appendChild(tituloDados);
+    const valores=[['Cliente / pagador',asText(val('nomePagador','nomeCliente','nome_pagador')||x.cliente||x.cliente_nome||'')],['CPF/CNPJ do pagador',dados.pagador],['CNPJ do beneficiário',dados.beneficiario],['Nosso Número',dados.nosso],['Seu Número / documento',dados.seu]];
+    valores.forEach(([rotulo,valor])=>{
+      const linhaDados=document.createElement('div');linhaDados.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #edf0f4;padding:6px 0';
+      const rot=document.createElement('span');rot.textContent=rotulo+':';rot.style.cssText='font-size:12px;min-width:145px;color:#374151';
+      const conteudo=document.createElement('b');conteudo.textContent=valor||'Não informado';conteudo.style.cssText='font-size:12px;flex:1;overflow-wrap:anywhere';
+      linhaDados.append(rot,conteudo);
+      if(valor){const copiar=document.createElement('button');copiar.type='button';copiar.textContent='Copiar';copiar.style.cssText='padding:5px 8px;border:1px solid #cbd5e1;border-radius:5px;background:#f8fafc;cursor:pointer';copiar.onclick=async()=>{try{await navigator.clipboard.writeText(valor);copiar.textContent='Copiado ✓'}catch{window.prompt('Copie este dado:',valor)}};linhaDados.appendChild(copiar)}
+      dadosBox.appendChild(linhaDados);
+    });
+    info.appendChild(dadosBox);
+    const botoes=document.createElement('div');botoes.style.cssText='display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+    info.appendChild(botoes);
     if(ok){
       const gerar=document.createElement('button');gerar.type='button';gerar.className='btn azul';gerar.textContent='📄 Gerar 2ª via BB em PDF';gerar.style.cssText='padding:12px 18px;font-weight:700;background:#2256a3;color:#fff;border:0;border-radius:7px;cursor:pointer';
       gerar.onclick=async()=>{
@@ -183,12 +200,18 @@ async function consultarIndividual(bank,x,el){
         try{
           if(typeof gerarPdfBoletoBb!=='function')throw new Error('Gerador de boleto normal não disponível.');
           const d={cliente_nome:asText(val('nomePagador','nomeCliente','nome_pagador')||x.cliente_nome||x.cliente),cpf_cnpj:asText(val('numeroInscricaoPagador','numeroCpfCnpjPagador','cpfCnpjPagador')||x.cpf_cnpj||''),endereco:x.endereco||'',numero:x.numero||'',bairro:x.bairro||'',cidade:x.cidade||'',uf:x.uf||'',cep:x.cep||'',numero_titulo:asText(x.seu_numero||x.referencia||''),nosso_numero:nn,linha_digitavel:line,codigo_barras:bar,valor:barAmount,vencimento:dataVenc,emitido_em:bbDataV405(val('dataEmissaoTitulo','dataRegistroTitulo','dataEmissaoTituloCobranca'))||x.emitido_em||''};
-          const blob=await gerarPdfBoletoBb(d,{segundaVia:true});
+          const blob=await gerarPdfBoletoBb(d,{segundaVia:true,impressaoNormal:true});
           const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='SEGUNDA_VIA_BB_'+String(d.numero_titulo||nn).replace(/[^a-zA-Z0-9_-]/g,'_')+'.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),120000);
         }catch(e){alert('Não foi possível gerar a segunda via BB: '+(e.message||e))}
         finally{gerar.disabled=false;gerar.textContent='📄 Gerar 2ª via BB em PDF'}
-      };info.appendChild(gerar);
-    }else info.appendChild(bbAjudaOficialV401(x));
+      };botoes.appendChild(gerar);
+    }
+    // Link oficial: abre somente o domínio BB; preenchimento manual e CAPTCHA preservados.
+    const site=document.createElement('a');site.href=BB_SEGUNDA_VIA_OFICIAL_V401;site.target='_blank';site.rel='noopener noreferrer';
+    site.textContent='↗ 2ª via no site do BB';
+    site.style.cssText='display:inline-flex;align-items:center;padding:12px 18px;font-weight:700;background:#f5c842;color:#1b2a41;border:1px solid #d7a900;border-radius:7px;text-decoration:none';
+    botoes.appendChild(site);
+    if(!ok){const aviso=document.createElement('p');aviso.style.cssText='font-size:12px;color:#a04416';aviso.textContent='PDF local indisponível para este título. Confira a situação e os dados no site oficial do BB.';info.appendChild(aviso)}
     result.appendChild(info);
     return;
   }
