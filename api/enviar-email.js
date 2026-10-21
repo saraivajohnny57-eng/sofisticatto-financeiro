@@ -124,20 +124,28 @@ module.exports = async function handler(req, res) {
       const usuario=identidade.usuario;
       if(refs.length>30) return responder(res,400,{ok:false,erro:'Máximo de 30 anexos por e-mail.'});
       let total=0;
+      let totalPartes=0;
       for(const ref of refs){
-        const caminho=String(ref?.caminho||'');
-        if(!caminho.startsWith(`${usuario.id}/`) || !/^[a-zA-Z0-9_./-]+$/.test(caminho) || caminho.includes('..')){
-          return responder(res,403,{ok:false,erro:'Referência de anexo não autorizada.'});
+        const caminhos=Array.isArray(ref?.caminhos)?ref.caminhos:[ref?.caminho];
+        if(!caminhos.length||caminhos.length>20)return responder(res,400,{ok:false,erro:'Quantidade de partes inválida.'});
+        const partes=[];
+        for(const caminhoRaw of caminhos){
+          const caminho=String(caminhoRaw||'');
+          if(!caminho.startsWith(`${usuario.id}/`) || !/^[a-zA-Z0-9_./-]+$/.test(caminho) || caminho.includes('..')){
+            return responder(res,403,{ok:false,erro:'Referência de anexo não autorizada.'});
+          }
+          if(++totalPartes>300)return responder(res,400,{ok:false,erro:'Quantidade total de partes excedida.'});
+          const endpoint=`${storageUrl}/storage/v1/object/email-anexos-temporarios/${caminho.split('/').map(encodeURIComponent).join('/')}`;
+          const ar=await fetch(endpoint,{headers:{apikey:storageKey,Authorization:`Bearer ${storageKey}`}});
+          if(!ar.ok) throw new Error(`Não foi possível recuperar o anexo (${ar.status}).`);
+          const buffer=Buffer.from(await ar.arrayBuffer());
+          total+=buffer.length;
+          if(total>22*1024*1024) return responder(res,413,{ok:false,erro:'Os anexos somam mais de 22 MB. Divida o envio em mensagens menores.'});
+          partes.push(buffer);
+          arquivosTemporarios.push(caminho);
         }
         const nome=String(ref?.nome||'anexo').replace(/[\r\n]/g,' ').slice(0,180);
-        const endpoint=`${storageUrl}/storage/v1/object/email-anexos-temporarios/${caminho.split('/').map(encodeURIComponent).join('/')}`;
-        const ar=await fetch(endpoint,{headers:{apikey:storageKey,Authorization:`Bearer ${storageKey}`}});
-        if(!ar.ok) throw new Error(`Não foi possível recuperar o anexo ${nome} (${ar.status}).`);
-        const buffer=Buffer.from(await ar.arrayBuffer());
-        total+=buffer.length;
-        if(total>22*1024*1024) return responder(res,413,{ok:false,erro:'Os anexos somam mais de 22 MB. Divida o envio em mensagens menores.'});
-        arquivos.push({filename:nome,content:buffer,contentType:String(ref?.tipo||'application/octet-stream')});
-        arquivosTemporarios.push(caminho);
+        arquivos.push({filename:nome,content:Buffer.concat(partes),contentType:String(ref?.tipo||'application/octet-stream')});
       }
     }
 

@@ -4,7 +4,7 @@ module.exports=async(req,res)=>{
  try{
   const {usuario,url,key}=await validar(req);
   const {lote,indice,nome,tipo,conteudo_base64}=req.body||{};
-  if(!/^[a-zA-Z0-9_-]{8,100}$/.test(String(lote||''))||!Number.isInteger(indice)||indice<0||indice>29)return res.status(400).json({ok:false,erro:'Identificação de anexo inválida.'});
+  if(!/^[a-zA-Z0-9_-]{8,100}$/.test(String(lote||''))||!Number.isInteger(indice)||indice<0||indice>299)return res.status(400).json({ok:false,erro:'Identificação de anexo inválida.'});
   const b64=String(conteudo_base64||'');if(b64.length>3.6e6||!/^([A-Za-z0-9+/]*={0,2})$/.test(b64))return res.status(413).json({ok:false,erro:'Anexo excede o limite individual de 2,5 MB.'});
   const data=Buffer.from(b64,'base64');if(!data.length||data.length>2.5*1024*1024)return res.status(413).json({ok:false,erro:'Arquivo inválido ou muito grande.'});
   const caminho=`${usuario.id}/${lote}/${indice}`;
