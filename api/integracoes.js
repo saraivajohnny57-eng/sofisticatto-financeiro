@@ -40,9 +40,11 @@ const cotarBraspress = require("../lib/integracoes/cotar-braspress");
 const rastrearBraspress = require("../lib/integracoes/rastrear-braspress");
 const consultarRastreioBraspress = require("../lib/integracoes/consultar-rastreio-braspress");
 
+const gnreCertificado = require("../lib/integracoes/gnre-certificado");
 const gnreDiagnostico = require("../lib/integracoes/gnre-diagnostico");
 const ROTAS = Object.freeze({
   "gnre-diagnostico": gnreDiagnostico,
+  "gnre-certificado": gnreCertificado,
   "validar-chave": validarChave,
   "status-servidor": statusServidor,
   "salvar-credenciais": salvarCredenciais,
