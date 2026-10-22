@@ -1,0 +1,1 @@
+V421: formulário GNRE pré-preenchido com XML, modelos fiscais editáveis, vencimento/pagamento e copiar dados JSON para conferência. NÃO transmite GNRE, NÃO gera guia oficial. Receita TO 100099 e detalhamento são sugestões dos prints do usuário, sujeitas à validação fiscal. Sem SQL.
