@@ -1156,8 +1156,9 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <label class="relatorio-label">GNRE/DIFAL</label>
                 <select id="freteGnreModo" onchange="calcularGnreFrete()">
                   <option value="nao">Não se aplica</option>
-                  <option value="automatico">Calcular estimativa</option>
-                  <option value="manual">Informar manualmente</option>
+                  <option value="automatico">Calcular estimativa DIFAL</option>
+                  <option value="planilha2">GNRE 2% (NF + frete) — planilha</option>
+                  <option value="manual">Informar valor da GNRE manualmente (sujeito à validação fiscal)</option>
                 </select>
               </div>
               <div>
@@ -1166,6 +1167,10 @@ SOFISTICATTO COSMÉTICOS</textarea>
                   <option value="nacional">Nacional</option>
                   <option value="nacionalizado">Nacionalizado</option>
                 </select>
+              </div>
+              <div id="freteGnreFreteBox">
+                <label class="relatorio-label">Valor do frete para GNRE 2% (R$)</label>
+                <input id="freteGnreFreteBase" inputmode="decimal" placeholder="0,00" oninput="calcularGnreFrete()">
               </div>
               <div>
                 <label class="relatorio-label">GNRE estimada/manual</label>
@@ -1183,6 +1188,12 @@ SOFISTICATTO COSMÉTICOS</textarea>
               </div>
             </div>
 
+            <div class="card" style="margin-top:12px;padding:14px;" id="gnreDiagnosticoCard">
+              <strong>Integração GNRE — homologação</strong>
+              <p style="margin:7px 0;font-size:13px;">Teste seguro do certificado A1 e da conexão ao serviço oficial. Não emite guias nem transmite valores.</p>
+              <button type="button" class="buscar" onclick="testarGnreHomologacao()">🔐 Testar conexão GNRE</button>
+              <div id="gnreDiagnosticoResultado" role="status" style="margin-top:9px;font-size:13px;white-space:pre-wrap;"></div>
+            </div>
             <div class="frete-alerta-fiscal">
               O cálculo de GNRE/DIFAL é uma estimativa baseada na planilha fornecida. Confirme o valor com o setor fiscal antes da emissão da guia.
             </div>

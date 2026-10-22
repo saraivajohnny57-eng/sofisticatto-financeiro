@@ -258,7 +258,7 @@ function calcularGnreFrete(){
   const informacao = freteCampo("freteAliquotaInfo");
   if(!campo || !informacao) return;
 
-  campo.readOnly = modo === "automatico";
+  campo.readOnly = modo === "automatico" || modo === "planilha2";
 
   if(modo === "nao"){
     campo.value = "";
@@ -268,6 +268,20 @@ function calcularGnreFrete(){
 
   if(modo === "manual"){
     informacao.value = "Valor informado manualmente";
+    return;
+  }
+
+  if(modo === "planilha2"){
+    const nf = numeroFrete(freteValor("freteValorNf"));
+    const frete = numeroFrete(freteValor("freteGnreFreteBase"));
+    if(!Number.isFinite(nf) || !Number.isFinite(frete) || nf < 0 || frete < 0 || !freteValor("freteValorNf")){
+      campo.value = "";
+      informacao.value = "Informe valores válidos de NF e frete";
+      return;
+    }
+    const total = Math.round((nf + frete) * 0.02 * 100) / 100;
+    campo.value = total.toLocaleString("pt-BR", {minimumFractionDigits:2,maximumFractionDigits:2});
+    informacao.value = "Planilha: (NF + frete) × 2% — estimativa";
     return;
   }
 
@@ -1709,3 +1723,18 @@ async function excluirCotacaoFrete(id){
 // V95: atualiza sugestões ao alterar o destino
 document.addEventListener('input',e=>{if(['freteCidade','freteUf','freteCep'].includes(e.target?.id)&&typeof atualizarSugestoesTransportadoras==='function') atualizarSugestoesTransportadoras();});
 document.addEventListener('change',e=>{if(['freteCidade','freteUf','freteCep'].includes(e.target?.id)&&typeof atualizarSugestoesTransportadoras==='function') atualizarSugestoesTransportadoras();});
+
+// V417 — teste sem emissão. A chave administrativa existente protege a operação.
+async function testarGnreHomologacao(){
+ const el=document.getElementById('gnreDiagnosticoResultado');
+ if(!el)return;
+ el.textContent='Verificando certificado e comunicação com a GNRE...';
+ try{
+  const chave=await obterChaveIntegracoesCotacao();
+  if(!chave){el.textContent='Teste cancelado: autorização administrativa necessária.';return;}
+  const resposta=await fetch('/api/integracoes?action=gnre-diagnostico',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:'{}'});
+  const dados=await resposta.json();
+  if(!resposta.ok||!dados.ok)throw new Error(dados.erro||'Não foi possível concluir o diagnóstico.');
+  el.textContent=`Conexão GNRE estabelecida! Ambiente: ${dados.ambiente}; certificado: ${dados.certificado}; serviço: ${dados.servico}; HTTP ${dados.http_status}; ${dados.tempo_ms} ms. Não foi emitida nenhuma guia.`;
+ }catch(erro){el.textContent='Diagnóstico GNRE: '+String(erro.message||erro);}
+}
