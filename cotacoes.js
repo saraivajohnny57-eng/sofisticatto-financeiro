@@ -1726,17 +1726,16 @@ document.addEventListener('change',e=>{if(['freteCidade','freteUf','freteCep'].i
 
 // V417 — teste sem emissão. A chave administrativa existente protege a operação.
 async function testarGnreHomologacao(){
- const el=document.getElementById('gnreDiagnosticoResultado');
- if(!el)return;
- el.textContent='Verificando certificado e comunicação com a GNRE...';
+ const el=document.getElementById('gnreDiagnosticoResultado');if(!el)return;
+ el.textContent='Verificando certificado, TLS e serviço GNRE...';
  try{
-  const chave=await obterChaveIntegracoesCotacao();
-  if(!chave){el.textContent='Teste cancelado: autorização administrativa necessária.';return;}
+  const chave=await obterChaveIntegracoesCotacao();if(!chave){el.textContent='Teste cancelado: autorização administrativa necessária.';return;}
   const resposta=await fetch('/api/integracoes?action=gnre-diagnostico',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:'{}'});
   const dados=await resposta.json();
-  if(!resposta.ok||!dados.ok)throw new Error(dados.erro||'Não foi possível concluir o diagnóstico.');
-  el.textContent=`Conexão GNRE estabelecida! Ambiente: ${dados.ambiente}; certificado: ${dados.certificado}; serviço: ${dados.servico}; HTTP ${dados.http_status}; ${dados.tempo_ms} ms. Não foi emitida nenhuma guia.`;
- }catch(erro){el.textContent='Diagnóstico GNRE: '+String(erro.message||erro);}
+  const linhas=(dados.etapas||[]).map(x=>`${x.ok?'✓':'✗'} ${x.etapa}: ${x.descricao||x.codigo|| (x.http_status?'HTTP '+x.http_status:'OK')}`).join(' | ');
+  if(!resposta.ok||!dados.ok){el.textContent=`Diagnóstico GNRE — etapa: ${dados.etapa||'desconhecida'}; código: ${dados.codigo||'não informado'}; ${dados.erro||'Falha desconhecida'}. ${linhas}`;return;}
+  el.textContent=`Conexão GNRE estabelecida! Ambiente: ${dados.ambiente}; serviço: ${dados.servico}; HTTP ${dados.http_status}; ${dados.tempo_ms} ms. ${linhas}. Nenhuma guia foi emitida.`;
+ }catch(erro){el.textContent='Diagnóstico GNRE: falha ao consultar a API. '+String(erro.message||erro);}
 }
 
 // V423: gestão do A1 no servidor, com acesso administrativo.
