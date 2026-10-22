@@ -7672,8 +7672,35 @@ function mostrarAbaIntegracaoBancaria(aba='historico'){
   if(aba==='massa'&&typeof carregarFilaCobrancaMassa==='function')carregarFilaCobrancaMassa();
   if(aba==='credenciais'){if(typeof carregarStatusBancoBB==='function')carregarStatusBancoBB(false);if(typeof carregarStatusBradesco==='function')carregarStatusBradesco(false);}
 }
+// V419 — filtro único para títulos do portal e títulos consultados diretamente nos bancos.
+function filtroTextoBancarioV419(){return String(document.getElementById('cobBuscaHistorico')?.value||'').trim();}
+function correspondeBuscaBancariaV419(x){
+  const consulta=filtroTextoBancarioV419();if(!consulta)return true;
+  const normal=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const texto=normal([x?.cliente_nome,x?.cliente,x?.nome_pagador,x?.nomePagador,x?.cpf_cnpj,x?.cpfCnpj,x?.numero_nf,x?.numero_pedido,x?.pedido,x?.referencia,x?.seu_numero,x?.nosso_numero].filter(Boolean).join(' '));
+  return normal(consulta).split(/\s+/).every(t=>texto.includes(t));
+}
+function filtrarRelatorioBancarioV419(lista){
+  const fb=document.getElementById('cobFiltroBanco')?.value||'';
+  const sts=statusSelecionadosV294();
+  const di=document.getElementById('cobDataEmissaoIni')?.value||'',df=document.getElementById('cobDataEmissaoFim')?.value||'';
+  const hi=document.getElementById('cobHoraIni')?.value||'',hf=document.getElementById('cobHoraFim')?.value||'';
+  return (Array.isArray(lista)?lista:[]).filter(x=>{
+    if(!correspondeBuscaBancariaV419(x))return false;
+    if(fb&&String(x.banco_codigo||codigoBancoCobranca(x.banco_nome||x.banco||''))!==fb)return false;
+    if(sts.length&&!sts.some(t=>t===x.status||(t==='descontado'&&x.descontado)||(t==='parcial'&&x.status==='parcial')))return false;
+    // Títulos somente do banco nem sempre trazem data/hora de emissão; não inventar datas.
+    if(di||df||hi||hf){
+      const emissao=String(x.emitido_em||x.created_at||'');
+      if(!emissao)return false;
+      const dia=emissao.slice(0,10),hora=horaEmissaoLocalCobrancaV351(x);
+      if((di&&dia<di)||(df&&dia>df)||(hi&&(!hora||hora<hi))||(hf&&(!hora||hora>hf)))return false;
+    }
+    return true;
+  });
+}
 function cobrancasFiltradasHistoricoV178(){
-  const q=cobNorm(document.getElementById('cobBuscaHistorico')?.value||''), fs=statusSelecionadosV294(), fb=document.getElementById('cobFiltroBanco')?.value||'';
+  const fs=statusSelecionadosV294(), fb=document.getElementById('cobFiltroBanco')?.value||'';
   const di=document.getElementById('cobDataEmissaoIni')?.value||'', df=document.getElementById('cobDataEmissaoFim')?.value||'';
   const vi=document.getElementById('cobDataVencIni')?.value||'', vf=document.getElementById('cobDataVencFim')?.value||'';
   const hi=document.getElementById('cobHoraIni')?.value||'', hf=document.getElementById('cobHoraFim')?.value||'';
@@ -7682,7 +7709,7 @@ function cobrancasFiltradasHistoricoV178(){
     const de=dataEmissaoCobrancaV177(x), ve=String(x?.vencimento||'').slice(0,10);
     const hora=horaEmissaoLocalCobrancaV351(x);
     if((hi||hf)&&(!hora||(hi&&hora<hi)||(hf&&hora>hf)))return false;
-    return (!q||cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia,x.nosso_numero].join(' ')).includes(q))&&(!fb||codigoBancoCobranca(x?.banco_nome||x?.banco||'')===fb)&&(fs.length===0||tituloCasaStatusV294(x,fs))&&(!di||de>=di)&&(!df||de<=df)&&(!vi||ve>=vi)&&(!vf||ve<=vf);
+    return correspondeBuscaBancariaV419(x)&&(!fb||codigoBancoCobranca(x?.banco_nome||x?.banco||'')===fb)&&(fs.length===0||tituloCasaStatusV294(x,fs))&&(!di||de>=di)&&(!df||de<=df)&&(!vi||ve>=vi)&&(!vf||ve<=vf);
   });
 }
 async function imprimirBoletosFiltradosV178(){
@@ -7961,9 +7988,9 @@ function imprimirPendenciasConsolidadasV296(banco,lista){
   // V311 — situação operacional detalhada. "Vencido" indica a data; "Em aberto" indica que o banco ainda mantém o título pendente.
   // Só exibimos "Em atraso" quando essa expressão vier efetivamente da situação devolvida pelo banco.
   const statusDetalhado=x=>statusDetalhadoRelatorioV314(x);
-  const filtroV316=filtroVencimentoRelatoriosV316(lista); lista=filtroV316.lista;
+  const filtroV316=filtroVencimentoRelatoriosV316(filtrarRelatorioBancarioV419(lista)); lista=filtroV316.lista;
   lista=[...lista].sort((a,b)=>String(a.vencimento||'9999').localeCompare(String(b.vencimento||'9999'))||String(a.cliente||'').localeCompare(String(b.cliente||''),'pt-BR'));
-  if(!lista.length)return alert(`Nenhuma pendência do ${nome} encontrada no período de vencimento selecionado.`);
+  if(!lista.length)return alert(`Nenhuma pendência do ${nome} encontrada com os filtros atuais.`);
   const periodoV316=textoPeriodoVencimentoV316(filtroV316.ini,filtroV316.fim);
   const rows=lista.map(x=>`<tr><td>${fd(x.vencimento)}</td><td><b>${esc(statusDetalhado(x))}</b></td><td>${esc(x.cliente||'—')}</td><td>${esc(x.cpf_cnpj||'—')}</td><td>${esc(x.seu_numero||'—')}</td><td>${esc(x.nosso_numero||'—')}</td><td style="text-align:right">${moeda(x.valor)}</td><td><b>${esc(x.origem||'BANCO')}</b></td></tr>`).join('');
   const qtdPortal=lista.filter(x=>x.origem==='PORTAL').length,qtdBanco=lista.filter(x=>x.origem==='BANCO').length,total=lista.reduce((a,x)=>a+Number(x.valor||0),0);
@@ -8008,9 +8035,9 @@ async function imprimirRelatorioBancarioCompletoV314(){
   const mapa=new Map();
   const add=(arr,banco,nome)=>{for(const x of arr){const nn=String(x?.nosso_numero||'').replace(/\D/g,'');const k=nn?`${banco}|${nn}`:`${banco}|${x?.seu_numero||''}|${x?.vencimento||''}|${Number(x?.valor||0).toFixed(2)}`;if(!mapa.has(k))mapa.set(k,{...x,banco_codigo:banco,banco_nome_rel:nome});else if(mapa.get(k).origem==='BANCO'&&x?.origem==='PORTAL')mapa.set(k,{...x,banco_codigo:banco,banco_nome_rel:nome});}};
   add(bb,'bb','Banco do Brasil'); add(br,'bradesco','Bradesco');
-  const filtroV316=filtroVencimentoRelatoriosV316([...mapa.values()]);
+  const filtroV316=filtroVencimentoRelatoriosV316(filtrarRelatorioBancarioV419([...mapa.values()]));
   const lista=[...filtroV316.lista].sort((a,b)=>String(a.vencimento||'9999').localeCompare(String(b.vencimento||'9999'))||String(a.banco_nome_rel).localeCompare(String(b.banco_nome_rel),'pt-BR')||String(a.cliente||'').localeCompare(String(b.cliente||''),'pt-BR'));
-  if(!lista.length){if(fimLoading)fimLoading();return alert('Nenhuma pendência foi encontrada no período de vencimento selecionado.');}
+  if(!lista.length){if(fimLoading)fimLoading();return alert('Nenhuma pendência foi encontrada com os filtros atuais.');}
   const periodoV316=textoPeriodoVencimentoV316(filtroV316.ini,filtroV316.fim);
   const totalBanco=cod=>lista.filter(x=>x.banco_codigo===cod).reduce((a,x)=>a+Number(x.valor||0),0);
   const qtdBanco=cod=>lista.filter(x=>x.banco_codigo===cod).length;
@@ -8195,7 +8222,6 @@ function imprimirRelatorioBancoV290(bancoCod){
   // Bradesco e os demais módulos continuam usando exatamente o fluxo anterior.
   let baseRelatorio;
   if(bancoCod==='bb'){
-    const q=cobNorm(document.getElementById('cobBuscaHistorico')?.value||'');
     const fs=statusSelecionadosV294();
     const di=document.getElementById('cobDataEmissaoIni')?.value||'', df=document.getElementById('cobDataEmissaoFim')?.value||'';
     const vi=document.getElementById('cobDataVencIni')?.value||'', vf=document.getElementById('cobDataVencFim')?.value||'';
@@ -8203,7 +8229,7 @@ function imprimirRelatorioBancoV290(bancoCod){
       if(usuarioEhCobrancaV293() && !cobrancaJaEmitidaV293(x)) return false;
       if(codigoBancoCobranca(x?.banco_nome||x?.banco||'')!=='bb') return false;
       const de=dataEmissaoCobrancaV177(x), ve=String(x?.vencimento||'').slice(0,10);
-      if(q && !cobNorm([x.cliente_nome,x.cpf_cnpj,x.numero_nf,x.referencia,x.nosso_numero].join(' ')).includes(q)) return false;
+      if(!correspondeBuscaBancariaV419(x)) return false;
       if((di&&de<di)||(df&&de>df)||(vi&&ve<vi)||(vf&&ve>vf)) return false;
       if(!fs.length) return true;
       const st=statusEfetivoRelatorioBancoV304(x);
