@@ -1191,7 +1191,16 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <div class="card" style="margin-top:12px;padding:14px;" id="gnreDiagnosticoCard">
               <strong>Integração GNRE — homologação</strong>
               <p style="margin:7px 0;font-size:13px;">Teste seguro do certificado A1 e da conexão ao serviço oficial. Não emite guias nem transmite valores.</p>
-              <button type="button" class="buscar" onclick="testarGnreHomologacao()">🔐 Testar conexão GNRE</button>
+              <div style="margin:10px 0;padding:12px;border:1px solid #ddd;border-radius:10px">
+                <strong>Certificado digital A1 — GNRE</strong>
+                <p style="font-size:12px">Arquivo PFX/P12 e senha são enviados apenas para a API administrativa e armazenados cifrados no servidor. Não são salvos no navegador.</p>
+                <input id="gnreCertArquivoV423" type="file" accept=".pfx,.p12" style="max-width:100%;display:block;margin:7px 0" />
+                <input id="gnreCertSenhaV423" type="password" autocomplete="new-password" placeholder="Senha do certificado A1" style="max-width:100%;margin:7px 0" />
+                <button type="button" class="buscar" onclick="salvarCertGnreV423()">🔒 Cadastrar certificado</button>
+                <button type="button" class="buscar" onclick="statusCertGnreV423()">Consultar situação</button>
+                <button type="button" class="buscar" onclick="excluirCertGnreV423()">Remover certificado</button>
+                <div id="gnreCertStatusV423" role="status" style="font-size:12px;margin-top:7px;white-space:pre-wrap"></div>
+              </div><button type="button" class="buscar" onclick="testarGnreHomologacao()">🔐 Testar conexão GNRE</button>
               <div id="gnreDiagnosticoResultado" role="status" style="margin-top:9px;font-size:13px;white-space:pre-wrap;"></div>
             </div>
             <div class="frete-alerta-fiscal">
