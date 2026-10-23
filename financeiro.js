@@ -6106,28 +6106,57 @@ async function localizarTransportadoraEtiqueta(nomeXml){
   const r=await banco.from("frete_transportadoras").select("id,nome,ativa").order("nome");
   if(r.error)throw r.error;
   const lista=(r.data||[]).filter(t=>t.ativa!==false);
-  if(!lista.length)return null;
+  if(!lista.length){alert("Não há transportadoras ativas cadastradas.");return null;}
 
-  const alvo=normalizarTextoColetaEtiqueta(nomeXml);
-  if(alvo){
-    const palavras=alvo.split(" ").filter(w=>w.length>=2);
-    const exata=lista.find(t=>normalizarTextoColetaEtiqueta(t.nome)===alvo);
-    if(exata)return exata;
-    const parcial=lista.find(t=>{
-      const n=normalizarTextoColetaEtiqueta(t.nome);
-      return n.includes(alvo)||alvo.includes(n)||palavras.some(w=>n.split(" ").includes(w));
-    });
-    if(parcial)return parcial;
-  }
-
-  const opcoes=lista.map((t,i)=>`${i+1} - ${t.nome}`).join("\n");
-  const resp=prompt(
-    "Qual transportadora foi usada nesta coleta?\n\n"+
-    opcoes+"\n\nDigite o número da opção:"
-  );
-  if(resp===null)return null;
-  const n=Number(String(resp).trim());
-  return n>=1&&n<=lista.length?lista[n-1]:null;
+  // V431: escolha explícita com busca, sem selecionar a primeira transportadora
+  // por padrão nem aceitar coincidências parciais como decisão automática.
+  return await new Promise(resolve=>{
+    const overlay=document.createElement("div");
+    overlay.style.cssText="position:fixed;inset:0;background:rgba(20,18,45,.58);z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px";
+    const painel=document.createElement("div");
+    painel.style.cssText="width:min(530px,100%);max-height:90vh;overflow:auto;background:white;color:#222;border-radius:16px;padding:22px;box-shadow:0 14px 48px #0005;font-family:inherit";
+    const titulo=document.createElement("h3");titulo.textContent="Selecionar transportadora da coleta";titulo.style.margin="0 0 10px";
+    const ajuda=document.createElement("p");ajuda.style.cssText="font-size:13px;margin:0 0 12px";
+    ajuda.textContent=nomeXml?`Transportadora informada na NF-e: ${nomeXml}. Confirme ou escolha outra.`:"A NF-e não informou a transportadora. Pesquise e selecione a utilizada na coleta.";
+    const busca=document.createElement("input");busca.type="search";busca.placeholder="Pesquisar transportadora pelo nome...";busca.setAttribute("aria-label","Pesquisar transportadora");
+    busca.style.cssText="width:100%;box-sizing:border-box;padding:12px;border:1px solid #b8b3d5;border-radius:9px;font:inherit;margin-bottom:10px";
+    const select=document.createElement("select");select.size=7;select.setAttribute("aria-label","Transportadoras disponíveis");
+    select.style.cssText="width:100%;box-sizing:border-box;min-height:175px;border:1px solid #b8b3d5;border-radius:9px;padding:5px;font:inherit";
+    const dica=document.createElement("p");dica.style.cssText="font-size:12px;color:#625d73;margin:7px 0 14px";dica.textContent="Selecione uma transportadora para habilitar a confirmação.";
+    const botoes=document.createElement("div");botoes.style.cssText="display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap";
+    const cancelar=document.createElement("button");cancelar.type="button";cancelar.textContent="Cancelar";
+    const confirmar=document.createElement("button");confirmar.type="button";confirmar.textContent="Confirmar transportadora";confirmar.disabled=true;
+    for(const btn of [cancelar,confirmar])btn.style.cssText="border:0;border-radius:9px;padding:11px 14px;font:inherit;cursor:pointer";
+    confirmar.style.background="#5a4fa3";confirmar.style.color="white";cancelar.style.background="#ece9f5";
+    let selecionada=null;
+    const norm=v=>normalizarTextoColetaEtiqueta(v);
+    function filtrar(){
+      const termo=norm(busca.value);
+      const visiveis=lista.filter(t=>norm(t.nome).includes(termo));
+      select.replaceChildren();selecionada=null;confirmar.disabled=true;
+      for(const t of visiveis){const opt=document.createElement("option");opt.value=String(t.id);opt.textContent=t.nome;select.appendChild(opt);}
+      select.selectedIndex=-1;
+      dica.textContent=visiveis.length?`${visiveis.length} transportadora(s) encontrada(s). Selecione uma opção.`:"Nenhuma transportadora encontrada.";
+    }
+    function selecionar(){const id=select.value;selecionada=lista.find(t=>String(t.id)===id)||null;confirmar.disabled=!selecionada;}
+    let encerrado=false;
+    function fechar(valor){if(encerrado)return;encerrado=true;document.removeEventListener("keydown",tecla);overlay.remove();resolve(valor);}
+    function tecla(e){if(e.key==="Escape"){e.preventDefault();fechar(null);}}
+    busca.addEventListener("input",filtrar);select.addEventListener("change",selecionar);select.addEventListener("click",selecionar);
+    select.addEventListener("dblclick",()=>{selecionar();if(selecionada)fechar(selecionada);});
+    cancelar.addEventListener("click",()=>fechar(null));confirmar.addEventListener("click",()=>{if(selecionada)fechar(selecionada);});
+    overlay.addEventListener("click",e=>{if(e.target===overlay)fechar(null);});
+    botoes.append(cancelar,confirmar);painel.append(titulo,ajuda,busca,select,dica,botoes);overlay.appendChild(painel);document.body.appendChild(overlay);
+    document.addEventListener("keydown",tecla);
+    // A NF-e sugere o nome no campo de pesquisa, sem escolher automaticamente.
+    const alvo=norm(nomeXml);
+    if(alvo){
+      const exata=lista.find(t=>norm(t.nome)===alvo);
+      if(exata)busca.value=exata.nome;
+      else busca.value=nomeXml;
+    }
+    filtrar();busca.focus();
+  });
 }
 
 async function localizarClienteEtiquetaParaColeta({cnpjDestino,cliente}){
@@ -6153,6 +6182,14 @@ async function registrarColetaExternaPeloXmlEtiqueta(info){
   if(!transportadora){
     alert("Transportadora não selecionada. A etiqueta continuará normalmente, mas a coleta não foi registrada.");
     return null;
+  }
+
+  // V431: a seleção explícita também preenche a transportadora da etiqueta,
+  // inclusive quando a NF-e não possui transportadora. O campo permanece editável.
+  const campoTransportadoraEtiqueta=document.getElementById("etqTransportadora");
+  if(campoTransportadoraEtiqueta){
+    campoTransportadoraEtiqueta.value=transportadora.nome;
+    if(typeof atualizarPreviewEtiqueta==="function")atualizarPreviewEtiqueta();
   }
 
   const clienteCadastro=await localizarClienteEtiquetaParaColeta(info);
