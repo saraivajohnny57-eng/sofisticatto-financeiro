@@ -1732,9 +1732,11 @@ async function testarGnreHomologacao(){
   const chave=await obterChaveIntegracoesCotacao();if(!chave){el.textContent='Teste cancelado: autorização administrativa necessária.';return;}
   const resposta=await fetch('/api/integracoes?action=gnre-diagnostico',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:'{}'});
   const dados=await resposta.json();
+  const diagnosticoRede=dados.dns?` | DNS: ${(dados.dns.ips||[]).join(', ')||'não resolvido'}`:'';
+  const diagnosticoConexao=dados.conexao?` | Rede: IP remoto=${dados.conexao.ip_remoto||'indisponível'}; TLS=${dados.conexao.protocolo||'não estabelecido'}; certificado validado=${dados.conexao.autorizado===true?'sim':'não'}`:'';
   const certificadoServidor=dados.cert_servidor?` | HTTPS do servidor: CN=${dados.cert_servidor.subject_cn||'indisponível'}; SAN=${dados.cert_servidor.subject_alt_name||'indisponível'}; emissor=${dados.cert_servidor.issuer_cn||'indisponível'}; validade=${dados.cert_servidor.valido_ate||'indisponível'}`:'';
   const linhas=(dados.etapas||[]).map(x=>`${x.ok?'✓':'✗'} ${x.etapa}: ${x.descricao||x.codigo|| (x.http_status?'HTTP '+x.http_status:'OK')}`).join(' | ');
-  if(!resposta.ok||!dados.ok){el.textContent=`Diagnóstico GNRE — etapa: ${dados.etapa||'desconhecida'}; código: ${dados.codigo||'não informado'}; ${dados.erro||'Falha desconhecida'}. ${linhas}${certificadoServidor}`;return;}
+  if(!resposta.ok||!dados.ok){el.textContent=`Diagnóstico GNRE — etapa: ${dados.etapa||'desconhecida'}; código: ${dados.codigo||'não informado'}; ${dados.erro||'Falha desconhecida'}. ${linhas}${diagnosticoRede}${diagnosticoConexao}${certificadoServidor}`;return;}
   el.textContent=`Conexão GNRE estabelecida! Ambiente: ${dados.ambiente}; serviço: ${dados.servico}; HTTP ${dados.http_status}; ${dados.tempo_ms} ms. ${linhas}. Nenhuma guia foi emitida.`;
  }catch(erro){el.textContent='Diagnóstico GNRE: falha ao consultar a API. '+String(erro.message||erro);}
 }
