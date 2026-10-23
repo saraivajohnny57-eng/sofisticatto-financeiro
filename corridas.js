@@ -114,7 +114,9 @@ function limparEntregadorSelecionadoSeDigitou(){
   atualizarListaEntregadorCorrida();
 }
 
+let corridaLancamentoEmAndamento=false;
 async function lancarCorrida(){
+  if(corridaLancamentoEmAndamento) return;
   if(!usuarioPodeAdministrarCorridas()) return alert('Seu usuário não pode lançar corridas.');
   const entregador_id=document.getElementById('corridaEntregadorId').value;
   const ent=corridasEntregadoresCache.find(x=>String(x.id)===String(entregador_id));
@@ -128,11 +130,24 @@ async function lancarCorrida(){
   const data_corrida=document.getElementById('corridaData').value;
   if(!ent)return alert('Selecione um entregador na lista inteligente.');
   if(!retirada||!destino||!data_corrida||valor<=0)return alert('Preencha retirada, destino, valor e data da corrida.');
-  const r=await banco.from('corridas').insert([{entregador_id:ent.id,entregador_nome:ent.nome,categoria:ent.categoria||null,telefone:ent.telefone||null,retirada,destino,volume,tipo_mercadoria:tipo_mercadoria||null,observacao:observacao||null,valor,data_corrida,status:'aberta',criado_por:usuarioLogado?.login||null}]).select('numero_corrida').single();
-  if(r.error)return alert('Erro ao lançar corrida: '+r.error.message);
-  alert(`Corrida ${codigoCorrida(r.data.numero_corrida)} lançada com sucesso.`);
-  ['corridaRetirada','corridaDestino','corridaVolume','corridaTipoMercadoria','corridaObservacao','corridaValor'].forEach(id=>document.getElementById(id).value='');
-  await carregarCorridas(); await avaliarAlertasCorridas(); atualizarDashboardCorridas();
+  // Trava síncrona: o segundo clique não chega ao INSERT enquanto a primeira operação estiver em andamento.
+  corridaLancamentoEmAndamento=true;
+  const botao=document.getElementById('btnLancarCorrida');
+  if(botao){botao.disabled=true;botao.textContent='Lançando corrida...';botao.setAttribute('aria-busy','true');}
+  try {
+    const r=await banco.from('corridas').insert([{entregador_id:ent.id,entregador_nome:ent.nome,categoria:ent.categoria||null,telefone:ent.telefone||null,retirada,destino,volume,tipo_mercadoria:tipo_mercadoria||null,observacao:observacao||null,valor,data_corrida,status:'aberta',criado_por:usuarioLogado?.login||null}]).select('numero_corrida').single();
+    if(r.error){alert('Erro ao lançar corrida: '+r.error.message);return;}
+    ['corridaRetirada','corridaDestino','corridaVolume','corridaTipoMercadoria','corridaObservacao','corridaValor'].forEach(id=>document.getElementById(id).value='');
+    try {await carregarCorridas();await avaliarAlertasCorridas();atualizarDashboardCorridas();}
+    catch(atualizacaoErro){console.error('Corrida salva; falha ao atualizar tela:',atualizacaoErro);}
+    alert(`Corrida ${codigoCorrida(r.data.numero_corrida)} lançada com sucesso.`);
+  } catch(erro) {
+    console.error('Falha ao lançar corrida:',erro);
+    alert('Não foi possível confirmar o lançamento. Consulte a lista de corridas antes de tentar novamente para evitar duplicidade.');
+  } finally {
+    corridaLancamentoEmAndamento=false;
+    if(botao){botao.disabled=false;botao.textContent='Lançar corrida';botao.removeAttribute('aria-busy');}
+  }
 }
 
 
