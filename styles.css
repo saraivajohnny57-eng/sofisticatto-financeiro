@@ -133,7 +133,9 @@ input,select,textarea{padding:12px;border:none;border-radius:12px;background:#f5
 .insta-vertical{position:absolute;left:0;top:0;width:6mm;font-size:4mm;line-height:1.08;text-align:center}
 .gram-horizontal{position:absolute;left:0;bottom:0;width:31mm;font-size:4mm;letter-spacing:1.05mm;text-align:left;white-space:nowrap}
 .etiqueta-transportadora{position:absolute;right:2mm;bottom:3mm;height:53mm;width:18mm;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;line-height:1;overflow:hidden;text-align:center;white-space:normal}
-.etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;line-height:1.05;white-space:normal;word-break:break-word}
+.etiqueta-transportadora.duas-linhas{writing-mode:horizontal-tb;transform:none;right:1mm;bottom:5mm;width:22mm;height:49mm;display:flex;align-items:center;justify-content:space-evenly;flex-direction:row;text-align:center;line-height:1;white-space:normal;word-break:normal;gap:0.5mm}
+/* V430: prévia em duas colunas, ambas lidas de baixo para cima; canvas de impressão acompanha. */
+.etiqueta-transportadora.duas-linhas>span{writing-mode:vertical-rl;transform:rotate(180deg);display:flex;align-items:center;justify-content:center;flex:0 1 auto;min-width:0;max-width:calc(50% - 0.25mm);height:100%;overflow:hidden;white-space:nowrap;line-height:1}
 .etiqueta-destino{position:absolute;left:7mm;top:36mm;width:118mm;font-size:6.2mm;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip;letter-spacing:-0.1mm}
 .etiqueta-destino b,.etiqueta-endereco b,.etiqueta-bairro b,.etiqueta-cep b,.etiqueta-cidade b{font-weight:900}
 .etiqueta-endereco{position:absolute;left:7mm;top:44mm;width:118mm;font-size:4.8mm;line-height:1.05;white-space:nowrap;overflow:hidden}

@@ -4906,10 +4906,15 @@ function converterTransportadoraParaCanvas(etiqueta){
       .map(item=>item.textContent.trim())
       .filter(Boolean);
 
-    const alturaLinha=parseFloat(estilo.fontSize || "24")*1.05;
-    const inicioY=rect.height/2-((linhas.length-1)*alturaLinha)/2;
+    // V430: cada coluna tem a mesma leitura, de baixo para cima.
+    // Desenhar diretamente no canvas evita que a impressão altere o writing-mode.
+    const larguraColuna=rect.width/Math.max(1,linhas.length);
     linhas.forEach((linha,indice)=>{
-      contexto.fillText(linha,rect.width/2,inicioY+(indice*alturaLinha),rect.width-2);
+      contexto.save();
+      contexto.translate(larguraColuna*(indice+0.5),rect.height/2);
+      contexto.rotate(-Math.PI/2);
+      contexto.fillText(linha,0,0,Math.max(1,rect.height-4));
+      contexto.restore();
     });
   }else{
     contexto.save();
