@@ -2438,7 +2438,7 @@ async function consultarRastreioSSWDiretoRegistro(id,{chave=null}={}){
   const rastro=await obterRastreamentoPorId(id);
   if(!rastro)throw new Error("Rastreio não encontrado no banco de dados.");
   const nome=rastro.frete_transportadoras?.nome||"";
-  if(!transportadoraEhSSW(nome) && !/accert|\btg\b/i.test(nome))throw new Error("Esta transportadora não está configurada como SSW/WebService.");
+  if(!transportadoraEhSSW(nome) && String(rastro.chave_nfe||'').replace(/\D/g,'').length!==44)throw new Error("Para tentar SSW sem integração, informe a chave NF-e de 44 dígitos.");
   if(!rastro.numero_nfe&&!rastro.chave_nfe)throw new Error("Informe NF ou chave NF-e para consultar o SSW.");
   const chaveUsar=chave||await chaveAdminColeta();if(!chaveUsar)throw new Error("Informe a chave administrativa.");
   const params=new URLSearchParams({action:"consultar-rastreio-ssw",registro_id:String(id)});
@@ -2452,7 +2452,7 @@ async function consultarRastreioSSWRegistro(id){
   const rastro=await obterRastreamentoPorId(id);
   if(!rastro)throw new Error("Rastreio não encontrado no banco de dados.");
   const nome=rastro.frete_transportadoras?.nome||"";
-  if(!transportadoraEhSSW(nome) && !/accert|\btg\b/i.test(nome))throw new Error("Esta transportadora não está configurada como SSW/WebService.");
+  if(!transportadoraEhSSW(nome) && String(rastro.chave_nfe||'').replace(/\D/g,'').length!==44)throw new Error("Para tentar SSW sem integração, informe a chave NF-e de 44 dígitos.");
 
   let q=banco.from("ssw_ocorrencias_recebidas")
     .select("*")
@@ -2555,12 +2555,8 @@ async function atualizarRastreioIntegrado(id,botao=null){
     return;
   }
   if(/rodonaves/i.test(nome))return atualizarRastreioRodonaves(id,botao);
-  if(/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome)){
-    alert("A integração API da Alfa está desativada porque o acesso foi cancelado pela transportadora. O histórico já salvo continua disponível.");
-    return;
-    const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Atualizando...";}
-    try{const {dados}=await consultarRastreioAlfaRegistro(id);alert(`Rastreio Alfa atualizado.\n\nStatus: ${dados.statusBruto||statusLabelRastreamento(dados.status)}${dados.previsaoEntrega?`\nPrevisão: ${new Date(dados.previsaoEntrega+"T12:00:00").toLocaleDateString("pt-BR")}`:""}`);await carregarRastreamentosLogistica(rastro.sentido||"saida");await carregarRastreamentosEntregues();if((rastro.sentido||"saida")==="saida")await carregarPainelRodonaves();}
-    catch(e){alert("Não foi possível atualizar o rastreio Alfa: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
+  if(/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome) && chaveNfe.length!==44){
+    await completarIdentificadoresRastreioV433(rastro,'A API Alfa está indisponível. Informe a chave NF-e de 44 dígitos para tentar consulta SSW, quando autorizada.');
     return;
   }
   if(/correios|coreios/i.test(nome)){
@@ -2577,7 +2573,7 @@ async function atualizarRastreioIntegrado(id,botao=null){
     catch(e){alert("Não foi possível atualizar o rastreio dos Correios: "+e.message);}finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
     return;
   }
-  if(transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome)){
+  if(transportadoraEhSSW(nome)||chaveNfe.length===44){
     const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Consultando SSW...";}
     try{
       try{
@@ -2998,7 +2994,7 @@ function transportadoraConhecidaPorConsultaDireta(nome){
 function transportadoraTemRastreamentoIntegrado(nome){
   const n=nomeNormalizadoTransportadora(nome);
   if(!n)return false;
-  if(transportadoraConhecidaPorConsultaDireta(nome))return true;
+  if(transportadoraConhecidaPorConsultaDireta(nome)||/sigmalog/.test(n))return true;
   return transportadorasRastreamentoIntegrado.some(i=>{
     const x=nomeNormalizadoTransportadora(i.transportadora_nome);
     if(!x)return false;
@@ -3019,7 +3015,7 @@ function integracaoRastreamentoDaTransportadora(nome){
 }
 function transportadoraEhSSW(nome){
   const n=nomeNormalizadoTransportadora(nome);
-  if(/accert/.test(n)||/(^| )tg( |$)/.test(n))return true;
+  if(/accert/.test(n)||/(^| )tg( |$)/.test(n)||/sigmalog/.test(n))return true;
   const i=integracaoRastreamentoDaTransportadora(nome);
   return !!i&&(String(i.integracao_tipo||"").toLowerCase()==="webservice"||/ssw/i.test(String(i.api_versao||"")));
 }

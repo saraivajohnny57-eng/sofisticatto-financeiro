@@ -22,11 +22,11 @@ function tipoIntegracao(nome,integracoes){
   const n=norm(nome);
   if(/rodonaves/.test(n))return'rodonaves';
   if(/correios/.test(n))return'correios';
-  if(/(^| )alfa( |$)/.test(n))return'alfa';
+  if(/(^| )alfa( |$)/.test(n))return'ssw';
   if(/braspress/.test(n))return'braspress';
   const i=(integracoes||[]).find(x=>matchNome(nome,x.transportadora_nome));
   if(i&&(String(i.integracao_tipo||'').toLowerCase()==='webservice'||/ssw/i.test(String(i.api_versao||''))))return'ssw';
-  if(/accert|(^| )tg( |$)/.test(n))return'ssw';
+  if(/accert|sigmalog|(^| )tg( |$)/.test(n))return'ssw';
   return null;
 }
 
@@ -184,14 +184,14 @@ module.exports=async function(req,res){
     for(const item of (rastreios||[])){
       const nome=item.frete_transportadoras?.nome||'';
       const tipo=tipoIntegracao(nome,integracoes);
-      if(!tipo){ignorados++;continue;}
+      if(!tipo){if(String(item.chave_nfe||'').replace(/\D/g,'').length===44){/* consulta DANFE sem integração individual */}else{ignorados++;continue;}}
       const temId=Boolean(item.protocolo_rastreio||item.numero_cte||item.numero_nfe||item.chave_nfe);
       if(!temId&&tipo!=='correios'){ignorados++;continue;}
       let action='';
       if(tipo==='rodonaves')action='consultar-rastreio-rodonaves';
       if(tipo==='alfa')action='consultar-rastreio-alfa';
       if(tipo==='correios')action='consultar-rastreio-correios';
-      if(tipo==='ssw')action='consultar-rastreio-ssw';
+      if(tipo==='ssw'||!tipo)action='consultar-rastreio-ssw';
       if(tipo==='braspress')action='consultar-rastreio-braspress';
       const qp=new URLSearchParams({action,registro_id:String(item.id)});
       // A consulta Rodonaves não resolve os identificadores apenas pelo ID interno.

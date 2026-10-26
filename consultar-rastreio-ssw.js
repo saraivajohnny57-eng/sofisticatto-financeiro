@@ -118,7 +118,7 @@ module.exports=async function(req,res){
   try{
     const registroId=String(req.query.registro_id||'').trim();
     if(!registroId)return json(res,400,{ok:false,erro:'registro_id é obrigatório.'});
-    const rows=await supabaseRest('logistica_rastreamentos',{query:`?select=id,numero_nfe,chave_nfe,coleta_agendamento_id,transportadora_id,frete_transportadoras(nome)&id=eq.${encodeURIComponent(registroId)}&limit=1`});
+    const rows=await supabaseRest('logistica_rastreamentos',{query:`?select=id,status,numero_nfe,chave_nfe,coleta_agendamento_id,transportadora_id,frete_transportadoras(nome)&id=eq.${encodeURIComponent(registroId)}&limit=1`});
     const rast=rows?.[0];if(!rast)return json(res,404,{ok:false,erro:'Rastreio não encontrado.'});
     const nome=rast.frete_transportadoras?.nome||'';
 
@@ -170,7 +170,8 @@ module.exports=async function(req,res){
       cred.ssw_senha_rastreio=cred.ssw_senha_rastreio||process.env.TG_SSW_SENHA_RASTREIO||process.env.TGT_SSW_SENHA_RASTREIO||'';
       cred.ssw_cnpj_rastreio=cred.ssw_cnpj_rastreio||process.env.TG_SSW_CNPJ_RASTREIO||process.env.TGT_SSW_CNPJ_RASTREIO||'';
     }
-    if(!integ?.convite_id && !/accert|(^|\s)tg(\s|$)/i.test(nome))return json(res,422,{ok:false,erro:`Integração SSW não localizada para ${nome}.`});
+    // V434: trackingdanfe pode ser tentado por chave sem integração individual.
+    // Credenciais de outra transportadora jamais devem ser reutilizadas.
     const chave=String(rast.chave_nfe||'').replace(/\D/g,'');
     const nf=String(rast.numero_nfe||'').trim();
     let dados,metodo;
@@ -180,7 +181,8 @@ module.exports=async function(req,res){
       try{dados=await chamar('https://ssw.inf.br/api/trackingdanfe',{chave_nfe:chave});metodo='SSW Tracking DANFE';}catch(e){console.warn('trackingdanfe falhou, tentando tracking:',e.message)}
     }
     if(!dados){
-      const senha=String(cred.ssw_senha_rastreio||cred.password||process.env.ACCERT_SSW_SENHA_RASTREIO||process.env.ACCERT_SSW_SENHA||process.env.TG_SSW_SENHA_RASTREIO||process.env.TG_SSW_SENHA||process.env.TGT_SSW_SENHA_RASTREIO||process.env.TGT_SSW_SENHA||process.env.SSW_SENHA_RASTREIO||'').trim();
+      if(!integ?.convite_id && !/accert|(^|\s)tg(\s|$)/i.test(nome))return json(res,422,{ok:false,codigo:'SSW_ACESSO_NF_NECESSARIO',erro:`A consulta pela chave NF-e não retornou dados para ${nome}. Para consultar por número de NF, configure autorização/credenciais SSW dessa transportadora. Nenhum status foi alterado.`});
+      const senha=String(cred.ssw_senha_rastreio||cred.password||process.env.SSW_SENHA_RASTREIO||'').trim();
       const cnpj=String(cred.ssw_cnpj_rastreio||process.env.SSW_CNPJ_RASTREIO||CNPJ_PADRAO).replace(/\D/g,'');
       if(cnpj.length!==14)return json(res,422,{ok:false,erro:'CNPJ usado no rastreio SSW deve possuir 14 dígitos.'});
       const payload={cnpj,tipo_doc:'E'};
@@ -228,7 +230,7 @@ module.exports=async function(req,res){
     const ev=eventoTrackingSSW(dados)||eventoMaisUtil(dados);
     if(!ev){
       const msg=String(dados?.message||dados?.mensagem||'Documento localizado, mas o SSW não retornou ocorrências de rastreamento.');
-      return json(res,200,{ok:true,status:'em_transito',statusBruto:msg,metodoConsulta:metodo,dados,eventos:[],semOcorrencias:true});
+      return json(res,200,{ok:true,status:rast.status||null,statusBruto:msg,metodoConsulta:metodo,eventos:[],semOcorrencias:true});
     }
     const desc=String(ev.desc||'Ocorrência SSW');
     const status=statusPorTexto([ev.titulo,ev.detalhe,ev.compl,desc].filter(Boolean).join(' '));
