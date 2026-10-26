@@ -3792,3 +3792,82 @@ async function abrirLinhaTempoRastreio(id){
     body.innerHTML=alertas+previsaoHtmlV415+etapasHtml+resumo+detalhesBraspress+`<div class="rast-historico-titulo">Histórico completo das ocorrências (${eventos.length})</div><div class="rast-timeline">${eventos.map((e,i)=>{const detalhes=[];if(e.unidade)detalhes.push(`🏤 Unidade: ${escaparHtmlEmail(e.unidade)}`);if(e.destino)detalhes.push(`➡ Destino: ${escaparHtmlEmail(e.destino)}`);if(e.codigo)detalhes.push(`Código: ${escaparHtmlEmail(e.codigo)}`);if(e.recebedor)detalhes.push(`👤 Recebedor: ${escaparHtmlEmail(e.recebedor)}`);if(e.documentoRecebedor)detalhes.push(`Documento: ${escaparHtmlEmail(e.documentoRecebedor)}`);return `<div class="rast-evento ${i===0?'atual':''}"><div class="rast-evento-titulo">${escaparHtmlEmail(e.titulo||"Ocorrência")}</div><div class="rast-evento-data">${e.data&&dataEventoTimeline(e.data)?dataEventoTimeline(e.data).toLocaleString("pt-BR"):"Data não informada"}</div>${e.descricao&&textoNormalizadoTimeline(e.descricao)!==textoNormalizadoTimeline(e.titulo)?`<div class="rast-evento-desc">${escaparHtmlEmail(e.descricao)}</div>`:""}${e.local?`<div class="rast-evento-local">📍 ${escaparHtmlEmail(e.local)}</div>`:""}${detalhes.length?`<div class="rast-evento-detalhes">${detalhes.map(x=>`<span class="rast-evento-detalhe">${x}</span>`).join("")}</div>`:""}<div class="rast-evento-fonte">Fonte: ${escaparHtmlEmail(e.fonte||"Portal")}</div></div>`}).join("")}</div>`;
   }catch(e){body.innerHTML=`<div class="rast-timeline-vazio">Não foi possível carregar a linha do tempo: ${escaparHtmlEmail(e.message)}</div>`;}
 }
+
+// V435: auditoria e importação em lote; nunca cria entrega ou rastreamento confirmado sem retorno da transportadora.
+let loteXmlV435=[];
+function painelXmlV435(html){const el=document.getElementById('resultadoXmlV435');if(el){el.style.display='block';el.innerHTML=html;}return el;}
+function escapeXmlV435(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function obterRegistrosAuditoriaV435(){
+  let lista=[];
+  for(let offset=0;offset<10000;offset+=500){
+    const r=await banco.from('logistica_rastreamentos').select('id,parceiro_nome,numero_nfe,chave_nfe,transportadora_id,status,coleta_agendamento_id,numero_cte,protocolo_rastreio').eq('sentido','saida').range(offset,offset+499);
+    if(r.error)throw r.error;
+    lista.push(...(r.data||[]));if((r.data||[]).length<500)break;
+  }
+  return lista;
+}
+async function verificarIdentificadoresV435(){
+  painelXmlV435('<strong>Conferindo registros salvos no banco...</strong>');
+  try{
+    const lista=await obterRegistrosAuditoriaV435();
+    const semNF=lista.filter(x=>!String(x.numero_nfe||'').trim());
+    const semChave=lista.filter(x=>!String(x.chave_nfe||'').trim());
+    const invalidas=lista.filter(x=>x.chave_nfe&&String(x.chave_nfe).replace(/\D/g,'').length!==44);
+    const duplicadas=new Map();for(const x of lista){const k=String(x.chave_nfe||'').replace(/\D/g,'');if(k.length===44){duplicadas.set(k,(duplicadas.get(k)||0)+1);}}
+    const nDup=[...duplicadas.values()].filter(n=>n>1).length;
+    const linhas=lista.filter(x=>!x.numero_nfe||!x.chave_nfe||String(x.chave_nfe).replace(/\D/g,'').length!==44).slice(0,150);
+    painelXmlV435(`<h3>Verificação de rastreamentos (${lista.length})</h3><p>Sem número NF-e: <b>${semNF.length}</b> · Sem chave: <b>${semChave.length}</b> · Chaves inválidas: <b>${invalidas.length}</b> · Chaves repetidas: <b>${nDup}</b></p><small>A chave pode ser opcional quando a transportadora rastreia por protocolo/CT-e. Esta conferência não altera dados.</small><div style="margin-top:10px">${linhas.map(x=>`<div style="padding:5px;border-bottom:1px solid #ddd">${escapeXmlV435(x.parceiro_nome)} — NF ${escapeXmlV435(x.numero_nfe||'ausente')} — ${escapeXmlV435(x.chave_nfe?'Chave inválida/pendente de conferência':'Sem chave')}</div>`).join('')}</div>`);
+  }catch(e){painelXmlV435('<b>Falha na conferência:</b> '+escapeXmlV435(e.message));}
+}
+function lerNotaXmlV435(xml){
+  const doc=new DOMParser().parseFromString(xml,'application/xml');
+  if(doc.querySelector('parsererror'))throw new Error('XML inválido');
+  const nfe=doc.getElementsByTagName('infNFe')[0];
+  if(!nfe)throw new Error('Não é XML de NF-e (infNFe ausente)');
+  const texto=(parent,tag)=>parent?.getElementsByTagName(tag)[0]?.textContent?.trim()||'';
+  const ide=nfe.getElementsByTagName('ide')[0],dest=nfe.getElementsByTagName('dest')[0],tr=nfe.getElementsByTagName('transporta')[0];
+  const chave=String(nfe.getAttribute('Id')||'').replace(/^NFe/i,'').replace(/\D/g,'');
+  const nf=texto(ide,'nNF'),nome=texto(dest,'xNome'),transportadora=texto(tr,'xNome');
+  if(chave.length!==44||!nf)throw new Error('Chave de 44 dígitos ou número NF-e ausente');
+  return {chave,nf,nome,transportadora};
+}
+async function prepararLoteXmlV435(event){
+  const files=[...(event.target.files||[])];event.target.value='';
+  if(!files.length)return;
+  painelXmlV435('<strong>Lendo e comparando XMLs...</strong>');
+  try{
+    const registros=await obterRegistrosAuditoriaV435();
+    const porChave=new Map(registros.filter(x=>String(x.chave_nfe||'').replace(/\D/g,'').length===44).map(x=>[String(x.chave_nfe).replace(/\D/g,''),x]));
+    const porNF=new Map();for(const x of registros){const n=String(x.numero_nfe||'').trim();if(n){const a=porNF.get(n)||[];a.push(x);porNF.set(n,a);}}
+    const repetidas=new Set();loteXmlV435=[];
+    for(const f of files){
+      try{
+        const nota=lerNotaXmlV435(await f.text());
+        if(repetidas.has(nota.chave)){loteXmlV435.push({...nota,arquivo:f.name,tipo:'duplicada_lote'});continue;}
+        repetidas.add(nota.chave);
+        const exato=porChave.get(nota.chave);
+        const candidatas=porNF.get(nota.nf)||[];
+        const mesmoCliente=candidatas.filter(x=>String(x.parceiro_nome||'').toLowerCase().trim()===nota.nome.toLowerCase().trim());
+        const existente=exato||(mesmoCliente.length===1?mesmoCliente[0]:null);
+        const tipo=existente?(existente.chave_nfe?'ja_cadastrada':'completar'):(candidatas.length?'conferir':'nova');
+        loteXmlV435.push({...nota,arquivo:f.name,tipo,id:existente?.id||null,transportadoraId:existente?.transportadora_id||null});
+      }catch(e){loteXmlV435.push({arquivo:f.name,tipo:'erro',erro:e.message});}
+    }
+    const resumo={};for(const n of loteXmlV435)resumo[n.tipo]=(resumo[n.tipo]||0)+1;
+    const linhas=loteXmlV435.map((n,i)=>`<tr><td>${escapeXmlV435(n.arquivo)}</td><td>${escapeXmlV435(n.nf||'—')}</td><td>${escapeXmlV435(n.nome||'—')}</td><td>${escapeXmlV435(n.transportadora||'—')}</td><td>${escapeXmlV435(({nova:'Nova — conferir transportadora',completar:'Completar cadastro',ja_cadastrada:'Já cadastrada',conferir:'Conferir NF repetida',duplicada_lote:'Repetida neste lote',erro:'Erro: '+n.erro})[n.tipo])}</td></tr>`).join('');
+    painelXmlV435(`<h3>Prévia da importação (${files.length} arquivos)</h3><p>${Object.entries(resumo).map(([k,v])=>escapeXmlV435(k)+': '+v).join(' · ')}</p><small>Por segurança, apenas registros existentes com correspondência inequívoca e sem chave serão completados automaticamente. Notas novas exigem vincular a transportadora e confirmar a inclusão; nenhuma consulta externa é presumida.</small><div style="overflow:auto"><table style="width:100%"><thead><tr><th>Arquivo</th><th>NF</th><th>Cliente</th><th>Transportadora XML</th><th>Resultado</th></tr></thead><tbody>${linhas}</tbody></table></div><button type="button" class="btn verde" onclick="confirmarLoteXmlV435()">Salvar dados faltantes (${resumo.completar||0})</button>`);
+  }catch(e){painelXmlV435('<b>Erro:</b> '+escapeXmlV435(e.message));}
+}
+async function confirmarLoteXmlV435(){
+  const itens=loteXmlV435.filter(x=>x.tipo==='completar'&&x.id);
+  if(!itens.length)return alert('Nenhum cadastro existente com chave ausente para completar. Novas notas exigem confirmação manual da transportadora.');
+  if(!confirm(`Salvar chave NF-e em ${itens.length} registro(s) existentes?`))return;
+  let ok=0;const erros=[];
+  for(const n of itens){
+    const r=await banco.from('logistica_rastreamentos').update({chave_nfe:n.chave,numero_nfe:n.nf,atualizado_em:new Date().toISOString()}).eq('id',n.id).select('id,chave_nfe').maybeSingle();
+    if(r.error||r.data?.chave_nfe!==n.chave){erros.push(`${n.nf}: ${r.error?.message||'não confirmou gravação'}`);continue;}
+    ok++;
+  }
+  painelXmlV435(`<h3>Importação concluída</h3><p>Chaves confirmadas no banco: <b>${ok}</b> de ${itens.length}.</p><p>${erros.map(escapeXmlV435).join('<br>')}</p><small>Notas novas e ambíguas não foram cadastradas automaticamente.</small>`);
+  await carregarRastreamentosLogistica('saida');
+}
