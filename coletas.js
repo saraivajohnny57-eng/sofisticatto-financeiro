@@ -3829,7 +3829,7 @@ function lerNotaXmlV435(xml){
   const chave=String(nfe.getAttribute('Id')||'').replace(/^NFe/i,'').replace(/\D/g,'');
   const nf=texto(ide,'nNF'),nome=texto(dest,'xNome'),transportadora=texto(tr,'xNome');
   if(chave.length!==44||!nf)throw new Error('Chave de 44 dígitos ou número NF-e ausente');
-  return {chave,nf,nome,transportadora};
+  return {chave,nf,nome,transportadora,cnpj: texto(dest,'CNPJ')||texto(dest,'CPF')};
 }
 async function prepararLoteXmlV435(event){
   const files=[...(event.target.files||[])];event.target.value='';
@@ -3850,12 +3850,12 @@ async function prepararLoteXmlV435(event){
         const mesmoCliente=candidatas.filter(x=>String(x.parceiro_nome||'').toLowerCase().trim()===nota.nome.toLowerCase().trim());
         const existente=exato||(mesmoCliente.length===1?mesmoCliente[0]:null);
         const tipo=existente?(existente.chave_nfe?'ja_cadastrada':'completar'):(candidatas.length?'conferir':'nova');
-        loteXmlV435.push({...nota,arquivo:f.name,tipo,id:existente?.id||null,transportadoraId:existente?.transportadora_id||null});
+        loteXmlV435.push({...nota,arquivo:f.name,tipo,id:existente?.id||null,transportadoraId:existente?.transportadora_id||null,localizado:false});
       }catch(e){loteXmlV435.push({arquivo:f.name,tipo:'erro',erro:e.message});}
     }
     const resumo={};for(const n of loteXmlV435)resumo[n.tipo]=(resumo[n.tipo]||0)+1;
     const linhas=loteXmlV435.map((n,i)=>`<tr><td>${escapeXmlV435(n.arquivo)}</td><td>${escapeXmlV435(n.nf||'—')}</td><td>${escapeXmlV435(n.nome||'—')}</td><td>${escapeXmlV435(n.transportadora||'—')}</td><td>${escapeXmlV435(({nova:'Nova — conferir transportadora',completar:'Completar cadastro',ja_cadastrada:'Já cadastrada',conferir:'Conferir NF repetida',duplicada_lote:'Repetida neste lote',erro:'Erro: '+n.erro})[n.tipo])}</td></tr>`).join('');
-    painelXmlV435(`<h3>Prévia da importação (${files.length} arquivos)</h3><p>${Object.entries(resumo).map(([k,v])=>escapeXmlV435(k)+': '+v).join(' · ')}</p><small>Por segurança, apenas registros existentes com correspondência inequívoca e sem chave serão completados automaticamente. Notas novas exigem vincular a transportadora e confirmar a inclusão; nenhuma consulta externa é presumida.</small><div style="overflow:auto"><table style="width:100%"><thead><tr><th>Arquivo</th><th>NF</th><th>Cliente</th><th>Transportadora XML</th><th>Resultado</th></tr></thead><tbody>${linhas}</tbody></table></div><button type="button" class="btn verde" onclick="confirmarLoteXmlV435()">Salvar dados faltantes (${resumo.completar||0})</button>`);
+    painelXmlV435(`<h3>Prévia da importação (${files.length} arquivos)</h3><p>${Object.entries(resumo).map(([k,v])=>escapeXmlV435(k)+': '+v).join(' · ')}</p><small>Por segurança, apenas registros existentes com correspondência inequívoca e sem chave serão completados automaticamente. Notas novas exigem vincular a transportadora e confirmar a inclusão; nenhuma consulta externa é presumida.</small><div style="overflow:auto"><table style="width:100%"><thead><tr><th>Arquivo</th><th>NF</th><th>Cliente</th><th>Transportadora XML</th><th>Resultado</th></tr></thead><tbody>${linhas}</tbody></table></div><button type="button" class="btn verde" onclick="confirmarLoteXmlV435()">Salvar dados faltantes (${resumo.completar||0})</button> <button type="button" class="btn azul" onclick="consultarNovasXmlV436()">🔎 Consultar notas novas no SSW</button><div id="resultadoDescobertaV436" style="margin-top:10px"></div>`);
   }catch(e){painelXmlV435('<b>Erro:</b> '+escapeXmlV435(e.message));}
 }
 async function confirmarLoteXmlV435(){
@@ -3870,4 +3870,74 @@ async function confirmarLoteXmlV435(){
   }
   painelXmlV435(`<h3>Importação concluída</h3><p>Chaves confirmadas no banco: <b>${ok}</b> de ${itens.length}.</p><p>${erros.map(escapeXmlV435).join('<br>')}</p><small>Notas novas e ambíguas não foram cadastradas automaticamente.</small>`);
   await carregarRastreamentosLogistica('saida');
+}
+
+
+// V436 — descoberta somente por retorno verificável do SSW. Nenhuma nota não localizada é cadastrada.
+function normalizarTransportadoraV436(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();}
+function compararTransportadoraV436(nome,lista){
+ const n=normalizarTransportadoraV436(nome);
+ if(!n)return null;
+ const exact=lista.filter(t=>normalizarTransportadoraV436(t.nome)===n);
+ if(exact.length===1)return exact[0];
+ const simplificar=x=>normalizarTransportadoraV436(x).replace(/\b(TRANSPORTES|TRANSPORTADORA|LTDA|EIRELI|S A|ME|EPP|ENCOMENDAS|RODOVIARIOS)\b/g,'').replace(/\s+/g,' ').trim();
+ const a=simplificar(n);if(a.length<4)return null;
+ const matches=lista.filter(t=>simplificar(t.nome)===a);
+ return matches.length===1?matches[0]:null;
+}
+async function consultarNovasXmlV436(){
+ const area=document.getElementById('resultadoDescobertaV436');if(!area)return;
+ const novas=loteXmlV435.filter(n=>n.tipo==='nova');
+ if(!novas.length){area.textContent='Não há notas novas para consultar. As já cadastradas não serão duplicadas.';return;}
+ area.textContent='Consultando SSW em lotes. Apenas ocorrências confirmadas poderão gerar cadastro...';
+ try{
+  const chave=await chaveAdminColeta();if(!chave)throw new Error('Autorização administrativa necessária.');
+  const transportadoras=await banco.from('frete_transportadoras').select('id,nome');
+  if(transportadoras.error)throw transportadoras.error;
+  const catalogo=transportadoras.data||[];
+  for(let i=0;i<novas.length;i+=3){
+   const lote=novas.slice(i,i+3);
+   area.textContent=`Consultando ${Math.min(i+3,novas.length)} de ${novas.length} notas...`;
+   const r=await fetch('/api/integracoes?action=descobrir-xml-ssw',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:JSON.stringify({notas:lote.map(n=>({chave:n.chave}))})});
+   const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.erro||'Falha na consulta SSW');
+   for(const resultado of d.resultados||[]){const n=lote.find(x=>x.chave===resultado.chave);if(!n)continue;
+    n.localizado=!!resultado.localizado;n.motivo=resultado.motivo||'';
+    n.ocorrencias=resultado.ocorrencias||[];
+    n.transportadoraConfirmada=resultado.transportadora||'';
+    const identificada=compararTransportadoraV436(resultado.transportadora,catalogo);
+    // O XML é fonte secundária de identificação; se divergir da API, exige conferência.
+    const xml=compararTransportadoraV436(n.transportadora,catalogo);
+    n.transportadoraIdConfirmada=identificada?.id||null;
+    n.nomeTransportadoraConfirmada=identificada?.nome||'';
+    n.divergente=!!(identificada&&xml&&String(identificada.id)!==String(xml.id));
+    n.apta=n.localizado&&!!n.transportadoraIdConfirmada&&!n.divergente;
+   }
+  }
+  const encontradas=novas.filter(n=>n.localizado).length,aptas=novas.filter(n=>n.apta).length;
+  area.innerHTML=`<p><b>Consulta concluída:</b> ${encontradas} localizada(s), ${aptas} com transportadora identificada sem divergência. Não localizadas não serão cadastradas.</p><div style="max-height:280px;overflow:auto">${novas.map(n=>`<div style="padding:7px;border-bottom:1px solid #ddd">NF ${escapeXmlV435(n.nf)} — ${escapeXmlV435(n.nome)}: ${n.apta?'✅ Localizada — '+escapeXmlV435(n.nomeTransportadoraConfirmada):n.localizado?'⚠ Localizada, mas transportadora precisa de confirmação':'— Não localizada / indisponível: '+escapeXmlV435(n.motivo||'sem ocorrências')}</div>`).join('')}</div><button class="btn verde" type="button" onclick="cadastrarLocalizadasXmlV436()" ${aptas?'':'disabled'}>Cadastrar somente as ${aptas} confirmadas</button>`;
+ }catch(e){area.textContent='Falha na descoberta: '+e.message+' Nenhuma nota foi cadastrada.';}
+}
+async function cadastrarLocalizadasXmlV436(){
+ const aptas=loteXmlV435.filter(n=>n.tipo==='nova'&&n.apta&&n.ocorrencias?.length&&n.transportadoraIdConfirmada);
+ if(!aptas.length)return alert('Nenhuma nota com rastreio e transportadora confirmados.');
+ if(!confirm(`Cadastrar ${aptas.length} nota(s) localizadas no SSW? Notas sem confirmação não serão incluídas.`))return;
+ let salvas=0,ignoradas=0;const erros=[];
+ for(const n of aptas){
+  // Reconsulta o banco para impedir duplicidade após a prévia, inclusive entre sessões.
+  const existente=await banco.from('logistica_rastreamentos').select('id').eq('chave_nfe',n.chave).limit(1);
+  if(existente.error){erros.push(`NF ${n.nf}: ${existente.error.message}`);continue;}
+  if(existente.data?.length){ignoradas++;continue;}
+  const ultimo=n.ocorrencias[n.ocorrencias.length-1]||{};
+  const descricao=[ultimo.titulo,ultimo.descricao].filter(Boolean).join(' — ');
+  const txt=normalizarTransportadoraV436(descricao);
+  const status=/\bENTREGUE\b|ENTREGA REALIZADA|RECEBIDO PELO DESTINATARIO/.test(txt)?'entregue':/SAIU.*ENTREGA|ROTA DE ENTREGA/.test(txt)?'saiu_entrega':/OCORRENCIA|DEVOLUCAO|EXTRAVIO/.test(txt)?'ocorrencia':'em_transito';
+  const payload={sentido:'saida',parceiro_nome:n.nome,transportadora_id:n.transportadoraIdConfirmada,numero_nfe:n.nf,chave_nfe:n.chave,status,status_api:descricao||null,ultima_ocorrencia:descricao||null,ultima_ocorrencia_em:ultimo.data||null,consulta_api:{tracking:n.ocorrencias.map(e=>({ocorrencia:e.titulo,descricao:e.descricao,data_hora:e.data,cidade:e.local}))},metodo_consulta:'SSW Tracking DANFE',origem:'importacao_xml_ssw_v436',observacao:'Localizada no SSW por chave NF-e; dados sujeitos a novas consultas.',atualizado_em:new Date().toISOString()};
+  const r=await banco.from('logistica_rastreamentos').insert([payload]).select('id').single();
+  if(r.error){erros.push(`NF ${n.nf}: ${r.error.message}`);continue;}
+  salvas++;
+  // Consulta individual existente atualiza status, eventos e previsão sem inventar ocorrências.
+  try{await consultarRastreioSSWDiretoRegistro(r.data.id)}catch(e){console.warn('V436: atualização após importação pendente',e)}
+ }
+ const area=document.getElementById('resultadoDescobertaV436');if(area)area.textContent=`Importação: ${salvas} cadastrada(s), ${ignoradas} já existente(s), ${erros.length} falha(s). ${erros.join(' | ')}`;
+ await carregarRastreamentosLogistica('saida');
 }
