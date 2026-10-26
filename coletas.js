@@ -1773,7 +1773,8 @@ function formularioRastreamentoHtml(sentido){
     <div><label>${titulo}</label><input id="rastParceiro_${sentido}" placeholder="${titulo}"></div>
     <div><label>Transportadora</label><select id="rastTransportadora_${sentido}">${transportadoras}</select></div>
     <div><label>Número da NF-e</label><input id="rastNfe_${sentido}"></div>
-    <div><label>Chave da NF-e</label><input id="rastChave_${sentido}" maxlength="44"></div>
+    <div><label>Chave da NF-e (44 dígitos)</label><input id="rastChave_${sentido}" maxlength="44" inputmode="numeric"></div>
+    <div class="campo-largo" style="background:#f6f4fc;padding:10px;border-radius:10px"><label>Importar XML da NF-e para preencher os identificadores</label><input type="file" accept=".xml,text/xml,application/xml" onchange="importarXmlIdentificadoresRastreioV433(event,'${sentido}')"><small>Importa número da NF, chave de acesso e transportadora quando constarem no XML. Confira antes de salvar.</small></div>
     <div><label>Número do CT-e</label><input id="rastCte_${sentido}"></div>
     <div><label>Protocolo de rastreio</label><input id="rastProtocolo_${sentido}"></div>
     <div class="rastreamento-consulta-inteligente">
@@ -1797,6 +1798,42 @@ function formularioRastreamentoHtml(sentido){
       <button class="btn azul" onclick="fecharFormularioRastreamento('${sentido}')">Fechar</button>
     </div>
   </div>`;
+}
+async function importarXmlIdentificadoresRastreioV433(event,sentido){
+  const arquivo=event?.target?.files?.[0];if(!arquivo)return;
+  try{
+    const xml=new DOMParser().parseFromString(await arquivo.text(),'application/xml');
+    if(xml.querySelector('parsererror'))throw new Error('XML inválido.');
+    const inf=xml.getElementsByTagName('infNFe')[0];
+    const chave=String(inf?.getAttribute('Id')||'').replace(/^NFe/i,'').replace(/\D/g,'');
+    const ide=xml.getElementsByTagName('ide')[0];
+    const nf=ide?.getElementsByTagName('nNF')[0]?.textContent?.trim()||'';
+    if(chave&&chave.length!==44)throw new Error('Chave NF-e do XML não possui 44 dígitos.');
+    if(!chave&&!nf)throw new Error('O XML não contém número ou chave da NF-e.');
+    if(chave)ce(`rastChave_${sentido}`).value=chave;
+    if(nf)ce(`rastNfe_${sentido}`).value=nf;
+    const transp=xml.getElementsByTagName('transporta')[0];
+    const nome=transp?.getElementsByTagName('xNome')[0]?.textContent?.trim()||'';
+    if(nome){
+      const seletor=ce(`rastTransportadora_${sentido}`);
+      const norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      const opt=Array.from(seletor.options).find(o=>norm(o.textContent)===norm(nome));
+      if(opt&&!seletor.value)seletor.value=opt.value;
+    }
+    alert('Dados do XML preenchidos. Confira a transportadora e clique em Salvar para registrar as alterações.');
+  }catch(e){alert('Não foi possível importar o XML: '+e.message)}
+}
+async function completarIdentificadoresRastreioV433(rastro,motivo){
+  const sentido=rastro.sentido||'saida';
+  await carregarTransportadorasRastreamentoIntegrado();
+  if(typeof carregarTransportadorasLogistica==='function')await carregarTransportadorasLogistica();
+  const lista=sentido==='saida'?(rastreamentosLogistica||[]):(rastreamentosLogistica||[]);
+  if(!lista.some(x=>String(x.id)===String(rastro.id)))lista.push(rastro);
+  abrirFormularioRastreamento(sentido,rastro.id);
+  const box=ce(sentido==='entrada'?'rastreamentoFormEntrada':'rastreamentoFormSaida');
+  const aviso=document.createElement('p');aviso.style.cssText='padding:10px;border-radius:8px;background:#fff3db;color:#724700';
+  aviso.textContent=motivo+' Importe o XML ou informe os campos manualmente, salve e depois clique em Atualizar rastreio novamente.';
+  box.querySelector('h2')?.after(aviso);
 }
 function abrirFormularioRastreamento(sentido,id=null){
   const box=ce(sentido==="entrada"?"rastreamentoFormEntrada":"rastreamentoFormSaida");
@@ -2125,7 +2162,7 @@ async function carregarRastreamentosLogistica(sentido){
     const textoBusca=[x.parceiro_nome,x.frete_transportadoras?.nome,x.numero_nfe,x.chave_nfe,x.numero_cte,x.protocolo_rastreio,statusLabelRastreamento(x.status),x.status,x.observacao].filter(Boolean).join(" ").toLowerCase();
     return `<tr class="linha-rastreamento-logistica" style="cursor:pointer" title="Clique para ver a linha do tempo do rastreio" onclick="if(event.target.closest(\'button\'))return;abrirLinhaTempoRastreio(\'${x.id}\')" data-status="${escaparHtmlEmail(x.status||"")}" data-busca="${escaparHtmlEmail(textoBusca)}">
     <td>${x.created_at?new Date(x.created_at).toLocaleDateString("pt-BR"):"—"}</td>
-    <td>${escaparHtmlEmail(x.parceiro_nome||"—")}<div class="rastreio-metodo">👩‍💼 ${escaparHtmlEmail(nomeVendedoraRastreioV415(x))}</div></td>
+    <td><button type="button" class="btn" style="background:none;color:inherit;text-align:left;padding:0;font:inherit" onclick="event.stopPropagation();abrirLinhaTempoRastreio('${x.id}')">${escaparHtmlEmail(x.parceiro_nome||"—")}</button><div class="rastreio-metodo">👩‍💼 ${escaparHtmlEmail(nomeVendedoraRastreioV415(x))}</div></td>
     <td>${escaparHtmlEmail(x.frete_transportadoras?.nome||"Não informada")}${transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)?`<div class="rastreio-metodo">● Rastreio automático</div>`:""}</td>
     <td>${escaparHtmlEmail(x.numero_nfe||"—")}</td>
     <td>${escaparHtmlEmail((/correios|coreios/i.test(x.frete_transportadoras?.nome||"")&&x.protocolo_rastreio)?x.protocolo_rastreio:(x.numero_cte||x.protocolo_rastreio||"—"))}</td>
@@ -2248,7 +2285,7 @@ function renderRastreamentosEntregues(){
   if(ce("rastResumoEntreguesHoje"))ce("rastResumoEntreguesHoje").textContent=(rastreamentosEntregues||[]).filter(x=>String(x.ultima_ocorrencia_em||x.atualizado_em||"").slice(0,10)===hoje).length;
 
   tbody.innerHTML=lista.length?lista.map(x=>`
-    <tr>
+    <tr class="linha-rastreamento-logistica" style="cursor:pointer" title="Clique para ver a linha do tempo completa" onclick="if(event.target.closest('button'))return;abrirLinhaTempoRastreio('${x.id}')">
       <td>${x.data_postagem?new Date(x.data_postagem+"T12:00:00").toLocaleDateString("pt-BR"):"—"}</td>
       <td>${escaparHtmlEmail(x.parceiro_nome||"—")}<div class="rastreio-metodo">👩‍💼 ${escaparHtmlEmail(nomeVendedoraRastreioV415(x))}</div></td>
       <td>${escaparHtmlEmail(x.frete_transportadoras?.nome||"—")}</td>
@@ -2482,6 +2519,20 @@ async function sincronizarRastreiosSSWLocais(){
 async function atualizarRastreioIntegrado(id,botao=null){
   const rastro=await obterRastreamentoPorId(id); if(!rastro)return alert("Rastreio não encontrado.");
   const nome=rastro.frete_transportadoras?.nome||"";
+  const nf=String(rastro.numero_nfe||'').replace(/\D/g,'');
+  const chaveNfe=String(rastro.chave_nfe||'').replace(/\D/g,'');
+  const protocolo=String(rastro.protocolo_rastreio||'').trim();
+  const cte=String(rastro.numero_cte||'').trim();
+  const faltando=/braspress/i.test(nome)?!nf:
+    /correios|coreios/i.test(nome)?!protocolo:
+    /rodonaves/i.test(nome)?!(nf||chaveNfe||cte||protocolo):
+    (transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome))?!(nf||chaveNfe):
+    !(nf||chaveNfe||cte||protocolo);
+  if(faltando){
+    const requerido=/braspress/i.test(nome)?'número da NF-e':/correios|coreios/i.test(nome)?'código de rastreamento dos Correios':(transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome))?'número da NF-e ou chave da NF-e':'identificador de rastreamento (NF, chave, CT-e ou protocolo)';
+    await completarIdentificadoresRastreioV433(rastro,'Falta '+requerido+' para consultar '+(nome||'a transportadora')+'.');
+    return;
+  }
   if(/braspress/i.test(nome)){
     const original=botao?.textContent||"Atualizar rastreio";
     if(botao){botao.disabled=true;botao.textContent="Consultando Braspress...";}
