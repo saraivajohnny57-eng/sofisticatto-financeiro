@@ -3899,7 +3899,22 @@ function compararTransportadoraV436(nome,lista){
  return correspondencias.length===1?correspondencias[0]:null;
 }
 
+// V439: historico serve para detectar cadastro existente e sugerir transportadora;
+// nao comprova que outra nota foi coletada pela mesma empresa.
 let catalogoTransportadorasV437=[];
+async function sugestoesHistoricoXmlV439(novas,catalogo){
+ const registros=await obterRegistrosAuditoriaV435();
+ const porNF=new Map();
+ for(const r of registros){const nf=String(r.numero_nfe||'').trim();if(!nf)continue;const arr=porNF.get(nf)||[];arr.push(r);porNF.set(nf,arr);}
+ for(const n of novas){
+  const candidatos=(porNF.get(String(n.nf||'').trim())||[]).filter(r=>
+   String(r.parceiro_nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim()===String(n.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim());
+  const exatos=candidatos.filter(r=>String(r.chave_nfe||'').replace(/\D/g,'')===n.chave);
+  const validos=exatos.length?exatos:candidatos.filter(r=>!r.chave_nfe);
+  if(validos.length===1){n.historicoV439=validos[0];n.historicoTransportadoraV439=catalogo.find(t=>String(t.id)===String(validos[0].transportadora_id))||null;}
+ }
+}
+
 async function consultarNovasXmlV436(){
  const area=document.getElementById('resultadoDescobertaV436');if(!area)return;
  const novas=loteXmlV435.filter(n=>n.tipo==='nova');
@@ -3911,6 +3926,7 @@ async function consultarNovasXmlV436(){
   if(transportadoras.error)throw transportadoras.error;
   const catalogo=transportadoras.data||[];
   catalogoTransportadorasV437=catalogo;
+  await sugestoesHistoricoXmlV439(novas,catalogo);
   for(let i=0;i<novas.length;i+=3){
    const lote=novas.slice(i,i+3);
    area.textContent=`Consultando ${Math.min(i+3,novas.length)} de ${novas.length} notas...`;
@@ -3920,19 +3936,21 @@ async function consultarNovasXmlV436(){
     n.localizado=!!resultado.localizado;n.motivo=resultado.motivo||'';
     n.ocorrencias=resultado.ocorrencias||[];
     n.transportadoraConfirmada=resultado.transportadora||'';
+    n.transportadoraFonteV439=resultado.transportadoraFonte||'nao_identificada';
+    n.transportadoraAmbiguaV439=!!resultado.transportadoraAmbigua;
     const identificada=compararTransportadoraV436(resultado.transportadora,catalogo);
     // O XML é fonte secundária de identificação; se divergir da API, exige conferência.
     const xml=compararTransportadoraV436(n.transportadora,catalogo);
     n.transportadoraIdConfirmada=identificada?.id||null;
     n.nomeTransportadoraConfirmada=identificada?.nome||'';
     n.divergente=!!(identificada&&xml&&String(identificada.id)!==String(xml.id));
-    n.apta=n.localizado&&!!n.ocorrencias.length&&!!n.transportadoraIdConfirmada&&!n.divergente;
-    n.xmlTransportadoraSugerida=xml?.id||null;
+    n.apta=n.localizado&&!!n.ocorrencias.length&&!!n.transportadoraIdConfirmada&&!n.divergente&&!n.transportadoraAmbiguaV439;
+    n.xmlTransportadoraSugerida=n.historicoTransportadoraV439?.id||xml?.id||null;
     n.confirmacaoManualV437=false;
    }
   }
   const encontradas=novas.filter(n=>n.localizado).length,aptas=novas.filter(n=>n.apta).length;
-  area.innerHTML=`<p><b>Consulta concluída:</b> ${encontradas} localizada(s), ${aptas} com transportadora confirmada pelo retorno SSW. <b>${encontradas-aptas} localizada(s) aguardando confirmação manual.</b> Não localizadas não serão cadastradas.</p><p><small>O nome informado no XML é apenas uma sugestão, não uma confirmação da coleta. Confira antes de vincular. A consulta desta versão usa o SSW; APIs individuais não são consultadas neste botão.</small></p><div style="max-height:330px;overflow:auto">${novas.map(n=>{const idx=loteXmlV435.indexOf(n);const opcoes=catalogo.map(t=>`<option value="${escapeXmlV435(String(t.id))}" ${String(t.id)===String(n.xmlTransportadoraSugerida||'')?'selected':''}>${escapeXmlV435(t.nome)}</option>`).join('');return `<div style="padding:9px;border-bottom:1px solid #ddd">NF ${escapeXmlV435(n.nf)} — ${escapeXmlV435(n.nome)}: ${n.apta?'✅ Localizada — '+escapeXmlV435(n.nomeTransportadoraConfirmada):n.localizado?'⚠ Localizada, mas transportadora precisa de confirmação':'— Não localizada / indisponível: '+escapeXmlV435(n.motivo||'sem ocorrências')}${n.localizado&&!n.apta?`<div style="margin-top:7px"><small>Transportadora no XML: ${escapeXmlV435(n.transportadora||'não informada')}</small><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select id="transportadoraXmlV437_${idx}" style="min-width:240px;max-width:100%;padding:7px"><option value="">Selecione a transportadora</option>${opcoes}</select><button type="button" class="btn azul" onclick="confirmarTransportadoraXmlV437(${idx})">Confirmar transportadora</button></div></div>`:''}</div>`}).join('')}</div><div id="resumoConfirmacaoV437" style="margin:8px 0"></div><button class="btn verde" type="button" onclick="cadastrarLocalizadasXmlV436()">Cadastrar somente as confirmadas</button>`;
+  area.innerHTML=`<p><b>Consulta concluída:</b> ${encontradas} localizada(s), ${aptas} com transportadora confirmada pelo retorno SSW. <b>${encontradas-aptas} localizada(s) aguardando confirmação manual.</b> Não localizadas não serão cadastradas.</p><p><small>O nome informado no XML é apenas uma sugestão, não uma confirmação da coleta. O histórico pode sugerir um vínculo, mas não confirma a coleta de outra nota. Confira antes de vincular. A consulta desta versão usa o SSW; APIs individuais não são consultadas neste botão.</small></p><div style="max-height:330px;overflow:auto">${novas.map(n=>{const idx=loteXmlV435.indexOf(n);const opcoes=catalogo.map(t=>`<option value="${escapeXmlV435(String(t.id))}" ${String(t.id)===String(n.xmlTransportadoraSugerida||'')?'selected':''}>${escapeXmlV435(t.nome)}</option>`).join('');return `<div style="padding:9px;border-bottom:1px solid #ddd">NF ${escapeXmlV435(n.nf)} — ${escapeXmlV435(n.nome)}: ${n.apta?'✅ Localizada — '+escapeXmlV435(n.nomeTransportadoraConfirmada):n.localizado?'⚠ Localizada, mas transportadora precisa de confirmação':'— Não localizada / indisponível: '+escapeXmlV435(n.motivo||'sem ocorrências')}${n.localizado&&!n.apta?`<div style="margin-top:7px"><small>Transportadora no XML: ${escapeXmlV435(n.transportadora||'não informada')}</small>${n.historicoTransportadoraV439?`<div><small>Histórico desta NF/cliente: <b>${escapeXmlV435(n.historicoTransportadoraV439.nome)}</b> (sugestão, não confirmação SSW)</small></div>`:''}${n.transportadoraConfirmada?`<div><small>Nome indicado no SSW: <b>${escapeXmlV435(n.transportadoraConfirmada)}</b></small></div>`:''}${n.transportadoraAmbiguaV439?'<div><small>⚠ SSW retornou nomes diferentes para transportadora; confirme manualmente.</small></div>':''}${n.historicoTransportadoraV439&&n.transportadoraConfirmada&&String(n.historicoTransportadoraV439.id)!==String(n.transportadoraIdConfirmada||'')?'<div><small>⚠ Divergência entre histórico e retorno SSW.</small></div>':''}<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select id="transportadoraXmlV437_${idx}" style="min-width:240px;max-width:100%;padding:7px"><option value="">Selecione a transportadora</option>${opcoes}</select><button type="button" class="btn azul" onclick="confirmarTransportadoraXmlV437(${idx})">Confirmar transportadora</button></div></div>`:''}</div>`}).join('')}</div><div id="resumoConfirmacaoV437" style="margin:8px 0"></div><button class="btn verde" type="button" onclick="cadastrarLocalizadasXmlV436()">Cadastrar somente as confirmadas</button>`;
 
  }catch(e){area.textContent='Falha na descoberta: '+e.message+' Nenhuma nota foi cadastrada.';}
 }
@@ -3942,7 +3960,8 @@ function confirmarTransportadoraXmlV437(idx){
  const t=catalogoTransportadorasV437.find(t=>String(t.id)===String(campo?.value||''));
  if(!t)return alert('Selecione uma transportadora cadastrada.');
  const aviso=n.transportadora?`O XML informa: ${n.transportadora}.\n`:'';
- if(!confirm(`${aviso}Confirmar ${t.nome} para a NF ${n.nf}?\nA ocorrência SSW foi localizada, mas o SSW não confirmou o nome da transportadora. Verifique o vínculo antes de continuar.`))return;
+ const avisoHistorico=n.historicoTransportadoraV439?`O histórico sugere: ${n.historicoTransportadoraV439.nome}.\n`:'';
+ if(!confirm(`${aviso}${avisoHistorico}Confirmar ${t.nome} para a NF ${n.nf}?\nA ocorrência SSW foi localizada, mas o SSW não confirmou o nome da transportadora. Verifique o vínculo antes de continuar.`))return;
  n.transportadoraIdConfirmada=t.id;n.nomeTransportadoraConfirmada=t.nome;n.confirmacaoManualV437=true;n.apta=true;
  const pendentes=loteXmlV435.filter(x=>x.tipo==='nova'&&x.localizado&&!x.apta).length;
  const prontas=loteXmlV435.filter(x=>x.tipo==='nova'&&x.apta).length;
@@ -3959,11 +3978,16 @@ async function cadastrarLocalizadasXmlV436(){
   const existente=await banco.from('logistica_rastreamentos').select('id').eq('chave_nfe',n.chave).limit(1);
   if(existente.error){erros.push(`NF ${n.nf}: ${existente.error.message}`);continue;}
   if(existente.data?.length){ignoradas++;continue;}
+  // Protecao adicional para notas antigas sem chave, com mesmo numero e cliente.
+  const mesmoNumero=await banco.from('logistica_rastreamentos').select('id,parceiro_nome,chave_nfe').eq('sentido','saida').eq('numero_nfe',n.nf).limit(100);
+  if(mesmoNumero.error){erros.push(`NF ${n.nf}: ${mesmoNumero.error.message}`);continue;}
+  const nomeNorm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+  if((mesmoNumero.data||[]).some(x=>nomeNorm(x.parceiro_nome)===nomeNorm(n.nome))){ignoradas++;continue;}
   const ultimo=n.ocorrencias[n.ocorrencias.length-1]||{};
   const descricao=[ultimo.titulo,ultimo.descricao].filter(Boolean).join(' — ');
   const txt=normalizarTransportadoraV436(descricao);
   const status=/\bENTREGUE\b|ENTREGA REALIZADA|RECEBIDO PELO DESTINATARIO/.test(txt)?'entregue':/SAIU.*ENTREGA|ROTA DE ENTREGA/.test(txt)?'saiu_entrega':/OCORRENCIA|DEVOLUCAO|EXTRAVIO/.test(txt)?'ocorrencia':'em_transito';
-  const payload={sentido:'saida',parceiro_nome:n.nome,transportadora_id:n.transportadoraIdConfirmada,numero_nfe:n.nf,chave_nfe:n.chave,status,status_api:descricao||null,ultima_ocorrencia:descricao||null,ultima_ocorrencia_em:ultimo.data||null,consulta_api:{tracking:n.ocorrencias.map(e=>({ocorrencia:e.titulo,descricao:e.descricao,data_hora:e.data,cidade:e.local}))},metodo_consulta:'SSW Tracking DANFE',origem:'importacao_xml_ssw_v437',observacao:n.confirmacaoManualV437?'Ocorrências localizadas no SSW; transportadora escolhida manualmente pelo usuário, não identificada pela API.':'Localizada no SSW por chave NF-e; transportadora identificada no retorno. Dados sujeitos a novas consultas.',atualizado_em:new Date().toISOString()};
+  const payload={sentido:'saida',parceiro_nome:n.nome,transportadora_id:n.transportadoraIdConfirmada,numero_nfe:n.nf,chave_nfe:n.chave,status,status_api:descricao||null,ultima_ocorrencia:descricao||null,ultima_ocorrencia_em:ultimo.data||null,consulta_api:{tracking:n.ocorrencias.map(e=>({ocorrencia:e.titulo,descricao:e.descricao,data_hora:e.data,cidade:e.local}))},metodo_consulta:'SSW Tracking DANFE',origem:'importacao_xml_ssw_v439',observacao:n.confirmacaoManualV437?'Ocorrências localizadas no SSW; transportadora escolhida manualmente pelo usuário, não identificada pela API.':'Localizada no SSW por chave NF-e; transportadora identificada no retorno. Dados sujeitos a novas consultas.',atualizado_em:new Date().toISOString()};
   const r=await banco.from('logistica_rastreamentos').insert([payload]).select('id').single();
   if(r.error){erros.push(`NF ${n.nf}: ${r.error.message}`);continue;}
   salvas++;
