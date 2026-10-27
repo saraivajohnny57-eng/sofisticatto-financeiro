@@ -4143,3 +4143,25 @@ async function consultarFontesEntradasV444(){
  };
  await descobrirEntradasRodonavesV441();rod.textContent='Rodonaves: resultado exibido na tabela de consulta abaixo. SSW: informe chaves de NF-e acima para rastrear.';
 }
+
+/* V445 — Diagnóstico fiscal. Não afirma ter consultado a SEFAZ. */
+async function diagnosticarDFeV445(){
+ const box=document.getElementById('diagnosticoDFeV445');if(!box)return;
+ box.textContent='Verificando pré-requisitos seguros para a consulta por CNPJ…';
+ try{
+  const chave=await chaveAdminColeta();if(!chave){box.textContent='É necessária autorização administrativa.';return;}
+  const r=await fetch('/api/integracoes?action=diagnostico-dfe-v445',{headers:{'x-integrations-admin-key':chave}});
+  const d=await r.json();if(!r.ok||!d.ok)throw Error(d.erro||'Diagnóstico indisponível');
+  box.replaceChildren();
+  const titulo=document.createElement('strong');titulo.textContent='SEFAZ — preparação da consulta por CNPJ (V445)';box.append(titulo);
+  const itens=[
+   'CNPJ no servidor: '+(d.cnpjConfigurado?'configurado':'pendente'),
+   'Certificado GNRE: '+(d.certificado?.disponivel?'material TLS disponível':'não confirmado')+' ('+(d.certificado?.origem||'sem origem')+')',
+   'NF-e Distribuição DF-e: integração pendente',
+   'CT-e Distribuição DF-e: integração pendente',
+   'Consultas fiscais realizadas: 0 — nenhuma entrada cadastrada'
+  ];
+  const ul=document.createElement('ul');itens.forEach(x=>{const li=document.createElement('li');li.textContent=x;ul.append(li)});box.append(ul);
+  const aviso=document.createElement('p');aviso.textContent=d.aviso+' A busca Rodonaves e o rastreamento SSW existentes continuam disponíveis nos botões ao lado.';box.append(aviso);
+ }catch(e){box.textContent='⚠ '+String(e.message||'Erro ao verificar pré-requisitos');}
+}
