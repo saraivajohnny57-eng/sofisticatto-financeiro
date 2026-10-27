@@ -45,7 +45,9 @@ const consultarRastreioBraspress = require("../lib/integracoes/consultar-rastrei
 
 const gnreCertificado = require("../lib/integracoes/gnre-certificado");
 const gnreDiagnostico = require("../lib/integracoes/gnre-diagnostico");
+const diagnosticoDfeV445 = require("../lib/integracoes/diagnostico-dfe-v445");
 const ROTAS = Object.freeze({
+  "diagnostico-dfe-v445": diagnosticoDfeV445,
   "gnre-diagnostico": gnreDiagnostico,
   "gnre-certificado": gnreCertificado,
   "validar-chave": validarChave,
