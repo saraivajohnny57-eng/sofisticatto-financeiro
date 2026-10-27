@@ -4058,19 +4058,22 @@ async function cadastrarLocalizadasXmlV436(){
 
 /* V441 — Consulta assistida de entradas Rodonaves, sem criar registros automaticamente.
    A API de lote por CNPJ pode incluir fretes em que a empresa não é destinatária. */
-async function descobrirEntradasRodonavesV441(){
+let paginaEntradasRodonavesV443=1;
+async function descobrirEntradasRodonavesV443Mais(){paginaEntradasRodonavesV443++;await descobrirEntradasRodonavesV441(true);}
+async function descobrirEntradasRodonavesV441(continuar=false){
+ if(!continuar)paginaEntradasRodonavesV443=1;
  const box=ce('descobertaEntradasV441');if(!box)return;
  box.textContent='Consultando a Rodonaves (últimos 7 dias)…';
  try{
   const chave=await chaveAdminColeta();if(!chave){box.textContent='Consulta cancelada: autorização necessária.';return;}
   const r=await fetch('/api/integracoes?action=descobrir-entradas-rodonaves',{
    method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
-   body:JSON.stringify({dias:7})
+   body:JSON.stringify({dias:7,pagina:paginaEntradasRodonavesV443})
   });
   const d=await r.json();
   if(!r.ok||!d.ok){box.textContent='⚠ '+(d.erro||'Consulta indisponível.');return;}
   const itens=Array.isArray(d.resultados)?d.resultados:[];
-  const titulo=document.createElement('p');titulo.textContent=`Rodonaves: ${itens.length} resultado(s) na primeira página. ${d.aviso||''}`;
+  const titulo=document.createElement('p');titulo.textContent=`Rodonaves: página ${d.pagina||1}, ${itens.length} resultado(s), ${d.confirmados||0} destinatário(s) confirmado(s), ${d.naoIdentificados||0} não identificado(s). ${d.aviso||''}`;
   box.replaceChildren(titulo);
   if(!itens.length){const p=document.createElement('p');p.textContent='Nenhum resultado neste período. Isso não comprova ausência de mercadorias em outras transportadoras.';box.append(p);return;}
   const tabela=document.createElement('table');tabela.className='tabela-logistica';
@@ -4083,7 +4086,8 @@ async function descobrirEntradasRodonavesV441(){
     x.destinatarioConfirmado?'CNPJ da Sofisticatto confirmado':x.destinatarioInformado?'CNPJ de outro destinatário':'Destinatário não comprovado'].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.append(td)});
    corpo.append(tr);
   });tabela.append(corpo);const wrap=document.createElement('div');wrap.className='table-wrap';wrap.append(tabela);box.append(wrap);
-  const aviso=document.createElement('p');aviso.textContent='Consulta somente para conferência: não cria entradas. Para automatizar a inclusão, precisamos validar o esquema real de retorno e a identificação do destinatário.';box.append(aviso);
+  const aviso=document.createElement('p');aviso.textContent='Consulta somente para conferência: não cria entradas. A próxima página só estará disponível quando a API retornar mais registros.';box.append(aviso);
+  const proxima=document.querySelector('button[onclick="descobrirEntradasRodonavesV443Mais()"]');if(proxima)proxima.disabled=!d.temProximaPagina;
  }catch(e){box.textContent='⚠ Falha na consulta: '+(e.message||'erro desconhecido');}
 }
 
