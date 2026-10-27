@@ -4109,3 +4109,37 @@ async function descobrirEntradasGmailV442(){
   const wrap=document.createElement('div');wrap.className='table-wrap';wrap.append(tabela);box.append(wrap);
  }catch(e){box.textContent='⚠ Falha na consulta: '+String(e.message||e)}
 }
+
+
+/* V444 — Painel unificado de consulta assistida.
+   Rodonaves: descoberta por CNPJ; SSW: somente chaves NF-e conhecidas.
+   Não tratar consulta por chave como listagem automática por destinatário. */
+async function consultarFontesEntradasV444(){
+ const area=document.getElementById('consultaFontesEntradasV444');if(!area)return;
+ area.replaceChildren();
+ const titulo=document.createElement('strong');titulo.textContent='Consulta às transportadoras';area.append(titulo);
+ const info=document.createElement('p');info.textContent='Rodonaves permite consulta em lote. O SSW consulta NF-e por chave de 44 dígitos; não lista todas as entradas apenas pelo CNPJ. Braspress, Alfa e outras integrações continuam disponíveis para rastreamento individual quando houver os dados exigidos pela transportadora.';area.append(info);
+ const row=document.createElement('div');row.style.cssText='display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0';
+ const input=document.createElement('textarea');input.rows=2;input.placeholder='Opcional: cole até 30 chaves de NF-e (44 dígitos), uma por linha, para consultar no SSW';input.style.cssText='min-width:260px;flex:1;max-width:680px;padding:8px;border:1px solid #cfc8e7;border-radius:8px';
+ const btn=document.createElement('button');btn.type='button';btn.className='btn azul';btn.textContent='Consultar SSW por NF-e';
+ row.append(input,btn);area.append(row);
+ const resultado=document.createElement('div');resultado.setAttribute('aria-live','polite');area.append(resultado);
+ const rod=document.createElement('p');rod.textContent='Rodonaves: executando consulta em lote abaixo…';area.append(rod);
+ btn.onclick=async()=>{
+  const chaves=[...new Set((input.value.match(/\d{44}/g)||[]))].slice(0,30);
+  if(!chaves.length){resultado.textContent='Informe ao menos uma chave NF-e de 44 dígitos para consultar o SSW.';return;}
+  btn.disabled=true;resultado.textContent='Consultando '+chaves.length+' chave(s) no SSW…';
+  try{
+   const chave=await chaveAdminColeta();if(!chave){resultado.textContent='Autorização administrativa necessária.';return;}
+   const dados=[];
+   for(let i=0;i<chaves.length;i+=3){
+    const resp=await fetch('/api/integracoes?action=descobrir-xml-ssw',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:JSON.stringify({notas:chaves.slice(i,i+3).map(k=>({chave:k}))})});
+    const d=await resp.json();if(!resp.ok||!d.ok)throw Error(d.erro||'Erro na consulta SSW');dados.push(...(d.resultados||[]));
+   }
+   resultado.replaceChildren();const t=document.createElement('p');t.textContent=`SSW: ${dados.length} chave(s) consultada(s), ${dados.filter(x=>x.localizado).length} com ocorrências. Nenhuma entrada foi criada automaticamente.`;resultado.append(t);
+   const table=document.createElement('table');table.className='tabela-logistica';const thead=document.createElement('thead');const tr=document.createElement('tr');['Chave NF-e','Resultado','Transportadora','Ocorrências'].forEach(k=>{const th=document.createElement('th');th.textContent=k;tr.append(th)});thead.append(tr);table.append(thead);
+   const body=document.createElement('tbody');dados.forEach(x=>{const tr=document.createElement('tr');[x.chave||'—',x.localizado?'Encontrada':(x.motivo||'Não localizada'),x.transportadora||'Não confirmada',String(x.ocorrencias?.length||0)].forEach(k=>{const td=document.createElement('td');td.textContent=k;tr.append(td)});body.append(tr)});table.append(body);resultado.append(table);
+  }catch(e){resultado.textContent='⚠ '+(e.message||'Falha ao consultar SSW');}finally{btn.disabled=false;}
+ };
+ await descobrirEntradasRodonavesV441();rod.textContent='Rodonaves: resultado exibido na tabela de consulta abaixo. SSW: informe chaves de NF-e acima para rastrear.';
+}
