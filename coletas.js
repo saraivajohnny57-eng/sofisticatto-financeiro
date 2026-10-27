@@ -2174,7 +2174,8 @@ async function carregarRastreamentosLogistica(sentido){
       ${x.metodo_consulta?`<div class="rastreio-metodo">Localizado por: ${escaparHtmlEmail(x.metodo_consulta)}</div>`:""}
     </td>
     <td>
-    ${transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)&&(x.protocolo_rastreio||x.numero_cte||x.numero_nfe||x.chave_nfe)?`<button class="btn azul" onclick="atualizarRastreioIntegrado('${x.id}',this)">Atualizar rastreio</button>`:""}
+    ${rastreioPodeAtualizarV440(x)?`<button class="btn azul" onclick="atualizarRastreioIntegrado('${x.id}',this)">Atualizar rastreio</button>`:""}
+    ${sentido==="entrada"?`<button class="btn azul" onclick="abrirLinhaTempoRastreio('${x.id}')">Linha do tempo</button>`:""}
     <button class="btn azul" onclick="abrirFormularioRastreamento('${sentido}','${x.id}')">Editar</button>
     ${!["entregue","recebido"].includes(x.status)?`<button class="btn verde" onclick="finalizarRastreamentoLogistica('${x.id}','${sentido}')">${sentido==="entrada"?"Marcar recebido":"Marcar entregue"}</button>`:""}
     <button class="btn vermelho" onclick="excluirRastreamentoLogistica('${x.id}','${sentido}')">Excluir</button></td></tr>`;
@@ -2294,7 +2295,7 @@ function renderRastreamentosEntregues(){
       <td>${x.ultima_ocorrencia_em?new Date(x.ultima_ocorrencia_em).toLocaleString("pt-BR"):"—"}</td>
       <td><span class="status-rastreamento entregue">ENTREGUE</span>${x.ultima_ocorrencia?`<div class="rast-detalhe">${escaparHtmlEmail(x.ultima_ocorrencia)}</div>`:""}${x.metodo_consulta?`<div class="rastreio-metodo">Fonte: ${escaparHtmlEmail(x.metodo_consulta)}</div>`:""}</td>
       <td>
-        ${transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)?`<button class="btn azul" onclick="atualizarRastreioIntegrado('${x.id}',this)">Atualizar rastreio</button>`:""}
+        ${rastreioPodeAtualizarV440(x)?`<button class="btn azul" onclick="atualizarRastreioIntegrado('${x.id}',this)">Atualizar rastreio</button>`:""}
         <button class="btn vermelho" onclick="excluirRastreamentoLogistica('${x.id}','saida')">Excluir</button>
       </td>
     </tr>`).join(""):'<tr><td colspan="8">Nenhuma mercadoria entregue encontrada.</td></tr>';
@@ -2516,8 +2517,63 @@ async function sincronizarRastreiosSSWLocais(){
   }catch(e){console.warn("Sincronização SSW local falhou:",e.message);return 0}
 }
 
+// V440: rastreios importados pelo Tracking DANFE usam a consulta pública por chave,
+// independentemente de a transportadora ter integração privada SSW configurada.
+function rastreioDanfeV440(r){
+ return /^SSW Tracking DANFE/i.test(String(r?.metodo_consulta||'')) && /^\d{44}$/.test(String(r?.chave_nfe||'').replace(/\D/g,''));
+}
+function rastreioPodeAtualizarV440(r){
+ return (transportadoraTemRastreamentoIntegrado(r?.frete_transportadoras?.nome)&&!!(r?.protocolo_rastreio||r?.numero_cte||r?.numero_nfe||r?.chave_nfe)) || rastreioDanfeV440(r);
+}
+async function atualizarRastreioDanfeV440(rastro,botao){
+ const original=botao?.textContent||'Atualizar rastreio';
+ if(botao){botao.disabled=true;botao.textContent='Consultando SSW por NF-e...';}
+ try{
+  const chave=String(rastro.chave_nfe||'').replace(/\D/g,'');
+  if(chave.length!==44)throw new Error('A chave NF-e de 44 dígitos é obrigatória.');
+  const admin=await chaveAdminColeta();if(!admin)throw new Error('Informe a chave administrativa.');
+  const resp=await fetch('/api/integracoes?action=descobrir-xml-ssw',{
+   method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':admin},
+   body:JSON.stringify({notas:[{chave}]})
+  });
+  const json=await resp.json().catch(()=>({}));
+  if(!resp.ok)throw new Error(json.erro||`HTTP ${resp.status}`);
+  const resultado=(json.resultados||[]).find(x=>x.chave===chave);
+  if(!resultado?.localizado||!resultado.ocorrencias?.length){
+   alert(`SSW não retornou novas ocorrências confirmadas para a NF ${rastro.numero_nfe||'—'}.\n\n${resultado?.motivo||'Nenhuma ocorrência encontrada.'}\n\nO histórico anterior foi preservado.`);
+   return;
+  }
+  const eventos=resultado.ocorrencias.map(e=>({ocorrencia:e.titulo,descricao:e.descricao,data_hora:e.data,cidade:e.local}));
+  const antigo=Array.isArray(rastro.consulta_api?.tracking)?rastro.consulta_api.tracking:[];
+  const identidade=e=>[e.ocorrencia,e.descricao,e.data_hora,e.cidade].map(x=>String(x||'').trim()).join('|');
+  const mapa=new Map(antigo.map(e=>[identidade(e),e]));
+  for(const e of eventos)mapa.set(identidade(e),e);
+  const conjunto=[...mapa.values()];
+  const ultimo=eventos[eventos.length-1];
+  const descricao=[ultimo.ocorrencia,ultimo.descricao].filter(Boolean).join(' — ');
+  const update={consulta_api:{...(rastro.consulta_api||{}),tracking:conjunto},atualizado_em:new Date().toISOString()};
+  // Não rebaixa um status entregue nem substitui eventos por uma resposta vazia.
+  if(!['entregue','recebido'].includes(String(rastro.status||'').toLowerCase())){
+   update.ultima_ocorrencia=descricao||rastro.ultima_ocorrencia;
+   update.ultima_ocorrencia_em=ultimo.data_hora||rastro.ultima_ocorrencia_em;
+   update.status_api=descricao||rastro.status_api;
+   const t=normalizarTransportadoraV436(descricao);
+   if(/\bENTREGUE\b|ENTREGA REALIZADA|RECEBIDO PELO DESTINATARIO/.test(t))update.status='entregue';
+   else if(/SAIU.*ENTREGA|ROTA DE ENTREGA/.test(t))update.status='saiu_entrega';
+   else if(/OCORRENCIA|DEVOLUCAO|EXTRAVIO/.test(t))update.status='ocorrencia';
+  }
+  const gravar=await banco.from('logistica_rastreamentos').update(update).eq('id',rastro.id).select('id').maybeSingle();
+  if(gravar.error||!gravar.data)throw new Error(gravar.error?.message||'Não foi possível confirmar a gravação.');
+  await carregarRastreamentosLogistica(rastro.sentido||'saida');
+  if(typeof carregarRastreamentosEntregues==='function')await carregarRastreamentosEntregues();
+  alert(`Consulta SSW por chave NF-e concluída.\n\nNF: ${rastro.numero_nfe||'—'}\nOcorrências retornadas: ${eventos.length}\nEventos no histórico: ${conjunto.length}\n\nA transportadora cadastrada não foi alterada.`);
+ }catch(e){alert('Não foi possível atualizar pelo SSW Tracking DANFE: '+e.message);}
+ finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
+}
+
 async function atualizarRastreioIntegrado(id,botao=null){
   const rastro=await obterRastreamentoPorId(id); if(!rastro)return alert("Rastreio não encontrado.");
+  if(rastreioDanfeV440(rastro))return atualizarRastreioDanfeV440(rastro,botao);
   const nome=rastro.frete_transportadoras?.nome||"";
   const nf=String(rastro.numero_nfe||'').replace(/\D/g,'');
   const chaveNfe=String(rastro.chave_nfe||'').replace(/\D/g,'');
@@ -3992,8 +4048,41 @@ async function cadastrarLocalizadasXmlV436(){
   if(r.error){erros.push(`NF ${n.nf}: ${r.error.message}`);continue;}
   salvas++;
   // Consulta individual existente atualiza status, eventos e previsão sem inventar ocorrências.
-  try{await consultarRastreioSSWDiretoRegistro(r.data.id)}catch(e){console.warn('V436: atualização após importação pendente',e)}
+  // Os eventos já foram confirmados e salvos pelo Tracking DANFE. Não chamar
+  // integração SSW privada aqui: ela pode não existir e gerar HTTP 422.
  }
  const area=document.getElementById('resultadoDescobertaV436');if(area)area.textContent=`Importação: ${salvas} cadastrada(s), ${ignoradas} já existente(s), ${erros.length} falha(s). ${erros.join(' | ')}`;
  await carregarRastreamentosLogistica('saida');
+}
+
+
+/* V441 — Consulta assistida de entradas Rodonaves, sem criar registros automaticamente.
+   A API de lote por CNPJ pode incluir fretes em que a empresa não é destinatária. */
+async function descobrirEntradasRodonavesV441(){
+ const box=ce('descobertaEntradasV441');if(!box)return;
+ box.textContent='Consultando a Rodonaves (últimos 7 dias)…';
+ try{
+  const chave=await chaveAdminColeta();if(!chave){box.textContent='Consulta cancelada: autorização necessária.';return;}
+  const r=await fetch('/api/integracoes?action=descobrir-entradas-rodonaves',{
+   method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+   body:JSON.stringify({dias:7})
+  });
+  const d=await r.json();
+  if(!r.ok||!d.ok){box.textContent='⚠ '+(d.erro||'Consulta indisponível.');return;}
+  const itens=Array.isArray(d.resultados)?d.resultados:[];
+  const titulo=document.createElement('p');titulo.textContent=`Rodonaves: ${itens.length} resultado(s) na primeira página. ${d.aviso||''}`;
+  box.replaceChildren(titulo);
+  if(!itens.length){const p=document.createElement('p');p.textContent='Nenhum resultado neste período. Isso não comprova ausência de mercadorias em outras transportadoras.';box.append(p);return;}
+  const tabela=document.createElement('table');tabela.className='tabela-logistica';
+  const cab=document.createElement('thead');const tr=document.createElement('tr');
+  ['NF-e','CT-e','Remetente','Transportadora','Status','Destinatário'].forEach(x=>{const th=document.createElement('th');th.textContent=x;tr.append(th)});cab.append(tr);tabela.append(cab);
+  const corpo=document.createElement('tbody');
+  itens.forEach(x=>{
+   const tr=document.createElement('tr');
+   [x.numeroNfe||'—',x.numeroCte||'—',x.remetente||'Não informado','RODONAVES',x.status||'Não informado',
+    x.destinatarioConfirmado?'CNPJ da Sofisticatto confirmado':x.destinatarioInformado?'CNPJ de outro destinatário':'Destinatário não comprovado'].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.append(td)});
+   corpo.append(tr);
+  });tabela.append(corpo);const wrap=document.createElement('div');wrap.className='table-wrap';wrap.append(tabela);box.append(wrap);
+  const aviso=document.createElement('p');aviso.textContent='Consulta somente para conferência: não cria entradas. Para automatizar a inclusão, precisamos validar o esquema real de retorno e a identificação do destinatário.';box.append(aviso);
+ }catch(e){box.textContent='⚠ Falha na consulta: '+(e.message||'erro desconhecido');}
 }

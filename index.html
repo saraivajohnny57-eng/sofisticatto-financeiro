@@ -1807,8 +1807,10 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <p>Compras, matérias-primas e mercadorias destinadas à Sofisticatto.</p>
             </div>
             <button class="btn verde" onclick="abrirFormularioRastreamento('entrada')">+ Nova entrada</button>
+            <button class="btn azul" onclick="descobrirEntradasRodonavesV441()">🔎 Buscar entradas na Rodonaves</button>
           </div>
           <div id="rastreamentoFormEntrada" class="rastreamento-form" style="display:none;"></div>
+          <div id="descobertaEntradasV441" style="margin:10px 0;font-size:13px" aria-live="polite"></div>
           <div class="busca-logistica">
             <div class="busca-logistica-campo"><span>🔎</span><input id="buscaRastreamentoEntradas" type="search" placeholder="Pesquisar fornecedor, transportadora, NF-e, chave, CT-e, protocolo ou status..." oninput="filtrarRastreamentosLogistica('entrada')"><button type="button" class="busca-limpar" onclick="limparBuscaRastreamento('entrada')">×</button></div>
             <select id="filtroStatusRastreamentoEntradas" onchange="filtrarRastreamentosLogistica('entrada')"><option value="">Todos os status</option><option value="aguardando_coleta">Aguardando coleta</option><option value="em_transito">Em trânsito</option><option value="na_filial">Na filial</option><option value="saiu_entrega">Saiu para entrega</option><option value="recebido">Recebido</option><option value="atrasado">Atrasado</option><option value="ocorrencia">Com ocorrência</option><option value="cancelado">Cancelado</option></select>
