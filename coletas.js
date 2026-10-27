@@ -4086,3 +4086,22 @@ async function descobrirEntradasRodonavesV441(){
   const aviso=document.createElement('p');aviso.textContent='Consulta somente para conferência: não cria entradas. Para automatizar a inclusão, precisamos validar o esquema real de retorno e a identificação do destinatário.';box.append(aviso);
  }catch(e){box.textContent='⚠ Falha na consulta: '+(e.message||'erro desconhecido');}
 }
+
+/* V442 — Consulta assistida de XMLs de CT-e recebidos por Gmail. Não cadastra automaticamente. */
+async function descobrirEntradasGmailV442(){
+ const box=document.getElementById('descobertaEntradasGmailV442');if(!box)return;
+ box.textContent='Consultando anexos XML de CT-e recebidos no Gmail…';
+ try{
+  const chave=await chaveAdminColeta();if(!chave){box.textContent='Autorização necessária.';return;}
+  const r=await fetch('/api/integracoes?action=descobrir-entradas-gmail',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:JSON.stringify({dias:7})});
+  const d=await r.json();if(!r.ok||!d.ok){box.textContent='⚠ '+(d.erro||'Consulta indisponível.')+' '+(d.orientacao||'');return;}
+  const itens=Array.isArray(d.resultados)?d.resultados:[];
+  const titulo=document.createElement('p');titulo.textContent=`Gmail: ${d.totalMensagens||0} mensagens examinadas, ${d.anexosExaminados||0} XML(s) lidos, ${itens.length} CT-e(s) reconhecido(s). ${d.aviso||''}`;
+  box.replaceChildren(titulo);
+  if(!itens.length)return;
+  const tabela=document.createElement('table');tabela.className='tabela-logistica';const head=document.createElement('thead'),tr=document.createElement('tr');
+  ['CT-e','NF-e','Remetente / CNPJ','Transportadora','Destinatário / CNPJ','Conferência'].forEach(t=>{const th=document.createElement('th');th.textContent=t;tr.append(th)});head.append(tr);tabela.append(head);
+  const body=document.createElement('tbody');itens.forEach(x=>{const row=document.createElement('tr');const campos=[x.numeroCte||'—',x.numeroNfe||'—',`${x.remetente||'Não informado'} ${x.cnpjRemetente||''}`,x.transportadora||'Não informada',`${x.destinatario||'Não informado'} ${x.cnpjDestinatario||''}`,x.destinatarioConfirmado?'✓ Sofisticatto confirmada':x.destinatarioInformado?'Outro destinatário — não cadastrar':'Destinatário não identificado'];campos.forEach(v=>{const td=document.createElement('td');td.textContent=v;row.append(td)});body.append(row)});tabela.append(body);
+  const wrap=document.createElement('div');wrap.className='table-wrap';wrap.append(tabela);box.append(wrap);
+ }catch(e){box.textContent='⚠ Falha na consulta: '+String(e.message||e)}
+}
