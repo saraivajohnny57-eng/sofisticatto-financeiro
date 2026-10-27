@@ -3875,16 +3875,30 @@ async function confirmarLoteXmlV435(){
 
 // V436 — descoberta somente por retorno verificável do SSW. Nenhuma nota não localizada é cadastrada.
 function normalizarTransportadoraV436(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();}
+// V438: correspondência conservadora entre razão social do XML e nome curto do cadastro.
+// Exige token distintivo e correspondência única; nunca usa somente termos genéricos.
 function compararTransportadoraV436(nome,lista){
- const n=normalizarTransportadoraV436(nome);
- if(!n)return null;
- const exact=lista.filter(t=>normalizarTransportadoraV436(t.nome)===n);
- if(exact.length===1)return exact[0];
- const simplificar=x=>normalizarTransportadoraV436(x).replace(/\b(TRANSPORTES|TRANSPORTADORA|LTDA|EIRELI|S A|ME|EPP|ENCOMENDAS|RODOVIARIOS)\b/g,'').replace(/\s+/g,' ').trim();
- const a=simplificar(n);if(a.length<4)return null;
- const matches=lista.filter(t=>simplificar(t.nome)===a);
- return matches.length===1?matches[0]:null;
+ const normalizar=normalizarTransportadoraV436;
+ const entrada=normalizar(nome);
+ if(!entrada||!Array.isArray(lista))return null;
+ const ignorar=new Set(['TRANSPORTE','TRANSPORTES','TRANSPORTADORA','TRANSPORTADORAS','LOGISTICA','LOGISTICAS','LOGISTICO','LOGISTICOS','RODOVIARIO','RODOVIARIOS','RODOVIARIA','ENCOMENDAS','EXPRESS','EXPRESSO','CARGAS','CARGA','LTDA','LIMITADA','EIRELI','ME','EPP','SA','S','A','E','DE','DA','DO','DAS','DOS','COMERCIO','SERVICOS','EMPRESA']);
+ const tokens=v=>normalizar(v).split(' ').filter(x=>x.length>=3&&!ignorar.has(x));
+ const base=tokens(entrada);
+ if(!base.length)return null;
+ const correspondencias=lista.filter(t=>{
+  const nomes=[t.nome,...(Array.isArray(t.aliases)?t.aliases:[]),...(typeof t.apelidos==='string'?t.apelidos.split(/[;,|]/):[])].filter(Boolean);
+  return nomes.some(n=>{
+   const cadastro=normalizar(n);
+   if(cadastro===entrada)return true;
+   const ts=tokens(cadastro);
+   // Permite ACCERT -> ACCERT TRANSPORTE LOGISTICA, mas não siglas parciais
+   // nem nomes cuja única semelhança seja TRANSPORTES/LOGISTICA.
+   return ts.length>0&&ts.every(x=>base.includes(x));
+  });
+ });
+ return correspondencias.length===1?correspondencias[0]:null;
 }
+
 let catalogoTransportadorasV437=[];
 async function consultarNovasXmlV436(){
  const area=document.getElementById('resultadoDescobertaV436');if(!area)return;
