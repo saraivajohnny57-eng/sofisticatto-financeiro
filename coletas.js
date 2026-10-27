@@ -4153,10 +4153,13 @@ async function diagnosticarDFeV445(){
   const r=await fetch('/api/integracoes?action=diagnostico-dfe-v445',{headers:{'x-integrations-admin-key':chave}});
   const d=await r.json();if(!r.ok||!d.ok)throw Error(d.erro||'Diagnóstico indisponível');
   box.replaceChildren();
-  const titulo=document.createElement('strong');titulo.textContent='SEFAZ — preparação da consulta por CNPJ (V445)';box.append(titulo);
+  const titulo=document.createElement('strong');titulo.textContent='SEFAZ — verificação do certificado A1 (V446)';box.append(titulo);
   const itens=[
    'CNPJ no servidor: '+(d.cnpjConfigurado?'configurado':'pendente'),
    'Certificado GNRE: '+(d.certificado?.disponivel?'material TLS disponível':'não confirmado')+' ('+(d.certificado?.origem||'sem origem')+')',
+   'Certificado válido na data atual: '+(d.certificado?.validoAgora?'sim':'não confirmado'),
+   'Vencimento do certificado: '+(d.certificado?.validadeFim||'não identificado'),
+   'Titularidade do CNPJ no certificado: ainda não validada',
    'NF-e Distribuição DF-e: integração pendente',
    'CT-e Distribuição DF-e: integração pendente',
    'Consultas fiscais realizadas: 0 — nenhuma entrada cadastrada'
