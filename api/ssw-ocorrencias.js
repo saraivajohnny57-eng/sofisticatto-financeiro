@@ -2,6 +2,17 @@ const crypto=require('crypto');
 const {supabaseRest}=require('../lib/integracoes/_utils');
 
 function json(res,status,data){return res.status(status).json(data)}
+// Token configured between the authorized sender/proxy and this endpoint.
+// A transportadora SSW is not assumed to support this header natively.
+function tokenValido(req){
+  const secret=process.env.SSW_OCORRENCIAS_WEBHOOK_TOKEN;
+  if(!secret || Buffer.byteLength(secret,'utf8')<32)return false;
+  const header=req.headers?.authorization||req.headers?.Authorization||'';
+  const token=typeof header==='string' && /^Bearer\s+(.+)$/i.exec(header)?.[1];
+  if(!token)return false;
+  const a=Buffer.from(token,'utf8'),b=Buffer.from(secret,'utf8');
+  return a.length===b.length && crypto.timingSafeEqual(a,b);
+}
 function dig(v){return String(v??'').replace(/\D/g,'')}
 function texto(v){return String(v??'').trim()}
 function primeiro(...vals){return vals.find(v=>v!==undefined&&v!==null&&String(v).trim()!=='')||''}
@@ -22,6 +33,7 @@ function eventoColeta(desc,codigo){
 
 module.exports=async function(req,res){
   if(req.method!=='POST')return json(res,405,{ok:false,erro:'Método não permitido.'});
+  if(!tokenValido(req))return json(res,401,{ok:false,erro:'Não autorizado.'});
   try{
     const conviteId=texto(req.query?.convite_id);
     if(!conviteId)return json(res,400,{ok:false,erro:'convite_id é obrigatório no URL do WebService SSW.'});
@@ -84,7 +96,7 @@ module.exports=async function(req,res){
 
       let coletas=[];
       if(numeroNfe)coletas=await supabaseRest('coleta_agendamentos',{query:`?numero_nf=eq.${encodeURIComponent(numeroNfe)}&transportadora_id=eq.${encodeURIComponent(transportadoraId||'00000000-0000-0000-0000-000000000000')}&limit=10`});
-      if(eventoColeta(descricao,codigo)||status!=='aguardando_coleta'){
+      if(eventoColeta(descricao,codigo)){
         for(const c of (coletas||[])){
           const patchColeta={status_api:status==='entregue'?'coletado':'coletado',status:'coletado',coletado_em:agora,sincronizado_em:agora,sincronizacao_erro:null,atualizado_em:agora};
           await supabaseRest('coleta_agendamentos',{method:'PATCH',query:`?id=eq.${encodeURIComponent(c.id)}`,body:patchColeta});
@@ -97,5 +109,5 @@ module.exports=async function(req,res){
     }
 
     return json(res,200,{ok:true,transportadora:nomeTransportadora,resultados});
-  }catch(e){console.error('[SSW OCORRENCIAS]',e);return json(res,500,{ok:false,erro:e.message});}
+  }catch(e){console.error('[SSW OCORRENCIAS]',e);return json(res,500,{ok:false,erro:'Falha interna ao processar ocorrência.'});}
 };
