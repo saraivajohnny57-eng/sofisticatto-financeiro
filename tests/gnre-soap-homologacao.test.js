@@ -38,3 +38,33 @@ test('GNRE SOAP mock sends POST with mTLS and parses HTTP result without externa
  assert.equal(result.status,200);
  assert.match(result.body,/<ok\/>/);
 });
+
+
+test('GNRE SOAP preserves multibyte UTF-8 split across chunks',async()=>{
+ const xml='<Envelope>Guia de tributação</Envelope>';
+ const encoded=Buffer.from(xml,'utf8');
+ const split=encoded.indexOf(Buffer.from('ç','utf8'))+1;
+ const transport={request(_url,_opts,callback){
+  const req=new EventEmitter();
+  req.end=()=>{
+   const res=new EventEmitter();res.statusCode=200;callback(res);
+   process.nextTick(()=>{res.emit('data',encoded.subarray(0,split));res.emit('data',encoded.subarray(split));res.emit('end');});
+  };
+  req.destroy=e=>req.emit('error',e);
+  return req;
+ }};
+ const result=await enviarSoap({destino:SERVICOS.resultado,xml:'<Envelope/>',certificado:{pfx:Buffer.from('dummy'),passphrase:'dummy'},soapAction:'urn:teste',transport});
+ assert.equal(result.body,xml);
+});
+test('GNRE SOAP rejects oversized response instead of treating truncated XML as success',async()=>{
+ const transport={request(_url,_opts,callback){
+  const req=new EventEmitter();
+  req.end=()=>{
+   const res=new EventEmitter();res.statusCode=200;callback(res);
+   process.nextTick(()=>{res.emit('data',Buffer.alloc(1024*1024+1));res.emit('end');});
+  };
+  req.destroy=e=>req.emit('error',e);
+  return req;
+ }};
+ await assert.rejects(enviarSoap({destino:SERVICOS.resultado,xml:'<Envelope/>',certificado:{pfx:Buffer.from('dummy'),passphrase:'dummy'},soapAction:'urn:teste',transport}),/excede limite/);
+});
