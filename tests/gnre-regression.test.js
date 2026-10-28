@@ -121,3 +121,21 @@ test('GNRE homologation fails safely when A1 is not configured, without DNS or n
   for(const [p,entry] of originals){if(entry)require.cache[p]=entry;else delete require.cache[p];}
  }
 });
+
+
+test('GNRE recognizes real WSDL roots and rejects generic XML or HTML',()=>{
+ const utilsPath=require.resolve('../lib/integracoes/_utils');
+ const certPath=require.resolve('../lib/integracoes/gnre-certificado');
+ const handlerPath=require.resolve('../lib/integracoes/gnre-diagnostico');
+ const originals=new Map([utilsPath,certPath,handlerPath].map(p=>[p,require.cache[p]]));
+ require.cache[utilsPath]={id:utilsPath,filename:utilsPath,loaded:true,exports:{exigirAdmin:()=>true,json:()=>{}}};
+ require.cache[certPath]={id:certPath,filename:certPath,loaded:true,exports:{credenciais:async()=>({})}};
+ delete require.cache[handlerPath];
+ try{
+  const {reconhecerWsdl}=require(handlerPath);
+  assert.equal(reconhecerWsdl('<?xml version="1.0"?><soap:Fault>Invalid</soap:Fault>'),false);
+  assert.equal(reconhecerWsdl('<html><body>Error</body></html>'),false);
+  assert.equal(reconhecerWsdl('<?xml version="1.0"?><wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"></wsdl:definitions>'),true);
+  assert.equal(reconhecerWsdl('<wsdl:description xmlns:wsdl="http://www.w3.org/ns/wsdl"></wsdl:description>'),true);
+ }finally{for(const [p,entry] of originals){if(entry)require.cache[p]=entry;else delete require.cache[p];}
+});
