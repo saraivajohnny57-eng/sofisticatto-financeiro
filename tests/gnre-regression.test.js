@@ -137,5 +137,5 @@ test('GNRE recognizes real WSDL roots and rejects generic XML or HTML',()=>{
   assert.equal(reconhecerWsdl('<html><body>Error</body></html>'),false);
   assert.equal(reconhecerWsdl('<?xml version="1.0"?><wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"></wsdl:definitions>'),true);
   assert.equal(reconhecerWsdl('<wsdl:description xmlns:wsdl="http://www.w3.org/ns/wsdl"></wsdl:description>'),true);
- }finally{for(const [p,entry] of originals){if(entry)require.cache[p]=entry;else delete require.cache[p];}
+ }finally{for(const [p,entry] of originals){if(entry)require.cache[p]=entry;else delete require.cache[p];}}
 });
