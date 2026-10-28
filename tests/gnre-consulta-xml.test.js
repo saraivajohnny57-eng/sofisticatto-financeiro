@@ -18,6 +18,6 @@ test('GNRE receipt query composes with SOAP 1.2 without nested XML declarations'
  const fragment=montarConsultaRecibo('0000001234');
  assert.doesNotMatch(fragment,/<\\?xml/i);
  const envelope=montarEnvelopeSoap12({servico:'consulta',xmlDados:fragment});
- assert.equal((envelope.match(/<\\?xml/g)||[]).length,1);
+ assert.equal(envelope.split('<?xml').length-1,1);
  assert.ok(envelope.includes('<numeroRecibo>0000001234</numeroRecibo>'));
 });
