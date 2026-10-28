@@ -17,4 +17,4 @@ jobs:
         with:
           node-version: '22'
       - name: Run offline security and synchronization checks
-        run: node --test tests/security-regression.test.js tests/ssw-sync.test.js tests/gnre-regression.test.js tests/gnre-contrato.test.js tests/gnre-soap-homologacao.test.js tests/gnre-resposta-soap.test.js
+        run: node --test tests/security-regression.test.js tests/ssw-sync.test.js tests/gnre-regression.test.js tests/gnre-contrato.test.js tests/gnre-soap-homologacao.test.js tests/gnre-resposta-soap.test.js tests/gnre-consulta-xml.test.js
