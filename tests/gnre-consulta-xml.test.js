@@ -12,3 +12,12 @@ test('GNRE query XML refuses malformed receipt and cannot inject XML',()=>{
  for(const x of ['123','00000000000001','0000000000</numeroRecibo><ambiente>1</ambiente>',null,undefined])
   assert.throws(()=>montarConsultaRecibo(x));
 });
+
+test('GNRE receipt query composes with SOAP 1.2 without nested XML declarations',()=>{
+ const {montarEnvelopeSoap12}=require('../lib/integracoes/gnre-envelope-soap12');
+ const fragment=montarConsultaRecibo('0000001234');
+ assert.doesNotMatch(fragment,/<\\?xml/i);
+ const envelope=montarEnvelopeSoap12({servico:'consulta',xmlDados:fragment});
+ assert.equal((envelope.match(/<\\?xml/g)||[]).length,1);
+ assert.match(envelope,/<numeroRecibo>0000001234<\\/numeroRecibo>/);
+});
