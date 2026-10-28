@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 const {EventEmitter}=require('node:events');
 const {enviarSoap,validarDestino,validarXml}=require('../lib/integracoes/gnre-soap-homologacao');
 const {SERVICOS}=require('../lib/integracoes/gnre-contrato');
+const {SOAP_ACTIONS}=require('../lib/integracoes/gnre-soap-actions');
 test('GNRE SOAP blocks nonhomologation destinations and unsafe XML',()=>{
  for(const u of ['https://gnre.pe.gov.br/gnreWS/services/GnreLoteRecepcao','http://www.testegnre.pe.gov.br/gnreWS/services/GnreLoteRecepcao',SERVICOS.recepcao+'?redirect=1','https://www.testegnre.pe.gov.br.evil.org/gnreWS/services/GnreLoteRecepcao'])
   assert.throws(()=>validarDestino(u));
@@ -10,7 +11,7 @@ test('GNRE SOAP blocks nonhomologation destinations and unsafe XML',()=>{
 });
 test('GNRE SOAP requires A1, action and safe timeout before any request',()=>{
  let called=0;const transport={request(){called++;throw Error('Network must not be reached');}};
- const base={destino:SERVICOS.recepcao,xml:'<Envelope/>',certificado:{pfx:Buffer.from('dummy'),passphrase:'dummy'},soapAction:'urn:teste',transport};
+ const base={destino:SERVICOS.recepcao,xml:'<Envelope/>',certificado:{pfx:Buffer.from('dummy'),passphrase:'dummy'},soapAction:SOAP_ACTIONS.recepcao,transport};
  assert.throws(()=>enviarSoap({...base,certificado:null}));
  assert.throws(()=>enviarSoap({...base,soapAction:'bad\nheader'}));
  assert.throws(()=>enviarSoap({...base,timeoutMs:999999}));
@@ -30,9 +31,9 @@ test('GNRE SOAP mock sends POST with mTLS and parses HTTP result without externa
   req.destroy=e=>req.emit('error',e);
   return req;
  }};
- const result=await enviarSoap({destino:SERVICOS.recepcao,xml:'<Envelope/>',certificado:{pfx:Buffer.from('dummy'),passphrase:'dummy'},soapAction:'urn:teste',transport});
+ const result=await enviarSoap({destino:SERVICOS.recepcao,xml:'<Envelope/>',certificado:{pfx:Buffer.from('dummy'),passphrase:'dummy'},soapAction:SOAP_ACTIONS.recepcao,transport});
  assert.equal(options.method,'POST');
- assert.equal(options.headers['Content-Type'],'application/soap+xml; charset=utf-8; action="urn:teste"');
+ assert.equal(options.headers['Content-Type'],'application/soap+xml; charset=utf-8; action="'+SOAP_ACTIONS.recepcao+'"');
  assert.equal(options.headers.SOAPAction,undefined);
  assert.equal(options.rejectUnauthorized,true);
  assert.equal(options.minVersion,'TLSv1.2');
@@ -55,7 +56,7 @@ test('GNRE SOAP preserves multibyte UTF-8 split across chunks',async()=>{
   req.destroy=e=>req.emit('error',e);
   return req;
  }};
- const result=await enviarSoap({destino:SERVICOS.resultado,xml:'<Envelope/>',certificado:{pfx:Buffer.from('dummy'),passphrase:'dummy'},soapAction:'urn:teste',transport});
+ const result=await enviarSoap({destino:SERVICOS.resultado,xml:'<Envelope/>',certificado:{pfx:Buffer.from('dummy'),passphrase:'dummy'},soapAction:SOAP_ACTIONS.consulta,transport});
  assert.equal(result.body,xml);
 });
 test('GNRE SOAP rejects oversized response instead of treating truncated XML as success',async()=>{
@@ -68,5 +69,5 @@ test('GNRE SOAP rejects oversized response instead of treating truncated XML as 
   req.destroy=e=>req.emit('error',e);
   return req;
  }};
- await assert.rejects(enviarSoap({destino:SERVICOS.resultado,xml:'<Envelope/>',certificado:{pfx:Buffer.from('dummy'),passphrase:'dummy'},soapAction:'urn:teste',transport}),/excede limite/);
+ await assert.rejects(enviarSoap({destino:SERVICOS.resultado,xml:'<Envelope/>',certificado:{pfx:Buffer.from('dummy'),passphrase:'dummy'},soapAction:SOAP_ACTIONS.consulta,transport}),/excede limite/);
 });
