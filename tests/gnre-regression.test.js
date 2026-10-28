@@ -95,3 +95,29 @@ test('GNRE diagnostic rejects nonofficial endpoints before accessing certificate
   for(const [p,entry] of originals){if(entry)require.cache[p]=entry;else delete require.cache[p];}
  }
 });
+
+
+test('GNRE homologation fails safely when A1 is not configured, without DNS or network',async()=>{
+ const utilsPath=require.resolve('../lib/integracoes/_utils');
+ const certPath=require.resolve('../lib/integracoes/gnre-certificado');
+ const handlerPath=require.resolve('../lib/integracoes/gnre-diagnostico');
+ const originals=new Map([utilsPath,certPath,handlerPath].map(p=>[p,require.cache[p]]));
+ const oldEnv=process.env.GNRE_AMBIENTE,oldUrl=process.env.GNRE_BASE_URL;
+ let credentialCalls=0;
+ require.cache[utilsPath]={id:utilsPath,filename:utilsPath,loaded:true,exports:{exigirAdmin:()=>true,json:(res,status,data)=>{res.status=status;res.body=data;return res;}}};
+ require.cache[certPath]={id:certPath,filename:certPath,loaded:true,exports:{credenciais:async()=>{credentialCalls++;return {pfx:Buffer.alloc(0),passphrase:''};}}};
+ delete require.cache[handlerPath];
+ process.env.GNRE_AMBIENTE='homologacao';
+ process.env.GNRE_BASE_URL='https://www.testegnre.pe.gov.br/gnreWS/services';
+ try{
+  const handler=require(handlerPath);
+  const res={};await handler({method:'POST'},res);
+  assert.equal(res.status,503);
+  assert.equal(res.body.etapa,'certificado');
+  assert.equal(credentialCalls,1);
+ }finally{
+  if(oldEnv===undefined)delete process.env.GNRE_AMBIENTE;else process.env.GNRE_AMBIENTE=oldEnv;
+  if(oldUrl===undefined)delete process.env.GNRE_BASE_URL;else process.env.GNRE_BASE_URL=oldUrl;
+  for(const [p,entry] of originals){if(entry)require.cache[p]=entry;else delete require.cache[p];}
+ }
+});
