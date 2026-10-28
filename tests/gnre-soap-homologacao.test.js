@@ -32,6 +32,8 @@ test('GNRE SOAP mock sends POST with mTLS and parses HTTP result without externa
  }};
  const result=await enviarSoap({destino:SERVICOS.recepcao,xml:'<Envelope/>',certificado:{pfx:Buffer.from('dummy'),passphrase:'dummy'},soapAction:'urn:teste',transport});
  assert.equal(options.method,'POST');
+ assert.equal(options.headers['Content-Type'],'application/soap+xml; charset=utf-8; action="urn:teste"');
+ assert.equal(options.headers.SOAPAction,undefined);
  assert.equal(options.rejectUnauthorized,true);
  assert.equal(options.minVersion,'TLSv1.2');
  assert.equal(options.headers['Content-Length'],Buffer.byteLength(body));
