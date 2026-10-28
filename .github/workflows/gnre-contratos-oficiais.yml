@@ -1,0 +1,46 @@
+name: GNRE official contract verification (public only)
+on:
+  push:
+    branches: [cline-testes-integracoes]
+    paths:
+      - '.github/workflows/gnre-contratos-oficiais.yml'
+      - 'scripts/gnre-baixar-contratos.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download public WSDL and XSD (no credentials, no fiscal data)
+        run: node scripts/gnre-baixar-contratos.js
+      - name: Inspect downloaded XML, WSDL binding and schema includes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          import hashlib
+          import json
+          root=Path('docs/gnre-oficial')
+          manifest=json.loads((root/'manifest.sha256.json').read_text())
+          for entry in manifest:
+              p=root/entry['nome']
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==entry['sha256']
+              tree=ET.parse(p)
+              print(f"VALID XML {p.name}: root={tree.getroot().tag}")
+              if p.suffix=='.wsdl':
+                  bindings=[(x.attrib.get('name'),x.attrib.get('transport'),x.attrib.get('style')) for x in tree.iter() if x.tag.endswith('}binding') or x.tag=='binding']
+                  print('WSDL bindings:',bindings)
+          print('PUBLIC CONTRACTS ONLY. NO mTLS OR GNRE SUBMISSION PERFORMED.')
+          PY
+      - name: Publish public contract verification summary
+        if: always()
+        run: |
+          echo 'GNRE public contracts verification only. No certificate, fiscal data or production access.' >> "$GITHUB_STEP_SUMMARY"
