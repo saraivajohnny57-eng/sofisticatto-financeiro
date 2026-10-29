@@ -3907,6 +3907,8 @@ async function prepararLoteXmlV435(event){
   if(!files.length)return;
   painelXmlV435('<strong>Lendo e comparando XMLs...</strong>');
   try{
+    await carregarTransportadorasColeta();
+    const catalogo=coletaTransportadoras||[];
     const registros=await obterRegistrosAuditoriaV435();
     const porChave=new Map(registros.filter(x=>String(x.chave_nfe||'').replace(/\D/g,'').length===44).map(x=>[String(x.chave_nfe).replace(/\D/g,''),x]));
     const porNF=new Map();for(const x of registros){const n=String(x.numero_nfe||'').trim();if(n){const a=porNF.get(n)||[];a.push(x);porNF.set(n,a);}}
@@ -3921,13 +3923,24 @@ async function prepararLoteXmlV435(event){
         const mesmoCliente=candidatas.filter(x=>String(x.parceiro_nome||'').toLowerCase().trim()===nota.nome.toLowerCase().trim());
         const existente=exato||(mesmoCliente.length===1?mesmoCliente[0]:null);
         const tipo=existente?(existente.chave_nfe?'ja_cadastrada':'completar'):(candidatas.length?'conferir':'nova');
-        loteXmlV435.push({...nota,arquivo:f.name,tipo,id:existente?.id||null,transportadoraId:existente?.transportadora_id||null,localizado:false});
+        const transportadoraCorrespondente=compararTransportadoraV436(nota.transportadora,catalogo);
+        loteXmlV435.push({...nota,arquivo:f.name,tipo,id:existente?.id||null,transportadoraId:existente?.transportadora_id||transportadoraCorrespondente?.id||null,transportadoraSugerida:transportadoraCorrespondente?.nome||null,localizado:false});
       }catch(e){loteXmlV435.push({arquivo:f.name,tipo:'erro',erro:e.message});}
     }
     const resumo={};for(const n of loteXmlV435)resumo[n.tipo]=(resumo[n.tipo]||0)+1;
-    const linhas=loteXmlV435.map((n,i)=>`<tr><td>${escapeXmlV435(n.arquivo)}</td><td>${escapeXmlV435(n.nf||'—')}</td><td>${escapeXmlV435(n.nome||'—')}</td><td>${escapeXmlV435(n.transportadora||'—')}</td><td>${escapeXmlV435(({nova:'Nova — conferir transportadora',completar:'Completar cadastro',ja_cadastrada:'Já cadastrada',conferir:'Conferir NF repetida',duplicada_lote:'Repetida neste lote',erro:'Erro: '+n.erro})[n.tipo])}</td></tr>`).join('');
-    painelXmlV435(`<h3>Prévia da importação (${files.length} arquivos)</h3><p>${Object.entries(resumo).map(([k,v])=>escapeXmlV435(k)+': '+v).join(' · ')}</p><small>Por segurança, apenas registros existentes com correspondência inequívoca e sem chave serão completados automaticamente. Notas novas exigem vincular a transportadora e confirmar a inclusão; nenhuma consulta externa é presumida.</small><div style="overflow:auto"><table style="width:100%"><thead><tr><th>Arquivo</th><th>NF</th><th>Cliente</th><th>Transportadora XML</th><th>Resultado</th></tr></thead><tbody>${linhas}</tbody></table></div><button type="button" class="btn verde" onclick="confirmarLoteXmlV435()">Salvar dados faltantes (${resumo.completar||0})</button> <button type="button" class="btn azul" onclick="consultarNovasXmlV436()">🔎 Consultar notas novas no SSW</button><div id="resultadoDescobertaV436" style="margin-top:10px"></div>`);
+    const linhas=loteXmlV435.map((n,i)=>`<tr><td>${escapeXmlV435(n.arquivo)}</td><td>${escapeXmlV435(n.nf||'—')}</td><td>${escapeXmlV435(n.nome||'—')}</td><td>${escapeXmlV435(n.transportadora||'—')}${n.transportadoraSugerida?`<small style="display:block;color:#236747">Cadastro sugerido: ${escapeXmlV435(n.transportadoraSugerida)}</small>`:n.transportadora&&!n.transportadoraId?`<small style="display:block;color:#9a4b00">Não reconhecida <button type="button" class="btn azul" onclick="cadastrarTransportadoraPendenteXmlV446(${i})">Localizar / cadastrar</button></small>`:''}</td><td>${escapeXmlV435(({nova:'Nova — conferir transportadora',completar:'Completar cadastro',ja_cadastrada:'Já cadastrada',conferir:'Conferir NF repetida',duplicada_lote:'Repetida neste lote',erro:'Erro: '+n.erro})[n.tipo])}</td></tr>`).join('');
+    const pendentes=loteXmlV435.filter(n=>n.transportadora&&!n.transportadoraId).length;
+    painelXmlV435(`<h3>Prévia da importação (${files.length} arquivos)</h3><p>${Object.entries(resumo).map(([k,v])=>escapeXmlV435(k)+': '+v).join(' · ')}</p><small>${pendentes?`${pendentes} transportadora(s) precisam de conferência. `:''}Por segurança, apenas registros existentes com correspondência inequívoca e sem chave serão completados automaticamente. Notas novas exigem vincular a transportadora e confirmar a inclusão; nenhuma consulta externa é presumida.</small><div style="overflow:auto"><table style="width:100%"><thead><tr><th>Arquivo</th><th>NF</th><th>Cliente</th><th>Transportadora XML</th><th>Resultado</th></tr></thead><tbody>${linhas}</tbody></table></div><button type="button" class="btn verde" onclick="confirmarLoteXmlV435()">Salvar dados faltantes (${resumo.completar||0})</button> <button type="button" class="btn azul" onclick="consultarNovasXmlV436()">🔎 Consultar notas novas no SSW</button><div id="resultadoDescobertaV436" style="margin-top:10px"></div>`);
   }catch(e){painelXmlV435('<b>Erro:</b> '+escapeXmlV435(e.message));}
+}
+function cadastrarTransportadoraPendenteXmlV446(indice){
+  const n=loteXmlV435[indice];
+  if(!n?.transportadora)return;
+  mostrarPainelColeta('transportadoras');
+  if(typeof novaTransportadoraLogistica==='function')novaTransportadoraLogistica();
+  const campo=ce('logTransportadoraNome');
+  if(campo){campo.value=n.transportadora;campo.focus();}
+  alert('Confira primeiro se a transportadora já existe com nome abreviado. Se não existir, cadastre-a. Depois importe novamente os XMLs para identificar o vínculo.');
 }
 async function confirmarLoteXmlV435(){
   const itens=loteXmlV435.filter(x=>x.tipo==='completar'&&x.id);
