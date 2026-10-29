@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Body>
+    <ns:cotarResponse xmlns:ns="urn:sswCotacao">
+      <return>&lt;cotacao&gt;&lt;erro&gt;-1&lt;/erro&gt;&lt;mensagem&gt;CNPJ do destinatario invalido&lt;/mensagem&gt;&lt;totalFrete&gt;0,00&lt;/totalFrete&gt;&lt;prazo&gt;0&lt;/prazo&gt;&lt;/cotacao&gt;</return>
+    </ns:cotarResponse>
+  </soapenv:Body>
+</soapenv:Envelope>
