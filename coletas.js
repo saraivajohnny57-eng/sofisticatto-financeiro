@@ -2476,7 +2476,11 @@ async function consultarRastreioSSWDiretoRegistro(id,{chave=null}={}){
   const params=new URLSearchParams({action:"consultar-rastreio-ssw",registro_id:String(id)});
   const resposta=await fetch(`/api/integracoes?${params}`,{headers:{"x-integrations-admin-key":chaveUsar}});
   const dados=await resposta.json().catch(()=>({}));
-  if(!resposta.ok){const erro=new Error(dados.erro||`HTTP ${resposta.status}`);erro.codigo=dados.codigo||null;throw erro;}
+  if(!resposta.ok){
+    const d=dados.diagnostico||{};
+    const detalhe=[dados.erro||`HTTP ${resposta.status}`,`Código: ${dados.codigo||'HTTP_'+resposta.status}`,`Etapa: ${d.etapa||'consulta'}`,d.numeroNfe?`NF-e: ${d.numeroNfe}`:'',d.chaveNfeFinal?`Chave NF-e (8 finais): ${d.chaveNfeFinal}`:'',d.httpExterno?`HTTP externo: ${d.httpExterno}`:'',d.orientacao||''].filter(Boolean).join('\\n');
+    const erro=new Error(detalhe);erro.codigo=dados.codigo||null;erro.detalhes=dados;throw erro;
+  }
   return {rastro,dados};
 }
 
@@ -2568,7 +2572,9 @@ function rastreioDanfeV440(r){
  return /^SSW Tracking DANFE/i.test(String(r?.metodo_consulta||'')) && /^\d{44}$/.test(String(r?.chave_nfe||'').replace(/\D/g,''));
 }
 function rastreioPodeAtualizarV440(r){
- return (transportadoraTemRastreamentoIntegrado(r?.frete_transportadoras?.nome)&&!!(r?.protocolo_rastreio||r?.numero_cte||r?.numero_nfe||r?.chave_nfe)) || rastreioDanfeV440(r);
+ // Exibir a ação mesmo sem integração/identificador: o usuário poderá
+ // completar a NF-e/chave ou receber um diagnóstico específico.
+ return !!r?.id;
 }
 async function atualizarRastreioDanfeV440(rastro,botao){
  const original=botao?.textContent||'Atualizar rastreio';
