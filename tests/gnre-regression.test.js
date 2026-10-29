@@ -108,7 +108,7 @@ test('GNRE homologation fails safely when A1 is not configured, without DNS or n
  require.cache[certPath]={id:certPath,filename:certPath,loaded:true,exports:{credenciais:async()=>{credentialCalls++;return {pfx:Buffer.alloc(0),passphrase:''};}}};
  delete require.cache[handlerPath];
  process.env.GNRE_AMBIENTE='homologacao';
- process.env.GNRE_BASE_URL='https://www.testegnre.pe.gov.br/gnreWS/services';
+ process.env.GNRE_BASE_URL='https://www.testegnre.pe.gov.br:444/gnreWS/services';
  try{
   const handler=require(handlerPath);
   const res={};await handler({method:'POST'},res);

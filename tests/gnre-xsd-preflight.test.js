@@ -4,11 +4,10 @@ const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
 const {verificarDependenciasXsd}=require('../lib/integracoes/gnre-xsd-preflight');
-test('GNRE XSD preflight identifies missing version 1 dependencies without network',()=>{
+test('GNRE XSD preflight accepts the official version 1 dependencies',()=>{
  const result=verificarDependenciasXsd();
- assert.equal(result.completo,false);
- assert.ok(result.faltantes.some(x=>x.dependencia==='dados_gnre_v1.00.xsd'));
- assert.ok(result.faltantes.some(x=>x.dependencia==='tiposBasicoGNRE_v1.00.xsd'));
+ assert.equal(result.completo,true,JSON.stringify(result.faltantes));
+ assert.deepEqual(result.faltantes,[]);
 });
 test('GNRE XSD preflight accepts complete local include graph',()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'gnre-xsd-'));

@@ -37,6 +37,7 @@ test('GNRE SOAP mock sends POST with mTLS and parses HTTP result without externa
  assert.equal(options.headers.SOAPAction,undefined);
  assert.equal(options.rejectUnauthorized,true);
  assert.equal(options.minVersion,'TLSv1.2');
+ assert.equal(options.agent,false);
  assert.equal(options.headers['Content-Length'],Buffer.byteLength(body));
  assert.equal(result.status,200);
  assert.match(result.body,/<ok\/>/);

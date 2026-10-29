@@ -24,4 +24,23 @@ O código SOAP 1.2 e o Content-Type configurados continuam **provisórios** até
 6. Registrar status HTTP, fault e recibo/retorno redigidos, sem armazenar XML com dados pessoais nos logs.
 7. Só depois de resposta de homologação aprovada, solicitar aprovação explícita para ativação de emissão real.
 
+## Atualização 29/10/2026 — contratos públicos e bloqueio TLS
+
+- WSDLs oficiais baixados da SVRS e preservados em `docs/gnre-oficial/` com SHA-256.
+- Confirmado binding **SOAP 1.2**, ações `processar` e `consultar`, e namespaces
+  `http://www.gnre.pe.gov.br/webservice/GnreLoteRecepcao` e
+  `.../GnreResultadoLote`.
+- O portal HTTP de homologação (`http://www.testegnre.pe.gov.br/gnreWS/services/...`)
+  redireciona (301) para **`https://www.testegnre.pe.gov.br:444/...`**; a porta
+  correta de homologação é **444**, não 443.
+- Inspeção TLS em 29/10/2026: tanto em 443 quanto em 444 o servidor apresenta
+  certificado `CN=*.sefaz.pe.gov.br` (SAN `*.sefaz.pe.gov.br` e `sefaz.pe.gov.br`),
+  que **não corresponde** a `www.testegnre.pe.gov.br`. Com verificação TLS
+  habilitada, `checkServerIdentity` falha com `ERR_TLS_CERT_ALTNAME_INVALID`.
+  Não desabilitar a verificação; é necessário endereço/hostname oficial válido
+  ou correção do certificado pelo provedor.
+- XSDs v1.00 oficiais incorporados em `docs/gnre-xsd/` (hashes em
+  `FONTES-OFICIAIS.md`), completando o grafo de includes.
+- Nenhuma conexão mTLS autenticada nem transmissão fiscal foi executada.
+
 Nenhum envio fiscal foi executado nesta etapa.

@@ -11,8 +11,8 @@ test('GNRE refuses invalid receipt formats before SOAP consultation',()=>{
  }
 });
 test('GNRE homologation uses distinct official reception and result services',()=>{
- assert.match(SERVICOS.recepcao,/^https:\/\/www\.testegnre\.pe\.gov\.br\/gnreWS\/services\/GnreLoteRecepcao$/);
- assert.match(SERVICOS.resultado,/^https:\/\/www\.testegnre\.pe\.gov\.br\/gnreWS\/services\/GnreResultadoLote$/);
+ assert.match(SERVICOS.recepcao,/^https:\/\/www\.testegnre\.pe\.gov\.br:444\/gnreWS\/services\/GnreLoteRecepcao$/);
+ assert.match(SERVICOS.resultado,/^https:\/\/www\.testegnre\.pe\.gov\.br:444\/gnreWS\/services\/GnreResultadoLote$/);
  assert.notEqual(SERVICOS.recepcao,SERVICOS.resultado);
  assert.equal(Object.isFrozen(SERVICOS),true);
 });
