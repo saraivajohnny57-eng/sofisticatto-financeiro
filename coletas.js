@@ -2476,7 +2476,11 @@ async function consultarRastreioSSWDiretoRegistro(id,{chave=null}={}){
   const params=new URLSearchParams({action:"consultar-rastreio-ssw",registro_id:String(id)});
   const resposta=await fetch(`/api/integracoes?${params}`,{headers:{"x-integrations-admin-key":chaveUsar}});
   const dados=await resposta.json().catch(()=>({}));
-  if(!resposta.ok){const erro=new Error(dados.erro||`HTTP ${resposta.status}`);erro.codigo=dados.codigo||null;throw erro;}
+  if(!resposta.ok){
+    const d=dados.diagnostico||{};
+    const detalhe=[dados.erro||`HTTP ${resposta.status}`,`Código: ${dados.codigo||'HTTP_'+resposta.status}`,`Etapa: ${d.etapa||'consulta'}`,d.numeroNfe?`NF-e: ${d.numeroNfe}`:'',d.chaveNfeFinal?`Chave NF-e (8 finais): ${d.chaveNfeFinal}`:'',d.httpExterno?`HTTP externo: ${d.httpExterno}`:'',d.orientacao||''].filter(Boolean).join('\\n');
+    const erro=new Error(detalhe);erro.codigo=dados.codigo||null;erro.detalhes=dados;throw erro;
+  }
   return {rastro,dados};
 }
 
