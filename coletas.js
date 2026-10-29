@@ -2511,7 +2511,10 @@ async function consultarRastreioSSWRegistro(id){
   };
   const ocorrencia=ocorrenciasValidas.sort((a,b)=>timestampOcorrencia(b)-timestampOcorrencia(a))[0]||null;
   const ultimaAnterior=Date.parse(rastro.ultima_ocorrencia_em||"");
-  const ocorrenciaNova=ocorrencia && (!Number.isFinite(ultimaAnterior) || timestampOcorrencia(ocorrencia)>=ultimaAnterior);
+  const dataNova=ocorrencia?timestampOcorrencia(ocorrencia):0;
+  const statusFinalizado=['entregue','recebido','cancelado'].includes(String(rastro.status||'').toLowerCase());
+  const ocorrenciaNova=!!ocorrencia && !statusFinalizado && dataNova>0 &&
+    (!Number.isFinite(ultimaAnterior) || dataNova>ultimaAnterior);
 
   if(ocorrenciaNova){
     const status=normalizarStatusOcorrenciaSSWCliente(ocorrencia.descricao,ocorrencia.codigo_ocorrencia);
@@ -2532,7 +2535,7 @@ async function consultarRastreioSSWRegistro(id){
     const up=await banco.from("logistica_rastreamentos").update(patch).eq("id",id);
     if(up.error)throw up.error;
   }
-  return {rastro,ocorrencia};
+  return {rastro,ocorrencia:ocorrenciaNova?ocorrencia:null};
 }
 
 async function sincronizarRastreiosSSWLocais(){
