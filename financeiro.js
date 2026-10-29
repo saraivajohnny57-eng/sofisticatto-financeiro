@@ -579,7 +579,7 @@ function montarTabela(){
       <td style="${podeSalvarEmLote ? "" : "display:none;"}">${selecaoCampo}</td>
       <td>${nomeCampo}</td><td>${valorCampo}</td><td>${bancoCampo}</td><td>${observacaoCampo}</td>
       <td style="${usuarioLogado?.tipo==="financeiro"?"":"display:none;"}">${usuarioLogado?.tipo==="financeiro"?resumoParcelasRelatorioFinanceiro(item.id):""}</td>
-      <td>${item.criado_por || ""}</td><td><span class="status andamento">Em andamento</span></td>
+      <td>${item.criado_por || ""}</td><td>${relatorioPossuiBoletoEmitidoV376(item) ? `<span class="status" style="display:inline-block;background:#e7f5e9;color:#246a36;padding:7px 12px;border-radius:12px;font-weight:700">✓ Boleto emitido${item.banco ? ` — ${String(item.banco).replace(/[&<>"\x27]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","\x27":"&#39;"}[c]))}` : ""}</span>` : `<span class="status andamento">Em andamento</span>`}</td>
       <td style="${usuarioLogado && usuarioLogado.tipo === "banco" ? "display:none;" : ""}">${botoes}</td>
     </tr>`;
   });
