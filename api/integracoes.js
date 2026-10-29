@@ -163,8 +163,7 @@ module.exports = async function handler(req, res) {
     return responder(res, 500, {
       ok: false,
       erro: "Falha interna ao executar a integração.",
-      action,
-      diagnostico
+      action
     });
   }
 };

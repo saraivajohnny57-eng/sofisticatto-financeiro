@@ -1,0 +1,20 @@
+name: Security and SSW synchronization (offline)
+on:
+  push:
+    branches: [cline-testes-integracoes]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run offline security and synchronization checks
+        run: node --test tests/security-regression.test.js tests/ssw-sync.test.js tests/gnre-regression.test.js tests/gnre-contrato.test.js tests/gnre-soap-homologacao.test.js tests/gnre-resposta-soap.test.js tests/gnre-consulta-xml.test.js tests/gnre-situacao.test.js tests/gnre-isolamento.test.js tests/gnre-envelope-soap12.test.js tests/gnre-xsd-preflight.test.js tests/gnre-soap-actions.test.js
