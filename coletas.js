@@ -2709,7 +2709,7 @@ let atualizacaoTodosRastreiosEmAndamento=false;
 async function atualizarTodosRastreiosSaida(silencioso=false){
   const botao=ce("btnAtualizarTodosRastreios");
   const status=ce("statusAtualizarTodosRastreios");
-  const textoOriginal="🔄 Atualizar todos os rastreios";
+  const textoOriginal="🔄 Verificar APIs e atualizar rastreios (SSW / EDI / transportadoras)";
 
   if(atualizacaoTodosRastreiosEmAndamento){
     if(!silencioso&&status)status.textContent="Já existe uma atualização em andamento. Aguarde alguns segundos.";
@@ -2745,7 +2745,15 @@ async function atualizarTodosRastreiosSaida(silencioso=false){
 
     const cor=dados.importacaoCorreios||{};
     const resumo=`Concluído: ${dados.consultados||0} consulta(s), ${dados.atualizados||0} atualizada(s), ${dados.entregues||0} entrega(s), ${cor.importados||0} objeto(s) dos Correios importado(s), ${sswAtualizados} ocorrência(s) SSW aplicada(s), ${dados.erros||0} erro(s).`;
-    if(status)status.textContent=resumo;
+    const porTransportadora=new Map();
+    for(const item of (dados.resultados||[])){
+      const nome=item.transportadora||item.tipo||'Não identificada';
+      const v=porTransportadora.get(nome)||{ok:0,erro:0};
+      if(item.ok)v.ok++;else v.erro++;
+      porTransportadora.set(nome,v);
+    }
+    const detalhe=[...porTransportadora].map(([nome,v])=>nome+': '+v.ok+' OK, '+v.erro+' falha(s)').join(' | ');
+    if(status)status.textContent=resumo+(detalhe?' Por transportadora: '+detalhe:'');
     if(!silencioso){
       if(Array.isArray(cor.avisos)&&cor.avisos.length)console.warn('Avisos Correios:',cor.avisos);
       if(Array.isArray(dados.resultados)&&dados.resultados.some(x=>!x.ok))console.warn('Falhas por transportadora:',dados.resultados.filter(x=>!x.ok));
