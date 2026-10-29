@@ -1,0 +1,17 @@
+name: Diagnóstico rastreio logística
+on:
+  push:
+    branches: [fix-logistica-botao-diagnostico-20261029]
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check coletas.js
+      - run: node --check lib/integracoes/consultar-rastreio-ssw.js
+      - run: node --test tests/logistica-diagnostico.test.js
