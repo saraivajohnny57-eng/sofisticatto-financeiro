@@ -2568,7 +2568,9 @@ function rastreioDanfeV440(r){
  return /^SSW Tracking DANFE/i.test(String(r?.metodo_consulta||'')) && /^\d{44}$/.test(String(r?.chave_nfe||'').replace(/\D/g,''));
 }
 function rastreioPodeAtualizarV440(r){
- return (transportadoraTemRastreamentoIntegrado(r?.frete_transportadoras?.nome)&&!!(r?.protocolo_rastreio||r?.numero_cte||r?.numero_nfe||r?.chave_nfe)) || rastreioDanfeV440(r);
+ // Exibir a ação mesmo sem integração/identificador: o usuário poderá
+ // completar a NF-e/chave ou receber um diagnóstico específico.
+ return !!r?.id;
 }
 async function atualizarRastreioDanfeV440(rastro,botao){
  const original=botao?.textContent||'Atualizar rastreio';
