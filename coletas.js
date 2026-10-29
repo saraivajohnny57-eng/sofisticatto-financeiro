@@ -297,8 +297,22 @@ function montarHistoricoColetas(){
     <td>${a.volumes||"—"}</td>
     <td>${a.peso?`${Number(a.peso).toLocaleString("pt-BR",{maximumFractionDigits:3})} Kg`:"—"}</td>
     <td><span class="coleta-status ${a.status}">${statusLabelColeta(a.status)}</span></td>
-    <td><button class="btn azul" onclick="editarAgendamentoColeta('${a.id}')">Editar</button><button class="btn verde" onclick="copiarAgendamentoColeta('${a.id}')">Copiar</button>${a.codigo_coleta?`<button class="btn roxo" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar API</button>`:""}</td>
+    <td><button class="btn azul" onclick="editarAgendamentoColeta('${a.id}')">Editar</button><button class="btn verde" onclick="copiarAgendamentoColeta('${a.id}')">Copiar</button>${a.codigo_coleta?(/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<button class="btn roxo" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar API</button>`:`<button class="btn roxo" onclick="abrirRastreioDaColeta('${a.id}')">Ver rastreio</button>`):""}</td>
   </tr>`).join(""):'<tr><td colspan="10">Nenhum agendamento encontrado.</td></tr>';
+}
+async function abrirRastreioDaColeta(id){
+  const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
+  if(!a)return alert("Agendamento não encontrado.");
+  // ACCERT/SSW e outras transportadoras não utilizam a API de coleta Rodonaves.
+  // Reconciliar pelo agendamento sem consultar um código GYN no endpoint Rodonaves.
+  try{
+    const rast=await criarOuVincularRastreioDaColeta(a.id,a,"consulta_historico");
+    if(rast?.error)throw rast.error;
+    mostrarPainelColeta("saidas");
+  }catch(e){
+    console.error("Falha ao vincular rastreio da coleta",e);
+    alert("Não foi possível vincular o rastreio: "+String(e.message||e));
+  }
 }
 function editarAgendamentoColeta(id){const a=coletaAgendamentos.find(x=>String(x.id)===String(id));if(!a)return;const d=a.dados||{};ce("coletaAgendamentoId").value=a.id;ce("coletaCotacaoId").value=a.cotacao_id||"";ce("coletaRespostaId").value=a.resposta_cotacao_id||"";ce("coletaClienteId").value=a.cliente_id||"";ce("coletaClienteBusca").value=a.cliente_nome||"";ce("coletaTransportadoraId").value=a.transportadora_id||"";if(a.modelo_id)ce("coletaModeloId").value=a.modelo_id;ce("coletaTipoFrete").value=a.tipo_frete||"CIF";const map={solicitante:"coletaSolicitante",telefone_origem:"coletaTelefoneOrigem",cnpj_origem:"coletaCnpjOrigem",razao_origem:"coletaRazaoOrigem",cep_origem:"coletaCepOrigem",endereco_origem:"coletaEnderecoOrigem",cnpj_destino:"coletaCnpjDestino",razao_destino:"coletaRazaoDestino",cep_destino:"coletaCepDestino",cidade_destino:"coletaCidadeDestino",volumes:"coletaVolumes",peso:"coletaPeso",numero_nf:"coletaNumeroNf",medidas:"coletaMedidas",natureza:"coletaNatureza",mercadoria:"coletaMercadoria",embalagem:"coletaEmbalagem",horario_limite:"coletaHorarioLimite",pausa:"coletaPausa",referencia:"coletaReferencia",localizacao:"coletaLocalizacao",endereco_destino:"coletaEnderecoDestino",numero_destino:"coletaNumeroDestino",complemento_destino:"coletaComplementoDestino",bairro_destino:"coletaBairroDestino"};Object.entries(map).forEach(([k,id])=>{if(ce(id))ce(id).value=d[k]||""});ce("coletaObservacao").value=a.observacao||"";atualizarPreviaColeta();mostrarPainelColeta("nova")
 if(ce("coletaNumeroNfRastreio"))ce("coletaNumeroNfRastreio").value=a.numero_nf||a?.dados?.numero_nf||a?.dados?.numero_nfe||"";
@@ -1244,6 +1258,7 @@ async function carregarPainelRodonaves(){
 async function registrarEventoColeta(id,ant,novo,origem,detalhes){const r=await banco.from("coleta_status_eventos").insert([{agendamento_id:id,status_anterior:ant||null,status_novo:novo||null,origem:origem||"sistema",detalhes:detalhes||null,usuario:usuarioLogado?.login||"sistema"}]);if(r.error)console.warn(r.error.message)}
 async function consultarColetaPainelRodonaves(id){
   const a=coletaAgendamentos.find(x=>String(x.id)===String(id));
+  if(!/rodonaves/i.test(a?.frete_transportadoras?.nome||""))return abrirRastreioDaColeta(id);
   if(!a?.codigo_coleta)return alert("Esta coleta ainda não possui código/ID da coleta.");
   if(!codigoColetaPodeConsultar(a))return alert("O número informado ainda não foi confirmado como código da coleta da Rodonaves. Clique em Informar/vincular código.");
   const chave=await chaveAdminColeta();if(!chave)return;
