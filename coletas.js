@@ -1825,6 +1825,22 @@ async function importarXmlIdentificadoresRastreioV433(event,sentido){
     const nf=ide?.getElementsByTagName('nNF')[0]?.textContent?.trim()||'';
     if(chave&&chave.length!==44)throw new Error('Chave NF-e do XML não possui 44 dígitos.');
     if(!chave&&!nf)throw new Error('O XML não contém número ou chave da NF-e.');
+    const dest=xml.getElementsByTagName('dest')[0];
+    const destinatario=dest?.getElementsByTagName('xNome')[0]?.textContent?.trim()||'';
+    const campoParceiro=ce(`rastParceiro_${sentido}`);
+    const anterior=campoParceiro?.value?.trim()||'';
+    const normNome=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+    const chaveAtual=ce(`rastChave_${sentido}`)?.value?.replace(/\D/g,'')||'';
+    const nfAtual=ce(`rastNfe_${sentido}`)?.value?.trim()||'';
+    if(chaveAtual&&chave&&chaveAtual!==chave)throw new Error('A chave do XML é diferente da chave deste rastreamento. Confira a nota antes de alterar.');
+    if(nfAtual&&nf&&nfAtual!==nf)throw new Error('O número da NF-e do XML é diferente do rastreamento aberto.');
+    if(destinatario&&campoParceiro&&normNome(anterior)!==normNome(destinatario)){
+      const msg=anterior
+        ?`O destinatário do XML é "\u0024{destinatario}", mas o rastreamento está como "\u0024{anterior}". Deseja corrigir o nome com o destinatário da NF-e? A alteração só será gravada ao clicar em Salvar.`
+        :`Preencher destinatário conforme XML: "\u0024{destinatario}"?`;
+      if(!confirm(msg))throw new Error('Importação cancelada para evitar associar a NF-e ao destinatário incorreto.');
+      campoParceiro.value=destinatario;
+    }
     if(chave)ce(`rastChave_${sentido}`).value=chave;
     if(nf)ce(`rastNfe_${sentido}`).value=nf;
     const transp=xml.getElementsByTagName('transporta')[0];
@@ -3930,13 +3946,15 @@ async function prepararLoteXmlV435(event){
         const candidatas=porNF.get(nota.nf)||[];
         const mesmoCliente=candidatas.filter(x=>String(x.parceiro_nome||'').toLowerCase().trim()===nota.nome.toLowerCase().trim());
         const existente=exato||(mesmoCliente.length===1?mesmoCliente[0]:null);
-        const tipo=existente?(existente.chave_nfe?'ja_cadastrada':'completar'):(candidatas.length?'conferir':'nova');
+        const nomeNormalizado=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+        const divergenciaDestinatario=!!(exato&&nota.nome&&nomeNormalizado(exato.parceiro_nome)!==nomeNormalizado(nota.nome));
+        const tipo=divergenciaDestinatario?'conferir_destinatario':existente?(existente.chave_nfe?'ja_cadastrada':'completar'):(candidatas.length?'conferir':'nova');
         const transportadoraCorrespondente=compararTransportadoraV436(nota.transportadora,catalogo);
         loteXmlV435.push({...nota,arquivo:f.name,tipo,id:existente?.id||null,transportadoraId:existente?.transportadora_id||transportadoraCorrespondente?.id||null,transportadoraSugerida:transportadoraCorrespondente?.nome||null,localizado:false});
       }catch(e){loteXmlV435.push({arquivo:f.name,tipo:'erro',erro:e.message});}
     }
     const resumo={};for(const n of loteXmlV435)resumo[n.tipo]=(resumo[n.tipo]||0)+1;
-    const linhas=loteXmlV435.map((n,i)=>`<tr><td>${escapeXmlV435(n.arquivo)}</td><td>${escapeXmlV435(n.nf||'—')}</td><td>${escapeXmlV435(n.nome||'—')}</td><td>${escapeXmlV435(n.transportadora||'—')}${n.transportadoraSugerida?`<small style="display:block;color:#236747">Cadastro sugerido: ${escapeXmlV435(n.transportadoraSugerida)}</small>`:n.transportadora&&!n.transportadoraId?`<small style="display:block;color:#9a4b00">Não reconhecida <button type="button" class="btn azul" onclick="cadastrarTransportadoraPendenteXmlV446(${i})">Localizar / cadastrar</button></small>`:''}</td><td>${escapeXmlV435(({nova:'Nova — conferir transportadora',completar:'Completar cadastro',ja_cadastrada:'Já cadastrada',conferir:'Conferir NF repetida',duplicada_lote:'Repetida neste lote',erro:'Erro: '+n.erro})[n.tipo])}</td></tr>`).join('');
+    const linhas=loteXmlV435.map((n,i)=>`<tr><td>${escapeXmlV435(n.arquivo)}</td><td>${escapeXmlV435(n.nf||'—')}</td><td>${escapeXmlV435(n.nome||'—')}</td><td>${escapeXmlV435(n.transportadora||'—')}${n.transportadoraSugerida?`<small style="display:block;color:#236747">Cadastro sugerido: ${escapeXmlV435(n.transportadoraSugerida)}</small>`:n.transportadora&&!n.transportadoraId?`<small style="display:block;color:#9a4b00">Não reconhecida <button type="button" class="btn azul" onclick="cadastrarTransportadoraPendenteXmlV446(${i})">Localizar / cadastrar</button></small>`:''}</td><td>${escapeXmlV435(({nova:'Nova — conferir transportadora',completar:'Completar cadastro',ja_cadastrada:'Já cadastrada',conferir_destinatario:'ALERTA: destinatário diferente do XML — corrigir manualmente',conferir:'Conferir NF repetida',duplicada_lote:'Repetida neste lote',erro:'Erro: '+n.erro})[n.tipo])}</td></tr>`).join('');
     const pendentes=loteXmlV435.filter(n=>n.transportadora&&!n.transportadoraId).length;
     painelXmlV435(`<h3>Prévia da importação (${files.length} arquivos)</h3><p>${Object.entries(resumo).map(([k,v])=>escapeXmlV435(k)+': '+v).join(' · ')}</p><small>${pendentes?`${pendentes} transportadora(s) precisam de conferência. `:''}Por segurança, apenas registros existentes com correspondência inequívoca e sem chave serão completados automaticamente. Notas novas exigem vincular a transportadora e confirmar a inclusão; nenhuma consulta externa é presumida.</small><div style="overflow:auto"><table style="width:100%"><thead><tr><th>Arquivo</th><th>NF</th><th>Cliente</th><th>Transportadora XML</th><th>Resultado</th></tr></thead><tbody>${linhas}</tbody></table></div><button type="button" class="btn verde" onclick="confirmarLoteXmlV435()">Salvar dados faltantes (${resumo.completar||0})</button> <button type="button" class="btn azul" onclick="consultarNovasXmlV436()">🔎 Consultar notas novas no SSW</button><div id="resultadoDescobertaV436" style="margin-top:10px"></div>`);
   }catch(e){painelXmlV435('<b>Erro:</b> '+escapeXmlV435(e.message));}
