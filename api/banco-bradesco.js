@@ -196,9 +196,21 @@ function montarConsultaTituloBradesco(banco,reg){
 }
 function dataBradescoIso(v){
   const s=String(v??'').trim();
-  let m=s.match(/^(\d{2})(\d{2})(\d{4})$/);if(m)return `${m[3]}-${m[2]}-${m[1]}`;
-  m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);if(m)return `${m[3]}-${m[2]}-${m[1]}`;
-  m=s.match(/^(\d{4})(\d{2})(\d{2})$/);if(m)return `${m[1]}-${m[2]}-${m[3]}`;
+  const valido=(ano,mes,dia)=>{
+    const a=Number(ano),m=Number(mes),d=Number(dia);
+    return a>=1900&&a<=2999&&m>=1&&m<=12&&d>=1&&d<=31;
+  };
+  // ISO (com ou sem hora) tem prioridade e não é ambíguo.
+  let m=s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/);
+  if(m&&valido(m[1],m[2],m[3]))return `${m[1]}-${m[2]}-${m[3]}`;
+  // 8 dígitos: YYYYMMDD só é aceito quando o ano é plausível (1900–2999).
+  m=s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if(m&&valido(m[1],m[2],m[3]))return `${m[1]}-${m[2]}-${m[3]}`;
+  // DD/MM/AAAA e DDMMAAAA (padrão Bradesco) permanecem suportados.
+  m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(m&&valido(m[3],m[2],m[1]))return `${m[3]}-${m[2]}-${m[1]}`;
+  m=s.match(/^(\d{2})(\d{2})(\d{4})$/);
+  if(m&&valido(m[3],m[2],m[1]))return `${m[3]}-${m[2]}-${m[1]}`;
   return null;
 }
 function numeroBradesco(v){if(v===null||v===undefined||String(v).trim()==='')return null;const n=Number(v);return Number.isFinite(n)?n:null;}

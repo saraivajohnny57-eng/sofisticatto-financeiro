@@ -58,10 +58,10 @@ function normalizar(d){
 function codValido(v){return /^[A-Z]{2}\d{9}[A-Z]{2}$/i.test(String(v||'').trim());}
 module.exports=async(req,res)=>{if(req.method!=='GET')return json(res,405,{ok:false,erro:'Método não permitido.'});if(!exigirAdmin(req,res))return;try{
   const registroId=String(req.query.registro_id||'').trim();let codigo=String(req.query.codigo||req.query.protocolo||'').trim().toUpperCase();let registro=null;
-  if(registroId){const rr=await supabaseRest('logistica_rastreamentos',{query:`?select=id,parceiro_nome,protocolo_rastreio,data_postagem,coleta_agendamento_id,status,status_api,ultima_ocorrencia,ultima_ocorrencia_em,finalizado_em& id=eq.${encodeURIComponent(registroId)}&limit=1`.replace(' &','&')});registro=rr?.[0]||null;if(!codigo&&codValido(registro?.protocolo_rastreio))codigo=String(registro.protocolo_rastreio).trim().toUpperCase();}
+  if(registroId){const rr=await supabaseRest('logistica_rastreamentos',{query:`?select=id,parceiro_nome,protocolo_rastreio,data_postagem,coleta_agendamento_id,status,status_api,ultima_ocorrencia,ultima_ocorrencia_em,finalizado_em&id=eq.${encodeURIComponent(registroId)}&limit=1`});registro=rr?.[0]||null;if(!codigo&&codValido(registro?.protocolo_rastreio))codigo=String(registro.protocolo_rastreio).trim().toUpperCase();}
   let auto=null;
   if(!codValido(codigo)&&registro?.coleta_agendamento_id){
-    const cc=await supabaseRest('coleta_agendamentos',{query:`?select=id,cliente_nome,dados,data_programada& id=eq.${encodeURIComponent(registro.coleta_agendamento_id)}&limit=1`.replace(' &','&')});
+    const cc=await supabaseRest('coleta_agendamentos',{query:`?select=id,cliente_nome,dados,data_programada&id=eq.${encodeURIComponent(registro.coleta_agendamento_id)}&limit=1`});
     const c=cc?.[0];const dados=c?.dados||{};
     auto=await descobrirCodigoObjeto({cnpj:dados.cnpj_destino||dados.cpf_cnpj_destino,cep:dados.cep_destino,nome:c?.cliente_nome||dados.razao_destino||registro.parceiro_nome,data:registro.data_postagem||c?.data_programada});
     if(auto?.codigo){codigo=auto.codigo;await supabaseRest('logistica_rastreamentos',{method:'PATCH',query:`?id=eq.${encodeURIComponent(registroId)}`,body:{protocolo_rastreio:codigo,atualizado_em:new Date().toISOString(),atualizado_por:'correios_prepostagem_auto'}});try{const novoDados={...dados,protocolo_rastreio:codigo};await supabaseRest('coleta_agendamentos',{method:'PATCH',query:`?id=eq.${encodeURIComponent(registro.coleta_agendamento_id)}`,body:{protocolo_rastreio:codigo,dados:novoDados,atualizado_em:new Date().toISOString()}});}catch{}}
