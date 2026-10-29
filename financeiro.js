@@ -412,7 +412,18 @@ async function carregarRelatorios(silencioso = false){
   }
 }
 
+function relatorioPossuiBoletoEmitidoV376(rel){
+  if(!rel)return false;
+  return cobrancasDoRelatorioV261(rel,parcelasRelatoriosFinanceiro).some(x=>{
+    const st=String(x.status||"").toLowerCase();
+    return ["aberto","pago","vencido"].includes(st) ||
+      !!String(x.nosso_numero||x.bradesco_nosso_numero||x.linha_digitavel||"").trim();
+  });
+}
 function montarSelectBanco(id, bancoAtual){
+  const rel=(todosBoletos||[]).find(x=>String(x.id)===String(id));
+  if(relatorioPossuiBoletoEmitidoV376(rel))
+    return '<span class="status" style="display:inline-block;background:#e7f5e9;color:#246a36;padding:8px 12px;border-radius:10px;font-weight:700" title="Banco bloqueado após emissão confirmada">✓ Boleto emitido</span>';
   let html = `<select id="banco_${id}" onchange="marcarBancoRelatorioAlterado('${id}')"><option value="">Selecione</option>`;
   listaBancos.forEach(b => html += `<option value="${b.nome}" ${b.nome === bancoAtual ? "selected" : ""}>${b.nome}</option>`);
   html += `</select>`;
@@ -421,7 +432,7 @@ function montarSelectBanco(id, bancoAtual){
 
 let parcelasRelatoriosFinanceiro=[];
 async function carregarParcelasRelatoriosFinanceiro(){
-  if(usuarioLogado?.tipo!=="financeiro"){parcelasRelatoriosFinanceiro=[];return;}
+  if(!["financeiro","banco","admin"].includes(String(usuarioLogado?.tipo||""))){parcelasRelatoriosFinanceiro=[];return;}
   try{
     const r=await banco.from("cobrancas_bancarias").select("*").neq("status","cancelado").order("parcela_numero",{ascending:true});
     parcelasRelatoriosFinanceiro=r.error?[]:(r.data||[]);
@@ -560,7 +571,7 @@ function montarTabela(){
       botoes += `<button class="btn vermelho" onclick="excluir('${item.id}')">Excluir</button>`;
     }
 
-    const selecaoCampo = podeSalvarEmLote
+    const selecaoCampo = podeSalvarEmLote && !relatorioPossuiBoletoEmitidoV376(item)
       ? `<input type="checkbox" class="relatorio-check check-banco-lote" id="check_banco_${item.id}" data-id="${item.id}" onchange="atualizarSelecaoBancosRelatorio('${item.id}',this.checked)">`
       : "";
 
@@ -1714,6 +1725,8 @@ async function salvarBancosSelecionados(){
 
   selecionados.forEach(check=>{
     const id=check.dataset.id;
+    const rel=(todosBoletos||[]).find(x=>String(x.id)===String(id));
+    if(relatorioPossuiBoletoEmitidoV376(rel))return;
     const bancoInput=document.getElementById("banco_"+id);
     const obsInput=document.getElementById("obs_"+id);
     const bancoSelecionado=bancoInput ? bancoInput.value : "";
@@ -1793,7 +1806,11 @@ async function salvarBancosSelecionados(){
 }
 
 async function salvarBanco(id){
-  const bancoSelecionado = document.getElementById("banco_" + id).value;
+  const rel=(todosBoletos||[]).find(x=>String(x.id)===String(id));
+  if(relatorioPossuiBoletoEmitidoV376(rel)){alert("Boleto emitido: o banco não pode mais ser alterado.");return;}
+  const campoBanco=document.getElementById("banco_" + id);
+  if(!campoBanco)return;
+  const bancoSelecionado = campoBanco.value;
   const observacao = document.getElementById("obs_" + id) ? document.getElementById("obs_" + id).value : "";
 
   if(!bancoSelecionado){ alert("Selecione um banco"); return; }
