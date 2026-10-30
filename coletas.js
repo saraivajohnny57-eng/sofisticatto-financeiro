@@ -3810,7 +3810,7 @@ function indiceEtapaBraspressReal(eventos,statusAtual){
     const t=textoNormalizadoTimeline(`${e.titulo||""} ${e.descricao||""}`);
     if(/coleta realizada|mercadoria coletada|coletad[ao]|recebid.*braspress|recebid.*transport/.test(t))idx=Math.max(idx,1);
     if(/transferencia|transferido|saida de unidade|encaminhad.*unidade|viagem entre unidades/.test(t))idx=Math.max(idx,2);
-    if(/chegada.*unidade|entrada.*unidade|unidade de destino|filial de destino|terminal de destino/.test(t))idx=Math.max(idx,3);
+    if(/chegada.*unidade|chegada.*destino|entrada.*unidade|unidade de destino|filial de destino|terminal de destino/.test(t))idx=Math.max(idx,3);
     if(/saiu.*entrega|rota.*entrega|em entrega|veiculo.*entrega/.test(t))idx=Math.max(idx,4);
     if(/entregue|entrega realizada|mercadoria entregue|recebido pelo destinatario/.test(t))idx=Math.max(idx,5);
   }
@@ -4030,9 +4030,14 @@ async function abrirLinhaTempoRastreio(id){
     const vivo=await atualizarTimelineAoAbrir(rastro,nome);
     if(vivo?.erroTimeline)avisoAoVivo=vivo.erroTimeline;
     if(Array.isArray(vivo?.eventos))for(const e of vivo.eventos)eventos.push({...e,fonte:vivo.metodoConsulta||rastro.metodo_consulta||"API da transportadora",oficial:/correios/i.test(nome)});
-    if(vivo?.dados && !(/correios|coreios/i.test(nome)&&Array.isArray(vivo?.eventos)&&vivo.eventos.length))eventos.push(...extrairEventosTimelineGenericos(vivo.dados,vivo.metodoConsulta||rastro.metodo_consulta||"API da transportadora"));
+    const braspressOficial=/braspress/i.test(nome)&&eventos.some(e=>e.oficial||/Braspress/i.test(String(e.fonte||'')));
+    if(vivo?.dados && !braspressOficial && !(/correios|coreios/i.test(nome)&&Array.isArray(vivo?.eventos)&&vivo.eventos.length))eventos.push(...extrairEventosTimelineGenericos(vivo.dados,vivo.metodoConsulta||rastro.metodo_consulta||"API da transportadora"));
     rastro=await obterRastreamentoPorId(id)||rastro;
-    if(rastro.consulta_api && !(/correios|coreios/i.test(nome)&&eventos.some(e=>e.oficial)))eventos.push(...extrairEventosTimelineGenericos(rastro.consulta_api,rastro.metodo_consulta||"API da transportadora"));
+    if(rastro.consulta_api && !braspressOficial && !(/correios|coreios/i.test(nome)&&eventos.some(e=>e.oficial))) {
+      const eventosSalvos=/braspress/i.test(nome)&&Array.isArray(rastro.consulta_api?.eventos)?rastro.consulta_api.eventos:[];
+      if(eventosSalvos.length)eventos.push(...eventosSalvos.map(e=>({...e,fonte:rastro.metodo_consulta||"Braspress API V3",oficial:true})));
+      else eventos.push(...extrairEventosTimelineGenericos(rastro.consulta_api,rastro.metodo_consulta||"API da transportadora"));
+    }
     if(transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome)){
       let q=banco.from("ssw_ocorrencias_recebidas").select("*").order("data_hora_evento",{ascending:false,nullsFirst:false}).limit(150);
       if(rastro.chave_nfe)q=q.eq("chave_nfe",String(rastro.chave_nfe).replace(/\D/g,""));else if(rastro.numero_nfe)q=q.eq("numero_nfe",String(rastro.numero_nfe));
