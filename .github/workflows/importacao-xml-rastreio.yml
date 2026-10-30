@@ -1,0 +1,16 @@
+name: Validar importação XML de rastreios
+on:
+  push:
+    branches: [fix-importacao-xml-rastreio-20261030]
+permissions:
+  contents: read
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check coletas.js
+      - run: node --test tests/importacao-xml-rastreio.test.js

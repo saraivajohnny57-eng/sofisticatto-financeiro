@@ -1,0 +1,6 @@
+const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const src=fs.readFileSync('coletas.js','utf8');
+test('confirmação exibe destinatário XML e destinatário anterior',()=>{const start=src.indexOf('async function importarXmlIdentificadoresRastreioV433(');const end=src.indexOf('\n}',start);const section=src.slice(start,end);assert.ok(section.includes('${destinatario}'));assert.ok(section.includes('${anterior}'));assert.ok(!section.includes('\\u0024{destinatario}'));});
+test('XML diferente exige confirmação antes de preencher',()=>{assert.match(src,/if\(destinatario&&campoParceiro&&normNome\(anterior\)!==normNome\(destinatario\)\)/);assert.match(src,/if\(!confirm\(msg\)\)throw new Error/);});
+test('importação em lote não duplica notas existentes',()=>assert.match(src,/As já cadastradas não serão duplicadas/));
+test('consulta em lote exige chave administrativa',()=>assert.match(src,/Autorização administrativa necessária/));
+test('novas notas exigem ocorrências confirmadas e transportadora não ambígua',()=>assert.match(src,/n\.apta=n\.localizado&&!!n\.ocorrencias\.length&&!!n\.transportadoraIdConfirmada&&!n\.divergente&&!n\.transportadoraAmbiguaV439/));
