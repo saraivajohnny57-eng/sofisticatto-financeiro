@@ -217,7 +217,36 @@ copiar o A1 para Preview.
 - `dist/sofisticatto-fase-b-gnre.patch` — diff completo `2952fdf..HEAD`.
 - Este relatório: `relatorios-cline/ETAPA-05-GNRE-FASE-B.md`.
 
-**Conclusão:** a integração está tecnicamente preparada para o primeiro teste
-oficial, com contratos travados por teste, validação XSD real, XML de consulta
-corrigido e proteção contra duplicidade e resultado incerto. Nenhuma guia foi
-transmitida e nenhuma conclusão de homologação é afirmada.
+## 11. Autorização de 30/10/2026 — itens 1 e 2 das pendências
+
+Após autorização, foram implementados:
+
+**Item 2 — repositório de idempotência real** (`lib/integracoes/gnre-idempotencia-repo.js`)
+- `reservar` atômico: verifica a existência e trata violação de unicidade
+  concorrente como conflito (sem envio duplicado).
+- Transições `enviando` → `concluido` / `falha` / `resultado_incerto`.
+- `listarIncertos` para reconciliação.
+- Grava somente `recibo_mascarado`, nunca XML, recibo completo, senha ou PFX.
+- 7 testes com PostgREST simulado.
+
+**Reconciliação somente leitura** (`lib/integracoes/gnre-reconciliacao.js`,
+rota `action=gnre-reconciliacao`): exige admin e `GNRE_AMBIENTE=homologacao`,
+lista execuções incertas e orienta explicitamente **não repetir** o envio.
+Não altera estado, não transmite e não devolve recibo completo. 5 testes.
+
+**Item 1 — aplicação do SQL** (`scripts/gnre-aplicar-sql-idempotencia.js`)
+- Exige `SUPABASE_ACCESS_TOKEN` e `SUPABASE_PROJECT_REF` (nunca versionados).
+- `--dry-run` valida a configuração e mostra o SQL sem executar.
+- `--confirmar` aplica via Management API.
+
+> **Status do item 1:** o SQL **não foi aplicado** — este ambiente não possui
+> credenciais do Supabase (variáveis ausentes) e aplicar migração exige a
+> autorização explícita de execução. O script está pronto e testado em
+> `--dry-run` (falha com segurança quando faltam credenciais).
+
+**Testes após a autorização:** `npm test` → **215/215 aprovados, 0 falhas**.
+O ZIP e o patch foram regerados: 93 arquivos, 247 KB.
+
+**Pendência remanescente para o primeiro envio:** item 3 — executor segregado
+com acesso ao A1 real (sem copiar para Preview) — continua pendente.
+
