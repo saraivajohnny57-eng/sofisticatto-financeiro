@@ -138,3 +138,21 @@ test('transição concorrente ou estado divergente bloqueia atualização', asyn
     );
   });
 });
+
+test('reservar reconhece SQLSTATE 23505 mesmo sem mensagem textual de duplicate', async () => {
+  baseEnv();
+  let leituras = 0;
+  await withFetch(async (_url, init = {}) => {
+    if ((init.method || 'GET') === 'GET') {
+      leituras++;
+      return response(leituras === 1 ? [] : [{ chave_idempotencia: 'k1', estado: 'reservado' }]);
+    }
+    return response({ code: '23505', message: 'erro de integridade' }, 409);
+  }, async () => {
+    const r = await repo.reservar({
+      chave: 'k1', servico: 'consulta', recibo_mascarado: '••••1234', ator: 'teste'
+    });
+    assert.equal(r.ok, false);
+    assert.equal(r.existente.estado, 'reservado');
+  });
+});
