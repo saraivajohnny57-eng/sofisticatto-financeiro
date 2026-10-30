@@ -3904,8 +3904,8 @@ async function vincularClienteRastreioPorDocumentoV449(rastro){
 }
 function nomeVendedoraRastreioV415(rastro){
   const c=clienteDoRastreioV415(rastro);
-  if(!c)return 'Cliente sem vínculo localizado';
-  const v=(typeof emailVendedoras!=='undefined'?emailVendedoras:[]).find(v=>String(v.id)===String(c.vendedora_id||''));
+  if(!c&&!rastro.vendedora_id)return 'Cliente sem vínculo localizado';
+  const v=(typeof emailVendedoras!=='undefined'?emailVendedoras:[]).find(v=>String(v.id)===String(rastro.vendedora_id||c?.vendedora_id||''));
   return v?.nome||'Não informada';
 }
 // V432: seleção explícita de cliente quando o rastreio não encontra vínculo automático.
@@ -3956,8 +3956,8 @@ async function abrirLinhaTempoRastreio(id){
     }
     const linha=document.createElement('div');linha.style.cssText='margin-top:8px;font-weight:600';
     const atualizarLinha=()=>{
-      const vend=(typeof emailVendedoras!=='undefined'?emailVendedoras:[]).find(v=>String(v.id)===String(clienteVend?.vendedora_id||''));
-      const nomeVendedora=vend?.nome||(clienteVend?.vendedora_id?'Vendedora vinculada (carregando nome)':'Não informada');
+      const vend=(typeof emailVendedoras!=='undefined'?emailVendedoras:[]).find(v=>String(v.id)===String(rastro.vendedora_id||clienteVend?.vendedora_id||''));
+      const nomeVendedora=vend?.nome||((rastro.vendedora_id||clienteVend?.vendedora_id)?'Vendedora vinculada (carregando nome)':'Não informada');
       linha.replaceChildren();
       linha.append(document.createTextNode('👩‍💼 Vendedora responsável: '+nomeVendedora));
       if(usuarioEhVendedoraRastreio?.())return;
@@ -3980,17 +3980,23 @@ async function abrirLinhaTempoRastreio(id){
       botao.textContent=vend?'Editar vendedora':'Vincular vendedora';
       botao.onclick=async()=>{
         if(botao.disabled)return;
-        if(!clienteVend){alert('Primeiro localize o cliente pelo botão preto.');return;}
         botao.disabled=true;
         try{
           if(typeof selecionarVendedoraSofisticatto!=='function')throw new Error('Seleção de vendedoras indisponível.');
           const vid=await selecionarVendedoraSofisticatto('Vendedora do cliente '+(clienteVend.nome||rastro.parceiro_nome));
           if(!vid)return;
-          const res=await banco.from('email_clientes').update({vendedora_id:vid}).eq('id',clienteVend.id).select('id,nome,cpf_cnpj,vendedora_id').single();
-          if(res.error)throw res.error;
-          clienteVend=res.data;
-          rastClientesV415=rastClientesV415.map(c=>String(c.id)===String(clienteVend.id)?clienteVend:c);
-          if(typeof emailClientes!=='undefined'){const i=emailClientes.findIndex(c=>String(c.id)===String(clienteVend.id));if(i>=0)emailClientes[i]={...emailClientes[i],...clienteVend};}
+          const gravacao=await banco.from('logistica_rastreamentos').update({vendedora_id:vid}).eq('id',rastro.id).select('id,vendedora_id').single();
+          if(gravacao.error)throw gravacao.error;
+          rastro.vendedora_id=gravacao.data.vendedora_id;
+          if(clienteVend?.id&&!clienteVend._pendente){
+            const res=await banco.from('email_clientes').update({vendedora_id:vid}).eq('id',clienteVend.id).select('id,nome,cpf_cnpj,vendedora_id').single();
+            if(res.error){console.warn('Vendedora salva no rastreio, mas não no cadastro:',res.error);alert('Vendedora salva no rastreio. Não foi possível atualizar o cadastro do cliente.');}
+            else {clienteVend=res.data;rastClientesV415=rastClientesV415.map(c=>String(c.id)===String(clienteVend.id)?clienteVend:c);}
+          }
+          if(typeof emailVendedoras!=='undefined'&&!emailVendedoras.some(v=>String(v.id)===String(vid))){
+            const vr=await banco.from('email_vendedoras').select('id,nome').eq('id',vid).maybeSingle();
+            if(!vr.error&&vr.data)emailVendedoras.push(vr.data);
+          }
           atualizarLinha();
         }catch(e){alert('Não foi possível vincular a vendedora: '+e.message)}
         finally{botao.disabled=false;}
@@ -3998,8 +4004,8 @@ async function abrirLinhaTempoRastreio(id){
       linha.append(botao);
     };
     atualizarLinha();document.getElementById('rastTimelineMeta').append(linha);
-    if(clienteVend?.vendedora_id&&!((typeof emailVendedoras!=='undefined'?emailVendedoras:[])||[]).some(v=>String(v.id)===String(clienteVend.vendedora_id))){
-      const vr=await banco.from('email_vendedoras').select('id,nome').eq('id',clienteVend.vendedora_id).maybeSingle();
+    if((rastro.vendedora_id||clienteVend?.vendedora_id)&&!((typeof emailVendedoras!=='undefined'?emailVendedoras:[])||[]).some(v=>String(v.id)===String(rastro.vendedora_id||clienteVend?.vendedora_id))){
+      const vr=await banco.from('email_vendedoras').select('id,nome').eq('id',rastro.vendedora_id||clienteVend?.vendedora_id).maybeSingle();
       if(!vr.error&&vr.data){if(typeof emailVendedoras!=='undefined')emailVendedoras.push(vr.data);atualizarLinha();}
     }
 
