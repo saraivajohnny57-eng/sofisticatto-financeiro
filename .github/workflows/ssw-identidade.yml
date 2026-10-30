@@ -1,0 +1,16 @@
+name: Validar identidade SSW
+on:
+  push:
+    branches: [fix-ssw-identidade-e-ocorrencias-20261030]
+permissions:
+  contents: read
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check lib/integracoes/consultar-rastreio-ssw.js
+      - run: node --test tests/ssw-identidade.test.js
