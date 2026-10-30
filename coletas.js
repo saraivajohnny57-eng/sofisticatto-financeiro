@@ -3833,7 +3833,11 @@ function clienteDoRastreioV415(rastro){
   const docs=[rastro.cpf_cnpj,rastro.cnpj_destinatario,rastro.documento_destinatario,agenda?.dados?.cnpj_destino].map(rastDigitosV415).filter(v=>v.length===11||v.length===14);
   for(const doc of docs){const c=clientes.find(c=>rastDigitosV415(c.cpf_cnpj)===doc);if(c)return c;}
   const nome=rastNomeV415(rastro.parceiro_nome);
-  return nome?clientes.find(c=>rastNomeV415(c.nome)===nome)||null:null;
+  if(!nome)return null;
+  const exato=clientes.find(c=>rastNomeV415(c.nome)===nome);if(exato)return exato;
+  const partes=String(rastro.parceiro_nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().split(/[^A-Z0-9]+/).filter(x=>x.length>2);
+  const candidatos=clientes.filter(c=>{const n=rastNomeV415(c.nome);return partes.filter(p=>n.includes(p)).length>=Math.min(2,partes.length);});
+  return candidatos.length===1?candidatos[0]:null;
 }
 function nomeVendedoraRastreioV415(rastro){
   const c=clienteDoRastreioV415(rastro);
@@ -3888,27 +3892,41 @@ async function abrirLinhaTempoRastreio(id){
       linha.replaceChildren();
       linha.append(document.createTextNode('👩‍💼 Vendedora responsável: '+(vend?.nome||'Não informada')));
       if(usuarioEhVendedoraRastreio?.())return;
+      const procurar=document.createElement('button');procurar.className='btn';procurar.style.cssText='margin-left:10px;background:#24212e;color:white';
+      procurar.textContent='Procurar cliente cadastrado';
+      procurar.onclick=async()=>{
+        procurar.disabled=true;
+        try{
+          await carregarClientesRastreioV415();
+          const clientes=rastClientesV415.length?rastClientesV415:((typeof emailClientes!=='undefined'?emailClientes:[])||[]);
+          const escolhido=await selecionarClienteTimelineV432(clientes,rastro.parceiro_nome);
+          if(!escolhido)return;
+          const res=await banco.from('logistica_rastreamentos').update({cliente_id:escolhido.id}).eq('id',rastro.id).select('id,cliente_id').single();
+          if(res.error)throw res.error;
+          rastro.cliente_id=escolhido.id;clienteVend=escolhido;
+          atualizarLinha();
+        }catch(e){alert('Não foi possível vincular o cliente: '+e.message)}
+        finally{procurar.disabled=false;}
+      };
+      linha.append(procurar);
       const botao=document.createElement('button');botao.className='btn azul';botao.style.marginLeft='10px';
-      botao.textContent=!clienteVend?'Localizar cliente e definir vendedora':vend?'Alterar vendedora':'Definir vendedora';
+      botao.textContent=vend?'Editar vendedora':'Vincular vendedora';
       botao.onclick=async()=>{
         if(botao.disabled)return;
+        if(!clienteVend){alert('Primeiro localize o cliente pelo botão preto.');return;}
         botao.disabled=true;
         try{
-          if(!clienteVend){
-            const clientes=rastClientesV415.length?rastClientesV415:((typeof emailClientes!=='undefined'?emailClientes:[])||[]);
-            clienteVend=await selecionarClienteTimelineV432(clientes,rastro.parceiro_nome);
-            if(!clienteVend)return;
-          }
           if(typeof selecionarVendedoraSofisticatto!=='function')throw new Error('Seleção de vendedoras indisponível.');
           const vid=await selecionarVendedoraSofisticatto('Vendedora do cliente '+(clienteVend.nome||rastro.parceiro_nome));
           if(!vid)return;
-          const res=await banco.from('email_clientes').update({vendedora_id:vid}).eq('id',clienteVend.id).select().single();
+          const res=await banco.from('email_clientes').update({vendedora_id:vid}).eq('id',clienteVend.id).select('id,nome,cpf_cnpj,vendedora_id').single();
           if(res.error)throw res.error;
           clienteVend=res.data;
           rastClientesV415=rastClientesV415.map(c=>String(c.id)===String(clienteVend.id)?clienteVend:c);
-          if(typeof emailClientes!=='undefined'){const i=emailClientes.findIndex(c=>String(c.id)===String(clienteVend.id));if(i>=0)emailClientes[i]=clienteVend;}
+          if(typeof emailClientes!=='undefined'){const i=emailClientes.findIndex(c=>String(c.id)===String(clienteVend.id));if(i>=0)emailClientes[i]={...emailClientes[i],...clienteVend};}
+          atualizarLinha();
         }catch(e){alert('Não foi possível vincular a vendedora: '+e.message)}
-        finally{atualizarLinha();}
+        finally{botao.disabled=false;}
       };
       linha.append(botao);
     };
