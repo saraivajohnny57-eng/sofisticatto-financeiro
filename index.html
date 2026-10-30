@@ -1403,7 +1403,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
                   <button type="button" class="btn azul" id="coletaVendedoraBotao" onclick="vincularVendedoraClienteColeta()" disabled>Vincular vendedora</button>
                 </div>
               </div>
-              <div class="campo-largo" id="coletaXmlArea" style="border:2px dashed #c7b9ed;border-radius:12px;padding:14px;background:#f8f6ff" onmouseenter="configurarArrastarXmlColeta()">
+              <div class="campo-largo" id="coletaXmlArea" style="border:2px dashed #c7b9ed;border-radius:12px;padding:14px;background:#f8f6ff" ondragenter="configurarArrastarXmlColeta()" ondragover="configurarArrastarXmlColeta()" onmouseenter="configurarArrastarXmlColeta()">
                 <label class="relatorio-label" for="coletaXmlArquivo">Importar XML da NF-e — clique ou arraste o arquivo aqui</label>
                 <input id="coletaXmlArquivo" type="file" accept=".xml,text/xml,application/xml" onchange="importarXmlAgendamentoColeta(this.files[0]);this.value=''">
                 <small id="coletaXmlStatus">Preenche os dados da nota e do destinatário. Confira antes de salvar.</small>
