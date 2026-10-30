@@ -1836,8 +1836,8 @@ async function importarXmlIdentificadoresRastreioV433(event,sentido){
     if(nfAtual&&nf&&nfAtual!==nf)throw new Error('O número da NF-e do XML é diferente do rastreamento aberto.');
     if(destinatario&&campoParceiro&&normNome(anterior)!==normNome(destinatario)){
       const msg=anterior
-        ?`O destinatário do XML é "\u0024{destinatario}", mas o rastreamento está como "\u0024{anterior}". Deseja corrigir o nome com o destinatário da NF-e? A alteração só será gravada ao clicar em Salvar.`
-        :`Preencher destinatário conforme XML: "\u0024{destinatario}"?`;
+        ?`O destinatário do XML é "${destinatario}", mas o rastreamento está como "${anterior}". Deseja corrigir o nome com o destinatário da NF-e? A alteração só será gravada ao clicar em Salvar.`
+        :`Preencher destinatário conforme XML: "${destinatario}"?`;
       if(!confirm(msg))throw new Error('Importação cancelada para evitar associar a NF-e ao destinatário incorreto.');
       campoParceiro.value=destinatario;
     }
