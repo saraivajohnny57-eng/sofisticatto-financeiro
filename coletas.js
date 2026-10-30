@@ -90,6 +90,64 @@ async function carregarAgendamentosColeta(){
 function montarClientesColeta(){const dl=ce("coletaClientesLista");if(!dl)return;dl.innerHTML=(emailClientes||[]).map(c=>`<option value="${escaparHtmlEmail(c.nome||"")}"></option>`).join("")}
 function pesquisarClienteColeta(){ce("coletaClienteId").value="";const q=normalizarNomeEmail(cv("coletaClienteBusca"));const box=ce("coletaClienteResultados");if(q.length<2){box.style.display="none";return}const lista=(emailClientes||[]).filter(c=>normalizarNomeEmail([c.nome,c.cpf_cnpj,c.cidade,c.uf].filter(Boolean).join(" ")).includes(q)).slice(0,12);box.innerHTML=lista.map(c=>`<button type="button" class="coleta-resultado" onclick="selecionarClienteColeta('${c.id}')"><strong>${escaparHtmlEmail(c.nome||"")}</strong><span>${escaparHtmlEmail([c.cpf_cnpj,c.cidade,c.uf].filter(Boolean).join(" • "))}</span></button>`).join("")||'<div class="frete-cliente-sem-resultado">Nenhum cliente encontrado.</div>';box.style.display="block"}
 function selecionarClienteColetaPorNome(){const c=(emailClientes||[]).find(x=>normalizarNomeEmail(x.nome)===normalizarNomeEmail(cv("coletaClienteBusca")));if(c)selecionarClienteColeta(c.id)}
+async function vincularVendedoraClienteColeta(){
+  const id=ce("coletaClienteId")?.value;
+  if(!id)return alert("Selecione primeiro um cliente na pesquisa inteligente.");
+  const cliente=(emailClientes||[]).find(c=>String(c.id)===String(id));
+  if(!cliente)return alert("Cliente não encontrado no cadastro.");
+  if(typeof selecionarVendedoraSofisticatto!=="function")return alert("Lista de vendedoras indisponível.");
+  const vid=await selecionarVendedoraSofisticatto("Vendedora responsável por "+(cliente.nome||"cliente"));
+  if(!vid)return;
+  const botao=ce("coletaVendedoraBotao");if(botao)botao.disabled=true;
+  try{
+    const r=await banco.from("email_clientes").update({vendedora_id:vid}).eq("id",id).select("id,nome,vendedora_id").single();
+    if(r.error)throw r.error;
+    Object.assign(cliente,{vendedora_id:r.data.vendedora_id});
+    atualizarVendedoraClienteColeta();
+    alert("Vendedora salva no cadastro do cliente.");
+  }catch(e){alert("Não foi possível salvar a vendedora: "+e.message)}
+  finally{if(botao)botao.disabled=false;}
+}
+function atualizarVendedoraClienteColeta(){
+  const info=ce("coletaVendedoraInfo"),botao=ce("coletaVendedoraBotao");if(!info||!botao)return;
+  const c=(emailClientes||[]).find(x=>String(x.id)===String(ce("coletaClienteId")?.value));
+  const v=(typeof emailVendedoras!=="undefined"?emailVendedoras:[]).find(x=>String(x.id)===String(c?.vendedora_id||""));
+  info.textContent=c?"Vendedora: "+(v?.nome||"Não informada"):"Selecione um cliente para definir a vendedora";
+  botao.textContent=c?.vendedora_id?"Editar vendedora":"Vincular vendedora";
+  botao.disabled=!c;
+}
+async function importarXmlAgendamentoColeta(arquivo){
+  if(!arquivo)return;
+  if(!/\.xml$/i.test(arquivo.name)||arquivo.size>5*1024*1024)return alert("Selecione um arquivo XML de até 5 MB.");
+  try{
+    const xml=new DOMParser().parseFromString(await arquivo.text(),"application/xml");
+    if(xml.getElementsByTagName("parsererror").length)throw Error("XML inválido.");
+    const inf=xml.getElementsByTagName("infNFe")[0];
+    if(!inf)throw Error("Este arquivo não contém uma NF-e.");
+    const get=(root,tag)=>root?.getElementsByTagName(tag)[0]?.textContent?.trim()||"";
+    const ide=inf.getElementsByTagName("ide")[0],dest=inf.getElementsByTagName("dest")[0],total=inf.getElementsByTagName("ICMSTot")[0],transp=inf.getElementsByTagName("transp")[0];
+    const nf=get(ide,"nNF"),chave=String(inf.getAttribute("Id")||"").replace(/^NFe/i,"");
+    if(!/^\d{44}$/.test(chave)||!nf)throw Error("NF-e sem chave válida ou número.");
+    const nome=get(dest,"xNome"),doc=get(dest,"CNPJ")||get(dest,"CPF");
+    const atual=ce("coletaNumeroNf")?.value?.trim();
+    if(atual&&atual!==nf&&!confirm("A NF atual é "+atual+" e o XML é da NF "+nf+". Substituir os dados?"))return;
+    const campos={coletaNumeroNf:nf,coletaRazaoDestino:nome,coletaCnpjDestino:doc,coletaValorNf:get(total,"vNF")};
+    const endereco=dest?.getElementsByTagName("enderDest")[0];
+    Object.assign(campos,{coletaCepDestino:get(endereco,"CEP"),coletaEnderecoDestino:get(endereco,"xLgr"),coletaNumeroDestino:get(endereco,"nro"),coletaBairroDestino:get(endereco,"xBairro"),coletaComplementoDestino:get(endereco,"xCpl"),coletaCidadeDestino:[get(endereco,"xMun"),get(endereco,"UF")].filter(Boolean).join("/")});
+    for(const [id,val] of Object.entries(campos))if(val&&ce(id))ce(id).value=val;
+    const cliente=(emailClientes||[]).find(c=>doc&&String(c.cpf_cnpj||"").replace(/\D/g,"")===doc.replace(/\D/g,""));
+    if(cliente)selecionarClienteColeta(cliente.id);
+    else {if(ce("coletaClienteId"))ce("coletaClienteId").value="";if(ce("coletaClienteBusca"))ce("coletaClienteBusca").value=nome;atualizarVendedoraClienteColeta();}
+    if(typeof atualizarPreviaColeta==="function")atualizarPreviaColeta();
+    const info=ce("coletaXmlStatus");if(info)info.textContent="NF "+nf+" importada. Confira os dados antes de salvar.";
+  }catch(e){alert("Não foi possível importar XML: "+e.message)}
+}
+function configurarArrastarXmlColeta(){
+  const area=ce("coletaXmlArea");if(!area||area.dataset.configurado)return;area.dataset.configurado="1";
+  for(const nome of ["dragenter","dragover"])area.addEventListener(nome,e=>{e.preventDefault();area.style.borderColor="#5a4fa3";});
+  for(const nome of ["dragleave","drop"])area.addEventListener(nome,e=>{e.preventDefault();area.style.borderColor="#c7b9ed";});
+  area.addEventListener("drop",e=>importarXmlAgendamentoColeta(e.dataTransfer?.files?.[0]));
+}
 function selecionarClienteColeta(id){
   const c=(emailClientes||[]).find(x=>String(x.id)===String(id));
   if(!c)return;
@@ -135,6 +193,7 @@ function selecionarClienteColeta(id){
   }
 
   ce("coletaClienteResultados").style.display="none";
+  atualizarVendedoraClienteColeta();
   atualizarPreviaColeta();
 
   const faltando=[];
@@ -282,7 +341,7 @@ async function salvarAgendamentoColeta(){
   await carregarAgendamentosColeta();
   mostrarPainelColeta("historico");
 }
-function limparFormularioColeta(){["coletaAgendamentoId","coletaCotacaoId","coletaRespostaId","coletaClienteId","coletaClienteBusca","coletaCnpjDestino","coletaRazaoDestino","coletaCepDestino","coletaCidadeDestino","coletaVolumes","coletaPeso","coletaValorNf","coletaNumeroNf","coletaLocalizacao","coletaObservacao","coletaProtocoloCotacao","coletaComentarioApi","coletaEnderecoDestino","coletaNumeroDestino","coletaComplementoDestino","coletaBairroDestino"].forEach(id=>{if(ce(id))ce(id).value=""});atualizarPreviaColeta()}
+function limparFormularioColeta(){["coletaAgendamentoId","coletaCotacaoId","coletaRespostaId","coletaClienteId","coletaClienteBusca","coletaCnpjDestino","coletaRazaoDestino","coletaCepDestino","coletaCidadeDestino","coletaVolumes","coletaPeso","coletaValorNf","coletaNumeroNf","coletaLocalizacao","coletaObservacao","coletaProtocoloCotacao","coletaComentarioApi","coletaEnderecoDestino","coletaNumeroDestino","coletaComplementoDestino","coletaBairroDestino"].forEach(id=>{if(ce(id))ce(id).value=""});atualizarPreviaColeta();atualizarVendedoraClienteColeta()}
 function montarHistoricoColetas(){
   const tb=ce("coletaTabelaHistorico");if(!tb)return;
   const q=normalizarNomeEmail(cv("coletaBuscaHistorico")),s=cv("coletaFiltroStatus");
