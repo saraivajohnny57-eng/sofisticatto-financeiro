@@ -36,6 +36,18 @@
     "origem": "https://dfe-portal.svrs.rs.gov.br/Schemas/PRPSVRS/GNRE/v2.00/dados_gnre_v1.00.xsd"
   },
   {
+    "nome": "homologacao-GnreLoteRecepcao.wsdl",
+    "sha256": "4b0a27a7545cc3b2651fb0db92251d99e16d1beed87fd41b234dc39cf154a474",
+    "bytes": 2703,
+    "origem": "https://www.testegnre.pe.gov.br:444/gnreWS/services/GnreLoteRecepcao.wsdl?wsdl"
+  },
+  {
+    "nome": "homologacao-GnreResultadoLote.wsdl",
+    "sha256": "d3dfc7a2194b754e43515da563aca187c879ea5ffe6e176d02ea115a726cff2a",
+    "bytes": 2708,
+    "origem": "https://www.testegnre.pe.gov.br:444/gnreWS/services/GnreResultadoLote.wsdl?wsdl"
+  },
+  {
     "nome": "lote_gnre_consulta_v1.00.xsd",
     "sha256": "c7ff12bdf8db1d5eac0a7ba2d0d872345994d178c15d7f0a3b95a9549b850e0d",
     "bytes": 977,
