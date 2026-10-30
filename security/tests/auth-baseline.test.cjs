@@ -21,3 +21,12 @@ test('diagnóstico: sessão é recuperada de localStorage sem revalidação', ()
 test('diagnóstico: não expor service_role no frontend', () => {
   assert.doesNotMatch(source, /(?:sb_secret_|service_role)/i);
 });
+
+test('mitigação: senha não é persistida no localStorage após login', () => {
+  assert.match(source, /const \{ senha: _senhaDescartada, \.\.\.usuarioSemSenha \} = resposta\.data/);
+  assert.match(source, /localStorage\.setItem\("usuarioLogado", JSON\.stringify\(usuarioSemSenha\)\)/);
+});
+
+test('mitigação: senha legada é removida ao restaurar sessão', () => {
+  assert.match(source, /const \{ senha: _senhaLegada, \.\.\.usuarioSemSenha \} = JSON\.parse\(salvo\)/);
+});
