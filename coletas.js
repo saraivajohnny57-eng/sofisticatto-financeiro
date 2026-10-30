@@ -2464,14 +2464,28 @@ async function consultarRastreioSSWRegistro(id){
   else throw new Error("Informe NF ou chave NF-e para consultar as ocorrências SSW.");
   const resp=await q;
   if(resp.error)throw resp.error;
+  // Não atribuir uma ocorrência de outra transportadora à mesma NF.
+  // Nomes vazios só são aceitos quando a chave NF-e confere exatamente.
+  const chaveRegistro=String(rastro.chave_nfe||"").replace(/\D/g,"");
   const alvo=nomeNormalizadoTransportadora(nome);
-  const ocorrencia=(resp.data||[]).find(o=>{
+  const ocorrenciasValidas=(resp.data||[]).filter(o=>{
+    const chaveOcorrencia=String(o.chave_nfe||"").replace(/\D/g,"");
+    if(chaveRegistro.length===44 && chaveOcorrencia!==chaveRegistro)return false;
     const on=nomeNormalizadoTransportadora(o.transportadora_nome);
-    if(!on)return true;
-    return alvo.includes(on)||on.includes(alvo)||alvo.split(" ").some(w=>w.length>=3&&on.split(" ").includes(w));
-  }) || (resp.data||[])[0] || null;
+    if(!on)return chaveRegistro.length===44 && chaveOcorrencia===chaveRegistro;
+    if(!alvo)return false;
+    return alvo===on || alvo.includes(on) || on.includes(alvo);
+  });
+  const timestampOcorrencia=o=>{
+    const t=Date.parse(o.data_hora_evento||o.processado_em||o.created_at||"");
+    return Number.isFinite(t)?t:0;
+  };
+  const ocorrencia=ocorrenciasValidas.sort((a,b)=>timestampOcorrencia(b)-timestampOcorrencia(a))[0]||null;
+  const ultimaAnterior=Date.parse(rastro.ultima_ocorrencia_em||"");
+  // Uma ocorrência mais antiga não pode sobrescrever o status mais recente.
+  const ocorrenciaNova=ocorrencia && (!Number.isFinite(ultimaAnterior) || timestampOcorrencia(ocorrencia)>=ultimaAnterior);
 
-  if(ocorrencia){
+  if(ocorrenciaNova){
     const status=normalizarStatusOcorrenciaSSWCliente(ocorrencia.descricao,ocorrencia.codigo_ocorrencia);
     const quando=ocorrencia.data_hora_evento && !Number.isNaN(new Date(ocorrencia.data_hora_evento).getTime())
       ? new Date(ocorrencia.data_hora_evento).toISOString()
