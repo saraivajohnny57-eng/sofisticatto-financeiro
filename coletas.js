@@ -2883,8 +2883,11 @@ async function atualizarTodosRastreiosSaida(silencioso=false){
 function iniciarAtualizacaoAutomaticaRastreios(){
   if(timerAtualizacaoAutomaticaRastreios)return;
   // Faz uma sincronização leve ao entrar na tela e repete a cada 2 minutos.
-  setTimeout(()=>atualizarTodosRastreiosSaida(true),1500);
-  timerAtualizacaoAutomaticaRastreios=setInterval(()=>atualizarTodosRastreiosSaida(true),120000);
+  setTimeout(()=>{if(timerAtualizacaoAutomaticaRastreios && !document.hidden)atualizarTodosRastreiosSaida(true);},1500);
+  // Evita consultas de todas as APIs quando a aba está em segundo plano.
+  timerAtualizacaoAutomaticaRastreios=setInterval(()=>{
+    if(!document.hidden)atualizarTodosRastreiosSaida(true);
+  },120000);
 }
 function pararAtualizacaoAutomaticaRastreios(){
   if(timerAtualizacaoAutomaticaRastreios){clearInterval(timerAtualizacaoAutomaticaRastreios);timerAtualizacaoAutomaticaRastreios=null;}
