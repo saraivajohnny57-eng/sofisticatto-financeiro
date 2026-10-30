@@ -3911,11 +3911,17 @@ async function abrirLinhaTempoRastreio(id){
     await carregarClientesRastreioV415();
     if(typeof carregarVendedorasEmail==='function'&&(typeof emailVendedoras==='undefined'||!emailVendedoras.length))await carregarVendedorasEmail();
     let clienteVend=clienteDoRastreioV415(rastro);
+    // O vínculo persistido tem prioridade sobre listas locais incompletas ou desatualizadas.
+    if(rastro.cliente_id){
+      const consulta=await banco.from('email_clientes').select('id,nome,cpf_cnpj,vendedora_id').eq('id',rastro.cliente_id).maybeSingle();
+      if(!consulta.error&&consulta.data)clienteVend=consulta.data;
+    }
     const linha=document.createElement('div');linha.style.cssText='margin-top:8px;font-weight:600';
     const atualizarLinha=()=>{
       const vend=(typeof emailVendedoras!=='undefined'?emailVendedoras:[]).find(v=>String(v.id)===String(clienteVend?.vendedora_id||''));
+      const nomeVendedora=vend?.nome||(clienteVend?.vendedora_id?'Vendedora vinculada (carregando nome)':'Não informada');
       linha.replaceChildren();
-      linha.append(document.createTextNode('👩‍💼 Vendedora responsável: '+(vend?.nome||'Não informada')));
+      linha.append(document.createTextNode('👩‍💼 Vendedora responsável: '+nomeVendedora));
       if(usuarioEhVendedoraRastreio?.())return;
       const procurar=document.createElement('button');procurar.className='btn';procurar.style.cssText='margin-left:10px;background:#24212e;color:white';
       procurar.textContent='Localizar por CPF/CNPJ';
@@ -3954,6 +3960,10 @@ async function abrirLinhaTempoRastreio(id){
       linha.append(botao);
     };
     atualizarLinha();document.getElementById('rastTimelineMeta').append(linha);
+    if(clienteVend?.vendedora_id&&!((typeof emailVendedoras!=='undefined'?emailVendedoras:[])||[]).some(v=>String(v.id)===String(clienteVend.vendedora_id))){
+      const vr=await banco.from('email_vendedoras').select('id,nome').eq('id',clienteVend.vendedora_id).maybeSingle();
+      if(!vr.error&&vr.data){if(typeof emailVendedoras!=='undefined')emailVendedoras.push(vr.data);atualizarLinha();}
+    }
 
     let eventos=[];let avisoAoVivo="";
     const vivo=await atualizarTimelineAoAbrir(rastro,nome);
