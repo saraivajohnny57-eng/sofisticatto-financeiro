@@ -1,0 +1,23 @@
+name: Security baseline (no network tests)
+on:
+  push:
+    branches:
+      - security/rls-auth-hardening-audit-20261030
+  pull_request:
+    paths:
+      - 'financeiro.js'
+      - 'security/**'
+      - '.github/workflows/security-baseline.yml'
+permissions:
+  contents: read
+jobs:
+  offline-security-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute offline baseline
+        run: node --test security/tests/*.test.cjs
