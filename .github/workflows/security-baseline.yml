@@ -20,4 +20,4 @@ jobs:
         with:
           node-version: '22'
       - name: Execute offline baseline
-        run: node --test security/tests/auth-baseline.test.cjs
+        run: node --test security/tests/*.test.cjs
