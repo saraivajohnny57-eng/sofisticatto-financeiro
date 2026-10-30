@@ -2485,13 +2485,13 @@ SOFISTICATTO COSMÉTICOS</textarea>
         <input type="hidden" id="emailClienteId">
         <div class="inputs">
           <input id="emailClienteNome" placeholder="Nome do cliente">
-          <input id="emailClienteCpfCnpj" placeholder="CNPJ/CPF (opcional)" inputmode="numeric">
+          <input id="emailClienteCpfCnpj" placeholder="CNPJ/CPF (opcional)" inputmode="numeric" maxlength="18" oninput="mascaraDocumentoCadastroV450(this)">
           <textarea id="emailClienteEmails" placeholder="E-mails separados por ponto e vírgula, vírgula ou uma linha para cada e-mail (opcional)"></textarea>
           <input id="emailClienteEndereco" placeholder="Endereço (opcional)">
           <input id="emailClienteNumero" placeholder="Número (opcional)">
           <input id="emailClienteComplemento" placeholder="Complemento (opcional)">
           <input id="emailClienteBairro" placeholder="Bairro (opcional)">
-          <input id="emailClienteCep" maxlength="9" placeholder="CEP (opcional)" oninput="formatarCepEtiquetaCampo(this)">
+          <input id="emailClienteCep" maxlength="9" placeholder="CEP (opcional)" oninput="formatarCepEtiquetaCampo(this);consultarCepCadastroV450(this)">
           <input id="emailClienteCidade" placeholder="Cidade (opcional)">
           <input id="emailClienteUf" maxlength="2" placeholder="UF (opcional)" oninput="this.value=this.value.toUpperCase()">
           <input id="emailClienteTransportadora" placeholder="Transportadora preferencial (opcional)">
@@ -3943,6 +3943,27 @@ document.getElementById("toggleMenuSof")?.setAttribute("aria-expanded",String(!d
 <script src="remessas-cnab-teste-v378.js?v=379"></script>
 <script src="remessas-autopreenchimento-v379.js?v=379"></script>
 <script src="gnre-etiqueta-v418.js?v=422"></script>
+<script>
+function mascaraDocumentoCadastroV450(el){
+ const d=String(el.value||'').replace(/\D/g,'').slice(0,14);
+ if(d.length<=11){el.value=d.replace(/^(\d{3})(\d)/,'$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d{1,2})$/,'.$1-$2');}
+ else{el.value=d.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1/$2').replace(/(\/\d{4})(\d)/,'$1-$2');}
+}
+let cepCadastroUltimoV450='';
+async function consultarCepCadastroV450(el){
+ const cep=String(el.value||'').replace(/\D/g,'');
+ if(cep.length!==8||cep===cepCadastroUltimoV450)return;
+ cepCadastroUltimoV450=cep;
+ try{
+  const r=await fetch('https://viacep.com.br/ws/'+cep+'/json/',{signal:AbortSignal.timeout(7000)});
+  if(!r.ok)throw Error('CEP indisponível');
+  const d=await r.json();if(d.erro)throw Error('CEP não encontrado');
+  if(String(el.value||'').replace(/\D/g,'')!==cep)return;
+  const valores={emailClienteCidade:d.localidade,emailClienteUf:d.uf,emailClienteBairro:d.bairro,emailClienteEndereco:d.logradouro};
+  for(const [id,valor] of Object.entries(valores)){const campo=document.getElementById(id);if(campo&&valor&&!campo.value.trim())campo.value=valor;}
+ }catch(e){console.warn('Consulta de CEP:',e.message);cepCadastroUltimoV450='';}
+}
+</script>
 </body>
 </html>
 
