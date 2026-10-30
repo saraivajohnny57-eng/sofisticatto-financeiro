@@ -1398,6 +1398,15 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <datalist id="coletaClientesLista"></datalist>
                 <input type="hidden" id="coletaClienteId">
                 <div id="coletaClienteResultados" class="coleta-resultados"></div>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
+                  <span id="coletaVendedoraInfo" style="font-size:13px;color:#5a4fa3">Selecione um cliente para definir a vendedora</span>
+                  <button type="button" class="btn azul" id="coletaVendedoraBotao" onclick="vincularVendedoraClienteColeta()" disabled>Vincular vendedora</button>
+                </div>
+              </div>
+              <div class="campo-largo" id="coletaXmlArea" style="border:2px dashed #c7b9ed;border-radius:12px;padding:14px;background:#f8f6ff" onmouseenter="configurarArrastarXmlColeta()">
+                <label class="relatorio-label" for="coletaXmlArquivo">Importar XML da NF-e — clique ou arraste o arquivo aqui</label>
+                <input id="coletaXmlArquivo" type="file" accept=".xml,text/xml,application/xml" onchange="importarXmlAgendamentoColeta(this.files[0]);this.value=''">
+                <small id="coletaXmlStatus">Preenche os dados da nota e do destinatário. Confira antes de salvar.</small>
               </div>
 
               <div><label class="relatorio-label">Transportadora</label><select id="coletaTransportadoraId" onchange="aplicarModeloDaTransportadoraColeta();atualizarAreaApiColeta()"></select></div>
@@ -3402,7 +3411,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=220-braspress-detalhado"></script>
 <script src="motor-integracoes.js?v=34"></script>
-<script src="coletas.js?v=446-validade-a1"></script>
+<script src="coletas.js?v=447-vendedora-xml"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">
