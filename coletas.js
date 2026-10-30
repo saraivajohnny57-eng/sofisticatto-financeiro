@@ -2176,7 +2176,7 @@ async function carregarRastreamentosLogistica(sentido){
     await carregarEscopoVendedoraColetas();
     const agIds=new Set((coletaAgendamentos||[]).map(a=>String(a.id)));
     rastreamentosLogistica=rastreamentosLogistica.filter(x=>
-      registroPermitidoVendedora(x.cliente_id,x.parceiro_nome) || (x.coleta_agendamento_id&&agIds.has(String(x.coleta_agendamento_id)))
+      ((x.vendedora_id&&((typeof idsVendedoraUsuario==='function')?[...idsVendedoraUsuario()]:[String(usuarioLogado?.vendedora_id||'')]).map(String).includes(String(x.vendedora_id))) || registroPermitidoVendedora(x.cliente_id,x.parceiro_nome)) || (x.coleta_agendamento_id&&agIds.has(String(x.coleta_agendamento_id)))
     );
   }
   // V58: evita duplicidade visual quando a mesma coleta/NF foi reconciliada mais de
@@ -3983,7 +3983,7 @@ async function abrirLinhaTempoRastreio(id){
         botao.disabled=true;
         try{
           if(typeof selecionarVendedoraSofisticatto!=='function')throw new Error('Seleção de vendedoras indisponível.');
-          const vid=await selecionarVendedoraSofisticatto('Vendedora do cliente '+(clienteVend.nome||rastro.parceiro_nome));
+          const vid=await selecionarVendedoraSofisticatto('Vendedora do cliente '+(clienteVend?.nome||rastro.parceiro_nome));
           if(!vid)return;
           const gravacao=await banco.from('logistica_rastreamentos').update({vendedora_id:vid}).eq('id',rastro.id).select('id,vendedora_id').single();
           if(gravacao.error)throw gravacao.error;
