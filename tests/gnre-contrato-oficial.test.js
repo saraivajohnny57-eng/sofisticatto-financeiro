@@ -39,7 +39,7 @@ test('GNRE actions e namespaces conferem com os WSDLs oficiais SVRS', () => {
 
   const envelopeConsulta = montarEnvelopeSoap12({
     servico: 'consulta',
-    xmlDados: '<TconsLote_GNRE xmlns="http://www.gnre.pe.gov.br"></TconsLote_GNRE>'
+    xmlDados: '<TConsLote_GNRE xmlns="http://www.gnre.pe.gov.br"></TConsLote_GNRE>'
   });
   assert.ok(envelopeConsulta.includes(`xmlns="${nsConsulta}"`), 'namespace de consulta diverge do WSDL');
 });

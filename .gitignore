@@ -1,0 +1,6 @@
+# Artefatos locais de validação/ferramentas (não versionar)
+.tools/
+node_modules/
+.env
+.env.local
+*.log

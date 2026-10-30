@@ -1,17 +1,5 @@
 [
   {
-    "nome": "dados_gnre_v1.00.xsd",
-    "sha256": "a53ea134d1feca9d4ee6a373f1cf77aa430929158d03b16aeb1ce232b4579949",
-    "bytes": 16413,
-    "origem": "https://dfe-portal.svrs.rs.gov.br/Schemas/PRPSVRS/GNRE/v2.00/dados_gnre_v1.00.xsd"
-  },
-  {
-    "nome": "tiposBasicoGNRE_v1.00.xsd",
-    "sha256": "d110fe070a90e7a2cf61b0bd74a031576982b0adf1ffc3f3a92d0215f6d5ff72",
-    "bytes": 9635,
-    "origem": "https://dfe-portal.svrs.rs.gov.br/Schemas/PRPSVRS/GNRE/v2.00/tiposBasicoGNRE_v1.00.xsd"
-  },
-  {
     "nome": "GnreLoteRecepcao.wsdl",
     "sha256": "bc3912a556f2acd6635f052bc97df71f5c6e4ab8f5812c8f803bdb523cf8ef95",
     "bytes": 2634,
@@ -22,5 +10,59 @@
     "sha256": "3ab1116660cc8d32541bfab3e8935fdc2457c4210bcb6851e362d1c5739ddba4",
     "bytes": 2638,
     "origem": "https://dfe-portal.svrs.rs.gov.br/Schemas/PRPSVRS/GNRE/v2.00/GnreResultadoLote.wsdl"
+  },
+  {
+    "nome": "cabecMsg_v1.00.xsd",
+    "sha256": "2f0969b768cf408c02d00bfe5a9398f85803d87010275f79d77780c800ba7914",
+    "bytes": 1206,
+    "origem": "https://dfe-portal.svrs.rs.gov.br/Schemas/PRPSVRS/GNRE/v2.00/cabecMsg_v1.00.xsd"
+  },
+  {
+    "nome": "config_uf_v1.00.xsd",
+    "sha256": "a2121f309df202a3e36a67f3e895ed007ea5b53a6f0b713e702f1cdf6db3e5ee",
+    "bytes": 19853,
+    "origem": "https://dfe-portal.svrs.rs.gov.br/Schemas/PRPSVRS/GNRE/v2.00/config_uf_v1.00.xsd"
+  },
+  {
+    "nome": "consulta_config_uf_v1.00.xsd",
+    "sha256": "11bf2bb9a6f46d37487d9b9936982ea4fedd84697a76a1272a9be3104efca383",
+    "bytes": 1136,
+    "origem": "https://dfe-portal.svrs.rs.gov.br/Schemas/PRPSVRS/GNRE/v2.00/consulta_config_uf_v1.00.xsd"
+  },
+  {
+    "nome": "dados_gnre_v1.00.xsd",
+    "sha256": "a53ea134d1feca9d4ee6a373f1cf77aa430929158d03b16aeb1ce232b4579949",
+    "bytes": 16413,
+    "origem": "https://dfe-portal.svrs.rs.gov.br/Schemas/PRPSVRS/GNRE/v2.00/dados_gnre_v1.00.xsd"
+  },
+  {
+    "nome": "lote_gnre_consulta_v1.00.xsd",
+    "sha256": "c7ff12bdf8db1d5eac0a7ba2d0d872345994d178c15d7f0a3b95a9549b850e0d",
+    "bytes": 977,
+    "origem": "https://dfe-portal.svrs.rs.gov.br/Schemas/PRPSVRS/GNRE/v2.00/lote_gnre_consulta_v1.00.xsd"
+  },
+  {
+    "nome": "lote_gnre_recibo_v1.00.xsd",
+    "sha256": "e44ca8dcfc2f9aecfc1732be4fdd1f50cb2eaf506d0e3748a43bfb258873a848",
+    "bytes": 2806,
+    "origem": "https://dfe-portal.svrs.rs.gov.br/Schemas/PRPSVRS/GNRE/v2.00/lote_gnre_recibo_v1.00.xsd"
+  },
+  {
+    "nome": "lote_gnre_result_v1.00.xsd",
+    "sha256": "583ffbea8cadd755e1764e9c6a3f35da3d27c9c03de828e65eec7619ffe5c814",
+    "bytes": 1826,
+    "origem": "https://dfe-portal.svrs.rs.gov.br/Schemas/PRPSVRS/GNRE/v2.00/lote_gnre_result_v1.00.xsd"
+  },
+  {
+    "nome": "lote_gnre_v1.00.xsd",
+    "sha256": "1f06329c00d89ee8d16abe5bcfd3fbb8d2df8d6b6bbc195e62edefc92aba760d",
+    "bytes": 1277,
+    "origem": "https://dfe-portal.svrs.rs.gov.br/Schemas/PRPSVRS/GNRE/v2.00/lote_gnre_v1.00.xsd"
+  },
+  {
+    "nome": "tiposBasicoGNRE_v1.00.xsd",
+    "sha256": "d110fe070a90e7a2cf61b0bd74a031576982b0adf1ffc3f3a92d0215f6d5ff72",
+    "bytes": 9635,
+    "origem": "https://dfe-portal.svrs.rs.gov.br/Schemas/PRPSVRS/GNRE/v2.00/tiposBasicoGNRE_v1.00.xsd"
   }
 ]

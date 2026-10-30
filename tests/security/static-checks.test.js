@@ -105,9 +105,9 @@ test('F15: vercel.json não define timeout de função nem crons', () => {
   assert.equal(cfg.crons, undefined);
 });
 
-test('F16 (comportamento atual): existe apenas um SQL no repositório', () => {
-  const sqls = fs.readdirSync(ROOT).filter((f) => f.toLowerCase().endsWith('.sql'));
-  assert.deepEqual(sqls, ['SQL_V347_ANEXOS_TEMPORARIOS.sql']);
+test('F16 (comportamento atual): scripts SQL do repositório são apenas os versionados', () => {
+  const sqls = fs.readdirSync(ROOT).filter((f) => f.toLowerCase().endsWith('.sql')).sort();
+  assert.deepEqual(sqls, ['SQL_GNRE_HOMOLOGACAO_EXECUCOES.sql', 'SQL_V347_ANEXOS_TEMPORARIOS.sql']);
   const fontes = listarJs('.');
   const referencias = new Set();
   for (const arquivo of fontes) {
