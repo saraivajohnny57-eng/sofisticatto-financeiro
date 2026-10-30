@@ -3860,7 +3860,7 @@ function clienteDoRastreioV415(rastro){
     if(encontrados.length===1)return encontrados[0];
   }
   const correios=/correios|coreios/i.test(rastro.frete_transportadoras?.nome||'')||/^[A-Z]{2}\\d{9}BR$/i.test(rastro.protocolo_rastreio||'');
-  if(correios&&!rastro.numero_nfe){
+  if(true){
     const nome=rastNomeV415(rastro.parceiro_nome);
     const encontrados=clientes.filter(c=>rastNomeV415(c.nome)===nome);
     if(nome&&encontrados.length===1)return encontrados[0];
@@ -3882,6 +3882,23 @@ async function vincularClienteRastreioPorDocumentoV449(rastro){
     return cliente;
   }
   const docs=documentosRastreioV449(rastro);
+  if(!docs.length){
+    const nome=rastNomeV415(rastro.parceiro_nome);
+    let encontrados=rastClientesV415.filter(c=>nome&&rastNomeV415(c.nome)===nome);
+    if(!encontrados.length&&rastro.parceiro_nome){
+      const consulta=await banco.from('email_clientes').select('id,nome,cpf_cnpj,vendedora_id').ilike('nome','%'+String(rastro.parceiro_nome).trim().replace(/[%_]/g,'')+'%').limit(20);
+      if(consulta.error)throw consulta.error;
+      encontrados=(consulta.data||[]).filter(c=>rastNomeV415(c.nome)===nome);
+    }
+    if(encontrados.length===1){
+      const cliente=encontrados[0];
+      const gravacao=await banco.from('logistica_rastreamentos').update({cliente_id:cliente.id}).eq('id',rastro.id).select('id,cliente_id').single();
+      if(gravacao.error)throw gravacao.error;
+      rastro.cliente_id=cliente.id;
+      return cliente;
+    }
+    if(encontrados.length>1)throw new Error('Mais de um cliente com o mesmo nome. Selecione o cliente manualmente.');
+  }
   let documento=docs.length===1?docs[0]:'';
   if(!documento){
     const digitado=prompt('Informe o CPF ou CNPJ do destinatário da NF '+(rastro.numero_nfe||'')+'. O cliente será localizado pelo documento cadastrado, sem procurar pelo nome.');
