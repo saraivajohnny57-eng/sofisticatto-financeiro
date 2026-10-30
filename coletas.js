@@ -3869,6 +3869,18 @@ function clienteDoRastreioV415(rastro){
 }
 async function vincularClienteRastreioPorDocumentoV449(rastro){
   await carregarClientesRastreioV415();
+  const correiosSemNfe=!rastro.numero_nfe&&(/correios|coreios/i.test(rastro.frete_transportadoras?.nome||'')||/^[A-Z]{2}\\d{9}BR$/i.test(rastro.protocolo_rastreio||''));
+  if(correiosSemNfe){
+    const nome=rastNomeV415(rastro.parceiro_nome);
+    if(!nome)throw new Error('O rastreamento dos Correios não contém nome do destinatário.');
+    const encontrados=rastClientesV415.filter(c=>rastNomeV415(c.nome)===nome);
+    if(encontrados.length!==1)throw new Error(encontrados.length?'Existem cadastros duplicados com esse nome. Confirme o cliente no cadastro.':'Cliente não encontrado pelo nome no cadastro.');
+    const cliente=encontrados[0];
+    const res=await banco.from('logistica_rastreamentos').update({cliente_id:cliente.id}).eq('id',rastro.id).select('id,cliente_id').single();
+    if(res.error)throw res.error;
+    rastro.cliente_id=cliente.id;
+    return cliente;
+  }
   const docs=documentosRastreioV449(rastro);
   let documento=docs.length===1?docs[0]:'';
   if(!documento){
