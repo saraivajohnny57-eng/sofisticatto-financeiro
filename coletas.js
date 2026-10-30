@@ -2161,6 +2161,17 @@ async function carregarRastreamentosLogistica(sentido){
   }
   const r=await banco.from("logistica_rastreamentos").select("*,frete_transportadoras(nome)").eq("sentido",sentido).order("created_at",{ascending:false});
   rastreamentosLogistica=r.error?[]:(r.data||[]);
+  if(sentido==='saida'&&!usuarioEhVendedoraRastreio?.()){
+    await carregarClientesRastreioV415();
+    const candidatos=rastreamentosLogistica.filter(x=>!x.cliente_id&&!x.numero_nfe&&(/correios|coreios/i.test(x.frete_transportadoras?.nome||'')||/^[A-Z]{2}\\d{9}BR$/i.test(x.protocolo_rastreio||'')));
+    for(const x of candidatos){
+      const nome=rastNomeV415(x.parceiro_nome);
+      const encontrados=rastClientesV415.filter(c=>nome&&rastNomeV415(c.nome)===nome);
+      if(encontrados.length!==1)continue;
+      const resultado=await banco.from('logistica_rastreamentos').update({cliente_id:encontrados[0].id}).eq('id',x.id).is('cliente_id',null).select('id,cliente_id').maybeSingle();
+      if(!resultado.error&&resultado.data)x.cliente_id=resultado.data.cliente_id;
+    }
+  }
   if(usuarioEhVendedoraRastreio?.()){
     await carregarEscopoVendedoraColetas();
     const agIds=new Set((coletaAgendamentos||[]).map(a=>String(a.id)));
@@ -3847,6 +3858,12 @@ function clienteDoRastreioV415(rastro){
   for(const doc of docs){
     const encontrados=clientes.filter(c=>rastDigitosV415(c.cpf_cnpj)===doc);
     if(encontrados.length===1)return encontrados[0];
+  }
+  const correios=/correios|coreios/i.test(rastro.frete_transportadoras?.nome||'')||/^[A-Z]{2}\\d{9}BR$/i.test(rastro.protocolo_rastreio||'');
+  if(correios&&!rastro.numero_nfe){
+    const nome=rastNomeV415(rastro.parceiro_nome);
+    const encontrados=clientes.filter(c=>rastNomeV415(c.nome)===nome);
+    if(nome&&encontrados.length===1)return encontrados[0];
   }
   return null;
 }
