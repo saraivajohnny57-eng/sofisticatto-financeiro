@@ -294,8 +294,10 @@ async function entrar(){
     return;
   }
 
-  usuarioLogado = resposta.data;
-  localStorage.setItem("usuarioLogado", JSON.stringify(usuarioLogado));
+  // Nunca persistir a senha retornada pelo cadastro legado.
+  const { senha: _senhaDescartada, ...usuarioSemSenha } = resposta.data;
+  usuarioLogado = usuarioSemSenha;
+  localStorage.setItem("usuarioLogado", JSON.stringify(usuarioSemSenha));
   iniciarSistema();
 }
 
@@ -7107,7 +7109,10 @@ document.addEventListener("DOMContentLoaded", async function(){
 
     const salvo = localStorage.getItem("usuarioLogado");
     if(salvo){
-      usuarioLogado = JSON.parse(salvo);
+      const { senha: _senhaLegada, ...usuarioSemSenha } = JSON.parse(salvo);
+      usuarioLogado = usuarioSemSenha;
+      // Remove credenciais que versões anteriores gravaram no navegador.
+      localStorage.setItem("usuarioLogado", JSON.stringify(usuarioSemSenha));
       iniciarSistema();
     }else{
       atualizarBotaoNotificacao();
