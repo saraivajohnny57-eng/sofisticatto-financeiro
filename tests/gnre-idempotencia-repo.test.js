@@ -88,7 +88,10 @@ test('transições de estado enviam PATCH com estado correto', async () => {
   baseEnv();
   const patches = [];
   await withFetch(async (url, init = {}) => {
-    if (init.method === 'PATCH') patches.push(JSON.parse(init.body));
+    if (init.method === 'PATCH') {
+      patches.push({ body: JSON.parse(init.body), url });
+      return response([{ chave_idempotencia: 'k1', estado: 'atualizado' }]);
+    }
     return response([]);
   }, async () => {
     await repo.marcarEnviando('k1');
@@ -97,13 +100,15 @@ test('transições de estado enviam PATCH com estado correto', async () => {
     await repo.incerto('k3', { erro_codigo: 'ECONNRESET' });
   });
 
-  assert.equal(patches[0].estado, 'enviando');
-  assert.equal(patches[1].estado, 'concluido');
-  assert.equal(patches[1].http_status, 200);
-  assert.equal(patches[2].estado, 'falha');
-  assert.equal(patches[2].http_status, 500);
-  assert.equal(patches[3].estado, 'resultado_incerto');
-  assert.equal(patches[3].erro_codigo, 'ECONNRESET');
+  assert.equal(patches[0].body.estado, 'enviando');
+  assert.equal(patches[1].body.estado, 'concluido');
+  assert.equal(patches[1].body.http_status, 200);
+  assert.equal(patches[2].body.estado, 'falha');
+  assert.equal(patches[2].body.http_status, 500);
+  assert.equal(patches[3].body.estado, 'resultado_incerto');
+  assert.equal(patches[3].body.erro_codigo, 'ECONNRESET');
+  assert.match(patches[0].url, /estado=eq.reservado/);
+  for (const item of patches.slice(1)) assert.match(item.url, /estado=eq.enviando/);
 });
 
 test('listarIncertos consulta apenas estados de resultado incerto', async () => {
@@ -122,4 +127,14 @@ test('listarIncertos consulta apenas estados de resultado incerto', async () => 
 
 test('repositório exige Supabase configurado', async () => {
   await assert.rejects(() => repo.buscar('k1'), /não configurada/);
+});
+
+test('transição concorrente ou estado divergente bloqueia atualização', async () => {
+  baseEnv();
+  await withFetch(async () => response([]), async () => {
+    await assert.rejects(
+      () => repo.concluir('chave-inexistente', { http_status: 200, categoria: 'ok' }),
+      { code: 'GNRE_ESTADO_DIVERGENTE' }
+    );
+  });
 });
