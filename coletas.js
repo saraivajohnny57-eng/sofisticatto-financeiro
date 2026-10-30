@@ -2162,10 +2162,10 @@ async function carregarRastreamentosLogistica(sentido){
   const r=await banco.from("logistica_rastreamentos").select("*,frete_transportadoras(nome)").eq("sentido",sentido).order("created_at",{ascending:false});
   rastreamentosLogistica=r.error?[]:(r.data||[]);
   if(usuarioEhVendedoraRastreio?.()){
-    if(!coletaEscopoVendedora.carregado)await carregarEscopoVendedoraColetas();
+    await carregarEscopoVendedoraColetas();
     const agIds=new Set((coletaAgendamentos||[]).map(a=>String(a.id)));
     rastreamentosLogistica=rastreamentosLogistica.filter(x=>
-      (x.coleta_agendamento_id&&agIds.has(String(x.coleta_agendamento_id))) || registroPermitidoVendedora(null,x.parceiro_nome)
+      registroPermitidoVendedora(x.cliente_id,x.parceiro_nome) || (x.coleta_agendamento_id&&agIds.has(String(x.coleta_agendamento_id)))
     );
   }
   // V58: evita duplicidade visual quando a mesma coleta/NF foi reconciliada mais de
@@ -2247,6 +2247,11 @@ async function carregarRastreamentosLogistica(sentido){
   else{ce("rastEntradaTransito").textContent=emTransito;ce("rastEntradaRecebidas").textContent=entregues;ce("rastEntradaAtrasadas").textContent=atrasadas}
   await carregarClientesRastreioV415();
   if(typeof carregarVendedorasEmail==='function'&&(typeof emailVendedoras==='undefined'||!emailVendedoras.length))await carregarVendedorasEmail();
+  const faltantes=[...new Set(rastreamentosLogistica.map(x=>x.cliente_id).filter(id=>id&&!rastClientesV415.some(c=>String(c.id)===String(id))))];
+  if(faltantes.length){
+    const consulta=await banco.from('email_clientes').select('id,nome,cpf_cnpj,vendedora_id').in('id',faltantes.slice(0,200));
+    if(!consulta.error)rastClientesV415.push(...(consulta.data||[]));
+  }
   const tb=ce(sentido==="entrada"?"rastreamentoTabelaEntradas":"rastreamentoTabelaSaidas");
   tb.innerHTML=rastreamentosLogistica.length?rastreamentosLogistica.map(x=>{
     const textoBusca=[x.parceiro_nome,x.frete_transportadoras?.nome,x.numero_nfe,x.chave_nfe,x.numero_cte,x.protocolo_rastreio,statusLabelRastreamento(x.status),x.status,x.observacao].filter(Boolean).join(" ").toLowerCase();
@@ -3833,7 +3838,11 @@ function documentosRastreioV449(rastro){
 }
 function clienteDoRastreioV415(rastro){
   const clientes=rastClientesV415.length?rastClientesV415:((typeof emailClientes!=='undefined'?emailClientes:[])||[]);
-  if(rastro.cliente_id){const c=clientes.find(c=>String(c.id)===String(rastro.cliente_id));if(c)return c;}
+  if(rastro.cliente_id){
+    const c=clientes.find(c=>String(c.id)===String(rastro.cliente_id));
+    if(c)return c;
+    return {id:rastro.cliente_id,vendedora_id:rastro.vendedora_id||null,_pendente:true};
+  }
   const docs=documentosRastreioV449(rastro);
   for(const doc of docs){
     const encontrados=clientes.filter(c=>rastDigitosV415(c.cpf_cnpj)===doc);
