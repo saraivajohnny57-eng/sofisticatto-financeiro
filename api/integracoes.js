@@ -46,12 +46,14 @@ const consultarRastreioBraspress = require("../lib/integracoes/consultar-rastrei
 const gnreCertificado = require("../lib/integracoes/gnre-certificado");
 const gnreDiagnostico = require("../lib/integracoes/gnre-diagnostico");
 const gnreHomologacaoPlano = require("../lib/integracoes/gnre-homologacao-plano");
+const gnreReconciliacao = require("../lib/integracoes/gnre-reconciliacao");
 const diagnosticoDfeV445 = require("../lib/integracoes/diagnostico-dfe-v445");
 const ROTAS = Object.freeze({
   "diagnostico-dfe-v445": diagnosticoDfeV445,
   "gnre-diagnostico": gnreDiagnostico,
   "gnre-certificado": gnreCertificado,
   "gnre-homologacao-plano": gnreHomologacaoPlano,
+  "gnre-reconciliacao": gnreReconciliacao,
   "validar-chave": validarChave,
   "status-servidor": statusServidor,
   "salvar-credenciais": salvarCredenciais,

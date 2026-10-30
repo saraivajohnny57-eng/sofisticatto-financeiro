@@ -47,7 +47,7 @@ test('health responde sem credencial e sem expor valores de segredo', async () =
   const res = await executar(fakeRequest({ method: 'GET', query: { action: 'health' } }));
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.ok, true);
-  assert.equal(res.body.rotas_carregadas, 41);
+  assert.equal(res.body.rotas_carregadas, 42);
   assert.equal(res.body.variaveis.supabase_url, true);
   const serializado = JSON.stringify(res.body);
   for (const valor of [
