@@ -3822,7 +3822,7 @@ async function carregarClientesRastreioV415(){
     rastClientesV415=(typeof emailClientes!=='undefined'?emailClientes:[])||[];
     return;
   }
-  const r=await banco.from('email_clientes').select('id,nome,cpf_cnpj,vendedora_id');
+  const r=await banco.from('email_clientes').select('id,nome,cpf_cnpj,vendedora_id').range(0,9999);
   rastClientesV415=r.error?((typeof emailClientes!=='undefined'?emailClientes:[])||[]):(r.data||[]);
 }
 function clienteDoRastreioV415(rastro){
@@ -3854,7 +3854,7 @@ async function selecionarClienteTimelineV432(clientes, nomeRastro){
     const ajuda=document.createElement('p');ajuda.textContent='Selecione o cliente correto antes de vincular a vendedora. Nenhum cliente será alterado automaticamente.';
     const busca=document.createElement('input');busca.placeholder='Pesquisar por nome, CPF ou CNPJ';busca.style.cssText='width:100%;margin:12px 0';busca.value=nomeRastro||'';
     const select=document.createElement('select');select.size=7;select.style.cssText='width:100%;min-height:140px';
-    const render=()=>{const q=String(busca.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();const dig=q.replace(/\D/g,'');select.replaceChildren();for(const c of clientes.filter(c=>{const n=String(c.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();return !q||n.includes(q)||(dig.length>=3&&String(c.cpf_cnpj||'').replace(/\D/g,'').includes(dig));}).slice(0,100)){const op=document.createElement('option');op.value=c.id;op.textContent=(c.nome||'Sem nome')+' — '+(c.cpf_cnpj||'sem documento');select.append(op);}select.selectedIndex=-1;};
+    const render=()=>{const q=String(busca.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();const dig=q.replace(/\D/g,'');const palavras=q.split(/\s+/).filter(Boolean);select.replaceChildren();for(const c of clientes.filter(c=>{const n=String(c.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();return !q||n.includes(q)||(palavras.length>1&&palavras.every(p=>n.includes(p)))||(dig.length>=3&&String(c.cpf_cnpj||'').replace(/\D/g,'').includes(dig));}).slice(0,100)){const op=document.createElement('option');op.value=c.id;op.textContent=(c.nome||'Sem nome')+' — '+(c.cpf_cnpj||'sem documento');select.append(op);}select.selectedIndex=-1;};
     busca.oninput=render;render();
     const acoes=document.createElement('div');acoes.style.cssText='display:flex;justify-content:flex-end;gap:8px;margin-top:14px';
     const cancelar=document.createElement('button');cancelar.className='btn roxo';cancelar.textContent='Cancelar';
