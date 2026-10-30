@@ -3825,19 +3825,44 @@ async function carregarClientesRastreioV415(){
   const r=await banco.from('email_clientes').select('id,nome,cpf_cnpj,vendedora_id').range(0,9999);
   rastClientesV415=r.error?((typeof emailClientes!=='undefined'?emailClientes:[])||[]):(r.data||[]);
 }
+function documentosRastreioV449(rastro){
+  const agenda=(coletaAgendamentos||[]).find(a=>String(a.id)===String(rastro.coleta_agendamento_id||'')) ||
+    (coletaAgendamentos||[]).find(a=>rastro.numero_nfe&&String(a.dados?.numero_nf||'')===String(rastro.numero_nfe));
+  return [...new Set([rastro.cpf_cnpj,rastro.cnpj_destinatario,rastro.documento_destinatario,rastro.cnpj_destino,agenda?.dados?.cnpj_destino]
+    .map(rastDigitosV415).filter(v=>v.length===11||v.length===14))];
+}
 function clienteDoRastreioV415(rastro){
   const clientes=rastClientesV415.length?rastClientesV415:((typeof emailClientes!=='undefined'?emailClientes:[])||[]);
   if(rastro.cliente_id){const c=clientes.find(c=>String(c.id)===String(rastro.cliente_id));if(c)return c;}
-  const agenda=(coletaAgendamentos||[]).find(a=>String(a.id)===String(rastro.coleta_agendamento_id||'')) ||
-    (coletaAgendamentos||[]).find(a=>rastro.numero_nfe&&String(a.dados?.numero_nf||'')===String(rastro.numero_nfe)&&rastNomeV415(a.cliente_nome)===rastNomeV415(rastro.parceiro_nome));
-  const docs=[rastro.cpf_cnpj,rastro.cnpj_destinatario,rastro.documento_destinatario,agenda?.dados?.cnpj_destino].map(rastDigitosV415).filter(v=>v.length===11||v.length===14);
-  for(const doc of docs){const c=clientes.find(c=>rastDigitosV415(c.cpf_cnpj)===doc);if(c)return c;}
-  const nome=rastNomeV415(rastro.parceiro_nome);
-  if(!nome)return null;
-  const exato=clientes.find(c=>rastNomeV415(c.nome)===nome);if(exato)return exato;
-  const partes=String(rastro.parceiro_nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().split(/[^A-Z0-9]+/).filter(x=>x.length>2);
-  const candidatos=clientes.filter(c=>{const n=rastNomeV415(c.nome);return partes.filter(p=>n.includes(p)).length>=Math.min(2,partes.length);});
-  return candidatos.length===1?candidatos[0]:null;
+  const docs=documentosRastreioV449(rastro);
+  for(const doc of docs){
+    const encontrados=clientes.filter(c=>rastDigitosV415(c.cpf_cnpj)===doc);
+    if(encontrados.length===1)return encontrados[0];
+  }
+  return null;
+}
+async function vincularClienteRastreioPorDocumentoV449(rastro){
+  await carregarClientesRastreioV415();
+  const docs=documentosRastreioV449(rastro);
+  let documento=docs.length===1?docs[0]:'';
+  if(!documento){
+    const digitado=prompt('Informe o CPF ou CNPJ do destinatário da NF '+(rastro.numero_nfe||'')+'. O cliente será localizado pelo documento cadastrado, sem procurar pelo nome.');
+    if(digitado===null)return null;
+    documento=rastDigitosV415(digitado);
+  }
+  if(documento.length!==11&&documento.length!==14)throw new Error('Informe um CPF com 11 dígitos ou CNPJ com 14 dígitos.');
+  // Consulta direta ao cadastro, evitando depender de paginação ou da lista previamente carregada.
+  const busca=await banco.from('email_clientes').select('id,nome,cpf_cnpj,vendedora_id').or('cpf_cnpj.eq.'+documento+',cpf_cnpj.eq.'+documento.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'));
+  if(busca.error)throw busca.error;
+  let encontrados=(busca.data||[]).filter(c=>rastDigitosV415(c.cpf_cnpj)===documento);
+  if(!encontrados.length)encontrados=rastClientesV415.filter(c=>rastDigitosV415(c.cpf_cnpj)===documento);
+  if(encontrados.length!==1)throw new Error(encontrados.length?'Há cadastros duplicados com esse documento. Corrija os duplicados antes de vincular.':'Nenhum cliente cadastrado com esse CPF/CNPJ. Confira o documento no cadastro de clientes.');
+  const cliente=encontrados[0];
+  const res=await banco.from('logistica_rastreamentos').update({cliente_id:cliente.id}).eq('id',rastro.id).select('id,cliente_id').single();
+  if(res.error)throw res.error;
+  rastro.cliente_id=cliente.id;
+  rastClientesV415=rastClientesV415.filter(c=>String(c.id)!==String(cliente.id)).concat(cliente);
+  return cliente;
 }
 function nomeVendedoraRastreioV415(rastro){
   const c=clienteDoRastreioV415(rastro);
@@ -3893,17 +3918,15 @@ async function abrirLinhaTempoRastreio(id){
       linha.append(document.createTextNode('👩‍💼 Vendedora responsável: '+(vend?.nome||'Não informada')));
       if(usuarioEhVendedoraRastreio?.())return;
       const procurar=document.createElement('button');procurar.className='btn';procurar.style.cssText='margin-left:10px;background:#24212e;color:white';
-      procurar.textContent='Procurar cliente cadastrado';
+      procurar.textContent='Localizar por CPF/CNPJ';
       procurar.onclick=async()=>{
         procurar.disabled=true;
         try{
           await carregarClientesRastreioV415();
           const clientes=rastClientesV415.length?rastClientesV415:((typeof emailClientes!=='undefined'?emailClientes:[])||[]);
-          const escolhido=await selecionarClienteTimelineV432(clientes,rastro.parceiro_nome);
+          const escolhido=await vincularClienteRastreioPorDocumentoV449(rastro);
           if(!escolhido)return;
-          const res=await banco.from('logistica_rastreamentos').update({cliente_id:escolhido.id}).eq('id',rastro.id).select('id,cliente_id').single();
-          if(res.error)throw res.error;
-          rastro.cliente_id=escolhido.id;clienteVend=escolhido;
+          clienteVend=escolhido;
           atualizarLinha();
         }catch(e){alert('Não foi possível vincular o cliente: '+e.message)}
         finally{procurar.disabled=false;}
