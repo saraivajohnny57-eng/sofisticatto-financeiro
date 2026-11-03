@@ -118,7 +118,7 @@ function atualizarVendedoraClienteColeta(){
 }
 async function importarXmlAgendamentoColeta(arquivo){
   if(!arquivo)return;
-  if(!/\\.xml$/i.test(arquivo.name)||arquivo.size>5*1024*1024)return alert("Selecione um arquivo XML de até 5 MB.");
+  if(!/\.xml$/i.test(arquivo.name)||arquivo.size>5*1024*1024)return alert("Selecione um arquivo XML de até 5 MB.");
   try{
     const xml=new DOMParser().parseFromString(await arquivo.text(),"application/xml");
     if(xml.getElementsByTagName("parsererror").length)throw Error("XML inválido.");
@@ -127,7 +127,7 @@ async function importarXmlAgendamentoColeta(arquivo){
     const get=(root,tag)=>root?.getElementsByTagName(tag)[0]?.textContent?.trim()||"";
     const ide=inf.getElementsByTagName("ide")[0],dest=inf.getElementsByTagName("dest")[0],total=inf.getElementsByTagName("ICMSTot")[0],transp=inf.getElementsByTagName("transp")[0];
     const nf=get(ide,"nNF"),chave=String(inf.getAttribute("Id")||"").replace(/^NFe/i,"");
-    if(!/^\\d{44}$/.test(chave)||!nf)throw Error("NF-e sem chave válida ou número.");
+    if(!/^\d{44}$/.test(chave)||!nf)throw Error("NF-e sem chave válida ou número.");
     const nome=get(dest,"xNome"),doc=get(dest,"CNPJ")||get(dest,"CPF");
     const atual=ce("coletaNumeroNf")?.value?.trim();
     if(atual&&atual!==nf&&!confirm("A NF atual é "+atual+" e o XML é da NF "+nf+". Substituir os dados?"))return;
@@ -142,17 +142,17 @@ async function importarXmlAgendamentoColeta(arquivo){
     if(pesoBruto>0||pesoLiquido>0)campos.coletaPeso=String(pesoBruto||pesoLiquido).replace(".",",");
     if(especie)campos.coletaEmbalagem=especie;
     // A seleção do cliente vem antes dos campos da NF, pois ela preenche o endereço cadastrado.
-    const cliente=(emailClientes||[]).find(c=>doc&&String(c.cpf_cnpj||c.cnpj||c.documento||"").replace(/\\D/g,"")===doc.replace(/\\D/g,""));
+    const cliente=(emailClientes||[]).find(c=>doc&&String(c.cpf_cnpj||c.cnpj||c.documento||"").replace(/\D/g,"")===doc.replace(/\D/g,""));
     if(cliente)selecionarClienteColeta(cliente.id);
     else {if(ce("coletaClienteId"))ce("coletaClienteId").value="";if(ce("coletaClienteBusca"))ce("coletaClienteBusca").value=nome;atualizarVendedoraClienteColeta();}
     for(const [id,val] of Object.entries(campos))if(val&&ce(id))ce(id).value=val;
-    const normalizar=(v)=>String(v||"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+    const normalizar=(v)=>String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]/g,"");
     const ids=Object.keys(enderecoXml);
     const divergentes=ids.filter(id=>enderecoXml[id]&&normalizar(enderecoXml[id])!==normalizar(ce(id)?.value));
     let usarXml=!cliente;
     if(cliente&&divergentes.length){
-      const descricao=ids.map(id=>({coletaCepDestino:"CEP",coletaEnderecoDestino:"Logradouro",coletaNumeroDestino:"Número",coletaBairroDestino:"Bairro",coletaComplementoDestino:"Complemento",coletaCidadeDestino:"Cidade/UF"}[id]+": "+(enderecoXml[id]||"-")) .join("\\n");
-      usarXml=confirm("O endereço da NF-e é diferente do cadastro de "+(nome||"cliente")+".\\n\\nEndereço do XML:\\n"+descricao+"\\n\\nDeseja usar o endereço do XML SOMENTE nesta coleta?\\n\\nCancelar mantém o endereço cadastrado. Os demais dados da NF serão importados normalmente.");
+      const descricao=ids.map(id=>({coletaCepDestino:"CEP",coletaEnderecoDestino:"Logradouro",coletaNumeroDestino:"Número",coletaBairroDestino:"Bairro",coletaComplementoDestino:"Complemento",coletaCidadeDestino:"Cidade/UF"}[id]+": "+(enderecoXml[id]||"-")) .join("\n");
+      usarXml=confirm("O endereço da NF-e é diferente do cadastro de "+(nome||"cliente")+".\n\nEndereço do XML:\n"+descricao+"\n\nDeseja usar o endereço do XML SOMENTE nesta coleta?\n\nCancelar mantém o endereço cadastrado. Os demais dados da NF serão importados normalmente.");
     }
     if(usarXml)for(const [id,val] of Object.entries(enderecoXml))if(val&&ce(id))ce(id).value=val;
     if(typeof atualizarPreviaColeta==="function")atualizarPreviaColeta();
