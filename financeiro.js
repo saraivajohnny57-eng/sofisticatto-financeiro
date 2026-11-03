@@ -7814,12 +7814,7 @@ async function imprimirBoletosFiltradosV178(){
     }
     if(!blobs.length)throw new Error('Nenhuma página pôde ser gerada.\n\n'+falhas.join('\n'));
     const blobFinal=await mesclarPdfsBb(blobs);
-    const url=URL.createObjectURL(blobFinal);
-    const w=window.open(url,'_blank');
-    if(!w){
-      const a=document.createElement('a');a.href=url;a.download=`Boletos filtrados - ordem por vencimento - ${di||'inicio'} a ${df||'hoje'}.pdf`;a.click();
-    }
-    setTimeout(()=>URL.revokeObjectURL(url),180000);
+    visualizarPdfLeveSofisticatto(blobFinal,`Boletos filtrados - ordem por vencimento - ${di||'inicio'} a ${df||'hoje'}.pdf`);
     if(falhas.length)alert(`O PDF único foi gerado com ${blobs.length} boleto(s), mas ${falhas.length} boleto(s) não puderam ser incluídos.\n\nNenhum título foi reemitido.\n\n${falhas.slice(0,8).join('\n')}${falhas.length>8?'\n...':''}`);
   }catch(e){alert('Não foi possível gerar o PDF único dos boletos filtrados.\n\n'+(e.message||e));}
 }
@@ -9599,15 +9594,33 @@ function nomePdfImpressaoNormalBb(registros){
   return nomePadraoBoletoV325(r.cliente_nome,r.numero_nf||r.numero_titulo);
 }
 
+
+function visualizarPdfLeveSofisticatto(blob,nome='Boletos Sofisticatto.pdf'){
+  if(!(blob instanceof Blob))throw new Error('Arquivo PDF inválido.');
+  const url=URL.createObjectURL(blob),fundo=document.createElement('div'),painel=document.createElement('div'),barra=document.createElement('div'),iframe=document.createElement('iframe');
+  fundo.style.cssText='position:fixed;inset:0;z-index:2147483000;background:#161126bb;display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box';
+  painel.style.cssText='background:#fff;border-radius:12px;overflow:hidden;width:min(1120px,100%);height:94vh;display:flex;flex-direction:column';
+  barra.style.cssText='display:flex;gap:8px;align-items:center;padding:10px;background:#f3edf9;font:600 14px Arial';
+  iframe.src=url;iframe.title='Pré-visualização do PDF';iframe.style.cssText='width:100%;flex:1;border:0';
+  const titulo=document.createElement('span');titulo.textContent=nome;titulo.style.cssText='flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+  let fechado=false;
+  const fechar=()=>{if(fechado)return;fechado=true;document.removeEventListener('keydown',tecla);fundo.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)};
+  const tecla=e=>{if(e.key==='Escape')fechar()};
+  const btn=(t,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=t;b.style.cssText='border:0;border-radius:7px;padding:9px;background:#6446a5;color:#fff;cursor:pointer';b.onclick=fn;return b};
+  const baixar=()=>{const a=document.createElement('a');a.href=url;a.download=nome;document.body.appendChild(a);a.click();a.remove()};
+  const imprimir=()=>{try{iframe.contentWindow.focus();iframe.contentWindow.print()}catch(e){alert('Use o botão de impressão do PDF ou baixe para imprimir.')}};
+  barra.append(titulo,btn('Imprimir',imprimir),btn('Baixar PDF',baixar),btn('Fechar',fechar));
+  painel.append(barra,iframe);fundo.appendChild(painel);fundo.onclick=e=>{if(e.target===fundo)fechar()};
+  document.addEventListener('keydown',tecla);document.body.appendChild(fundo);
+}
+
 async function abrirImpressaoNormalBbRegistro(id){
   const x=(cobrancasBancarias||[]).find(a=>String(a.id)===String(id))||(cobrancaMassaPreparadas||[]).find(a=>String(a.id)===String(id));
   if(!x)return alert('Cobrança não encontrada.');
   try{
     const grupo=registrosGrupoImpressaoNormalBb(x);
     const blob=await gerarPdfImpressaoNormalBb(grupo);
-    const url=URL.createObjectURL(blob);
-    window.open(url,'_blank');
-    setTimeout(()=>URL.revokeObjectURL(url),120000);
+    visualizarPdfLeveSofisticatto(blob,nomePdfImpressaoNormalBb(grupo));
   }catch(e){alert('Não foi possível gerar a Impressão Normal.\n\n'+e.message)}
 }
 function nomePdfBoletoBb(d){const n=String(d.cliente_nome||'CLIENTE').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,' ');return `${n||'CLIENTE'} - ${d.numero_titulo||d.nosso_numero||'boleto'}.pdf`;}
