@@ -5101,91 +5101,36 @@ async function prepararEtiquetaParaCaptura(etiqueta){
 async function imprimirEtiquetas(){
   const d=validarEtiqueta();
   if(!d) return;
-
+  const janela=window.open("","_blank","width=980,height=760");
+  if(!janela){alert("Permita pop-ups para imprimir as etiquetas.");return;}
   try{
     await carregarBibliotecasEtiqueta();
-
-    const janela=window.open("","_blank","width=980,height=760");
-    if(!janela){
-      alert("O navegador bloqueou a janela de impressão. Permita pop-ups para este site.");
-      return;
-    }
-
+    const css=[...document.querySelectorAll('link[rel="stylesheet"],style')].map(el=>el.outerHTML).join("\n");
     janela.document.open();
-    janela.document.write(`<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Etiquetas ${escaparHtmlEmail(d.cliente)}</title>
-<style>
-@page{size:150mm 100mm;margin:0}
-html,body{margin:0!important;padding:0!important;background:#fff!important}
-.pagina{width:150mm;height:100mm;margin:0;padding:0;overflow:hidden;page-break-after:always;break-after:page}
-.pagina:last-child{page-break-after:auto;break-after:auto}
-.pagina img{display:block;width:150mm;height:100mm;margin:0;padding:0;object-fit:fill}
-@media print{
-  html,body{width:150mm;margin:0!important;padding:0!important}
-  .pagina{width:150mm;height:100mm;margin:0!important;padding:0!important}
-}
-</style>
-</head>
-<body><div id="paginas"></div></body>
-</html>`);
+    janela.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><base href="'+location.href+'"><title>Etiquetas '+escaparHtmlEmail(d.cliente)+'</title>'+css+
+      '<style>@page{size:150mm 100mm;margin:0}html,body{margin:0!important;padding:0!important;background:white!important}.etiqueta-papel{position:relative!important;display:block!important;margin:0!important;box-shadow:none!important;border-radius:0!important;transform:none!important;width:150mm!important;height:100mm!important;break-after:page;page-break-after:always;overflow:hidden!important}.etiqueta-papel:last-child{break-after:auto;page-break-after:auto}@media print{body{width:150mm!important}}</style></head><body><main id="etqPaginas"></main></body></html>');
     janela.document.close();
-
-    const temporario=document.createElement("div");
-    temporario.style.position="fixed";
-    temporario.style.left="-10000px";
-    temporario.style.top="0";
-    temporario.style.background="#fff";
-    temporario.style.zIndex="-1";
-    document.body.appendChild(temporario);
-
-    const paginas=janela.document.getElementById("paginas");
-
+    const paginas=janela.document.getElementById("etqPaginas");
+    // Geracao direta de HTML/SVG: evita uma captura html2canvas em alta resolucao por volume.
     for(let volume=1;volume<=d.quantidade_volumes;volume++){
       const etiqueta=criarElementoEtiqueta(d,volume);
-      etiqueta.style.margin="0";
-      etiqueta.style.boxShadow="none";
-      etiqueta.style.borderRadius="0";
-      etiqueta.style.transform="none";
-      temporario.appendChild(etiqueta);
-
-      await prepararEtiquetaParaCaptura(etiqueta);
-      await new Promise(resolve=>setTimeout(resolve,120));
-
-      const rectEtiqueta=etiqueta.getBoundingClientRect();
-      const canvas=await html2canvas(etiqueta,{
-        scale:4,
-        useCORS:true,
-        allowTaint:true,
-        backgroundColor:"#ffffff",
-        width:Math.round(rectEtiqueta.width),
-        height:Math.round(rectEtiqueta.height),
-        windowWidth:Math.round(rectEtiqueta.width),
-        windowHeight:Math.round(rectEtiqueta.height),
-        scrollX:0,
-        scrollY:0,
-        logging:false
+      etiqueta.querySelectorAll("canvas").forEach(canvas=>{
+        const img=document.createElement("img");
+        img.src=canvas.toDataURL("image/png");
+        img.width=canvas.width;img.height=canvas.height;
+        img.className=canvas.className;
+        img.style.cssText=canvas.style.cssText;
+        canvas.replaceWith(img);
       });
-
-      const pagina=janela.document.createElement("div");
-      pagina.className="pagina";
-      const imagem=janela.document.createElement("img");
-      imagem.src=canvas.toDataURL("image/png");
-      pagina.appendChild(imagem);
-      paginas.appendChild(pagina);
-
-      etiqueta.remove();
+      paginas.appendChild(janela.document.importNode(etiqueta,true));
     }
-
-    temporario.remove();
-
-    await new Promise(resolve=>setTimeout(resolve,700));
+    await janela.document.fonts.ready;
+    await Promise.all([...janela.document.images].map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;})));
     janela.focus();
     janela.print();
   }catch(erro){
     console.error("Erro ao imprimir etiquetas:",erro);
+    janela.close();
     alert("Não foi possível preparar a impressão: "+erro.message);
   }
 }
