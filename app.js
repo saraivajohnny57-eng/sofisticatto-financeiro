@@ -4315,8 +4315,16 @@ function preencherEnderecoEtiquetaComCadastro(cliente){
   document.getElementById("etqUf").value=cliente.uf || "";
 }
 
+function enderecoSemNumeroDuplicadoEtiqueta(endereco,numero){
+  const rua=String(endereco || "").trim();
+  const n=String(numero || "").trim().replace(/^(?:N[º°.]?|NÚMERO|NUMERO|NR\\.?)\\s*[:.-]?\\s*/i,"");
+  if(!n) return rua;
+  const ultimo=rua.match(/(?:^|[,\\s])(?:N[º°.]?|NÚMERO|NUMERO|NR\\.?)?\\s*(\\d+[A-Za-z]?)\\s*$/i);
+  if(ultimo && ultimo[1]===n) return rua;
+  return [rua,"Nr. "+n].filter(Boolean).join(", ");
+}
 function preencherEnderecoEtiquetaComXml(dadosXml){
-  const enderecoNumero=[dadosXml.endereco,dadosXml.numero].filter(Boolean).join(", ");
+  const enderecoNumero=enderecoSemNumeroDuplicadoEtiqueta(dadosXml.endereco,dadosXml.numero);
   const enderecoCompleto=[enderecoNumero,dadosXml.complemento].filter(Boolean).join(" - ");
 
   document.getElementById("etqEndereco").value=enderecoCompleto || "";
@@ -4547,12 +4555,15 @@ async function salvarClienteRapidoEtiqueta(){
   mostrarAvisoEmail(`Cliente ${nome} cadastrado com sucesso para futuros envios de boletos.`,true);
 }
 
-function verificarCadastroClienteEtiqueta(){
+async function verificarCadastroClienteEtiqueta(){
   const nome=document.getElementById("etqCliente")?.value.trim() || "";
   if(!nome) return;
-
+  if(!bancoPronto()) return;
+  await carregarClientesEmail();
   if(!clienteEtiquetaJaCadastrado(nome)){
     abrirModalClienteEtiqueta(nome);
+  }else{
+    fecharModalClienteEtiqueta();
   }
 }
 
@@ -4695,6 +4706,8 @@ async function lerXmlEtiqueta(evento){
       uf:uf || ""
     };
 
+    // A aba Etiquetas pode abrir antes do módulo de e-mails; sempre recarregar a lista.
+    if(cliente) await carregarClientesEmail();
     const cadastroEncontrado=cliente ? clienteEtiquetaJaCadastrado(cliente,documentoDestinatario) : null;
 
     if(cadastroEncontrado && cadastroPossuiEnderecoLogistico(cadastroEncontrado)){
