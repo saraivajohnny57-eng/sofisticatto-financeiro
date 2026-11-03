@@ -151,7 +151,8 @@ async function importarXmlAgendamentoColeta(arquivo){
     const divergentes=ids.filter(id=>enderecoXml[id]&&normalizar(enderecoXml[id])!==normalizar(ce(id)?.value));
     let usarXml=!cliente;
     if(cliente&&divergentes.length){
-      const descricao=ids.map(id=>({coletaCepDestino:"CEP",coletaEnderecoDestino:"Logradouro",coletaNumeroDestino:"Número",coletaBairroDestino:"Bairro",coletaComplementoDestino:"Complemento",coletaCidadeDestino:"Cidade/UF"}[id]+": "+(enderecoXml[id]||"-")) .join("\n");
+      const rotulos={coletaCepDestino:"CEP",coletaEnderecoDestino:"Logradouro",coletaNumeroDestino:"Número",coletaBairroDestino:"Bairro",coletaComplementoDestino:"Complemento",coletaCidadeDestino:"Cidade/UF"};
+      const descricao=ids.map(id=>(rotulos[id]||id)+": "+(enderecoXml[id]||"-")).join("\n");
       usarXml=confirm("O endereço da NF-e é diferente do cadastro de "+(nome||"cliente")+".\n\nEndereço do XML:\n"+descricao+"\n\nDeseja usar o endereço do XML SOMENTE nesta coleta?\n\nCancelar mantém o endereço cadastrado. Os demais dados da NF serão importados normalmente.");
     }
     if(usarXml)for(const [id,val] of Object.entries(enderecoXml))if(val&&ce(id))ce(id).value=val;
