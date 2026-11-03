@@ -2421,11 +2421,12 @@ async function carregarClientesEmail(){
   const resposta = await banco.from("email_clientes").select("*").order("nome",{ascending:true});
   if(resposta.error){
     console.error("Erro ao carregar clientes de e-mail:", resposta.error);
-    return;
+    return false;
   }
   emailClientes = resposta.data || [];
   montarTabelaClientesEmail();
   prepararEnviosEmail();
+  return true;
 }
 
 function montarTabelaClientesEmail(lista = emailClientes){
@@ -4154,7 +4155,7 @@ let enderecoXmlPendenteEtiqueta=null;
 let resolverEscolhaEnderecoEtiqueta=null;
 
 function formatarEnderecoEscolhaEtiqueta(dados){
-  const enderecoNumero=[dados.endereco,dados.numero].filter(Boolean).join(", ");
+  const enderecoNumero=enderecoSemNumeroDuplicadoEtiqueta(dados.endereco,dados.numero);
   const enderecoCompleto=[enderecoNumero,dados.complemento].filter(Boolean).join(" - ");
   return [
     enderecoCompleto,
@@ -4305,7 +4306,7 @@ async function confirmarEscolhaEnderecoEtiqueta(substituirCadastro){
 
 
 function preencherEnderecoEtiquetaComCadastro(cliente){
-  const enderecoNumero=[cliente.endereco,cliente.numero].filter(Boolean).join(", ");
+  const enderecoNumero=enderecoSemNumeroDuplicadoEtiqueta(cliente.endereco,cliente.numero);
   const enderecoCompleto=[enderecoNumero,cliente.complemento].filter(Boolean).join(" - ");
 
   document.getElementById("etqEndereco").value=enderecoCompleto || "";
@@ -4316,22 +4317,26 @@ function preencherEnderecoEtiquetaComCadastro(cliente){
 }
 
 function enderecoSemNumeroDuplicadoEtiqueta(endereco,numero){
-  let rua=String(endereco || "").trim();
-  const n=String(numero || "").trim().replace(/^(?:N[º°.]?|NÚMERO|NUMERO|NR\.?)\s*[:.-]?\s*/i,"").trim();
-  // Remove repetições consecutivas do mesmo número já presentes no logradouro.
-  const marcador="(?:N[º°.]?|NÚMERO|NUMERO|NR\\.?)";
-  const finalNumero=new RegExp("(?:[,\\s]+)"+marcador+"\\s*[:.-]?\\s*(\\d+[A-Za-z]?)\\s*$","i");
-  let m;
-  while((m=rua.match(finalNumero))){
-    const anterior=rua.slice(0,m.index).trim();
-    const anteriorNumero=anterior.match(new RegExp("(?:^|[,\\s])(?:"+marcador+"\\s*[:.-]?\\s*)?(\\d+[A-Za-z]?)\\s*$","i"));
-    if(!anteriorNumero || anteriorNumero[1]!==m[1]) break;
-    rua=anterior.replace(/[,\\s]+$/,"");
+  let rua=String(endereco || "").trim().replace(/\s+/g," ");
+  const normalizarNumero=valor=>String(valor || "").trim()
+    .replace(/^(?:N[º°.]?|NÚMERO|NUMERO|NR\.?)\s*[:.-]?\s*/i,"")
+    .replace(/[.,;\s]+$/g,"").trim().toUpperCase();
+  const n=normalizarNumero(numero);
+  const finalNumero=/(?:^|[\s,;]+)(?:(?:N[º°.]?|NÚMERO|NUMERO|NR\.?)\s*[:.-]?\s*)?(\d+[A-Z]?)\s*$/i;
+  // Ex.: "RUA X Nr. 235, Nr. 235" -> "RUA X Nr. 235".
+  for(let i=0;i<10;i++){
+    const ultimo=rua.match(finalNumero);
+    if(!ultimo) break;
+    const antes=rua.slice(0,ultimo.index).replace(/[\s,;]+$/g,"");
+    const anterior=antes.match(finalNumero);
+    if(!anterior || normalizarNumero(anterior[1])!==normalizarNumero(ultimo[1])) break;
+    rua=antes;
   }
-  if(!n) return rua;
-  const final=rua.match(new RegExp("(?:^|[,\\s])(?:"+marcador+"\\s*[:.-]?\\s*)?(\\d+[A-Za-z]?)\\s*$","i"));
-  if(final && final[1]===n) return rua;
-  return [rua,"Nr. "+n].filter(Boolean).join(", ");
+  const jaExiste=rua.match(finalNumero);
+  if(n && (!jaExiste || normalizarNumero(jaExiste[1])!==n)){
+    rua=[rua,"Nr. "+n].filter(Boolean).join(", ");
+  }
+  return rua;
 }
 function preencherEnderecoEtiquetaComXml(dadosXml){
   const enderecoNumero=enderecoSemNumeroDuplicadoEtiqueta(dadosXml.endereco,dadosXml.numero);
@@ -4606,7 +4611,10 @@ async function verificarCadastroClienteEtiqueta(){
   const nome=document.getElementById("etqCliente")?.value.trim() || "";
   if(!nome) return;
   if(!bancoPronto()) return;
-  await carregarClientesEmail();
+  if(await carregarClientesEmail()===false){
+    alert("Não foi possível consultar o cadastro de clientes. Tente novamente.");
+    return;
+  }
   if(!await localizarCadastroEtiqueta(nome)){
     abrirModalClienteEtiqueta(nome);
   }else{
@@ -4754,7 +4762,7 @@ async function lerXmlEtiqueta(evento){
     };
 
     // A aba Etiquetas pode abrir antes do módulo de e-mails; sempre recarregar a lista.
-    if(cliente) await carregarClientesEmail();
+    if(cliente && await carregarClientesEmail()===false) throw new Error("Não foi possível consultar os clientes cadastrados. Tente novamente; nenhum cadastro novo foi aberto.");
     const cadastroEncontrado=cliente ? await localizarCadastroEtiqueta(cliente,documentoDestinatario) : null;
 
     if(cadastroEncontrado && cadastroPossuiEnderecoLogistico(cadastroEncontrado)){
