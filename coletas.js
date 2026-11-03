@@ -1801,8 +1801,12 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   if(naoConfirmadas.length){
     mostrarBalaoSistema('Correios — confirmação pendente','O ID foi salvo, mas a consulta oficial não confirmou o status. Verifique no portal dos Correios antes de imprimir ou gerar outro registro.');
   }
-  mostrarBalaoSistema('Pré-postagem criada',qtdVolumes>1?`${qtdVolumes} volumes prontos • ${j.servico||codigo}`:`${j.servico||codigo}${j.codigoObjeto?' • '+j.codigoObjeto:''}`);
-  if(!silencioso)alert(qtdVolumes>1?`Pré-postagens dos Correios criadas com sucesso.\n\nVolumes: ${qtdVolumes}\nPeso total: ${totalKg.toFixed(3).replace('.',',')} kg\nPeso por volume: ${pesoPorVolume.toFixed(3).replace('.',',')} kg\nServiço: ${j.servico||codigo}\n\nAo abrir a etiqueta 100×150, os ${qtdVolumes} rótulos serão gerados juntos.`:`Pré-postagem dos Correios criada com sucesso.\n\nServiço: ${j.servico||codigo}\nID: ${j.idPrePostagem}${j.codigoObjeto?`\nRastreio: ${j.codigoObjeto}`:''}`);
+  if(naoConfirmadas.length){
+    if(!silencioso)alert('Os Correios retornaram o ID '+String(j.idPrePostagem||'')+' e o rastreio '+String(j.codigoObjeto||'')+', mas o status ainda NÃO foi confirmado. O registro foi salvo. Confira no portal oficial e não repita a criação.');
+  }else{
+    mostrarBalaoSistema('Pré-postagem confirmada',qtdVolumes>1?`${qtdVolumes} volumes confirmados • ${j.servico||codigo}`:`${j.servico||codigo}${j.codigoObjeto?' • '+j.codigoObjeto:''}`);
+    if(!silencioso)alert(qtdVolumes>1?`Pré-postagens confirmadas nos Correios. Volumes: ${qtdVolumes}.`:`Pré-postagem confirmada nos Correios.\\nID: ${j.idPrePostagem}\\nRastreio: ${j.codigoObjeto||'-'}`);
+  }
   try{localStorage.setItem('sofisticatto_prepostagem_correios_atual',JSON.stringify(prepostagemModuloCorreiosPayload(a,pre)));}catch{}
   // Atualiza o Painel imediatamente para trocar “Gerar pré-postagem” pelos
   // atalhos “Etiqueta 100×150” e “Declaração A4”.
