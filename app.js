@@ -4318,24 +4318,22 @@ function preencherEnderecoEtiquetaComCadastro(cliente){
 
 function enderecoSemNumeroDuplicadoEtiqueta(endereco,numero){
   let rua=String(endereco || "").trim().replace(/\s+/g," ");
-  const normalizarNumero=valor=>String(valor || "").trim()
-    .replace(/^(?:N[º°.]?|NÚMERO|NUMERO|NR\.?)\s*[:.-]?\s*/i,"")
-    .replace(/[.,;\s]+$/g,"").trim().toUpperCase();
-  const n=normalizarNumero(numero);
-  const finalNumero=/(?:^|[\s,;]+)(?:(?:N[º°.]?|NÚMERO|NUMERO|NR\.?)\s*[:.-]?\s*)?(\d+[A-Z]?)\s*$/i;
-  // Ex.: "RUA X Nr. 235, Nr. 235" -> "RUA X Nr. 235".
+  const limparNumero=valor=>String(valor || "").trim().replace(/^(?:N[º°.]?|NÚMERO|NUMERO|NR\.?)\s*[:.\-]?\s*/i,"").replace(/[.,;\s]+$/g,"").trim().toUpperCase();
+  const final=/(?:^|[\s,;]+)(?:(?:N[º°.]?|NÚMERO|NUMERO|NR\.?)\s*[:.\-]?\s*)?(\d+[A-Z]?)\s*$/i;
   for(let i=0;i<10;i++){
-    const ultimo=rua.match(finalNumero);
+    const ultimo=rua.match(final);
     if(!ultimo) break;
-    const antes=rua.slice(0,ultimo.index).replace(/[\s,;]+$/g,"");
-    const anterior=antes.match(finalNumero);
-    if(!anterior || normalizarNumero(anterior[1])!==normalizarNumero(ultimo[1])) break;
+    let antes=rua.slice(0,ultimo.index).replace(/[\s,;]+$/g,"");
+    if(/(?:^|[\s,;])(?:NR\.?|N[º°.]?|NÚMERO|NUMERO)\s*$/i.test(antes)){
+      antes=antes.replace(/(?:[\s,;]+)(?:NR\.?|N[º°.]?|NÚMERO|NUMERO)\s*$/i,"").trim();
+    }
+    const anterior=antes.match(final);
+    if(!anterior || limparNumero(anterior[1])!==limparNumero(ultimo[1])) break;
     rua=antes;
   }
-  const jaExiste=rua.match(finalNumero);
-  if(n && (!jaExiste || normalizarNumero(jaExiste[1])!==n)){
-    rua=[rua,"Nr. "+n].filter(Boolean).join(", ");
-  }
+  const informado=limparNumero(numero);
+  const ultimo=rua.match(final);
+  if(informado && (!ultimo || limparNumero(ultimo[1])!==informado)) rua=[rua,"Nr. "+informado].filter(Boolean).join(", ");
   return rua;
 }
 function preencherEnderecoEtiquetaComXml(dadosXml){
@@ -4615,7 +4613,7 @@ async function verificarCadastroClienteEtiqueta(){
     alert("Não foi possível consultar o cadastro de clientes. Tente novamente.");
     return;
   }
-  if(!await localizarCadastroEtiqueta(nome)){
+  if(!await localizarCadastroEtiqueta(nome, window.__etqDocumentoXml || "")){
     abrirModalClienteEtiqueta(nome);
   }else{
     fecharModalClienteEtiqueta();
@@ -4650,6 +4648,7 @@ function selecionarClienteEtiqueta(id){
   const item=emailClientes.find(x=>x.id===id);
   if(!item) return;
   document.getElementById("etqCliente").value=item.nome || "";
+  window.__etqDocumentoXml=String(item.cpf_cnpj || item.cnpj || item.cpf || "").replace(/\D/g,"");
 
   const enderecoNumero=enderecoSemNumeroDuplicadoEtiqueta(item.endereco,item.numero);
   const enderecoCompleto=[enderecoNumero,item.complemento].filter(Boolean).join(" - ");
@@ -4715,6 +4714,7 @@ async function lerXmlEtiqueta(evento){
     const numeroNf=textoNo(["ide nNF"]);
     const cliente=decodificarEntidadesXml(textoNo(["dest xNome"]));
     const documentoDestinatario=textoNo(["dest CNPJ","dest CPF"]);
+    window.__etqDocumentoXml=String(documentoDestinatario || "").replace(/\D/g,"");
     const logradouro=textoNo(["dest enderDest xLgr"]);
     const numeroEndereco=textoNo(["dest enderDest nro"]);
     const complemento=textoNo(["dest enderDest xCpl"]);
