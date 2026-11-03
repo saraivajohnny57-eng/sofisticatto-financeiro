@@ -15,7 +15,7 @@ test('diagnóstico: login legado consulta usuarios com senha no navegador', () =
 
 test('diagnóstico: sessão é recuperada de localStorage sem revalidação', () => {
   assert.match(source, /localStorage\.getItem\(["']usuarioLogado["']\)/);
-  assert.match(source, /usuarioLogado\s*=\s*JSON\.parse\(salvo\)/);
+  assert.match(source, /const \{ senha: _senhaLegada, \.\.\.usuarioSemSenha \} = JSON\.parse\(salvo\)/);
 });
 
 test('diagnóstico: não expor service_role no frontend', () => {
