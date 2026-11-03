@@ -9012,15 +9012,34 @@ async function salvarPreparacaoBoletoRelatorioV175(){
     }
   }
 
-  let r=await banco.from("cobrancas_bancarias").insert(linhasParaInserir).select();
-  if(r.error && /instrucoes_banco/i.test(String(r.error.message||""))){
-    const compativeis=linhasParaInserir.map(({instrucoes_banco,...resto})=>resto);
-    r=await banco.from("cobrancas_bancarias").insert(compativeis).select();
+  // V413: reutilizar parcelas pendentes do mesmo relatório; não criar duplicatas.
+  // Em especial, 56510-02 já existe como pendente_integracao e deve conservar seu ID.
+  let pendentesExistentes=[];
+  if(codBanco==="bradesco"){
+    const consulta=await banco.from("cobrancas_bancarias").select("*")
+      .eq("relatorio_id",boletoRelatorioAtual.id).eq("banco","bradesco")
+      .eq("status","pendente_integracao");
+    if(consulta.error)return alert("Não foi possível conferir parcelas pendentes: "+consulta.error.message);
+    pendentesExistentes=consulta.data||[];
   }
-  if(r.error)return alert("Não foi possível preparar os boletos: "+r.error.message);
-
-  boletoCobrancaAtual=r.data?.[0]||null;
-  const rows=r.data||[];
+  const numerosPendentes=new Set(pendentesExistentes.map(x=>Number(x.parcela_numero||1)));
+  const paraCriar=codBanco==="bradesco"
+    ?linhasParaInserir.filter(x=>!numerosPendentes.has(Number(x.parcela_numero||1)))
+    :linhasParaInserir;
+  let r={data:[],error:null};
+  if(paraCriar.length){
+    r=await banco.from("cobrancas_bancarias").insert(paraCriar).select();
+    if(r.error && /instrucoes_banco/i.test(String(r.error.message||""))){
+      const compativeis=paraCriar.map(({instrucoes_banco,...resto})=>resto);
+      r=await banco.from("cobrancas_bancarias").insert(compativeis).select();
+    }
+    if(r.error)return alert("Não foi possível preparar os boletos: "+r.error.message);
+  }
+  const rows=codBanco==="bradesco"
+    ?[...pendentesExistentes.filter(x=>linhasParaInserir.some(p=>Number(p.parcela_numero||1)===Number(x.parcela_numero||1))),...(r.data||[])]
+      .sort((a,b)=>Number(a.parcela_numero||1)-Number(b.parcela_numero||1))
+    :(r.data||[]);
+  boletoCobrancaAtual=rows[0]||null;
   if(codBanco==="bradesco"){
     const statusEl=document.getElementById("bolModalStatus");
     if(statusEl)statusEl.innerHTML=`⏳ Enviando <b>${rows.length}</b> boleto(s) ao Bradesco. Não feche esta janela e não repita a operação.`;
