@@ -7,22 +7,53 @@ function close(){
   if(currentUrl){URL.revokeObjectURL(currentUrl);currentUrl=null;}
 }
 async function pdfEtiquetas(progress){
-  const result=await montarEtiquetasParaSaida();
-  if(!result)return null;
-  const {d,container}=result;
-  const paginas=[...container.querySelectorAll(".etiqueta-papel")];
+  const d=validarEtiqueta();
+  if(!d)return null;
+  await carregarBibliotecasEtiqueta();
+  const container=document.getElementById("etiquetasImpressao");
+  if(!container)throw Error("Área de impressão não encontrada");
+  container.innerHTML="";
+  container.style.display="block";
   const pdf=new window.jspdf.jsPDF({orientation:"landscape",unit:"mm",format:[150,100],compress:true});
+  const cache=new Map();
   try{
-    for(let i=0;i<paginas.length;i++){
-      if(i)pdf.addPage([150,100],"landscape");
-      const el=paginas[i];
-      el.style.boxShadow="none";el.style.borderRadius="0";el.style.margin="0";
-      if(typeof prepararEtiquetaParaCaptura==="function")await prepararEtiquetaParaCaptura(el);
-      const canvas=await html2canvas(el,{scale:1.7,useCORS:true,allowTaint:false,backgroundColor:"#ffffff",width:el.scrollWidth,height:el.scrollHeight,windowWidth:el.scrollWidth,windowHeight:el.scrollHeight,logging:false});
-      pdf.addImage(canvas.toDataURL("image/jpeg",0.88),"JPEG",0,0,150,100,undefined,"FAST");
-      canvas.width=0;canvas.height=0;
-      if(progress)progress(i+1,paginas.length);
-      if(i%4===3)await new Promise(resolve=>setTimeout(resolve,0));
+    // Somente as faixas de pedido distintas exigem uma imagem base.
+    // O número do volume é desenhado como texto vetorial em cada página.
+    for(let i=1;i<=d.quantidade_volumes;i++){
+      const pedido=typeof pedidoParaVolumeEtiqueta==="function" ? pedidoParaVolumeEtiqueta(i,d.pedidos_faixas) : null;
+      const chave=JSON.stringify([pedido?.nome||"",pedido?.fonte||""]);
+      let base=cache.get(chave);
+      if(!base){
+        const el=criarElementoEtiqueta(d,i);
+        el.style.boxShadow="none";el.style.borderRadius="0";el.style.margin="0";
+        container.appendChild(el);
+        await prepararEtiquetaParaCaptura(el);
+        const volume=el.querySelector(".etiqueta-volume");
+        if(!volume)throw Error("Campo de volume não encontrado");
+        const rect=el.getBoundingClientRect(),vr=volume.getBoundingClientRect();
+        const cs=getComputedStyle(volume);
+        const fontPx=parseFloat(cs.fontSize)||18;
+        const x=(vr.left-rect.left)/rect.width*150;
+        const y=(vr.top-rect.top)/rect.height*100;
+        const w=vr.width/rect.width*150;
+        const h=vr.height/rect.height*100;
+        volume.style.visibility="hidden";
+        const canvas=await html2canvas(el,{scale:1.7,useCORS:true,allowTaint:false,backgroundColor:"#ffffff",width:el.scrollWidth,height:el.scrollHeight,windowWidth:el.scrollWidth,windowHeight:el.scrollHeight,logging:false});
+        base={image:canvas.toDataURL("image/jpeg",0.88),x,y,w,h,fontPt:fontPx*72/96,bold:/bold|[6-9]00/.test(cs.fontWeight),align:cs.textAlign};
+        canvas.width=0;canvas.height=0;
+        cache.set(chave,base);
+        el.remove();
+      }
+      if(i>1)pdf.addPage([150,100],"landscape");
+      pdf.addImage(base.image,"JPEG",0,0,150,100,undefined,"FAST");
+      pdf.setTextColor(0,0,0);
+      pdf.setFont("helvetica",base.bold?"bold":"normal");
+      pdf.setFontSize(base.fontPt);
+      const label="VOL: "+formatarVolumeEtiqueta(i,d.quantidade_volumes);
+      const tx=base.align==="right"?base.x+base.w:base.align==="center"?base.x+base.w/2:base.x;
+      pdf.text(label,tx,base.y+Math.min(base.h*0.79,base.fontPt*0.3528*1.12),{align:base.align==="right"?"right":base.align==="center"?"center":"left",maxWidth:base.w});
+      if(progress)progress(i,d.quantidade_volumes);
+      if(i%20===0)await new Promise(resolve=>setTimeout(resolve,0));
     }
     const nome="ETIQUETAS_"+String(d.cliente||"CLIENTE").replace(/[^a-z0-9]+/gi,"_")+"_NF_"+String(d.numero_nf||"").replace(/[^0-9A-Za-z-]/g,"")+".pdf";
     return {blob:pdf.output("blob"),nome};
