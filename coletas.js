@@ -171,9 +171,9 @@ function configurarArrastarXmlColeta(){
 }
 function separarNumeroLogradouroColeta(logradouro,numero){
   let rua=String(logradouro||"").trim(),num=String(numero||"").trim();
-  const m=rua.match(/(?:,|\s+)(?:n[º°.]?|nro\.?|numero|número)\s*[:.#-]?\s*(\d+[A-Za-z]?)\s*$/i);
+  const m=rua.match(/(?:,|\s+)(?:nro\.?|nr\.?|n[º°.]?|numero|número)\s*[:.#-]?\s*(\d+[A-Za-z]?)\s*$/i);
   if(m){if(!num)num=m[1];if(num.replace(/\D/g,"")===m[1].replace(/\D/g,""))rua=rua.slice(0,m.index).replace(/[\s,.-]+$/,"").trim();}
-  num=num.replace(/^(?:n[º°.]?|nro\.?|numero|número)\s*[:.#-]?\s*/i,"").trim();
+  num=num.replace(/^(?:nro\.?|nr\.?|n[º°.]?|numero|número)\s*[:.#-]?\s*/i,"").trim();
   return {logradouro:rua,numero:num};
 }
 function selecionarClienteColeta(id){
