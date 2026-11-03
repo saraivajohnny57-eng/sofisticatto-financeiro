@@ -48,6 +48,15 @@ window.abrirDocumentoCorreiosOficial=async function(tipo){
     const bytes=await resp.arrayBuffer();
     if(!bytes.byteLength)throw Error("Os Correios retornaram um documento vazio.");
     const ct=(resp.headers.get("content-type")||"").toLowerCase();
+    if(ct.includes("json")){
+      const texto=new TextDecoder("utf-8").decode(bytes);
+      let j={};try{j=JSON.parse(texto);}catch(e){}
+      const detalhe=j?.resposta?.resposta?.mensagem||j?.resposta?.mensagem||j?.erro||j?.message||texto.slice(0,500);
+      if(/PPN-288|status igual a Cancelado/i.test(detalhe)){
+        throw Error("Esta pré-postagem está CANCELADA nos Correios. Não é permitido emitir o rótulo oficial. Localize ou crie uma pré-postagem válida e tente novamente. Detalhe: "+detalhe);
+      }
+      throw Error(detalhe||"A API retornou JSON em vez do documento.");
+    }
     const header=new TextDecoder().decode(bytes.slice(0,20)).trimStart();
     const pdf=header.startsWith("%PDF");
     const html=ct.includes("html")||/^<!doctype html|^<html/i.test(header);
