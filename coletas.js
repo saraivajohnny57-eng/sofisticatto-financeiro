@@ -1758,7 +1758,7 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
       const detalhe=geradas.length?`\n\n${geradas.length} volume(s) já foram criados antes da falha. Não repita a operação sem verificar para evitar duplicidade.`:'';
       throw new Error((j.erro||`HTTP ${r.status}`)+detalhe);
     }
-    geradas.push({idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico,servico:j.servico||'',volumeNumero,pesoKg:pesoPorVolume,diagnosticoAereo:j.diagnosticoAereo||null});
+    geradas.push({idPrePostagem:j.idPrePostagem,codigoObjeto:j.codigoObjeto||'',codigoServico:j.codigoServico,servico:j.servico||'',volumeNumero,pesoKg:pesoPorVolume,diagnosticoAereo:j.diagnosticoAereo||null,statusCorreios:j.diagnosticoAereo?.registroCorreios?.status||'NAO_CONFIRMADO'});
     if(!silencioso && j.diagnosticoAereo){
       const dg=j.diagnosticoAereo;
       const esperado095=restricaoAerea===true;
@@ -1790,6 +1790,17 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   if(j.codigoObjeto)patch.protocolo_rastreio=j.codigoObjeto;
   const up=await banco.from('coleta_agendamentos').update(patch).eq('id',id); if(up.error)throw new Error('Os Correios retornaram um ID, mas não foi possível vinculá-lo à coleta. Não crie outra pré-postagem antes de conferir o ID '+String(j.idPrePostagem||'')+'. Erro de gravação: '+up.error.message);
   a.dados=novosDados;if(j.codigoObjeto)a.protocolo_rastreio=j.codigoObjeto;
+  const canceladas=geradas.filter(x=>/CANCELAD/i.test(x.statusCorreios));
+  const naoConfirmadas=geradas.filter(x=>x.statusCorreios==='NAO_CONFIRMADO');
+  if(canceladas.length){
+    const aviso='ATENÇÃO: os Correios retornaram status CANCELADO para '+canceladas.map(x=>x.codigoObjeto||x.idPrePostagem).join(', ')+'. O ID foi salvo para auditoria. NÃO gere outra pré-postagem sem investigar a causa.';
+    mostrarBalaoSistema('Correios — cancelada',aviso);
+    alert(aviso);
+    return {ok:false,canceladoNosCorreios:true,prepostagens:geradas};
+  }
+  if(naoConfirmadas.length){
+    mostrarBalaoSistema('Correios — confirmação pendente','O ID foi salvo, mas a consulta oficial não confirmou o status. Verifique no portal dos Correios antes de imprimir ou gerar outro registro.');
+  }
   mostrarBalaoSistema('Pré-postagem criada',qtdVolumes>1?`${qtdVolumes} volumes prontos • ${j.servico||codigo}`:`${j.servico||codigo}${j.codigoObjeto?' • '+j.codigoObjeto:''}`);
   if(!silencioso)alert(qtdVolumes>1?`Pré-postagens dos Correios criadas com sucesso.\n\nVolumes: ${qtdVolumes}\nPeso total: ${totalKg.toFixed(3).replace('.',',')} kg\nPeso por volume: ${pesoPorVolume.toFixed(3).replace('.',',')} kg\nServiço: ${j.servico||codigo}\n\nAo abrir a etiqueta 100×150, os ${qtdVolumes} rótulos serão gerados juntos.`:`Pré-postagem dos Correios criada com sucesso.\n\nServiço: ${j.servico||codigo}\nID: ${j.idPrePostagem}${j.codigoObjeto?`\nRastreio: ${j.codigoObjeto}`:''}`);
   try{localStorage.setItem('sofisticatto_prepostagem_correios_atual',JSON.stringify(prepostagemModuloCorreiosPayload(a,pre)));}catch{}
