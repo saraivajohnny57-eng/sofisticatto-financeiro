@@ -28,8 +28,25 @@ window.abrirDocumentoCorreiosOficial=async function(tipo){
   busy=true;
   try{
     if(typeof confirmarColetaAntesDocumentoCorreios==="function"&&!(await confirmarColetaAntesDocumentoCorreios()))return;
-    const pre=await localizarPrePostagemCorreiosOficial(true);
-    const id=String(pre?.idPrePostagem||pre?.id||valorCampoCorreios("corIdPrePostagem")||"").trim();
+    const p=parametrosCorreiosOficiais();
+    // O ID preenchido pode pertencer a uma pre-postagem antiga/cancelada.
+    // Quando houver rastreio, consultar o contrato sem passar o ID antigo.
+    let pre=null;
+    if(p.codigoObjeto){
+      const qsBusca=new URLSearchParams({action:"documentos-correios",modo:"localizar",codigoObjeto:p.codigoObjeto});
+      const busca=await fetch("/api/integracoes?"+qsBusca.toString(),{headers:{Accept:"application/json"}});
+      const j=await busca.json().catch(()=>({}));
+      if(busca.ok&&j.ok&&String(j.codigoObjeto||"").toUpperCase()===p.codigoObjeto){
+        pre={idPrePostagem:j.idPrePostagem||j.id,codigoObjeto:j.codigoObjeto};
+      }else{
+        throw Error("Não foi possível confirmar uma pré-postagem ativa para o rastreio "+p.codigoObjeto+". O ID salvo pode estar cancelado. Confira a pré-postagem no portal dos Correios antes de imprimir.");
+      }
+    }else{
+      pre=await localizarPrePostagemCorreiosOficial(true);
+    }
+    const id=String(pre?.idPrePostagem||pre?.id||"").trim();
+    if(pre?.codigoObjeto&&p.codigoObjeto&&String(pre.codigoObjeto).toUpperCase()!==p.codigoObjeto)throw Error("A pré-postagem localizada não corresponde ao rastreio informado.");
+    if(id){const campo=document.getElementById("corIdPrePostagem");if(campo)campo.value=id;}
     if(!id)throw Error(pre?.erro||"Informe ou localize primeiro o ID da pré-postagem.");
     const rotulo=tipo==="rotulo"||tipo==="rotulo-l42";
     const dace=tipo==="dace";
