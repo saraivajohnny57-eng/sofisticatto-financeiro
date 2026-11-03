@@ -4465,6 +4465,36 @@ function clienteEtiquetaJaCadastrado(nome, documento=""){
   return equivalentes.length===1 ? equivalentes[0] : null;
 }
 
+async function localizarCadastroEtiqueta(nome, documento=""){
+  let encontrado=clienteEtiquetaJaCadastrado(nome,documento);
+  if(encontrado || !bancoPronto()) return encontrado;
+  // A lista local pode estar incompleta devido ao limite de linhas da API.
+  const numero=String(documento || "").replace(/\D/g,"");
+  if(numero){
+    const formatado=numero.length===14
+      ? numero.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,"$1.$2.$3/$4-$5")
+      : numero.length===11
+        ? numero.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/,"$1.$2.$3-$4")
+        : numero;
+    const resposta=await banco.from("email_clientes").select("*").in("cpf_cnpj",[numero,formatado]).limit(10);
+    if(resposta.error){console.error("Falha ao consultar CNPJ/CPF da etiqueta:",resposta.error);return null;}
+    const iguais=(resposta.data || []).filter(item=>String(item.cpf_cnpj || "").replace(/\D/g,"")===numero);
+    if(iguais.length===1){
+      emailClientes=[...emailClientes.filter(item=>item.id!==iguais[0].id),iguais[0]];
+      return iguais[0];
+    }
+    if(iguais.length>1) return null;
+  }
+  const resposta=await banco.from("email_clientes").select("*").ilike("nome",String(nome || "").replace(/[%_]/g,"").trim().split(/\s+/).slice(0,2).join("%")+"%").limit(100);
+  if(resposta.error){console.error("Falha ao consultar nome da etiqueta:",resposta.error);return null;}
+  const candidatos=(resposta.data || []).filter(item=>normalizarNomeCadastroEtiqueta(item.nome)===normalizarNomeCadastroEtiqueta(nome));
+  if(candidatos.length===1){
+    emailClientes=[...emailClientes.filter(item=>item.id!==candidatos[0].id),candidatos[0]];
+    return candidatos[0];
+  }
+  return null;
+}
+
 function preencherVendedorasModalClienteEtiqueta(){
   const select=document.getElementById("modalClienteEtiquetaVendedora");
   if(!select) return;
@@ -4567,7 +4597,7 @@ async function verificarCadastroClienteEtiqueta(){
   if(!nome) return;
   if(!bancoPronto()) return;
   await carregarClientesEmail();
-  if(!clienteEtiquetaJaCadastrado(nome)){
+  if(!await localizarCadastroEtiqueta(nome)){
     abrirModalClienteEtiqueta(nome);
   }else{
     fecharModalClienteEtiqueta();
@@ -4715,7 +4745,7 @@ async function lerXmlEtiqueta(evento){
 
     // A aba Etiquetas pode abrir antes do módulo de e-mails; sempre recarregar a lista.
     if(cliente) await carregarClientesEmail();
-    const cadastroEncontrado=cliente ? clienteEtiquetaJaCadastrado(cliente,documentoDestinatario) : null;
+    const cadastroEncontrado=cliente ? await localizarCadastroEtiqueta(cliente,documentoDestinatario) : null;
 
     if(cadastroEncontrado && cadastroPossuiEnderecoLogistico(cadastroEncontrado)){
       const escolha=await abrirEscolhaEnderecoEtiqueta(cadastroEncontrado,dadosEnderecoXml);
@@ -4733,7 +4763,7 @@ async function lerXmlEtiqueta(evento){
     atualizarPreviewEtiqueta();
 
     if(cliente){
-      const cadastro=clienteEtiquetaJaCadastrado(cliente,documentoDestinatario);
+      const cadastro=cadastroEncontrado;
 
       if(!cadastro){
         setTimeout(()=>abrirModalClienteEtiqueta(cliente),250);
