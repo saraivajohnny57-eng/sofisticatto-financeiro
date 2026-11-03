@@ -4433,13 +4433,13 @@ function atualizarPreviewEtiqueta(){
 
 
 function normalizarNomeCadastroEtiqueta(nome){
-  return normalizarNomeEmail(nome).replace(/[^A-Z0-9]+/g," ").replace(/\\s+/g," ").trim();
+  return normalizarNomeEmail(nome).replace(/[^A-Z0-9]+/g," ").replace(/\s+/g," ").trim();
 }
 function clienteEtiquetaJaCadastrado(nome, documento=""){
-  const numero=String(documento || "").replace(/\\D/g,"");
+  const numero=String(documento || "").replace(/\D/g,"");
   if(numero){
     const porDocumento=emailClientes.filter(item=>
-      [item.cpf_cnpj,item.cnpj,item.cpf].some(valor=>String(valor || "").replace(/\\D/g,"")===numero)
+      [item.cpf_cnpj,item.cnpj,item.cpf].some(valor=>String(valor || "").replace(/\D/g,"")===numero)
     );
     if(porDocumento.length===1) return porDocumento[0];
     if(porDocumento.length>1) return null;
