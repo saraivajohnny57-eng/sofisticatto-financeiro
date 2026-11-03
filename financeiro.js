@@ -7215,7 +7215,9 @@ async function localizarPrePostagemCorreiosOficial(silencioso=false){
     const qs=new URLSearchParams({action:'documentos-correios',modo:'localizar'});
     Object.entries(p).forEach(([k,v])=>{if(v)qs.set(k,v)});
     const r=await fetch('/api/integracoes?'+qs.toString(),{headers:{Accept:'application/json'}});
-    const j=await r.json().catch(()=>({}));
+    const respostaTexto=await r.text();
+  let j={};try{j=JSON.parse(respostaTexto)}catch(_){j={erro:`A API Bradesco retornou HTTP ${r.status} sem JSON válido. ${r.status>=500?'Verifique os logs da função na Vercel.':''}`};}
+  if(!j||typeof j!=='object')j={erro:`Resposta inesperada da API Bradesco (HTTP ${r.status}).`};
     if(!r.ok||!j.ok)throw new Error(j.erro||'Pré-postagem não localizada.');
     const id=j.id||j.idPrePostagem;
     if(id)document.getElementById('corIdPrePostagem').value=id;
@@ -7440,7 +7442,7 @@ async function bradescoReqProducao(action,body,_tentativa=0){
   const r=await fetch(`/api/banco-bradesco?action=${encodeURIComponent(action)}&ambiente=producao`,{method:'POST',headers:{'x-integrations-admin-key':chave,'Content-Type':'application/json'},body:JSON.stringify({...body,ambiente:'producao'})});
   const j=await r.json().catch(()=>({}));
   if(r.status===401&&_tentativa===0){await garantirAutorizacaoIntegracoesV315(true);return bradescoReqProducao(action,body,1);}
-  if(!r.ok||j.ok===false){const e=new Error(j.erro||j.mensagem||`Bradesco HTTP ${r.status}`);e.bradescoResponse=j;throw e;}
+  if(!r.ok||j.ok===false){const e=new Error(j.erro||j.mensagem||`Bradesco HTTP ${r.status}`);e.bradescoResponse={...j,api_http:r.status};throw e;}
   return j;
 }
 function payloadBradescoDeCobranca(p,seuNumero){
@@ -9069,7 +9071,7 @@ async function salvarPreparacaoBoletoRelatorioV175(){
       }catch(e){
         const j=e?.bradescoResponse||null;
         const rr=j?.registro||{};
-        erros.push({parcela:`${p.parcela_numero||1}/${p.parcela_total||rows.length}`,seuNumero:String(rr.seuNumero||seuNumeroBradescoOperacional(p.numero_nf,p.parcela_numero,p.parcela_total)),http:Number(rr.http_status||j?.bradesco_http||0)||'—',detalhe:bradescoDetalheResposta(j||{}),bruto:bradescoRespostaBruta(j||{})||String(e.message||e)});
+        erros.push({parcela:`${p.parcela_numero||1}/${p.parcela_total||rows.length}`,seuNumero:String(rr.seuNumero||seuNumeroBradescoOperacional(p.numero_nf,p.parcela_numero,p.parcela_total)),http:Number(rr.http_status||j?.bradesco_http||0)||'—',detalhe:String(j?.erro||j?.mensagem||e?.message||bradescoDetalheResposta(j||{})||'Falha sem detalhes').slice(0,1800),bruto:bradescoRespostaBruta(j||{})||String(j?.detalhe?JSON.stringify(j.detalhe):e.message||e)});
       }
     }
     const blocoErros=erros.length?`<div style="margin-top:12px;display:grid;gap:10px;">${erros.map((e,i)=>`<div style="border:1px solid #e3caca;background:#fff8f8;border-radius:10px;padding:12px;"><b>❌ Parcela ${escaparHtmlEmail(e.parcela)} — HTTP ${escaparHtmlEmail(String(e.http))}</b><div style="margin-top:5px;"><b>Seu Nº enviado:</b> ${escaparHtmlEmail(e.seuNumero)}</div><div style="margin-top:5px;"><b>Resposta do Bradesco:</b> ${escaparHtmlEmail(e.detalhe)}</div>${e.bruto?`<details style="margin-top:8px;"><summary>Ver resposta técnica completa</summary><pre style="margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:11px;max-height:260px;overflow:auto;">${escaparHtmlEmail(e.bruto)}</pre></details>`:''}</div>`).join('')}</div>`:'';
