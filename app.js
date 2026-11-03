@@ -4432,9 +4432,22 @@ function atualizarPreviewEtiqueta(){
 }
 
 
-function clienteEtiquetaJaCadastrado(nome){
-  const normalizado=normalizarNomeEmail(nome || "");
-  return emailClientes.find(item=>normalizarNomeEmail(item.nome || "")===normalizado) || null;
+function normalizarNomeCadastroEtiqueta(nome){
+  return normalizarNomeEmail(nome).replace(/[^A-Z0-9]+/g," ").replace(/\\s+/g," ").trim();
+}
+function clienteEtiquetaJaCadastrado(nome, documento=""){
+  const numero=String(documento || "").replace(/\\D/g,"");
+  if(numero){
+    const porDocumento=emailClientes.filter(item=>
+      [item.cpf_cnpj,item.cnpj,item.cpf].some(valor=>String(valor || "").replace(/\\D/g,"")===numero)
+    );
+    if(porDocumento.length===1) return porDocumento[0];
+    if(porDocumento.length>1) return null;
+  }
+  const normalizado=normalizarNomeCadastroEtiqueta(nome);
+  if(!normalizado) return null;
+  const encontrados=emailClientes.filter(item=>normalizarNomeCadastroEtiqueta(item.nome || "")===normalizado);
+  return encontrados.length===1 ? encontrados[0] : null;
 }
 
 function preencherVendedorasModalClienteEtiqueta(){
@@ -4635,6 +4648,7 @@ async function lerXmlEtiqueta(evento){
     const chave=textoNo(["protNFe infProt chNFe","infNFe"]).replace(/^NFe/,"");
     const numeroNf=textoNo(["ide nNF"]);
     const cliente=decodificarEntidadesXml(textoNo(["dest xNome"]));
+    const documentoDestinatario=textoNo(["dest CNPJ","dest CPF"]);
     const logradouro=textoNo(["dest enderDest xLgr"]);
     const numeroEndereco=textoNo(["dest enderDest nro"]);
     const complemento=textoNo(["dest enderDest xCpl"]);
@@ -4681,7 +4695,7 @@ async function lerXmlEtiqueta(evento){
       uf:uf || ""
     };
 
-    const cadastroEncontrado=cliente ? clienteEtiquetaJaCadastrado(cliente) : null;
+    const cadastroEncontrado=cliente ? clienteEtiquetaJaCadastrado(cliente,documentoDestinatario) : null;
 
     if(cadastroEncontrado && cadastroPossuiEnderecoLogistico(cadastroEncontrado)){
       const escolha=await abrirEscolhaEnderecoEtiqueta(cadastroEncontrado,dadosEnderecoXml);
@@ -4699,7 +4713,7 @@ async function lerXmlEtiqueta(evento){
     atualizarPreviewEtiqueta();
 
     if(cliente){
-      const cadastro=clienteEtiquetaJaCadastrado(cliente);
+      const cadastro=clienteEtiquetaJaCadastrado(cliente,documentoDestinatario);
 
       if(!cadastro){
         setTimeout(()=>abrirModalClienteEtiqueta(cliente),250);
