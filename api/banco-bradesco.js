@@ -845,13 +845,24 @@ module.exports=async function(req,res){
         tentativaNumero=Number(tentativaAnterior.tentativa_numero||1)+1;
       }
       await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:'INICIADA',tentativa_numero:tentativaNumero,reenvio_correcao_http400:!!anterior,tentativa_anterior:tentativaAnterior?{http_status:tentativaAnterior.http_status||null,estado:tentativaAnterior.estado||null,resposta:tentativaAnterior.resposta||null,finalizada_em:tentativaAnterior.finalizada_em||null}:null,iniciada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'INICIADA',tentativa_numero:tentativaNumero,reenvio_correcao_http400:!!anterior});
-      let retorno;
+      let retorno, auth;
+      // Diferenciar autenticação (nenhum POST de cobrança) de falha após iniciar
+      // o envio (resultado possivelmente incerto). Não liberar reenvio automático.
       try{
-        const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
+        auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
+      }catch(e){
+        await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:'FALHA_AUTENTICACAO_SEM_POST',http_status:Number(e.http_status)||null,erro:String(e.message||e),finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'FALHA_AUTENTICACAO_SEM_POST',http_status:Number(e.http_status)||null});
+        const erro=new Error('Falha na autenticação Bradesco antes do envio da cobrança. Nenhum POST de registro foi realizado nesta tentativa. '+String(e.message||e)+'. A tentativa permanece bloqueada até conferência e liberação controlada.');
+        erro.http_status=Number(e.http_status)||503;
+        erro.codigo='BRADESCO_AUTH_SEM_POST';
+        erro.post_cobranca_executado=false;
+        throw erro;
+      }
+      try{
         retorno=await enviarRegistroCobrancaProducao(auth.access_token,mtls,prep.payload);
       }catch(e){
         await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:'ERRO_TRANSPORTE_SEM_RETRY',erro:String(e.message||e),finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'ERRO_TRANSPORTE_SEM_RETRY'});
-        throw new Error('A tentativa foi interrompida sem repetição automática: '+String(e.message||e)+'. Confira no Bradesco antes de tentar novamente.');
+        throw new Error('Resultado incerto após iniciar envio da cobrança: '+String(e.message||e)+'. Confira no Bradesco antes de qualquer nova tentativa.');
       }
       const d=retorno.data||{}, http2xx=retorno.http_status>=200&&retorno.http_status<300;
       const achar=(...ks)=>{for(const k of ks){const v=d?.[k]??d?.titulo?.[k]??d?.boleto?.[k]??d?.dados?.[k];if(v!==undefined&&v!==null&&String(v)!=='')return v}return null};
@@ -1085,6 +1096,6 @@ module.exports=async function(req,res){
     const erroPublico=precisaMigracao
       ? 'A trava de segurança da emissão não pôde ser gravada porque falta a migração SQL V251. O POST de cobrança NÃO foi executado. Aplique o arquivo SQL_V251_BRADESCO_EMISSAO.sql no Supabase e gere uma nova conferência.'
       : msg;
-    return json(res,statusHttp,{ok:false,erro:erroPublico,codigo:precisaMigracao?'BRADESCO_SQL_V251_PENDENTE':null,post_cobranca_executado:precisaMigracao?false:undefined,bradesco_http:upstream||null,detalhe:precisaMigracao?null:resposta});
+    return json(res,statusHttp,{ok:false,erro:erroPublico,codigo:precisaMigracao?'BRADESCO_SQL_V251_PENDENTE':e?.codigo||null,post_cobranca_executado:precisaMigracao?false:e?.post_cobranca_executado,bradesco_http:upstream||null,detalhe:precisaMigracao?null:resposta});
   }
 };
