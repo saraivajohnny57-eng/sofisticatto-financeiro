@@ -1,0 +1,16 @@
+name: Bradesco auth before lock
+on:
+  push:
+    branches: [fix/bradesco-auth-before-lock-20261103]
+  pull_request:
+    paths: [api/banco-bradesco.js, tests/bradesco-auth-lock-order.test.cjs]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check api/banco-bradesco.js
+      - run: node --test tests/bradesco-auth-lock-order.test.cjs
