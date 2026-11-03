@@ -137,7 +137,7 @@ async function importarXmlAgendamentoColeta(arquivo){
     const soma=(tag)=>volumes.reduce((acc,v)=>{const x=get(v,tag).replace(",",".");return acc+(x&&Number.isFinite(Number(x))?Number(x):0)},0);
     const quantidade=soma("qVol"),pesoBruto=soma("pesoB"),pesoLiquido=soma("pesoL");
     const especie=volumes.map(v=>get(v,"esp")).find(Boolean);
-    const campos={coletaNumeroNf:nf,coletaRazaoDestino:nome,coletaCnpjDestino:doc,coletaValorNf:get(total,"vNF"),coletaNatureza:get(ide,"natOp")};
+    const campos={coletaNumeroNf:nf,coletaRazaoDestino:nome,coletaCnpjDestino:doc,coletaValorNf:(()=>{const valor=Number(get(total,"vNF"));return Number.isFinite(valor)?valor.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}):""})(),coletaNatureza:get(ide,"natOp")};
     if(quantidade>0)campos.coletaVolumes=String(quantidade);
     if(pesoBruto>0||pesoLiquido>0)campos.coletaPeso=String(pesoBruto||pesoLiquido).replace(".",",");
     if(especie)campos.coletaEmbalagem=especie;
