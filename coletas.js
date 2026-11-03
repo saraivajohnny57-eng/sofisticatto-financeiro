@@ -1774,7 +1774,7 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
       }else if(!silencioso && rg && !rg.encontrado){
         mostrarBalaoSistema('Correios — diagnóstico', 'Pré-postagem criada. A consulta de confirmação ainda não a encontrou no /v2/prepostagens; os dados do diagnóstico foram salvos para nova conferência.');
       }
-      if(!silencioso && rg?.encontrado && !dg.divergenciaRegistro){
+      if(!silencioso && rg?.encontrado && rg.statusApto===true && !dg.divergenciaRegistro){
         mostrarBalaoSistema('Correios — conferido', `Pré-postagem confirmada no registro oficial. Adicional 095 gravado: ${rg.codigo095Gravado?'SIM':'NÃO'}.`);
       }
     }
@@ -1791,7 +1791,7 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   const up=await banco.from('coleta_agendamentos').update(patch).eq('id',id); if(up.error)throw new Error('Os Correios retornaram um ID, mas não foi possível vinculá-lo à coleta. Não crie outra pré-postagem antes de conferir o ID '+String(j.idPrePostagem||'')+'. Erro de gravação: '+up.error.message);
   a.dados=novosDados;if(j.codigoObjeto)a.protocolo_rastreio=j.codigoObjeto;
   const canceladas=geradas.filter(x=>/CANCELAD/i.test(x.statusCorreios));
-  const naoConfirmadas=geradas.filter(x=>x.statusCorreios==='NAO_CONFIRMADO');
+  const naoConfirmadas=geradas.filter(x=>!['PREPOSTADO','PREATENDIDO','POSTADO'].includes(String(x.statusCorreios||'').toUpperCase()));
   if(canceladas.length){
     const aviso='ATENÇÃO: os Correios retornaram status CANCELADO para '+canceladas.map(x=>x.codigoObjeto||x.idPrePostagem).join(', ')+'. O ID foi salvo para auditoria. NÃO gere outra pré-postagem sem investigar a causa.';
     mostrarBalaoSistema('Correios — cancelada',aviso);
@@ -1802,10 +1802,10 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
     mostrarBalaoSistema('Correios — confirmação pendente','O ID foi salvo, mas a consulta oficial não confirmou o status. Verifique no portal dos Correios antes de imprimir ou gerar outro registro.');
   }
   if(naoConfirmadas.length){
-    if(!silencioso)alert('Os Correios retornaram o ID '+String(j.idPrePostagem||'')+' e o rastreio '+String(j.codigoObjeto||'')+', mas o status ainda NÃO foi confirmado. O registro foi salvo. Confira no portal oficial e não repita a criação.');
+    if(!silencioso)alert('Os Correios retornaram o ID '+String(j.idPrePostagem||'')+' e o rastreio '+String(j.codigoObjeto||'')+', porém o status '+String(j.statusCorreios||'DESCONHECIDO')+' NÃO comprova uma pré-postagem ativa. O registro foi salvo. Confira no portal oficial e não repita a criação.');
   }else{
     mostrarBalaoSistema('Pré-postagem confirmada',qtdVolumes>1?`${qtdVolumes} volumes confirmados • ${j.servico||codigo}`:`${j.servico||codigo}${j.codigoObjeto?' • '+j.codigoObjeto:''}`);
-    if(!silencioso)alert(qtdVolumes>1?`Pré-postagens confirmadas nos Correios. Volumes: ${qtdVolumes}.`:`Pré-postagem confirmada nos Correios.\\nID: ${j.idPrePostagem}\\nRastreio: ${j.codigoObjeto||'-'}`);
+    if(!silencioso)alert(qtdVolumes>1?`Pré-postagens confirmadas nos Correios. Volumes: ${qtdVolumes}.`:`Pré-postagem confirmada nos Correios.\nID: ${j.idPrePostagem}\nRastreio: ${j.codigoObjeto||'-'}`);
   }
   try{localStorage.setItem('sofisticatto_prepostagem_correios_atual',JSON.stringify(prepostagemModuloCorreiosPayload(a,pre)));}catch{}
   // Atualiza o Painel imediatamente para trocar “Gerar pré-postagem” pelos
