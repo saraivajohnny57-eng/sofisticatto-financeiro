@@ -118,7 +118,7 @@ function atualizarVendedoraClienteColeta(){
 }
 async function importarXmlAgendamentoColeta(arquivo){
   if(!arquivo)return;
-  if(!/\.xml$/i.test(arquivo.name)||arquivo.size>5*1024*1024)return alert("Selecione um arquivo XML de até 5 MB.");
+  if(!/\\.xml$/i.test(arquivo.name)||arquivo.size>5*1024*1024)return alert("Selecione um arquivo XML de até 5 MB.");
   try{
     const xml=new DOMParser().parseFromString(await arquivo.text(),"application/xml");
     if(xml.getElementsByTagName("parsererror").length)throw Error("XML inválido.");
@@ -127,19 +127,36 @@ async function importarXmlAgendamentoColeta(arquivo){
     const get=(root,tag)=>root?.getElementsByTagName(tag)[0]?.textContent?.trim()||"";
     const ide=inf.getElementsByTagName("ide")[0],dest=inf.getElementsByTagName("dest")[0],total=inf.getElementsByTagName("ICMSTot")[0],transp=inf.getElementsByTagName("transp")[0];
     const nf=get(ide,"nNF"),chave=String(inf.getAttribute("Id")||"").replace(/^NFe/i,"");
-    if(!/^\d{44}$/.test(chave)||!nf)throw Error("NF-e sem chave válida ou número.");
+    if(!/^\\d{44}$/.test(chave)||!nf)throw Error("NF-e sem chave válida ou número.");
     const nome=get(dest,"xNome"),doc=get(dest,"CNPJ")||get(dest,"CPF");
     const atual=ce("coletaNumeroNf")?.value?.trim();
     if(atual&&atual!==nf&&!confirm("A NF atual é "+atual+" e o XML é da NF "+nf+". Substituir os dados?"))return;
-    const campos={coletaNumeroNf:nf,coletaRazaoDestino:nome,coletaCnpjDestino:doc,coletaValorNf:get(total,"vNF")};
     const endereco=dest?.getElementsByTagName("enderDest")[0];
-    Object.assign(campos,{coletaCepDestino:get(endereco,"CEP"),coletaEnderecoDestino:get(endereco,"xLgr"),coletaNumeroDestino:get(endereco,"nro"),coletaBairroDestino:get(endereco,"xBairro"),coletaComplementoDestino:get(endereco,"xCpl"),coletaCidadeDestino:[get(endereco,"xMun"),get(endereco,"UF")].filter(Boolean).join("/")});
-    for(const [id,val] of Object.entries(campos))if(val&&ce(id))ce(id).value=val;
-    const cliente=(emailClientes||[]).find(c=>doc&&String(c.cpf_cnpj||"").replace(/\D/g,"")===doc.replace(/\D/g,""));
+    const enderecoXml={coletaCepDestino:get(endereco,"CEP"),coletaEnderecoDestino:get(endereco,"xLgr"),coletaNumeroDestino:get(endereco,"nro"),coletaBairroDestino:get(endereco,"xBairro"),coletaComplementoDestino:get(endereco,"xCpl"),coletaCidadeDestino:[get(endereco,"xMun"),get(endereco,"UF")].filter(Boolean).join("/")};
+    const volumes=Array.from(transp?.getElementsByTagName("vol")||[]);
+    const soma=(tag)=>volumes.reduce((acc,v)=>{const x=get(v,tag).replace(",",".");return acc+(x&&Number.isFinite(Number(x))?Number(x):0)},0);
+    const quantidade=soma("qVol"),pesoBruto=soma("pesoB"),pesoLiquido=soma("pesoL");
+    const especie=volumes.map(v=>get(v,"esp")).find(Boolean);
+    const campos={coletaNumeroNf:nf,coletaRazaoDestino:nome,coletaCnpjDestino:doc,coletaValorNf:get(total,"vNF"),coletaNatureza:get(ide,"natOp")};
+    if(quantidade>0)campos.coletaVolumes=String(quantidade);
+    if(pesoBruto>0||pesoLiquido>0)campos.coletaPeso=String(pesoBruto||pesoLiquido).replace(".",",");
+    if(especie)campos.coletaEmbalagem=especie;
+    // A seleção do cliente vem antes dos campos da NF, pois ela preenche o endereço cadastrado.
+    const cliente=(emailClientes||[]).find(c=>doc&&String(c.cpf_cnpj||c.cnpj||c.documento||"").replace(/\\D/g,"")===doc.replace(/\\D/g,""));
     if(cliente)selecionarClienteColeta(cliente.id);
     else {if(ce("coletaClienteId"))ce("coletaClienteId").value="";if(ce("coletaClienteBusca"))ce("coletaClienteBusca").value=nome;atualizarVendedoraClienteColeta();}
+    for(const [id,val] of Object.entries(campos))if(val&&ce(id))ce(id).value=val;
+    const normalizar=(v)=>String(v||"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+    const ids=Object.keys(enderecoXml);
+    const divergentes=ids.filter(id=>enderecoXml[id]&&normalizar(enderecoXml[id])!==normalizar(ce(id)?.value));
+    let usarXml=!cliente;
+    if(cliente&&divergentes.length){
+      const descricao=ids.map(id=>({coletaCepDestino:"CEP",coletaEnderecoDestino:"Logradouro",coletaNumeroDestino:"Número",coletaBairroDestino:"Bairro",coletaComplementoDestino:"Complemento",coletaCidadeDestino:"Cidade/UF"}[id]+": "+(enderecoXml[id]||"-")) .join("\\n");
+      usarXml=confirm("O endereço da NF-e é diferente do cadastro de "+(nome||"cliente")+".\\n\\nEndereço do XML:\\n"+descricao+"\\n\\nDeseja usar o endereço do XML SOMENTE nesta coleta?\\n\\nCancelar mantém o endereço cadastrado. Os demais dados da NF serão importados normalmente.");
+    }
+    if(usarXml)for(const [id,val] of Object.entries(enderecoXml))if(val&&ce(id))ce(id).value=val;
     if(typeof atualizarPreviaColeta==="function")atualizarPreviaColeta();
-    const info=ce("coletaXmlStatus");if(info)info.textContent="NF "+nf+" importada. Confira os dados antes de salvar.";
+    const info=ce("coletaXmlStatus");if(info)info.textContent="NF "+nf+" importada. "+(cliente&&divergentes.length?(usarXml?"Endereço do XML aplicado somente nesta coleta.":"Endereço cadastrado preservado."):"")+" Confira os dados antes de salvar.";
   }catch(e){alert("Não foi possível importar XML: "+e.message)}
 }
 function configurarArrastarXmlColeta(){
