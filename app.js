@@ -4447,7 +4447,7 @@ function clienteEtiquetaJaCadastrado(nome, documento=""){
   const numero=String(documento || "").replace(/\D/g,"");
   if(numero){
     const porDocumento=emailClientes.filter(item=>
-      [item.cpf_cnpj,item.cnpj,item.cpf].some(valor=>String(valor || "").replace(/\D/g,"")===numero)
+      [item.cpf_cnpj,item.cnpj,item.cpf,item.documento].some(valor=>String(valor || "").replace(/\D/g,"")===numero)
     );
     if(porDocumento.length===1) return porDocumento[0];
     if(porDocumento.length>1) return null;
@@ -4455,7 +4455,14 @@ function clienteEtiquetaJaCadastrado(nome, documento=""){
   const normalizado=normalizarNomeCadastroEtiqueta(nome);
   if(!normalizado) return null;
   const encontrados=emailClientes.filter(item=>normalizarNomeCadastroEtiqueta(item.nome || "")===normalizado);
-  return encontrados.length===1 ? encontrados[0] : null;
+  if(encontrados.length===1) return encontrados[0];
+  if(encontrados.length>1) return null;
+  // Apenas sufixos societários comuns podem variar entre XML e cadastro.
+  const simplificar=valor=>normalizarNomeCadastroEtiqueta(valor).replace(/(?: ME| EPP| LTDA| EIRELI| EI)+$/g,"").trim();
+  const base=simplificar(nome);
+  if(!base) return null;
+  const equivalentes=emailClientes.filter(item=>simplificar(item.nome || "")===base);
+  return equivalentes.length===1 ? equivalentes[0] : null;
 }
 
 function preencherVendedorasModalClienteEtiqueta(){
@@ -4596,7 +4603,7 @@ function selecionarClienteEtiqueta(id){
   if(!item) return;
   document.getElementById("etqCliente").value=item.nome || "";
 
-  const enderecoNumero=[item.endereco,item.numero].filter(Boolean).join(", ");
+  const enderecoNumero=enderecoSemNumeroDuplicadoEtiqueta(item.endereco,item.numero);
   const enderecoCompleto=[enderecoNumero,item.complemento].filter(Boolean).join(" - ");
 
   document.getElementById("etqEndereco").value=enderecoCompleto || "";
