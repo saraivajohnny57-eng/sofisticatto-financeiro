@@ -7268,7 +7268,9 @@ async function abrirDocumentoCorreiosOficial(tipo){
     const ct=(resp.headers.get('content-type')||'').toLowerCase();
     const dados=await resp.arrayBuffer();
 
-    if(!rotulo && !dace && ct.includes('text/html')){
+    const inicioDocumento=new TextDecoder('utf-8').decode(dados.slice(0,512)).trimStart();
+    const documentoHtml=!rotulo && !dace && (/^<!doctype html\b/i.test(inicioDocumento)||/^<html\b/i.test(inicioDocumento)||ct.includes('text/html'));
+    if(documentoHtml){
       const html=new TextDecoder('utf-8').decode(dados);
       const blob=new Blob([html],{type:'text/html;charset=utf-8'});
       const url=URL.createObjectURL(blob);
