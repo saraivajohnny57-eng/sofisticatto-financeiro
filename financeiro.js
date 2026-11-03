@@ -8041,7 +8041,9 @@ function imprimirPendenciasConsolidadasV296(banco,lista){
   // V311 — situação operacional detalhada. "Vencido" indica a data; "Em aberto" indica que o banco ainda mantém o título pendente.
   // Só exibimos "Em atraso" quando essa expressão vier efetivamente da situação devolvida pelo banco.
   const statusDetalhado=x=>statusDetalhadoRelatorioV314(x);
-  const filtroV316=filtroVencimentoRelatoriosV316(filtrarRelatorioBancarioV419(lista)); lista=filtroV316.lista;
+  // Pendências bancárias usam a busca própria da carteira, não os filtros do Histórico.
+  // Mantém apenas o filtro explícito de vencimento deste relatório.
+  const filtroV316=filtroVencimentoRelatoriosV316(lista); lista=filtroV316.lista;
   lista=[...lista].sort((a,b)=>String(a.vencimento||'9999').localeCompare(String(b.vencimento||'9999'))||String(a.cliente||'').localeCompare(String(b.cliente||''),'pt-BR'));
   if(!lista.length)return alert(`Nenhuma pendência do ${nome} encontrada com os filtros atuais.`);
   const periodoV316=textoPeriodoVencimentoV316(filtroV316.ini,filtroV316.fim);
