@@ -18,3 +18,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Validate GNRE fixture against official XSD
+        run: |
+          python3 -m pip install --user lxml
+          node tests/gnre-gerar-fixture-xsd.cjs /tmp/gnre-lote-fixture.xml
+          python3 - <<'PY'
+          from lxml import etree
+          schema = etree.XMLSchema(etree.parse('docs/gnre-xsd/lote_gnre_v2.00.xsd'))
+          doc = etree.parse('/tmp/gnre-lote-fixture.xml')
+          if not schema.validate(doc):
+              raise SystemExit(str(schema.error_log))
+          print('GNRE XML validated against official XSD')
+          PY
