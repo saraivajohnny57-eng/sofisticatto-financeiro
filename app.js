@@ -4317,10 +4317,12 @@ function preencherEnderecoEtiquetaComCadastro(cliente){
 
 function enderecoSemNumeroDuplicadoEtiqueta(endereco,numero){
   const rua=String(endereco || "").trim();
-  const n=String(numero || "").trim().replace(/^(?:N[º°.]?|NÚMERO|NUMERO|NR\\.?)\\s*[:.-]?\\s*/i,"");
+  const n=String(numero || "").trim().replace(/^(?:N[º°.]?|NÚMERO|NUMERO|NR\.?)\s*[:.-]?\s*/i,"").trim();
   if(!n) return rua;
-  const ultimo=rua.match(/(?:^|[,\\s])(?:N[º°.]?|NÚMERO|NUMERO|NR\\.?)?\\s*(\\d+[A-Za-z]?)\\s*$/i);
-  if(ultimo && ultimo[1]===n) return rua;
+  const escapar=valor=>valor.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  // Detecta tanto ", 235" quanto "Nr. 235", "Nº 235" e "N. 235".
+  const jaTemNumero=new RegExp("(?:^|[,\\s])(?:(?:N[º°.]?|NÚMERO|NUMERO|NR\\.?)\\s*[:.-]?\\s*)?"+escapar(n)+"\\s*$","i");
+  if(jaTemNumero.test(rua)) return rua;
   return [rua,"Nr. "+n].filter(Boolean).join(", ");
 }
 function preencherEnderecoEtiquetaComXml(dadosXml){
@@ -4766,7 +4768,13 @@ async function lerXmlEtiqueta(evento){
       const cadastro=cadastroEncontrado;
 
       if(!cadastro){
-        setTimeout(()=>abrirModalClienteEtiqueta(cliente),250);
+        // Revalida no banco imediatamente antes de mostrar o cadastro.
+        const clienteConfirmado=await localizarCadastroEtiqueta(cliente,documentoDestinatario);
+        if(clienteConfirmado){
+          fecharModalClienteEtiqueta();
+        }else{
+          abrirModalClienteEtiqueta(cliente);
+        }
       }else{
         const atualizacao={};
 
