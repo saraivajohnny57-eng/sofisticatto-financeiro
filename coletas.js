@@ -1255,9 +1255,9 @@ async function arquivarColetaPainel(id){
 async function excluirColetaCanceladaPainel(id){
   const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
   if(!a)return alert('Coleta não encontrada.');
-  if(statusColetaPainel(a)!=='cancelado')return alert('Somente coletas canceladas podem ser excluídas.');
+  if(!['cancelado','cancelamento_solicitado'].includes(statusColetaPainel(a)))return alert('Somente coletas canceladas ou com cancelamento solicitado podem ser excluídas.');
   if(!confirm('Excluir definitivamente esta coleta cancelada? Esta operação remove o registro local e não cancela nada na transportadora.'))return;
-  const r=await banco.from('coleta_agendamentos').delete().eq('id',id).eq('status','cancelado').select('id');
+  const r=await banco.from('coleta_agendamentos').delete().eq('id',id).select('id');
   if(r.error)return alert('Não foi possível excluir: '+r.error.message);
   if(!r.data?.length)return alert('Status alterado ou exclusão não autorizada. Atualize o painel.');
   await carregarPainelRodonaves();
@@ -1336,7 +1336,7 @@ async function carregarPainelRodonaves(){
         ${podeAtualizarManual?`<button class="btn coleta-alerta" onclick="alterarStatusManualColeta('${a.id}','nao_coletada')">Não coletada</button>`:""}
         ${podeAtualizarManual?`<button class="btn roxo" onclick="reagendarColetaManual('${a.id}')">Reagendar</button>`:""}
         ${podeAtualizarManual?`<button class="btn vermelho" onclick="solicitarCancelamentoColetaRodonaves('${a.id}')">Cancelar</button>`:""}
-        ${s==="cancelado"?`<button class="btn vermelho" onclick="excluirColetaCanceladaPainel('${a.id}')">Excluir</button>`:/cancelamento_solicitado/.test(s)?`<button class="btn cinza" onclick="arquivarColetaPainel('${a.id}')">Arquivar</button>`:""}
+        ${/cancelado|cancelamento_solicitado/.test(s)?`<button class="btn vermelho" onclick="excluirColetaCanceladaPainel('${a.id}')">Excluir</button>`:/cancelamento_solicitado/.test(s)?`<button class="btn cinza" onclick="arquivarColetaPainel('${a.id}')">Arquivar</button>`:""}
       </td>
     </tr>`;
   }).join(""):'<tr><td colspan="9">Nenhuma coleta Rodonaves registrada.</td></tr>';
