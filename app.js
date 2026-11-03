@@ -3826,7 +3826,7 @@ function aplicarAjustesTamanhoEtiqueta(etiqueta){
 function dadosEtiquetaFormulario(){
   return {
     cliente:document.getElementById("etqCliente")?.value.trim() || "",
-    endereco:document.getElementById("etqEndereco")?.value.trim().toUpperCase() || "",
+    endereco:enderecoSemNumeroDuplicadoEtiqueta(document.getElementById("etqEndereco")?.value.trim().toUpperCase() || "",""),
     bairro:document.getElementById("etqBairro")?.value.trim().toUpperCase() || "",
     cep:document.getElementById("etqCep")?.value.trim() || "",
     cidade:document.getElementById("etqCidade")?.value.trim().toUpperCase() || "",
@@ -4316,13 +4316,21 @@ function preencherEnderecoEtiquetaComCadastro(cliente){
 }
 
 function enderecoSemNumeroDuplicadoEtiqueta(endereco,numero){
-  const rua=String(endereco || "").trim();
+  let rua=String(endereco || "").trim();
   const n=String(numero || "").trim().replace(/^(?:N[º°.]?|NÚMERO|NUMERO|NR\.?)\s*[:.-]?\s*/i,"").trim();
+  // Remove repetições consecutivas do mesmo número já presentes no logradouro.
+  const marcador="(?:N[º°.]?|NÚMERO|NUMERO|NR\\.?)";
+  const finalNumero=new RegExp("(?:[,\\s]+)"+marcador+"\\s*[:.-]?\\s*(\\d+[A-Za-z]?)\\s*$","i");
+  let m;
+  while((m=rua.match(finalNumero))){
+    const anterior=rua.slice(0,m.index).trim();
+    const anteriorNumero=anterior.match(new RegExp("(?:^|[,\\s])(?:"+marcador+"\\s*[:.-]?\\s*)?(\\d+[A-Za-z]?)\\s*$","i"));
+    if(!anteriorNumero || anteriorNumero[1]!==m[1]) break;
+    rua=anterior.replace(/[,\\s]+$/,"");
+  }
   if(!n) return rua;
-  const escapar=valor=>valor.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-  // Detecta tanto ", 235" quanto "Nr. 235", "Nº 235" e "N. 235".
-  const jaTemNumero=new RegExp("(?:^|[,\\s])(?:(?:N[º°.]?|NÚMERO|NUMERO|NR\\.?)\\s*[:.-]?\\s*)?"+escapar(n)+"\\s*$","i");
-  if(jaTemNumero.test(rua)) return rua;
+  const final=rua.match(new RegExp("(?:^|[,\\s])(?:"+marcador+"\\s*[:.-]?\\s*)?(\\d+[A-Za-z]?)\\s*$","i"));
+  if(final && final[1]===n) return rua;
   return [rua,"Nr. "+n].filter(Boolean).join(", ");
 }
 function preencherEnderecoEtiquetaComXml(dadosXml){
@@ -4708,7 +4716,7 @@ async function lerXmlEtiqueta(evento){
     const uf=textoNo(["dest enderDest UF"]);
     const transportadoraCompleta=textoNo(["transp transporta xNome","transporta xNome"]);
     const transportadoraPrimeiroNome=transportadoraCompleta.trim().split(/\s+/)[0] || "";
-    const endereco=[logradouro,numeroEndereco].filter(Boolean).join(", ") + (complemento ? ` - ${complemento}` : "");
+    const endereco=enderecoSemNumeroDuplicadoEtiqueta(logradouro,numeroEndereco);
 
     // Quantidade de volumes: primeiro tenta qVol; se não existir,
     // conta os blocos <vol>; por último tenta nVol quando vier numérico.
