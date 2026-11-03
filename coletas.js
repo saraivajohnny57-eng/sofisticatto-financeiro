@@ -1788,7 +1788,7 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   }
   const patch={dados:novosDados,atualizado_em:new Date().toISOString()};
   if(j.codigoObjeto)patch.protocolo_rastreio=j.codigoObjeto;
-  const up=await banco.from('coleta_agendamentos').update(patch).eq('id',id); if(up.error)console.warn('Pré-postagem criada, mas falhou ao gravar no agendamento:',up.error.message);
+  const up=await banco.from('coleta_agendamentos').update(patch).eq('id',id); if(up.error)throw new Error('Os Correios retornaram um ID, mas não foi possível vinculá-lo à coleta. Não crie outra pré-postagem antes de conferir o ID '+String(j.idPrePostagem||'')+'. Erro de gravação: '+up.error.message);
   a.dados=novosDados;if(j.codigoObjeto)a.protocolo_rastreio=j.codigoObjeto;
   mostrarBalaoSistema('Pré-postagem criada',qtdVolumes>1?`${qtdVolumes} volumes prontos • ${j.servico||codigo}`:`${j.servico||codigo}${j.codigoObjeto?' • '+j.codigoObjeto:''}`);
   if(!silencioso)alert(qtdVolumes>1?`Pré-postagens dos Correios criadas com sucesso.\n\nVolumes: ${qtdVolumes}\nPeso total: ${totalKg.toFixed(3).replace('.',',')} kg\nPeso por volume: ${pesoPorVolume.toFixed(3).replace('.',',')} kg\nServiço: ${j.servico||codigo}\n\nAo abrir a etiqueta 100×150, os ${qtdVolumes} rótulos serão gerados juntos.`:`Pré-postagem dos Correios criada com sucesso.\n\nServiço: ${j.servico||codigo}\nID: ${j.idPrePostagem}${j.codigoObjeto?`\nRastreio: ${j.codigoObjeto}`:''}`);
