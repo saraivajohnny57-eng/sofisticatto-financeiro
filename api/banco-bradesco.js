@@ -839,19 +839,28 @@ module.exports=async function(req,res){
         // V252: somente uma rejeição HTTP 400 já respondida pelo Bradesco pode
         // ser corrigida e reenviada manualmente. HTTP 2xx, erro de transporte,
         // timeout ou qualquer resultado incerto continuam bloqueados.
-        if(!(tentativaAnterior.estado==='RESPOSTA_RECEBIDA' && statusAnterior===400)){
+        if(!((tentativaAnterior.estado==='RESPOSTA_RECEBIDA' && statusAnterior===400) || tentativaAnterior.estado==='FALHA_AUTENTICACAO_SEM_ENVIO')){
           throw new Error('Este Seu Nº já possui uma tentativa que não pode ser reenviada automaticamente. O sistema manteve o bloqueio para evitar duplicidade. Confira o retorno/histórico antes de qualquer nova tentativa.');
         }
         tentativaNumero=Number(tentativaAnterior.tentativa_numero||1)+1;
       }
       await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:'INICIADA',tentativa_numero:tentativaNumero,reenvio_correcao_http400:!!anterior,tentativa_anterior:tentativaAnterior?{http_status:tentativaAnterior.http_status||null,estado:tentativaAnterior.estado||null,resposta:tentativaAnterior.resposta||null,finalizada_em:tentativaAnterior.finalizada_em||null}:null,iniciada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'INICIADA',tentativa_numero:tentativaNumero,reenvio_correcao_http400:!!anterior});
+      // V414: falhas de autenticação acontecem ANTES do POST de cobrança.
+      // Não classificá-las como envio incerto; preservar diagnóstico e permitir
+      // nova tentativa manual após corrigir a autenticação.
+      let auth;
+      try{
+        auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
+      }catch(e){
+        await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:'FALHA_AUTENTICACAO_SEM_ENVIO',erro:String(e.message||e),finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'FALHA_AUTENTICACAO_SEM_ENVIO'});
+        throw new Error('Falha na autenticação ANTES de enviar o boleto ao Bradesco: '+String(e.message||e)+'. Corrija a conexão e tente novamente manualmente.');
+      }
       let retorno;
       try{
-        const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
         retorno=await enviarRegistroCobrancaProducao(auth.access_token,mtls,prep.payload);
       }catch(e){
         await salvar(travaId,amb,'emissao',{seuNumero,hash:prep.hash,estado:'ERRO_TRANSPORTE_SEM_RETRY',erro:String(e.message||e),finalizada_em:new Date().toISOString()},{seuNumero_mascarado:mascarar(seuNumero,2,2),estado:'ERRO_TRANSPORTE_SEM_RETRY'});
-        throw new Error('A tentativa foi interrompida sem repetição automática: '+String(e.message||e)+'. Confira no Bradesco antes de tentar novamente.');
+        throw new Error('Resultado do envio incerto: '+String(e.message||e)+'. Confira no Bradesco antes de tentar novamente.');
       }
       const d=retorno.data||{}, http2xx=retorno.http_status>=200&&retorno.http_status<300;
       const achar=(...ks)=>{for(const k of ks){const v=d?.[k]??d?.titulo?.[k]??d?.boleto?.[k]??d?.dados?.[k];if(v!==undefined&&v!==null&&String(v)!=='')return v}return null};
