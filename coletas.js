@@ -133,6 +133,9 @@ async function importarXmlAgendamentoColeta(arquivo){
     if(atual&&atual!==nf&&!confirm("A NF atual é "+atual+" e o XML é da NF "+nf+". Substituir os dados?"))return;
     const endereco=dest?.getElementsByTagName("enderDest")[0];
     const enderecoXml={coletaCepDestino:get(endereco,"CEP"),coletaEnderecoDestino:get(endereco,"xLgr"),coletaNumeroDestino:get(endereco,"nro"),coletaBairroDestino:get(endereco,"xBairro"),coletaComplementoDestino:get(endereco,"xCpl"),coletaCidadeDestino:[get(endereco,"xMun"),get(endereco,"UF")].filter(Boolean).join("/")};
+    const enderecoSeparadoXml=separarNumeroLogradouroColeta(enderecoXml.coletaEnderecoDestino,enderecoXml.coletaNumeroDestino);
+    enderecoXml.coletaEnderecoDestino=enderecoSeparadoXml.logradouro;
+    enderecoXml.coletaNumeroDestino=enderecoSeparadoXml.numero;
     const volumes=Array.from(transp?.getElementsByTagName("vol")||[]);
     const soma=(tag)=>volumes.reduce((acc,v)=>{const x=get(v,tag).replace(",",".");return acc+(x&&Number.isFinite(Number(x))?Number(x):0)},0);
     const quantidade=soma("qVol"),pesoBruto=soma("pesoB"),pesoLiquido=soma("pesoL");
@@ -166,6 +169,13 @@ function configurarArrastarXmlColeta(){
   for(const nome of ["dragleave","drop"])area.addEventListener(nome,e=>{e.preventDefault();area.style.borderColor="#c7b9ed";});
   area.addEventListener("drop",e=>importarXmlAgendamentoColeta(e.dataTransfer?.files?.[0]));
 }
+function separarNumeroLogradouroColeta(logradouro,numero){
+  let rua=String(logradouro||"").trim(),num=String(numero||"").trim();
+  const m=rua.match(/(?:,|\s+)(?:n[º°.]?|nro\.?|numero|número)\s*[:.#-]?\s*(\d+[A-Za-z]?)\s*$/i);
+  if(m){if(!num)num=m[1];if(num.replace(/\D/g,"")===m[1].replace(/\D/g,""))rua=rua.slice(0,m.index).replace(/[\s,.-]+$/,"").trim();}
+  num=num.replace(/^(?:n[º°.]?|nro\.?|numero|número)\s*[:.#-]?\s*/i,"").trim();
+  return {logradouro:rua,numero:num};
+}
 function selecionarClienteColeta(id){
   const c=(emailClientes||[]).find(x=>String(x.id)===String(id));
   if(!c)return;
@@ -189,16 +199,9 @@ function selecionarClienteColeta(id){
     valor("uf","estado")
   ].filter(Boolean).join("/");
 
-  if(ce("coletaEnderecoDestino")){
-    ce("coletaEnderecoDestino").value=valor(
-      "logradouro","endereco","rua","endereco_logradouro"
-    );
-  }
-  if(ce("coletaNumeroDestino")){
-    ce("coletaNumeroDestino").value=valor(
-      "numero","numero_endereco","endereco_numero"
-    );
-  }
+  const enderecoSeparado=separarNumeroLogradouroColeta(valor("logradouro","endereco","rua","endereco_logradouro"),valor("numero","numero_endereco","endereco_numero"));
+  if(ce("coletaEnderecoDestino"))ce("coletaEnderecoDestino").value=enderecoSeparado.logradouro;
+  if(ce("coletaNumeroDestino"))ce("coletaNumeroDestino").value=enderecoSeparado.numero;
   if(ce("coletaComplementoDestino")){
     ce("coletaComplementoDestino").value=valor(
       "complemento","endereco_complemento"
