@@ -29,25 +29,18 @@ window.abrirDocumentoCorreiosOficial=async function(tipo){
   try{
     if(typeof confirmarColetaAntesDocumentoCorreios==="function"&&!(await confirmarColetaAntesDocumentoCorreios()))return;
     const p=parametrosCorreiosOficiais();
-    // O ID preenchido pode pertencer a uma pre-postagem antiga/cancelada.
-    // Quando houver rastreio, consultar o contrato sem passar o ID antigo.
-    let pre=null;
-    if(p.codigoObjeto){
-      const qsBusca=new URLSearchParams({action:"documentos-correios",modo:"localizar",codigoObjeto:p.codigoObjeto});
-      const busca=await fetch("/api/integracoes?"+qsBusca.toString(),{headers:{Accept:"application/json"}});
-      const j=await busca.json().catch(()=>({}));
-      if(busca.ok&&j.ok&&String(j.codigoObjeto||"").toUpperCase()===p.codigoObjeto){
-        pre={idPrePostagem:j.idPrePostagem||j.id,codigoObjeto:j.codigoObjeto};
-      }else{
-        throw Error("Não foi possível confirmar uma pré-postagem ativa para o rastreio "+p.codigoObjeto+". O ID salvo pode estar cancelado. Confira a pré-postagem no portal dos Correios antes de imprimir.");
-      }
-    }else{
-      pre=await localizarPrePostagemCorreiosOficial(true);
+    // O retorno do POST oficial ja fornece o ID. Nao bloquear a emissao
+    // por uma busca de listagem que pode retornar 404/405 indevidamente.
+    // O endpoint de emissao dos Correios valida o status real do ID.
+    const idSalvo=String(valorCampoCorreios("corIdPrePostagem")||"").trim();
+    let id=idSalvo;
+    if(!id){
+      const pre=await localizarPrePostagemCorreiosOficial(true);
+      id=String(pre?.idPrePostagem||pre?.id||"").trim();
     }
-    const id=String(pre?.idPrePostagem||pre?.id||"").trim();
-    if(pre?.codigoObjeto&&p.codigoObjeto&&String(pre.codigoObjeto).toUpperCase()!==p.codigoObjeto)throw Error("A pré-postagem localizada não corresponde ao rastreio informado.");
-    if(id){const campo=document.getElementById("corIdPrePostagem");if(campo)campo.value=id;}
-    if(!id)throw Error(pre?.erro||"Informe ou localize primeiro o ID da pré-postagem.");
+    if(!id)throw Error("Informe ou localize primeiro o ID da pré-postagem.");
+    if(!/^PR[A-Za-z0-9]{10,40}$/.test(id))throw Error("ID de pré-postagem inválido. Confira o vínculo da coleta.");
+    statusCorreiosOficial("Consultando o documento oficial pelo ID da pré-postagem...",true);
     const rotulo=tipo==="rotulo"||tipo==="rotulo-l42";
     const dace=tipo==="dace";
     statusCorreiosOficial("Gerando documento oficial dos Correios...",true);
