@@ -7277,9 +7277,8 @@ async function abrirDocumentoCorreiosOficial(tipo){
     }else{
       const mime=ct.includes('pdf')?'application/pdf':(ct||'application/octet-stream');
       const blob=new Blob([dados],{type:mime});
-      const url=URL.createObjectURL(blob);
-      window.open(url,'_blank');
-      setTimeout(()=>URL.revokeObjectURL(url),120000);
+      if(mime.includes('pdf')) visualizarPdfLeveSofisticatto(blob,'Documento oficial dos Correios.pdf');
+      else {const url=URL.createObjectURL(blob);window.open(url,'_blank');setTimeout(()=>URL.revokeObjectURL(url),120000);}
     }
 
     statusCorreiosOficial(
@@ -9664,7 +9663,7 @@ async function abrirBoletoOficialBbRegistro(id){
 }
 async function abrirBoletoPdfRegistro(id,baixar=false){
   const x=(cobrancasBancarias||[]).find(a=>String(a.id)===String(id))||(cobrancaMassaPreparadas||[]).find(a=>String(a.id)===String(id));if(!x)return alert('Cobrança não encontrada.');
-  try{const d=registroParaBoletoVisual(x);const blob=await gerarPdfBoletoBb(d);const url=URL.createObjectURL(blob);if(baixar){const a=document.createElement('a');a.href=url;a.download=nomePdfBoletoBb(d);a.click();setTimeout(()=>URL.revokeObjectURL(url),5000)}else{window.open(url,'_blank');setTimeout(()=>URL.revokeObjectURL(url),60000)}}catch(e){alert('Não foi possível gerar o boleto para impressão.\n\n'+e.message)}
+  try{const d=registroParaBoletoVisual(x);const blob=await gerarPdfBoletoBb(d);const url=URL.createObjectURL(blob);if(baixar){const a=document.createElement('a');a.href=url;a.download=nomePdfBoletoBb(d);a.click();setTimeout(()=>URL.revokeObjectURL(url),5000)}else{URL.revokeObjectURL(url);visualizarPdfLeveSofisticatto(blob,nomePdfBoletoBb(d))}}catch(e){alert('Não foi possível gerar o boleto para impressão.\n\n'+e.message)}
 }
 async function imprimirResultadosBbUltimaEmissao(){
   const itens=(window.__bbUltimosResultados||[]).map(x=>{
@@ -9674,9 +9673,7 @@ async function imprimirResultadosBbUltimaEmissao(){
   if(!itens.length)return alert('Nenhum boleto disponível para impressão.');
   try{
     const blob=await gerarPdfImpressaoNormalBb(itens);
-    const url=URL.createObjectURL(blob);
-    window.open(url,'_blank');
-    setTimeout(()=>URL.revokeObjectURL(url),120000);
+    visualizarPdfLeveSofisticatto(blob,nomePdfImpressaoNormalBb(itens));
   }catch(e){alert('Não foi possível gerar a Impressão Normal.\n\n'+e.message)}
 }
 async function abrirSegundasViasBbUltimaEmissao(){
@@ -11226,10 +11223,8 @@ async function imprimirCanhotosPorFiltroV381(){
       y-=payH;
       if(i%POR!==POR-1&&i!==lista.length-1){line(pg,left+42,y-9,left+CW,y-9,.45);text(pg,'Corte aqui',left,y-11,40,5,normal);}
     }
-    const bytes=await pdf.save(),blob=new Blob([bytes],{type:'application/pdf'}),url=URL.createObjectURL(blob);
-    const janela=window.open(url,'_blank');
-    if(!janela){const a=document.createElement('a');a.href=url;a.download=`Canhotos originais por vencimento - ${new Date().toISOString().slice(0,10)}.pdf`;a.click();}
-    setTimeout(()=>URL.revokeObjectURL(url),180000);
+    const bytes=await pdf.save(),blob=new Blob([bytes],{type:'application/pdf'});
+    visualizarPdfLeveSofisticatto(blob,'Canhotos originais por vencimento.pdf');
   }catch(e){console.error('Canhotos V382',e);alert('Nao foi possivel gerar os canhotos: '+(e?.message||e));}
   finally{if(botao){botao.disabled=false;botao.textContent=texto;}}
 }
