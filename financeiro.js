@@ -479,7 +479,13 @@ function cobrancasDoRelatorioV261(rel,fonte){
 }
 function relatorioTotalmenteEmitidoV262(rel){
   const ps=cobrancasDoRelatorioV261(rel,parcelasRelatoriosFinanceiro);
-  return !!ps.length&&ps.every(x=>['aberto','pago','vencido'].includes(String(x.status||'')));
+  if(!ps.length)return false;
+  const prev=Array.isArray(rel?.parcelas_json)?rel.parcelas_json:[];
+  const esperado=Math.max(prev.length,...ps.map(x=>Number(x.parcela_total||0)),0);
+  if(!esperado||ps.length<esperado)return false;
+  const numeros=new Set(ps.map(x=>Number(x.parcela_numero||0)));
+  for(let n=1;n<=esperado;n++)if(!numeros.has(n))return false;
+  return ps.every(x=>['aberto','pago','vencido'].includes(String(x.status||'')));
 }
 function resumoParcelasRelatorioFinanceiro(relatorioId){
   const rel=(todosBoletos||[]).find(x=>String(x.id)===String(relatorioId));
@@ -490,13 +496,23 @@ function resumoParcelasRelatorioFinanceiro(relatorioId){
     const cond=rel?.condicao_pagamento||"Personalizado";
     return `<div class="rel-parcelas-resumo"><b>${escaparHtmlEmail(cond)} • ${prev.length} parcela(s)</b>${prev.map((x,i)=>`<span>${Number(x.numero||i+1)}/${Number(x.total||prev.length)} • ${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'} • ${cobMoeda(x.valor)}</span>`).join('')}</div>`;
   }
-  const cond=ps[0]?.condicao_pagamento||"Personalizado";
-  const linhas=ps.map((x,i)=>{
-    const dt=x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—';
-    const st=x.status==='aberto'?' • emitido':x.status==='pago'?' • pago':'';
-    return `<span>${Number(x.parcela_numero||i+1)}/${Number(x.parcela_total||ps.length)} • ${dt} • ${cobMoeda(x.valor)}${st}</span>`;
-  }).join('');
-  return `<div class="rel-parcelas-resumo"><b>${escaparHtmlEmail(cond)} • ${ps.length} parcela(s)</b>${linhas}</div>`;
+  const cond=ps[0]?.condicao_pagamento||rel?.condicao_pagamento||"Personalizado";
+  const prev=Array.isArray(rel?.parcelas_json)?rel.parcelas_json:[];
+  const esperado=Math.max(prev.length,...ps.map(x=>Number(x.parcela_total||0)),0);
+  const porNumero=new Map(ps.map(x=>[Number(x.parcela_numero||0),x]));
+  const formatarData=v=>v?new Date(String(v).slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR'):'—';
+  const linhas=[];
+  for(let n=1;n<=esperado;n++){
+    const x=porNumero.get(n);
+    if(x){
+      const st=x.status==='aberto'?' • emitido':x.status==='pago'?' • pago':x.status==='pendente_integracao'?' • pendente de integração':'';
+      linhas.push(`<span>${n}/${esperado} • ${formatarData(x.vencimento)} • ${cobMoeda(x.valor)}${st}</span>`);
+    }else{
+      const p=prev.find(v=>Number(v.numero||0)===n)||prev[n-1];
+      linhas.push(`<span style="color:#a45d00;font-weight:600">${n}/${esperado} • ${formatarData(p?.vencimento)} • ${p?.valor!=null?cobMoeda(p.valor):'valor a conferir'} • NÃO EMITIDO / CONFERIR</span>`);
+    }
+  }
+  return `<div class="rel-parcelas-resumo"><b>${escaparHtmlEmail(cond)} • ${esperado} parcela(s)</b>${linhas.join('')}</div>`;
 }
 
 function montarTabela(){
