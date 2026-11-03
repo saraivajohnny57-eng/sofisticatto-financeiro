@@ -13,4 +13,5 @@ jobs:
         with:
           node-version: '22'
       - run: node --check api/banco-bradesco.js
-      - run: node --test tests/bradesco-auth-lock-order.test.cjs
+      - run: node --check financeiro.js
+      - run: node --test tests/bradesco-auth-lock-order.test.cjs tests/bradesco-partial-issuance.test.cjs
