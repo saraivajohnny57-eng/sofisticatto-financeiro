@@ -4435,7 +4435,11 @@ function numeroPorExtensoRelatorio(numero){
 function calcularDescontoRelatorio(){
   const total = valorParaNumero(document.getElementById("gerValorTotal")?.value || 0);
   const percentual = Number(document.getElementById("gerDescontoPercentual")?.value || 0);
-  const valorComDesconto = percentual > 0 ? total - (total * percentual / 100) : total;
+  const complementos = complementosGeradorRelatorio();
+  const comDesconto = complementos.filter(x=>x.incluir_desconto).reduce((t,x)=>t+x.valor,0);
+  const semDesconto = complementos.filter(x=>!x.incluir_desconto).reduce((t,x)=>t+x.valor,0);
+  const base = total + comDesconto;
+  const valorComDesconto = (percentual > 0 ? base - (base * percentual / 100) : base) + semDesconto;
   const campo = document.getElementById("gerValorComDesconto");
   if(campo) campo.value = percentual > 0 ? valorParaInput(valorComDesconto) : "";
   atualizarPreviaRelatorio();
@@ -4472,25 +4476,37 @@ function mensagemPagamentoAutomaticaRelatorio(d){
   return {linha1, linha2};
 }
 
-function adicionarComplementoRelatorio(descricao="",valor=""){
+function adicionarComplementoRelatorio(descricao="",valor="",incluirDesconto=false){
  const lista=document.getElementById("gerComplementosLista");if(!lista)return;
- const linha=document.createElement("div");linha.className="ger-complemento-linha";linha.style.cssText="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px";
+ const linha=document.createElement("div");linha.className="ger-complemento-linha";
+ linha.style.cssText="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;padding:10px;border:1px solid #e4dcf4;border-radius:10px";
  const desc=document.createElement("input");desc.placeholder="Pré-venda(s) / descrição (ex.: 123/456)";desc.value=descricao;desc.style.flex="2 1 180px";
  const quantia=document.createElement("input");quantia.placeholder="Valor R$";quantia.inputMode="decimal";quantia.value=valor;quantia.style.flex="1 1 110px";
  const excluir=document.createElement("button");excluir.type="button";excluir.textContent="Excluir";excluir.className="btn vermelho";
- desc.oninput=atualizarPreviaRelatorio;quantia.oninput=()=>{mascaraValor(quantia);atualizarPreviaRelatorio();};excluir.onclick=()=>{linha.remove();atualizarPreviaRelatorio();};
- linha.append(desc,quantia,excluir);lista.appendChild(linha);atualizarPreviaRelatorio();
+ const opcao=document.createElement("label");opcao.style.cssText="display:flex;align-items:center;gap:8px;flex:1 1 100%;font-size:13px;cursor:pointer";
+ const caixa=document.createElement("input");caixa.type="checkbox";caixa.className="ger-complemento-desconto";caixa.checked=Boolean(incluirDesconto);caixa.style.cssText="width:18px;height:18px;flex:none;accent-color:#6a1b9a";
+ const legenda=document.createElement("span");
+ const atualizarLegenda=()=>{const n=Array.from(lista.children).indexOf(linha)+1;legenda.textContent="Aplicar desconto ao complemento "+n+(desc.value.trim()?" ("+desc.value.trim()+")":"")+"?";};
+ const atualizar=()=>{atualizarLegenda();calcularDescontoRelatorio();};
+ desc.oninput=atualizar;quantia.oninput=()=>{mascaraValor(quantia);atualizar();};caixa.onchange=atualizar;
+ excluir.onclick=()=>{linha.remove();Array.from(lista.children).forEach(l=>l.querySelector(".ger-complemento-desconto")?.dispatchEvent(new Event("change")));calcularDescontoRelatorio();};
+ opcao.append(caixa,legenda);linha.append(desc,quantia,excluir,opcao);lista.appendChild(linha);atualizar();
 }
 function complementosGeradorRelatorio(){
- return Array.from(document.querySelectorAll("#gerComplementosLista .ger-complemento-linha")).map(l=>{const campos=l.querySelectorAll("input");return {descricao:campos[0].value.trim(),valor:valorParaNumero(campos[1].value||0)};}).filter(x=>x.descricao||x.valor>0);
+ return Array.from(document.querySelectorAll("#gerComplementosLista .ger-complemento-linha")).map(l=>{
+  const campos=l.querySelectorAll('input:not([type="checkbox"])');
+  return {descricao:campos[0].value.trim(),valor:valorParaNumero(campos[1].value||0),incluir_desconto:!!l.querySelector(".ger-complemento-desconto")?.checked};
+ }).filter(x=>x.descricao||x.valor>0);
 }
 function preencherComplementosGeradorRelatorio(itens){
  const lista=document.getElementById("gerComplementosLista");if(!lista)return;lista.replaceChildren();
- (Array.isArray(itens)?itens:[]).forEach(x=>adicionarComplementoRelatorio(x.descricao||"",valorParaInput(x.valor||0)));atualizarPreviaRelatorio();
+ (Array.isArray(itens)?itens:[]).forEach(x=>adicionarComplementoRelatorio(x.descricao||"",valorParaInput(x.valor||0),x.incluir_desconto===true));
+ calcularDescontoRelatorio();
 }
 function htmlComplementosRelatorio(itens){
  if(!itens?.length)return "";
- return itens.map((x,i)=>`<li><strong>Complemento ${i+1}${x.descricao?": "+escaparHtmlEmail(x.descricao):""}:</strong> ${formatarMoeda(x.valor)}</li>`).join("")+`<li><strong>Total dos complementos:</strong> ${formatarMoeda(itens.reduce((t,x)=>t+x.valor,0))}</li>`;
+ return itens.map((x,i)=>`<li><strong>Complemento ${i+1}${x.descricao?": "+escaparHtmlEmail(x.descricao):""}:</strong> ${formatarMoeda(x.valor)} ${x.incluir_desconto?"(com desconto)":"(sem desconto)"}</li>`).join("")+
+  `<li><strong>Total dos complementos:</strong> ${formatarMoeda(itens.reduce((t,x)=>t+x.valor,0))}</li>`;
 }
 function dadosGeradorRelatorio(){
   const formaSelecionada = gerFormasPagamento.find(x => x.id === document.getElementById("gerFormaPagamento")?.value);
@@ -4815,7 +4831,7 @@ function conteudoTextoRelatorioExportacao(){
   linhas.push(`Número do Pedido: ${d.numero_pedido || "—"}`);
   linhas.push(`Valor do Pedido: ${formatarMoeda(d.valor_pedido)}`);
   linhas.push(`Valor Total dos Pedidos: ${formatarMoeda(d.valor_total)}`);
-  d.complementos.forEach((x,i)=>linhas.push(`Complemento ${i+1}${x.descricao?": "+x.descricao:""}: ${formatarMoeda(x.valor)}`));
+  d.complementos.forEach((x,i)=>linhas.push(`Complemento ${i+1}${x.descricao?": "+x.descricao:""}: ${formatarMoeda(x.valor)} (${x.incluir_desconto?"com desconto":"sem desconto"})`));
   if(d.complementos.length)linhas.push(`Total dos complementos: ${formatarMoeda(d.complementos.reduce((t,x)=>t+x.valor,0))}`);
 
   if(d.desconto_percentual > 0){
