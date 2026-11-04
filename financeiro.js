@@ -4512,8 +4512,16 @@ function preencherComplementosGeradorRelatorio(itens){
 }
 function htmlComplementosRelatorio(itens){
  if(!itens?.length)return "";
- return itens.map((x,i)=>`<li><strong>Complemento ${i+1}:</strong> ${formatarMoeda(x.valor)} ${x.incluir_desconto?"(com desconto)":"(sem desconto)"}</li>`).join("")+
-  `<li><strong>Total dos complementos:</strong> ${formatarMoeda(itens.reduce((t,x)=>t+x.valor,0))}</li>`;
+ return itens.map((x,i)=>`<li><strong>Complemento ${i+1}:</strong> ${formatarMoeda(x.valor)} ${x.incluir_desconto?"(com desconto)":"(sem desconto)"}</li>`).join("");
+}
+function tituloValorDescontoRelatorio(d){
+ const pct=String(d.desconto_percentual).replace(".",",");
+ const complementos=(d.complementos||[]).filter(x=>x.valor>0);
+ if(!complementos.length)return `Valor Total com ${pct}% de desconto para pagamento à vista`;
+ const marcados=complementos.filter(x=>x.incluir_desconto).length;
+ if(!marcados)return `Valor Total do pedido com ${pct}% de desconto + Complemento para pagamento à vista`;
+ if(marcados===complementos.length)return `Valor Total do pedido + complemento com ${pct}% de desconto para pagamento à vista`;
+ return `Valor Total do pedido + complementos selecionados com ${pct}% de desconto + complementos sem desconto para pagamento à vista`;
 }
 function dadosGeradorRelatorio(){
   const formaSelecionada = gerFormasPagamento.find(x => x.id === document.getElementById("gerFormaPagamento")?.value);
@@ -4583,7 +4591,7 @@ function atualizarPreviaRelatorio(){
       <li><strong>Valor do Pedido:</strong> ${formatarMoeda(d.valor_pedido)}</li>
       <li><strong>Valor Total dos Pedidos:</strong> ${formatarMoeda(d.valor_total)}</li>
       ${htmlComplementosRelatorio(d.complementos)}
-      ${d.desconto_percentual > 0 ? `<li><strong>Valor Total com ${String(d.desconto_percentual).replace(".",",")}% de desconto para pagamento à vista:</strong> ${formatarMoeda(d.valor_com_desconto)}</li>` : ""}
+      ${d.desconto_percentual > 0 ? `<li><strong>${tituloValorDescontoRelatorio(d)}:</strong> ${formatarMoeda(d.valor_com_desconto)}</li>` : ""}
       <li><strong>Data de Faturamento:</strong> ${formatarDataBrRelatorio(d.data_emissao) || "—"}</li>
       <li><strong>Data da saída:</strong> ${formatarDataBrRelatorio(d.data_saida) || "—"}</li>
       <li><strong>Transportadora:</strong> ${escaparHtmlEmail(d.transportadora || "—")}</li>
@@ -4840,10 +4848,10 @@ function conteudoTextoRelatorioExportacao(){
   linhas.push(`Valor do Pedido: ${formatarMoeda(d.valor_pedido)}`);
   linhas.push(`Valor Total dos Pedidos: ${formatarMoeda(d.valor_total)}`);
   d.complementos.forEach((x,i)=>linhas.push(`Complemento ${i+1}: ${formatarMoeda(x.valor)} (${x.incluir_desconto?"com desconto":"sem desconto"})`));
-  if(d.complementos.length)linhas.push(`Total dos complementos: ${formatarMoeda(d.complementos.reduce((t,x)=>t+x.valor,0))}`);
+
 
   if(d.desconto_percentual > 0){
-    linhas.push(`Valor Total com ${String(d.desconto_percentual).replace(".",",")}% de desconto para pagamento à vista: ${formatarMoeda(d.valor_com_desconto)}`);
+    linhas.push(`${tituloValorDescontoRelatorio(d)}: ${formatarMoeda(d.valor_com_desconto)}`);
   }
 
   linhas.push(`Data de Faturamento: ${formatarDataBrRelatorio(d.data_emissao) || "—"}`);
@@ -4912,7 +4920,7 @@ function htmlRelatorioExportacao(logoDataUrl=""){
     <li><strong>Valor do Pedido:</strong> ${formatarMoeda(d.valor_pedido)}</li>
     <li><strong>Valor Total dos Pedidos:</strong> ${formatarMoeda(d.valor_total)}</li>
     ${htmlComplementosRelatorio(d.complementos)}
-    ${d.desconto_percentual > 0 ? `<li><strong>Valor Total com ${String(d.desconto_percentual).replace(".",",")}% de desconto para pagamento à vista:</strong> ${formatarMoeda(d.valor_com_desconto)}</li>` : ""}
+    ${d.desconto_percentual > 0 ? `<li><strong>${tituloValorDescontoRelatorio(d)}:</strong> ${formatarMoeda(d.valor_com_desconto)}</li>` : ""}
     <li><strong>Data de Faturamento:</strong> ${formatarDataBrRelatorio(d.data_emissao) || "—"}</li>
     <li><strong>Data da saída:</strong> ${formatarDataBrRelatorio(d.data_saida) || "—"}</li>
     <li><strong>Transportadora:</strong> ${escaparHtmlEmail(d.transportadora || "—")}</li>
