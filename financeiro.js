@@ -8661,8 +8661,8 @@ async function abrirEmissaoBoletoRelatorio(relatorioId){
   document.getElementById("bolNumeroNf").value=boletoCobrancaAtual?.numero_nf||item.numero_nf||"";
   document.getElementById("bolDescricao").value=boletoCobrancaAtual?.descricao||`Cobrança ${item.nome||""}`;
   const bancoCodigoAtual=codigoBancoCobranca(item.banco);
-  const multaPadrao=bancoCodigoAtual==="bb"?2:0;
-  const jurosPadrao=bancoCodigoAtual==="bb"?5:0;
+  const multaPadrao=["bb","bradesco"].includes(bancoCodigoAtual)?2:0;
+  const jurosPadrao=["bb","bradesco"].includes(bancoCodigoAtual)?5:0;
   document.getElementById("bolMulta").value=String(boletoCobrancaAtual?.multa_percentual??multaPadrao).replace(".",",");
   document.getElementById("bolJuros").value=String(boletoCobrancaAtual?.juros_percentual??jurosPadrao).replace(".",",");
   atualizarPainelInstrucoesBancoBoleto();
