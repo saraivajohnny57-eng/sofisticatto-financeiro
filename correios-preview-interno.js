@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 let busy=false,active=null;
-function preview(blob,name){
+function preview(blob,name,opcoes={}){
   if(active)active.close();
   const url=URL.createObjectURL(blob),modal=document.createElement("div");
   modal.style.cssText="position:fixed;inset:0;z-index:2147483000;background:#161126bb;display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box";
@@ -20,6 +20,32 @@ function preview(blob,name){
   document.addEventListener("keydown",esc);
   const print=btn("Imprimir",()=>{try{frame.contentWindow.focus();frame.contentWindow.print();}catch(e){console.warn(e);}});
   const download=btn("Baixar arquivo",()=>{const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();});
+  // PDF original preservado: não converter em imagem, JPEG ou canvas,
+  // pois isso suaviza os códigos de barras e as letras pequenas.
+  if(opcoes.rotulo){
+    const alta=btn("Imprimir 100×150 (nítido)",async()=>{
+      try{
+        alta.disabled=true;alta.textContent="Preparando PDF...";
+        const qs=new URLSearchParams({action:"documentos-correios",modo:"rotulo-l42",idPrePostagem:opcoes.id,tipoRotulo:"P"});
+        const chave=typeof chaveIntegracoesCotacao==="function"?chaveIntegracoesCotacao():"";
+        const resp=await fetch("/api/integracoes?"+qs,{headers:chave?{"x-integrations-admin-key":chave}:{}});
+        if(!resp.ok)throw Error((await resp.json().catch(()=>({}))).erro||"Erro HTTP "+resp.status);
+        const arquivo=await resp.blob();
+        if(!arquivo.type.includes("pdf"))throw Error("Resposta não é PDF.");
+        const u=URL.createObjectURL(arquivo);
+        const aba=window.open(u,"_blank");
+        if(!aba){const a=document.createElement("a");a.href=u;a.download="Rotulo-Correios-100x150.pdf";a.click();}
+        setTimeout(()=>URL.revokeObjectURL(u),120000);
+      }catch(e){alert("Não foi possível preparar o PDF 100×150: "+e.message)}
+      finally{alta.disabled=false;alta.textContent="Imprimir 100×150 (nítido)"}
+    });
+    alta.style.background="#17653c";
+    bar.append(alta);
+    const dica=document.createElement("small");
+    dica.textContent="Na impressão: tamanho real (100%), papel 100×150 mm e modo alta qualidade; desative economia de toner.";
+    dica.style.cssText="display:block;width:100%;font:12px Arial;color:#444";
+    bar.append(dica);
+  }
   bar.append(title,print,download,btn("Fechar",close));panel.append(bar,frame);modal.appendChild(panel);document.body.appendChild(modal);
   active={modal,close};
 }
@@ -73,7 +99,7 @@ window.abrirDocumentoCorreiosOficial=async function(tipo){
     if(!pdf&&!html)throw Error("Os Correios retornaram um formato inesperado ("+(ct||"sem tipo")+").");
     const blob=new Blob([bytes],{type:pdf?"application/pdf":"text/html;charset=utf-8"});
     const nome=rotulo?"Rotulo-oficial-Correios-100x150.pdf":dace?"DACE-Correios.pdf":pdf?"Declaracao-Correios.pdf":"Declaracao-Correios.html";
-    preview(blob,nome);
+    preview(blob,nome,{rotulo,id});
     statusCorreiosOficial("✅ Documento oficial aberto para impressão dentro do sistema.",true);
   }catch(e){
     console.error("Correios documento oficial:",e);
