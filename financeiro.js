@@ -4472,6 +4472,26 @@ function mensagemPagamentoAutomaticaRelatorio(d){
   return {linha1, linha2};
 }
 
+function adicionarComplementoRelatorio(descricao="",valor=""){
+ const lista=document.getElementById("gerComplementosLista");if(!lista)return;
+ const linha=document.createElement("div");linha.className="ger-complemento-linha";linha.style.cssText="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px";
+ const desc=document.createElement("input");desc.placeholder="Pré-venda(s) / descrição (ex.: 123/456)";desc.value=descricao;desc.style.flex="2 1 180px";
+ const quantia=document.createElement("input");quantia.placeholder="Valor R$";quantia.inputMode="decimal";quantia.value=valor;quantia.style.flex="1 1 110px";
+ const excluir=document.createElement("button");excluir.type="button";excluir.textContent="Excluir";excluir.className="btn vermelho";
+ desc.oninput=atualizarPreviaRelatorio;quantia.oninput=()=>{mascaraValor(quantia);atualizarPreviaRelatorio();};excluir.onclick=()=>{linha.remove();atualizarPreviaRelatorio();};
+ linha.append(desc,quantia,excluir);lista.appendChild(linha);atualizarPreviaRelatorio();
+}
+function complementosGeradorRelatorio(){
+ return Array.from(document.querySelectorAll("#gerComplementosLista .ger-complemento-linha")).map(l=>{const campos=l.querySelectorAll("input");return {descricao:campos[0].value.trim(),valor:valorParaNumero(campos[1].value||0)};}).filter(x=>x.descricao||x.valor>0);
+}
+function preencherComplementosGeradorRelatorio(itens){
+ const lista=document.getElementById("gerComplementosLista");if(!lista)return;lista.replaceChildren();
+ (Array.isArray(itens)?itens:[]).forEach(x=>adicionarComplementoRelatorio(x.descricao||"",valorParaInput(x.valor||0)));atualizarPreviaRelatorio();
+}
+function htmlComplementosRelatorio(itens){
+ if(!itens?.length)return "";
+ return itens.map((x,i)=>`<li><strong>Complemento ${i+1}${x.descricao?": "+escaparHtmlEmail(x.descricao):""}:</strong> ${formatarMoeda(x.valor)}</li>`).join("")+`<li><strong>Total dos complementos:</strong> ${formatarMoeda(itens.reduce((t,x)=>t+x.valor,0))}</li>`;
+}
 function dadosGeradorRelatorio(){
   const formaSelecionada = gerFormasPagamento.find(x => x.id === document.getElementById("gerFormaPagamento")?.value);
   const prazoSelecionado = gerPrazosPagamento.find(x => x.id === document.getElementById("gerPrazo")?.value);
@@ -4482,6 +4502,7 @@ function dadosGeradorRelatorio(){
     numero_pedido:document.getElementById("gerNumeroPedido")?.value.trim() || "",
     valor_pedido:valorParaNumero(document.getElementById("gerValorPedido")?.value || 0),
     valor_total:valorParaNumero(document.getElementById("gerValorTotal")?.value || 0),
+    complementos:complementosGeradorRelatorio(),
     desconto_percentual:Number(document.getElementById("gerDescontoPercentual")?.value || 0),
     valor_com_desconto:valorParaNumero(document.getElementById("gerValorComDesconto")?.value || 0),
     data_emissao:document.getElementById("gerDataEmissao")?.value || null,
@@ -4538,6 +4559,7 @@ function atualizarPreviaRelatorio(){
       <li><strong>Número do Pedido:</strong> ${escaparHtmlEmail(d.numero_pedido || "—")}</li>
       <li><strong>Valor do Pedido:</strong> ${formatarMoeda(d.valor_pedido)}</li>
       <li><strong>Valor Total dos Pedidos:</strong> ${formatarMoeda(d.valor_total)}</li>
+      ${htmlComplementosRelatorio(d.complementos)}
       ${d.desconto_percentual > 0 ? `<li><strong>Valor Total com ${String(d.desconto_percentual).replace(".",",")}% de desconto para pagamento à vista:</strong> ${formatarMoeda(d.valor_com_desconto)}</li>` : ""}
       <li><strong>Data de Faturamento:</strong> ${formatarDataBrRelatorio(d.data_emissao) || "—"}</li>
       <li><strong>Data da saída:</strong> ${formatarDataBrRelatorio(d.data_saida) || "—"}</li>
@@ -4712,6 +4734,7 @@ function editarRelatorioCliente(id){
   document.getElementById("gerTextoIntroducao").value = x.texto_introducao || "";
   document.getElementById("gerObservacaoPagamento").value = x.observacao_pagamento || "";
   document.getElementById("gerDadosBancarios").value = x.dados_bancarios || "";
+  preencherComplementosGeradorRelatorio(x.complementos);
   calcularVencimentosRelatorio();
   atualizarPreviaRelatorio();
   window.scrollTo({top:0,behavior:"smooth"});
@@ -4725,6 +4748,7 @@ async function excluirRelatorioCliente(id){
 }
 
 function limparGeradorRelatorio(){
+  preencherComplementosGeradorRelatorio([]);
   document.getElementById("gerRelatorioId").value = "";
   ["gerCliente","gerNumeroNf","gerNumeroPedido","gerValorPedido","gerValorTotal","gerDescontoPercentual","gerValorComDesconto","gerTransportadora","gerFormaPersonalizada","gerPrazoPersonalizado"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("gerFormaPagamento").value = "";
@@ -4791,6 +4815,8 @@ function conteudoTextoRelatorioExportacao(){
   linhas.push(`Número do Pedido: ${d.numero_pedido || "—"}`);
   linhas.push(`Valor do Pedido: ${formatarMoeda(d.valor_pedido)}`);
   linhas.push(`Valor Total dos Pedidos: ${formatarMoeda(d.valor_total)}`);
+  d.complementos.forEach((x,i)=>linhas.push(`Complemento ${i+1}${x.descricao?": "+x.descricao:""}: ${formatarMoeda(x.valor)}`));
+  if(d.complementos.length)linhas.push(`Total dos complementos: ${formatarMoeda(d.complementos.reduce((t,x)=>t+x.valor,0))}`);
 
   if(d.desconto_percentual > 0){
     linhas.push(`Valor Total com ${String(d.desconto_percentual).replace(".",",")}% de desconto para pagamento à vista: ${formatarMoeda(d.valor_com_desconto)}`);
@@ -4861,6 +4887,7 @@ function htmlRelatorioExportacao(logoDataUrl=""){
     <li><strong>Número do Pedido:</strong> ${escaparHtmlEmail(d.numero_pedido || "—")}</li>
     <li><strong>Valor do Pedido:</strong> ${formatarMoeda(d.valor_pedido)}</li>
     <li><strong>Valor Total dos Pedidos:</strong> ${formatarMoeda(d.valor_total)}</li>
+    ${htmlComplementosRelatorio(d.complementos)}
     ${d.desconto_percentual > 0 ? `<li><strong>Valor Total com ${String(d.desconto_percentual).replace(".",",")}% de desconto para pagamento à vista:</strong> ${formatarMoeda(d.valor_com_desconto)}</li>` : ""}
     <li><strong>Data de Faturamento:</strong> ${formatarDataBrRelatorio(d.data_emissao) || "—"}</li>
     <li><strong>Data da saída:</strong> ${formatarDataBrRelatorio(d.data_saida) || "—"}</li>
