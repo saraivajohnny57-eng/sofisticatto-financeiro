@@ -5,6 +5,7 @@ let busy=false,active=null;
 function preview(blob,name,opcoes={}){
   if(active)active.close();
   const url=URL.createObjectURL(blob),modal=document.createElement("div");
+  const urlsExtras=[];
   modal.style.cssText="position:fixed;inset:0;z-index:2147483000;background:#161126bb;display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box";
   const panel=document.createElement("section");
   panel.style.cssText="width:min(1120px,100%);height:94vh;background:white;border-radius:14px;overflow:hidden;display:flex;flex-direction:column";
@@ -15,7 +16,7 @@ function preview(blob,name,opcoes={}){
   frame.src=url;
   const btn=(t,fn)=>{const b=document.createElement("button");b.type="button";b.textContent=t;b.style.cssText="background:#6446a5;color:white;border:0;border-radius:8px;padding:10px 14px;cursor:pointer";b.onclick=fn;return b;};
   let closed=false;
-  const close=()=>{if(closed)return;closed=true;modal.remove();document.removeEventListener("keydown",esc);setTimeout(()=>URL.revokeObjectURL(url),3000);if(active?.modal===modal)active=null;};
+  const close=()=>{if(closed)return;closed=true;modal.remove();document.removeEventListener("keydown",esc);setTimeout(()=>{URL.revokeObjectURL(url);urlsExtras.forEach(u=>URL.revokeObjectURL(u));},3000);if(active?.modal===modal)active=null;};
   const esc=e=>{if(e.key==="Escape")close();};
   document.addEventListener("keydown",esc);
   const print=btn("Imprimir",()=>{try{frame.contentWindow.focus();frame.contentWindow.print();}catch(e){console.warn(e);}});
@@ -33,9 +34,16 @@ function preview(blob,name,opcoes={}){
         const arquivo=await resp.blob();
         if(!arquivo.type.includes("pdf"))throw Error("Resposta não é PDF.");
         const u=URL.createObjectURL(arquivo);
-        const aba=window.open(u,"_blank");
-        if(!aba){const a=document.createElement("a");a.href=u;a.download="Rotulo-Correios-100x150.pdf";a.click();}
-        setTimeout(()=>URL.revokeObjectURL(u),120000);
+        urlsExtras.push(u);
+        // Exibe o PDF vetorial de 100x150 no próprio visualizador Sofisticatto.
+        // Nenhuma nova guia, extensão Adobe ou conversão para imagem.
+        frame.onload=()=>{alta.disabled=false;alta.textContent="Imprimir 100×150 (nítido)";};
+        frame.src=u;
+        title.textContent="Rótulo oficial Correios — 100×150 mm (alta definição)";
+        alta.textContent="Imprimir 100×150 (nítido)";
+        print.textContent="Imprimir PDF 100×150";
+        print.onclick=()=>{try{frame.contentWindow.focus();frame.contentWindow.print();}catch(e){alert("Use o ícone Imprimir no visualizador da etiqueta.");}};
+        download.onclick=()=>{const a=document.createElement("a");a.href=u;a.download="Rotulo-Correios-100x150.pdf";document.body.appendChild(a);a.click();a.remove();};
       }catch(e){alert("Não foi possível preparar o PDF 100×150: "+e.message)}
       finally{alta.disabled=false;alta.textContent="Imprimir 100×150 (nítido)"}
     });
