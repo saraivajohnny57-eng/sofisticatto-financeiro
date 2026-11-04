@@ -3163,6 +3163,15 @@ SOFISTICATTO COSMÉTICOS</textarea>
     <div style="overflow-x:auto"><table style="width:100%"><thead><tr><th>Banco</th><th>Cliente / Pedido</th><th>Valor</th><th>Vencimento</th><th>Situação</th><th>Ações</th></tr></thead><tbody id="remLista"><tr><td colspan="6">Nenhum título preparado.</td></tr></tbody></table></div>
     </details>
   </div>
+  <div class="cobranca-card" style="margin:12px 0;padding:16px;border:1px solid #d7c8e6;border-radius:12px">
+    <h3>Regularização de juros e multa — Bradesco</h3>
+    <p>Auditoria de títulos registrados no portal. Consulta local, sem enviar instruções, alterar vencimentos, gerar novos boletos ou modificar dados bancários.</p>
+    <button class="btn roxo" type="button" onclick="auditarEncargosBradescoPortal()">Consultar títulos sem encargos</button>
+    <button class="btn azul" type="button" onclick="exportarAuditoriaEncargosBradescoPortal()">Exportar CSV para conferência</button>
+    <div id="auditoriaEncargosBradescoStatus" role="status" style="margin-top:8px"></div>
+    <div id="auditoriaEncargosBradescoResultado" style="max-height:260px;overflow:auto;margin-top:8px"></div>
+    <small>A alteração bancária em lote depende de confirmação do canal de manutenção autorizado pelo Bradesco. Percentuais no cadastro não comprovam aceite pelo banco.</small>
+  </div>
   <div id="cobAbaMassa" class="cobranca-card cobranca-massa-card cobranca-aba-interna" style="display:none;">
     <div class="cobranca-massa-topo">
       <div><h3>📚 Fila do Relatório Financeiro</h3><p>Puxa os lançamentos do relatório. O banco definido pelo usuário Banco é respeitado e as parcelas do mesmo cliente permanecem juntas.</p></div>
@@ -3409,7 +3418,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
-<script src="financeiro.js?v=421-encargos-massa"></script>
+<script src="financeiro.js?v=422-auditoria-encargos"></script>
 <script src="etiquetas-terceirizados.js?v=333"></script>
 <script src="correios-faturas.js?v=236"></script>
 <script src="autorizacoes-corridas.js?v=208"></script>
