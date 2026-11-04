@@ -7407,21 +7407,21 @@ const COBRANCA_PADRAO_BB = Object.freeze({
 });
 
 function instrucoesPadraoBancoCobranca(codigo){
-  if(String(codigo||"").toLowerCase()==="bb") return JSON.parse(JSON.stringify(COBRANCA_PADRAO_BB));
+  if(["bb","bradesco"].includes(String(codigo||"").toLowerCase())) return JSON.parse(JSON.stringify(COBRANCA_PADRAO_BB));
   return {abatimento:null,desconto:null,juros:null,multa:null,pagamento_parcial:null,protesto_negativacao:null};
 }
 function aplicarPadraoBancoCobrancaManual(){
   const cod=document.getElementById("cobBanco")?.value||"bb";
   const multa=document.getElementById("cobMulta"),juros=document.getElementById("cobJuros"),btn=document.getElementById("btnCobEmitirManual");
   if(cod==="bb"){if(multa)multa.value="2";if(juros)juros.value="5";if(btn)btn.textContent="💳 Emitir cobrança BB";}
-  else if(cod==="bradesco"){if(multa)multa.value="0";if(juros)juros.value="0";if(btn)btn.textContent="💳 Emitir cobrança Bradesco";}
+  else if(cod==="bradesco"){if(multa)multa.value="2";if(juros)juros.value="5";if(btn)btn.textContent="💳 Emitir cobrança Bradesco";}
   else if(btn)btn.textContent="📝 Preparar cobrança";
 }
 function atualizarPainelInstrucoesBancoBoleto(){
   const box=document.getElementById("bolInstrucoesBancoPadrao");if(!box)return;
   const cod=document.getElementById("bolBancoCodigo")?.value||"";
-  if(cod!=="bb"){box.innerHTML="";return;}
-  box.innerHTML=`<div class="bol-instrucoes-bb"><b>🇧🇷 Padrão Banco do Brasil</b><span>Abatimento: sem marca</span><span>Desconto: sem marca</span><span>Juros: 5,00% ao mês</span><span>Multa: 2,00% • 1 dia corrido após o vencimento</span><span>Pagamento parcial: sem marca</span><span>Protesto/Negativação: sem marca</span></div>`;
+  if(!["bb","bradesco"].includes(cod)){box.innerHTML="";return;}
+  box.innerHTML=`<div class="bol-instrucoes-bb"><b>Padrão ${cod==="bb"?"Banco do Brasil":"Bradesco"}</b><span>Abatimento: sem marca</span><span>Desconto: sem marca</span><span>Juros: 5,00% ao mês</span><span>Multa: 2,00% • 1 dia corrido após o vencimento</span><span>Pagamento parcial: sem marca</span><span>Protesto/Negativação: sem marca</span></div>`;
 }
 
 function cobNum(v){
@@ -10225,7 +10225,7 @@ async function emitirBoletosEmMassa(){
   if(bloqueados.length)return alert(`${bloqueados.length} parcela(s) possuem estado de lote que impede novo envio (ENVIANDO, RESULTADO INCERTO ou EMITIDO).\n\nAtualize a fila e confira esses títulos antes de continuar.`);
   const pasta=await escolherPastaCobrancaMassa();
   if(window.showDirectoryPicker && !pasta)return;
-  if(!confirm(`EMISSÃO EM MASSA — CONFERÊNCIA FINAL\n\nClientes: ${grupos.length}\nBoletos: ${totalBoletos}\nBanco do Brasil: ${qtdBB}\nBradesco: ${qtdBR}\nTotal: ${cobMoeda(totalValor)}\n\nV279 registrará o estado de cada parcela antes e depois de falar com o banco. Continuar?`))return;
+  if(!confirm(`EMISSÃO EM MASSA — CONFERÊNCIA FINAL\n\nEncargos padrão para ambos os bancos: multa 2% após vencimento e juros de mora 5% ao mês.\n\nClientes: ${grupos.length}\nBoletos: ${totalBoletos}\nBanco do Brasil: ${qtdBB}\nBradesco: ${qtdBR}\nTotal: ${cobMoeda(totalValor)}\n\nV279 registrará o estado de cada parcela antes e depois de falar com o banco. Continuar?`))return;
   const palavra=prompt('Digite exatamente EMITIR LOTE para confirmar a emissão real dos boletos selecionados:');
   if(String(palavra||'').trim().toUpperCase()!=='EMITIR LOTE')return alert('Emissão em massa cancelada. Nenhum novo envio foi iniciado.');
   const loteId=cobLoteIdV279();
