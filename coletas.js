@@ -1759,23 +1759,56 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   }else{
     itensDeclaracao=(typeof correiosItens!=="undefined"&&Array.isArray(correiosItens)?correiosItens:[]).filter(x=>String(x?.conteudo||"").trim()).map(x=>({descricao:String(x.conteudo).trim(),conteudo:String(x.conteudo).trim(),quantidade:Math.max(1,Number(x.quantidade||1)),valor:typeof numeroCorreios==="function"?numeroCorreios(x.valor):0}));
   }
-  // NF-e da remessa: solicitar a chave no momento da pré-postagem, sem alterar
-  // os identificadores de rastreio nem exigir nova edição da coleta.
-  let chaveFiscal=String(a.chave_nfe||d.chave_nfe||d.chave_nf||'').replace(/\\D/g,'');
-  if(!silencioso){
-    const informada=prompt('CORREIOS — NOTA FISCAL DA REMESSA\\n\\nInforme a chave de acesso de 44 dígitos da NF-e autorizada.\\n\\nPara remessas comerciais da Sofisticatto, não utilize declaração de conteúdo no lugar da NF-e.',chaveFiscal);
-    if(informada===null)return {ok:false,cancelado:true};
-    chaveFiscal=informada.replace(/\\D/g,'');
+  // NF-e opcionalmente já vinculada à coleta. Se faltar, oferece XML ou chave.
+  let chaveFiscal=String(a.chave_nfe||d.chave_nfe||d.chave_nf||'').replace(/\D/g,'');
+  if(!silencioso && chaveFiscal.length!==44){
+    const escolha=await new Promise(resolve=>{
+      const fundo=document.createElement('div');
+      fundo.style.cssText='position:fixed;inset:0;background:#0009;z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px';
+      fundo.innerHTML='<div style="background:white;border-radius:14px;padding:24px;max-width:470px;width:100%;box-shadow:0 12px 35px #0003;font:15px Arial"><h3 style="margin-top:0;color:#6a1b9a">Nota fiscal para pré-postagem</h3><p>Esta coleta ainda não possui uma chave de NF-e vinculada. Como deseja informar a nota?</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" data-op="xml" style="padding:10px">Importar XML</button><button type="button" data-op="chave" style="padding:10px">Digitar chave</button><button type="button" data-op="cancelar" style="padding:10px">Cancelar</button></div><input type="file" accept=".xml,text/xml,application/xml" style="display:none"></div>';
+      const fechar=v=>{fundo.remove();resolve(v)};
+      fundo.querySelector('[data-op="cancelar"]').onclick=()=>fechar({tipo:'cancelar'});
+      fundo.querySelector('[data-op="chave"]').onclick=()=>fechar({tipo:'chave'});
+      const input=fundo.querySelector('input');
+      fundo.querySelector('[data-op="xml"]').onclick=()=>input.click();
+      input.onchange=async()=>{
+        const arquivo=input.files?.[0];if(!arquivo)return;
+        try{
+          if(arquivo.size>5*1024*1024)throw Error('XML maior que 5 MB.');
+          const doc=new DOMParser().parseFromString(await arquivo.text(),'application/xml');
+          if(doc.getElementsByTagName('parsererror').length)throw Error('XML inválido.');
+          const inf=doc.getElementsByTagName('infNFe')[0];
+          const chave=String(inf?.getAttribute('Id')||'').replace(/^NFe/i,'').replace(/\D/g,'');
+          if(chave.length!==44||chave.slice(20,22)!=='55')throw Error('O arquivo não contém uma chave NF-e modelo 55 válida.');
+          const prot=doc.getElementsByTagName('infProt')[0];
+          const status=prot?.getElementsByTagName('cStat')[0]?.textContent?.trim();
+          if(status!=='100'&&status!=='150')throw Error('O XML não contém protocolo de autorização da NF-e (100/150).');
+          const dest=inf.getElementsByTagName('dest')[0];
+          const docXml=(dest?.getElementsByTagName('CPF')[0]?.textContent||dest?.getElementsByTagName('CNPJ')[0]?.textContent||'').replace(/\D/g,'');
+          const docColeta=String(d.cnpj_destino||cliente?.cpf_cnpj||'').replace(/\D/g,'');
+          if(docXml&&docColeta&&docXml!==docColeta)throw Error('O CPF/CNPJ do destinatário do XML é diferente do destinatário da coleta.');
+          fechar({tipo:'xml',chave});
+        }catch(e){alert('Não foi possível utilizar o XML: '+e.message);input.value='';}
+      };
+      document.body.appendChild(fundo);
+    });
+    if(escolha.tipo==='cancelar')return {ok:false,cancelado:true};
+    if(escolha.tipo==='xml')chaveFiscal=escolha.chave;
+    else{
+      const informada=prompt('Informe os 44 dígitos da chave da NF-e autorizada:','');
+      if(informada===null)return {ok:false,cancelado:true};
+      chaveFiscal=informada.replace(/\D/g,'');
+    }
   }
   if(chaveFiscal.length!==44){
     if(silencioso)return {ok:false,ignorado:true,erro:'NF-e sem chave de 44 dígitos; pré-postagem automática não executada.'};
-    throw new Error('Informe os 44 dígitos da chave de acesso da NF-e autorizada para continuar.');
+    throw new Error('Informe a chave de 44 dígitos ou importe o XML da NF-e autorizada.');
   }
-  if(chaveFiscal.slice(20,22)!=='55')throw new Error('A chave informada não é de NF-e modelo 55. Confira a nota autorizada.');
+  if(chaveFiscal.slice(20,22)!=='55')throw new Error('A chave informada não é de NF-e modelo 55.');
   const numeroFiscal=String(Number(chaveFiscal.slice(25,34)));
-  const numeroCadastro=String(a.numero_nf||d.numero_nf||'').replace(/\\D/g,'');
-  if(numeroCadastro && String(Number(numeroCadastro))!==numeroFiscal && !silencioso){
-    if(!confirm('A NF nº '+numeroFiscal+' da chave informada é diferente da NF nº '+numeroCadastro+' cadastrada na coleta. Deseja usar a NF-e da chave informada?'))return {ok:false,cancelado:true};
+  const numeroCadastro=String(a.numero_nf||d.numero_nf||'').replace(/\D/g,'');
+  if(numeroCadastro&&String(Number(numeroCadastro))!==numeroFiscal&&!silencioso){
+    if(!confirm('A chave é da NF '+numeroFiscal+', diferente da NF '+numeroCadastro+' da coleta. Deseja continuar com a nota da chave?'))return {ok:false,cancelado:true};
   }
   const basePayload={codigoServico:codigo,pesoKg:pesoPorVolume,medidas:d.medidas,numeroNf:numeroFiscal,chaveNFe:chaveFiscal,valorNf:valorPorVolume||d.valor_nf,mercadoria:d.mercadoria||'Cosméticos',itensDeclaracaoConteudo:itensDeclaracao,destino,restricaoAereaConfirmada:restricaoAerea,cienteObjetoNaoProibido,totalVolumes:qtdVolumes,pesoTotalKg:totalKg,valorTotalNf};
   if(restricaoAerea)basePayload.listaServicoAdicional=[{codigoServicoAdicional:'095'}];
