@@ -5088,11 +5088,43 @@ async function baixarRelatorioWord(){
 }
 
 function imprimirRelatorioCliente(){
-  const folha = document.getElementById("gerFolhaRelatorio");
-  const janela = window.open("","_blank","width=900,height=900");
-  janela.document.write(`<!DOCTYPE html><html><head><title>${nomeArquivoRelatorio()}</title>
-</head><body><div class="relatorio-folha">${folha.innerHTML}</div><script>window.onload=()=>{window.print();window.close()}<\/script></body></html>`);
+  const folha=document.getElementById("gerFolhaRelatorio");
+  if(!folha){alert("Prévia do relatório não encontrada.");return;}
+  const janela=window.open("","_blank","width=950,height=850");
+  if(!janela){alert("Permita janelas pop-up para imprimir o relatório.");return;}
+  // A janela de impressão precisa de CSS próprio: sem isso a logo cresce
+  // para o tamanho original e o texto usa a fonte padrão do navegador.
+  const css=`
+    @page{size:A4 portrait;margin:12mm 14mm}
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:#fff;color:#171717;font-family:Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35}
+    .relatorio-folha{width:100%;max-width:182mm;min-height:0;margin:0 auto;padding:0;border:0;box-shadow:none;background:#fff;overflow-wrap:anywhere}
+    .relatorio-folha-logo{display:block;width:auto;height:auto;max-width:46mm;max-height:24mm;object-fit:contain;margin:0 auto 9mm}
+    .relatorio-folha p{margin:2.5mm 0}
+    .relatorio-folha ul{margin:3mm 0 5mm;padding-left:7mm}
+    .relatorio-folha li{margin:1.3mm 0;break-inside:avoid}
+    .relatorio-folha h3{font-size:11pt;text-decoration:underline;margin:6mm 0 2mm;break-after:avoid}
+    .relatorio-assinatura-doc{margin-top:8mm;break-inside:avoid}
+    .relatorio-assinatura-doc img{display:block;width:auto;height:auto;max-width:40mm;max-height:19mm;object-fit:contain;margin:2mm 0}
+    .relatorio-assinatura-doc strong{font-size:11pt}
+    img{max-width:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    @media screen{body{padding:12mm;background:#eee}.relatorio-folha{background:white;padding:12mm;box-shadow:0 2px 14px #bbb}}
+    @media print{html,body{width:auto;background:#fff}.relatorio-folha{padding:0!important;box-shadow:none!important}}
+  `;
+  janela.document.open();
+  janela.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>'+nomeArquivoRelatorio()+'</title><style>'+css+'</style></head><body><main class="relatorio-folha">'+folha.innerHTML+'</main></body></html>');
   janela.document.close();
+  // Aguarda a logo e as fontes carregarem antes de abrir a impressão.
+  const preparar=async()=>{
+    try{
+      await Promise.all(Array.from(janela.document.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;})));
+      if(janela.document.fonts?.ready)await janela.document.fonts.ready;
+      janela.focus();
+      janela.print();
+    }catch(erro){console.error("Falha ao preparar impressão do relatório:",erro);}
+  };
+  if(janela.document.readyState==="complete")preparar();
+  else janela.addEventListener("load",preparar,{once:true});
 }
 
 
