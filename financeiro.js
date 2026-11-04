@@ -4476,20 +4476,35 @@ function mensagemPagamentoAutomaticaRelatorio(d){
   return {linha1, linha2};
 }
 
+// Pré-vendas dos complementos aparecem ao lado da pré-venda principal, sem duplicar.
+function sincronizarPreVendasComplementosRelatorio(){
+ const principal=document.getElementById("gerNumeroPedido");
+ if(!principal)return;
+ const anterior=principal.dataset.complementosSufixo||"";
+ let base=principal.value.trim();
+ if(anterior&&base.endsWith(anterior))base=base.slice(0,-anterior.length).replace(/\/$/,"").trim();
+ const extras=Array.from(document.querySelectorAll("#gerComplementosLista .ger-complemento-linha input.ger-complemento-prevenda"))
+  .flatMap(el=>el.value.split("/").map(x=>x.trim()).filter(Boolean));
+ const existentes=new Set(base.split("/").map(x=>x.trim()).filter(Boolean));
+ const novos=extras.filter(x=>{if(existentes.has(x))return false;existentes.add(x);return true;});
+ const sufixo=novos.length?(base?"/":"")+novos.join("/"):"";
+ principal.value=base+sufixo;
+ principal.dataset.complementosSufixo=sufixo;
+}
 function adicionarComplementoRelatorio(descricao="",valor="",incluirDesconto=false){
  const lista=document.getElementById("gerComplementosLista");if(!lista)return;
  const linha=document.createElement("div");linha.className="ger-complemento-linha";
  linha.style.cssText="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;padding:10px;border:1px solid #e4dcf4;border-radius:10px";
- const desc=document.createElement("input");desc.placeholder="Pré-venda(s) / descrição (ex.: 123/456)";desc.value=descricao;desc.style.flex="2 1 180px";
+ const desc=document.createElement("input");desc.placeholder="Pré-venda(s) / descrição (ex.: 123/456)";desc.value=descricao;desc.className="ger-complemento-prevenda";desc.style.flex="2 1 180px";
  const quantia=document.createElement("input");quantia.placeholder="Valor R$";quantia.inputMode="decimal";quantia.value=valor;quantia.style.flex="1 1 110px";
  const excluir=document.createElement("button");excluir.type="button";excluir.textContent="Excluir";excluir.className="btn vermelho";
  const opcao=document.createElement("label");opcao.style.cssText="display:flex;align-items:center;gap:8px;flex:1 1 100%;font-size:13px;cursor:pointer";
  const caixa=document.createElement("input");caixa.type="checkbox";caixa.className="ger-complemento-desconto";caixa.checked=Boolean(incluirDesconto);caixa.style.cssText="width:18px;height:18px;flex:none;accent-color:#6a1b9a";
  const legenda=document.createElement("span");
  const atualizarLegenda=()=>{const n=Array.from(lista.children).indexOf(linha)+1;legenda.textContent="Aplicar desconto ao complemento "+n+(desc.value.trim()?" ("+desc.value.trim()+")":"")+"?";};
- const atualizar=()=>{atualizarLegenda();calcularDescontoRelatorio();};
+ const atualizar=()=>{atualizarLegenda();sincronizarPreVendasComplementosRelatorio();calcularDescontoRelatorio();};
  desc.oninput=atualizar;quantia.oninput=()=>{mascaraValor(quantia);atualizar();};caixa.onchange=atualizar;
- excluir.onclick=()=>{linha.remove();Array.from(lista.children).forEach(l=>l.querySelector(".ger-complemento-desconto")?.dispatchEvent(new Event("change")));calcularDescontoRelatorio();};
+ excluir.onclick=()=>{linha.remove();sincronizarPreVendasComplementosRelatorio();Array.from(lista.children).forEach(l=>l.querySelector(".ger-complemento-desconto")?.dispatchEvent(new Event("change")));calcularDescontoRelatorio();};
  opcao.append(caixa,legenda);linha.append(desc,quantia,excluir,opcao);lista.appendChild(linha);atualizar();
 }
 function complementosGeradorRelatorio(){
@@ -4499,7 +4514,8 @@ function complementosGeradorRelatorio(){
  }).filter(x=>x.descricao||x.valor>0);
 }
 function preencherComplementosGeradorRelatorio(itens){
- const lista=document.getElementById("gerComplementosLista");if(!lista)return;lista.replaceChildren();
+ const lista=document.getElementById("gerComplementosLista");if(!lista)return;
+ sincronizarPreVendasComplementosRelatorio();lista.replaceChildren();sincronizarPreVendasComplementosRelatorio();
  (Array.isArray(itens)?itens:[]).forEach(x=>adicionarComplementoRelatorio(x.descricao||"",valorParaInput(x.valor||0),x.incluir_desconto===true));
  calcularDescontoRelatorio();
 }
@@ -4736,6 +4752,7 @@ function editarRelatorioCliente(id){
   document.getElementById("gerCliente").value = x.cliente || "";
   document.getElementById("gerNumeroNf").value = x.numero_nf || "";
   document.getElementById("gerNumeroPedido").value = x.numero_pedido || "";
+  document.getElementById("gerNumeroPedido").dataset.complementosSufixo = "";
   document.getElementById("gerValorPedido").value = valorParaInput(x.valor_pedido || 0);
   document.getElementById("gerValorTotal").value = valorParaInput(x.valor_total || 0);
   document.getElementById("gerDescontoPercentual").value = x.desconto_percentual || "";
