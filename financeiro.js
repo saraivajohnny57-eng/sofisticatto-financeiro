@@ -11460,14 +11460,14 @@ function prepararRegularizacaoBradescoPortal(){
     const cab=[...campos,'juros_percentual_proposto','multa_percentual_proposta','inicio_juros_proposto','inicio_multa_proposto','situacao_instrucao'];
     const linhas=auditoriaEncargosBradescoPortalDados.map(x=>{
       const v=String(x.vencimento||'').slice(0,10);
-      const inicio=/^\\d{4}-\\d{2}-\\d{2}$/.test(v)?new Date(v+'T12:00:00Z'):null;
+      const inicio=/^\d{4}-\d{2}-\d{2}$/.test(v)?new Date(v+'T12:00:00Z'):null;
       if(inicio)inicio.setUTCDate(inicio.getUTCDate()+1);
       const data=inicio?inicio.toISOString().slice(0,10):'CONFERIR';
       return [...campos.map(k=>x[k]??''),5,2,data,data,'PENDENTE_VALIDACAO_BANCO'];
     });
     const esc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-    const csv=[cab.map(esc).join(';'),...linhas.map(row=>row.map(esc).join(';'))].join('\\r\\n');
-    const url=URL.createObjectURL(new Blob(['\\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+    const csv=[cab.map(esc).join(';'),...linhas.map(row=>row.map(esc).join(';'))].join('\r\n');
+    const url=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
     const a=document.createElement('a');a.href=url;a.download='plano-regularizacao-bradesco-nao-enviar-ao-banco.csv';
     document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   });
