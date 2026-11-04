@@ -11432,3 +11432,44 @@ function exportarAuditoriaEncargosBradescoPortal(){
   a.href=url;a.download='auditoria-encargos-bradesco.csv';document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+
+
+/* V423: Prévia documental de regularização, SEM transmissão bancária.
+   Os percentuais são intenções, nunca confirmação de registro. */
+function prepararRegularizacaoBradescoPortal(){
+  const area=document.getElementById('regularizacaoBradescoPrevia');
+  if(!area)return;
+  area.replaceChildren();
+  if(!auditoriaEncargosBradescoPortalDados.length){
+    area.textContent='Execute primeiro a consulta dos títulos em aberto.';return;
+  }
+  const titulo=document.createElement('p');
+  titulo.textContent='Prévia de regularização: '+auditoriaEncargosBradescoPortalDados.length+' títulos candidatos. Nenhuma instrução foi enviada ao Bradesco.';
+  area.appendChild(titulo);
+  const aviso=document.createElement('p');
+  aviso.textContent='IMPORTANTE: antes de transmitir, confirmar com o banco o layout de manutenção habilitado no convênio, os códigos de juros/multa e a aceitação de datas anteriores. Conferir também as condições contratuais. Os títulos pagos não integram esta prévia.';
+  area.appendChild(aviso);
+  const exemplo=auditoriaEncargosBradescoPortalDados.filter(x=>String(x.numero_nf||'').includes('55994'));
+  const p=document.createElement('p');
+  p.textContent=exemplo.length?'Exemplo 55994: '+exemplo.map(x=>String(x.numero_nf||'')+' / nosso nº '+String(x.nosso_numero||'')+' / vencimento '+String(x.vencimento||'').slice(0,10)).join('; '):'Título 55994 não localizado na lista atual.';
+  area.appendChild(p);
+  const botao=document.createElement('button');
+  botao.type='button';botao.className='btn azul';botao.textContent='Baixar plano de manutenção (CSV, não é CNAB)';
+  botao.addEventListener('click',()=>{
+    const campos=['numero_nf','parcela_numero','nosso_numero','vencimento','valor','status'];
+    const cab=[...campos,'juros_percentual_proposto','multa_percentual_proposta','inicio_juros_proposto','inicio_multa_proposto','situacao_instrucao'];
+    const linhas=auditoriaEncargosBradescoPortalDados.map(x=>{
+      const v=String(x.vencimento||'').slice(0,10);
+      const inicio=/^\\d{4}-\\d{2}-\\d{2}$/.test(v)?new Date(v+'T12:00:00Z'):null;
+      if(inicio)inicio.setUTCDate(inicio.getUTCDate()+1);
+      const data=inicio?inicio.toISOString().slice(0,10):'CONFERIR';
+      return [...campos.map(k=>x[k]??''),5,2,data,data,'PENDENTE_VALIDACAO_BANCO'];
+    });
+    const esc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+    const csv=[cab.map(esc).join(';'),...linhas.map(row=>row.map(esc).join(';'))].join('\\r\\n');
+    const url=URL.createObjectURL(new Blob(['\\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+    const a=document.createElement('a');a.href=url;a.download='plano-regularizacao-bradesco-nao-enviar-ao-banco.csv';
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  });
+  area.appendChild(botao);
+}
