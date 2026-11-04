@@ -1035,6 +1035,12 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <p style="margin:5px 0 16px;color:#7d73bd;">Preencha uma vez e gere os textos no modelo de várias transportadoras.</p>
 
             <input type="hidden" id="freteCotacaoId">
+            <div style="border:2px dashed #c7b9ed;border-radius:12px;padding:12px;margin:12px 0;background:#f8f6ff">
+              <label class="relatorio-label" for="freteXmlArquivo">Importar XML da NF-e (opcional)</label>
+              <input id="freteXmlArquivo" type="file" accept=".xml,text/xml,application/xml" onchange="importarXmlCotacaoFrete(this.files[0])">
+              <input id="freteChaveNfeXml" type="hidden">
+              <small id="freteXmlStatus">Você também pode preencher a cotação manualmente, sem XML.</small>
+            </div>
             <div class="frete-form-grid">
               <div class="campo-largo">
                 <label class="relatorio-label">Pesquisar cliente cadastrado</label>
