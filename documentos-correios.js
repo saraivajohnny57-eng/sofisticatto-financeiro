@@ -242,7 +242,10 @@ async function converterRotuloL42(buffer){
   // proporcionalmente todo o conteúdo para dentro de 100x150 mm.
   const capturaW=110*mm;
   const capturaH=160*mm;
-  const margem=2*mm;
+  // Aproveita mais a largura da etiqueta sem rasterizar o PDF oficial.
+  // A margem anterior de 2 mm em cada lado reduzia ainda mais textos finos.
+  // Não alteramos as fontes/códigos do documento emitido pelos Correios.
+  const margem=0.5*mm;
   const areaW=alvoW-(margem*2);
   const areaH=alvoH-(margem*2);
 
