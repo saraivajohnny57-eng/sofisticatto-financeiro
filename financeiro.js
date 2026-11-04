@@ -4476,20 +4476,11 @@ function mensagemPagamentoAutomaticaRelatorio(d){
   return {linha1, linha2};
 }
 
-// Pré-vendas dos complementos aparecem ao lado da pré-venda principal, sem duplicar.
-function sincronizarPreVendasComplementosRelatorio(){
- const principal=document.getElementById("gerNumeroPedido");
- if(!principal)return;
- const anterior=principal.dataset.complementosSufixo||"";
- let base=principal.value.trim();
- if(anterior&&base.endsWith(anterior))base=base.slice(0,-anterior.length).replace(/\/$/,"").trim();
- const extras=Array.from(document.querySelectorAll("#gerComplementosLista .ger-complemento-linha input.ger-complemento-prevenda"))
-  .flatMap(el=>el.value.split("/").map(x=>x.trim()).filter(Boolean));
- const existentes=new Set(base.split("/").map(x=>x.trim()).filter(Boolean));
- const novos=extras.filter(x=>{if(existentes.has(x))return false;existentes.add(x);return true;});
- const sufixo=novos.length?(base?"/":"")+novos.join("/"):"";
- principal.value=base+sufixo;
- principal.dataset.complementosSufixo=sufixo;
+function numeroPedidoExibidoRelatorio(d){
+ const numeros=String(d.numero_pedido||"").split("/").map(x=>x.trim()).filter(Boolean);
+ const vistos=new Set(numeros);
+ (d.complementos||[]).forEach(c=>String(c.descricao||"").split("/").map(x=>x.trim()).filter(Boolean).forEach(n=>{if(!vistos.has(n)){vistos.add(n);numeros.push(n);}}));
+ return numeros.join("/")||"—";
 }
 function adicionarComplementoRelatorio(descricao="",valor="",incluirDesconto=false){
  const lista=document.getElementById("gerComplementosLista");if(!lista)return;
@@ -4502,9 +4493,9 @@ function adicionarComplementoRelatorio(descricao="",valor="",incluirDesconto=fal
  const caixa=document.createElement("input");caixa.type="checkbox";caixa.className="ger-complemento-desconto";caixa.checked=Boolean(incluirDesconto);caixa.style.cssText="width:18px;height:18px;flex:none;accent-color:#6a1b9a";
  const legenda=document.createElement("span");
  const atualizarLegenda=()=>{const n=Array.from(lista.children).indexOf(linha)+1;legenda.textContent="Aplicar desconto ao complemento "+n+(desc.value.trim()?" ("+desc.value.trim()+")":"")+"?";};
- const atualizar=()=>{atualizarLegenda();sincronizarPreVendasComplementosRelatorio();calcularDescontoRelatorio();};
+ const atualizar=()=>{atualizarLegenda();calcularDescontoRelatorio();};
  desc.oninput=atualizar;quantia.oninput=()=>{mascaraValor(quantia);atualizar();};caixa.onchange=atualizar;
- excluir.onclick=()=>{linha.remove();sincronizarPreVendasComplementosRelatorio();Array.from(lista.children).forEach(l=>l.querySelector(".ger-complemento-desconto")?.dispatchEvent(new Event("change")));calcularDescontoRelatorio();};
+ excluir.onclick=()=>{linha.remove();Array.from(lista.children).forEach(l=>l.querySelector(".ger-complemento-desconto")?.dispatchEvent(new Event("change")));calcularDescontoRelatorio();};
  opcao.append(caixa,legenda);linha.append(desc,quantia,excluir,opcao);lista.appendChild(linha);atualizar();
 }
 function complementosGeradorRelatorio(){
@@ -4515,13 +4506,13 @@ function complementosGeradorRelatorio(){
 }
 function preencherComplementosGeradorRelatorio(itens){
  const lista=document.getElementById("gerComplementosLista");if(!lista)return;
- sincronizarPreVendasComplementosRelatorio();lista.replaceChildren();sincronizarPreVendasComplementosRelatorio();
+ lista.replaceChildren();
  (Array.isArray(itens)?itens:[]).forEach(x=>adicionarComplementoRelatorio(x.descricao||"",valorParaInput(x.valor||0),x.incluir_desconto===true));
  calcularDescontoRelatorio();
 }
 function htmlComplementosRelatorio(itens){
  if(!itens?.length)return "";
- return itens.map((x,i)=>`<li><strong>Complemento ${i+1}${x.descricao?": "+escaparHtmlEmail(x.descricao):""}:</strong> ${formatarMoeda(x.valor)} ${x.incluir_desconto?"(com desconto)":"(sem desconto)"}</li>`).join("")+
+ return itens.map((x,i)=>`<li><strong>Complemento ${i+1}:</strong> ${formatarMoeda(x.valor)} ${x.incluir_desconto?"(com desconto)":"(sem desconto)"}</li>`).join("")+
   `<li><strong>Total dos complementos:</strong> ${formatarMoeda(itens.reduce((t,x)=>t+x.valor,0))}</li>`;
 }
 function dadosGeradorRelatorio(){
@@ -4588,7 +4579,7 @@ function atualizarPreviaRelatorio(){
     <p>${escaparHtmlEmail(d.texto_introducao || "Segue em anexo Pedido e Nota Fiscal da compra efetuada.")}</p>
     <ul>
       <li><strong>Número da Nota Fiscal:</strong> ${escaparHtmlEmail(d.numero_nf || "—")}</li>
-      <li><strong>Número do Pedido:</strong> ${escaparHtmlEmail(d.numero_pedido || "—")}</li>
+      <li><strong>Número do Pedido:</strong> ${escaparHtmlEmail(numeroPedidoExibidoRelatorio(d))}</li>
       <li><strong>Valor do Pedido:</strong> ${formatarMoeda(d.valor_pedido)}</li>
       <li><strong>Valor Total dos Pedidos:</strong> ${formatarMoeda(d.valor_total)}</li>
       ${htmlComplementosRelatorio(d.complementos)}
@@ -4845,10 +4836,10 @@ function conteudoTextoRelatorioExportacao(){
   linhas.push(d.texto_introducao || "Segue em anexo Pedido e Nota Fiscal da compra efetuada.");
   linhas.push("");
   linhas.push(`Número da Nota Fiscal: ${d.numero_nf || "—"}`);
-  linhas.push(`Número do Pedido: ${d.numero_pedido || "—"}`);
+  linhas.push(`Número do Pedido: ${numeroPedidoExibidoRelatorio(d)}`);
   linhas.push(`Valor do Pedido: ${formatarMoeda(d.valor_pedido)}`);
   linhas.push(`Valor Total dos Pedidos: ${formatarMoeda(d.valor_total)}`);
-  d.complementos.forEach((x,i)=>linhas.push(`Complemento ${i+1}${x.descricao?": "+x.descricao:""}: ${formatarMoeda(x.valor)} (${x.incluir_desconto?"com desconto":"sem desconto"})`));
+  d.complementos.forEach((x,i)=>linhas.push(`Complemento ${i+1}: ${formatarMoeda(x.valor)} (${x.incluir_desconto?"com desconto":"sem desconto"})`));
   if(d.complementos.length)linhas.push(`Total dos complementos: ${formatarMoeda(d.complementos.reduce((t,x)=>t+x.valor,0))}`);
 
   if(d.desconto_percentual > 0){
@@ -4917,7 +4908,7 @@ function htmlRelatorioExportacao(logoDataUrl=""){
   <p>${escaparHtmlEmail(d.texto_introducao || "Segue em anexo Pedido e Nota Fiscal da compra efetuada.")}</p>
   <ul>
     <li><strong>Número da Nota Fiscal:</strong> ${escaparHtmlEmail(d.numero_nf || "—")}</li>
-    <li><strong>Número do Pedido:</strong> ${escaparHtmlEmail(d.numero_pedido || "—")}</li>
+    <li><strong>Número do Pedido:</strong> ${escaparHtmlEmail(numeroPedidoExibidoRelatorio(d))}</li>
     <li><strong>Valor do Pedido:</strong> ${formatarMoeda(d.valor_pedido)}</li>
     <li><strong>Valor Total dos Pedidos:</strong> ${formatarMoeda(d.valor_total)}</li>
     ${htmlComplementosRelatorio(d.complementos)}
