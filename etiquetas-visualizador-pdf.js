@@ -38,8 +38,8 @@ async function pdfEtiquetas(progress){
         const w=vr.width/rect.width*150;
         const h=vr.height/rect.height*100;
         volume.style.visibility="hidden";
-        const canvas=await html2canvas(el,{scale:1.7,useCORS:true,allowTaint:false,backgroundColor:"#ffffff",width:el.scrollWidth,height:el.scrollHeight,windowWidth:el.scrollWidth,windowHeight:el.scrollHeight,logging:false});
-        base={image:canvas.toDataURL("image/jpeg",0.88),x,y,w,h,fontPt:fontPx*72/96,bold:/bold|[6-9]00/.test(cs.fontWeight),align:cs.textAlign};
+        const canvas=await html2canvas(el,{scale:2.8,useCORS:true,allowTaint:false,backgroundColor:"#ffffff",width:el.scrollWidth,height:el.scrollHeight,windowWidth:el.scrollWidth,windowHeight:el.scrollHeight,logging:false});
+        base={image:canvas.toDataURL("image/jpeg",0.96),x,y,w,h,fontPt:fontPx*72/96,bold:/bold|[6-9]00/.test(cs.fontWeight),align:cs.textAlign};
         canvas.width=0;canvas.height=0;
         cache.set(chave,base);
         el.remove();
