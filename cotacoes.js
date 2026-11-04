@@ -120,6 +120,34 @@ async function solicitarCompletarDestinatarioRodonaves(dados, camposFaltantes=[]
   return {...dados,email_destino:email,telefone_destino:telefone,numero_destino:numero,logradouro_destino:logradouro,complemento_destino:complemento,bairro_destino:bairro,cidade_destino:cidade,uf_destino:uf,cep_destino:cep};
 }
 
+async function importarXmlCotacaoFrete(arquivo){
+  if(!arquivo)return;
+  try{
+    if(!/\.xml$/i.test(arquivo.name)||arquivo.size>5*1024*1024)throw Error('Selecione XML de até 5 MB.');
+    const doc=new DOMParser().parseFromString(await arquivo.text(),'application/xml');
+    if(doc.getElementsByTagName('parsererror').length)throw Error('XML inválido.');
+    const inf=doc.getElementsByTagName('infNFe')[0];
+    if(!inf)throw Error('XML não contém NF-e.');
+    const get=(root,tag)=>root?.getElementsByTagName(tag)[0]?.textContent?.trim()||'';
+    const ide=inf.getElementsByTagName('ide')[0],dest=inf.getElementsByTagName('dest')[0],end=dest?.getElementsByTagName('enderDest')[0],transp=inf.getElementsByTagName('transp')[0];
+    const chave=String(inf.getAttribute('Id')||'').replace(/^NFe/i,'');
+    if(!/^\d{44}$/.test(chave)||chave.slice(20,22)!=='55')throw Error('Chave NF-e modelo 55 inválida.');
+    const nf=get(ide,'nNF'),cpf=get(dest,'CPF')||get(dest,'CNPJ');
+    const atual=freteValor('freteCpfCnpj').replace(/\D/g,'');
+    if(atual&&cpf&&atual!==cpf&&!confirm('O destinatário do XML é diferente do informado na cotação. Substituir os dados pelo XML?'))return;
+    const campos={freteClienteNome:get(dest,'xNome'),freteCpfCnpj:cpf,freteCep:get(end,'CEP'),freteCidade:get(end,'xMun'),freteUf:get(end,'UF'),freteEndereco:[get(end,'xLgr'),get(end,'nro'),get(end,'xCpl')].filter(Boolean).join(', '),freteBairro:get(end,'xBairro'),freteNumeroNf:nf};
+    const total=inf.getElementsByTagName('ICMSTot')[0],valor=Number(get(total,'vNF'));
+    if(Number.isFinite(valor))campos.freteValorNf=valor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const vols=Array.from(transp?.getElementsByTagName('vol')||[]);
+    const soma=tag=>vols.reduce((a,v)=>a+(Number(get(v,tag))||0),0);
+    if(soma('qVol')>0)campos.freteVolumes=String(soma('qVol'));
+    if(soma('pesoB')>0||soma('pesoL')>0)campos.fretePeso=String(soma('pesoB')||soma('pesoL')).replace('.',',');
+    for(const [id,valor] of Object.entries(campos)){const el=document.getElementById(id);if(el&&valor)el.value=valor;}
+    const chaveCampo=document.getElementById('freteChaveNfeXml');if(chaveCampo)chaveCampo.value=chave;
+    const info=document.getElementById('freteXmlStatus');if(info)info.textContent='NF-e '+nf+' importada para cotação. Confira os dados antes de salvar.';
+    if(typeof calcularGnreFrete==='function')calcularGnreFrete();
+  }catch(e){alert('Não foi possível importar XML na cotação: '+e.message)}
+}
 function dadosFormularioFrete(){
   const clienteSelecionado =
     (typeof clienteFretePorId==="function" && clienteFretePorId(freteValor("freteCliente"))) ||
