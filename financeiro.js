@@ -11383,3 +11383,52 @@ function abrirSegundaViaAtualizadaBradescoV383(id){
   modal.querySelectorAll('[data-copiar]').forEach(b=>b.onclick=async()=>{const valor=b.getAttribute('data-copiar');if(!valor)return alert('Dado indisponível no Histórico. Consulte o boleto original.');try{await navigator.clipboard.writeText(valor);b.textContent='Copiado ✓';}catch(e){alert('Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.');}});
   modal.querySelector('[data-site]').onclick=()=>{const w=window.open(oficial,'_blank','noopener,noreferrer');if(!w)alert('Libere pop-ups para abrir o site oficial do Bradesco.');};
 }
+
+
+/* V422 — Auditoria somente leitura de encargos Bradesco.
+   Não atualiza o Supabase e não envia instruções ao banco. */
+let auditoriaEncargosBradescoPortalDados=[];
+async function auditarEncargosBradescoPortal(){
+  const status=document.getElementById('auditoriaEncargosBradescoStatus');
+  const area=document.getElementById('auditoriaEncargosBradescoResultado');
+  if(!status||!area)return;
+  if(typeof negarOperacaoCobrancaV293==='function'&&negarOperacaoCobrancaV293())return;
+  status.textContent='Consultando registros locais do Bradesco...';
+  area.textContent='';
+  try{
+    const todos=[];
+    for(let inicio=0;inicio<10000;inicio+=500){
+      const r=await banco.from('cobrancas_bancarias')
+        .select('id,banco,status,cliente_nome,numero_nf,parcela_numero,nosso_numero,valor,vencimento,juros_percentual,multa_percentual,emitido_em')
+        .eq('banco','bradesco').order('id',{ascending:true}).range(inicio,inicio+499);
+      if(r.error)throw r.error;
+      todos.push(...(r.data||[]));
+      if((r.data||[]).length<500)break;
+    }
+    auditoriaEncargosBradescoPortalDados=todos.filter(x=>x.emitido_em&&['aberto','vencido'].includes(String(x.status||'').toLowerCase())&&(Number(x.juros_percentual||0)!==5||Number(x.multa_percentual||0)!==2));
+    const pagos=todos.filter(x=>x.status==='pago').length;
+    status.textContent=`${todos.length} títulos Bradesco encontrados; ${auditoriaEncargosBradescoPortalDados.length} emitidos e em aberto com encargos locais diferentes do padrão; ${pagos} pagos excluídos da lista. Consulta apenas do cadastro interno: não comprova o registro bancário.`;
+    if(!auditoriaEncargosBradescoPortalDados.length){area.textContent='Nenhum título elegível encontrado no cadastro.';return;}
+    const tabela=document.createElement('table');
+    tabela.style.cssText='width:100%;border-collapse:collapse;font-size:12px';
+    const cab=document.createElement('thead'),tr=document.createElement('tr');
+    ['Documento','Nosso número','Vencimento original no cadastro','Valor','Juros %','Multa %','Situação'].forEach(t=>{const th=document.createElement('th');th.textContent=t;th.style.padding='6px';tr.appendChild(th);});
+    cab.appendChild(tr);tabela.appendChild(cab);
+    const corpo=document.createElement('tbody');
+    auditoriaEncargosBradescoPortalDados.forEach(x=>{
+      const linha=document.createElement('tr');
+      [x.numero_nf||'',x.nosso_numero||'',String(x.vencimento||'').slice(0,10),Number(x.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}),String(x.juros_percentual??'não informado'),String(x.multa_percentual??'não informado'),x.status||''].forEach(v=>{const td=document.createElement('td');td.textContent=v;td.style.cssText='padding:6px;border-top:1px solid #ddd';linha.appendChild(td);});
+      corpo.appendChild(linha);
+    });
+    tabela.appendChild(corpo);area.appendChild(tabela);
+  }catch(e){status.textContent='Falha na auditoria: '+String(e.message||e);}
+}
+function exportarAuditoriaEncargosBradescoPortal(){
+  if(!auditoriaEncargosBradescoPortalDados.length)return alert('Execute a consulta antes de exportar.');
+  const col=['numero_nf','parcela_numero','nosso_numero','cliente_nome','vencimento','valor','juros_percentual','multa_percentual','status','emitido_em'];
+  const csv=[col.join(';'),...auditoriaEncargosBradescoPortalDados.map(r=>col.map(k=>'"'+String(r[k]??'').replace(/"/g,'""')+'"').join(';'))].join('\r\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='auditoria-encargos-bradesco.csv';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
