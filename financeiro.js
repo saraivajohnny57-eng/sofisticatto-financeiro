@@ -9535,6 +9535,7 @@ async function gerarPdfBoletoBb(d,opt={}){
       drawTextFit(label,rx+6,ry-17,w-12,i===0?5.0:5.2,font,'left');
       rx+=w;
     });
+    drawTextFit('Atraso: multa 2% + juros de mora 5% ao mes (conforme registro no BB).',L+6,ry-rowRecH+4,CW-12,5.1,font);
     ry-=rowRecH;
 
     // Faixa inferior — Local de Pagamento.
