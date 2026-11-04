@@ -1754,7 +1754,25 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   }else{
     itensDeclaracao=(typeof correiosItens!=="undefined"&&Array.isArray(correiosItens)?correiosItens:[]).filter(x=>String(x?.conteudo||"").trim()).map(x=>({descricao:String(x.conteudo).trim(),conteudo:String(x.conteudo).trim(),quantidade:Math.max(1,Number(x.quantidade||1)),valor:typeof numeroCorreios==="function"?numeroCorreios(x.valor):0}));
   }
-  const basePayload={codigoServico:codigo,pesoKg:pesoPorVolume,medidas:d.medidas,numeroNf:a.numero_nf||d.numero_nf,chaveNFe:a.chave_nfe||d.chave_nfe||d.chave_nf,valorNf:valorPorVolume||d.valor_nf,mercadoria:d.mercadoria||'Cosméticos',itensDeclaracaoConteudo:itensDeclaracao,destino,restricaoAereaConfirmada:restricaoAerea,cienteObjetoNaoProibido,totalVolumes:qtdVolumes,pesoTotalKg:totalKg,valorTotalNf};
+  // NF-e da remessa: solicitar a chave no momento da pré-postagem, sem alterar
+  // os identificadores de rastreio nem exigir nova edição da coleta.
+  let chaveFiscal=String(a.chave_nfe||d.chave_nfe||d.chave_nf||'').replace(/\\D/g,'');
+  if(!silencioso){
+    const informada=prompt('CORREIOS — NOTA FISCAL DA REMESSA\\n\\nInforme a chave de acesso de 44 dígitos da NF-e autorizada.\\n\\nPara remessas comerciais da Sofisticatto, não utilize declaração de conteúdo no lugar da NF-e.',chaveFiscal);
+    if(informada===null)return {ok:false,cancelado:true};
+    chaveFiscal=informada.replace(/\\D/g,'');
+  }
+  if(chaveFiscal.length!==44){
+    if(silencioso)return {ok:false,ignorado:true,erro:'NF-e sem chave de 44 dígitos; pré-postagem automática não executada.'};
+    throw new Error('Informe os 44 dígitos da chave de acesso da NF-e autorizada para continuar.');
+  }
+  if(chaveFiscal.slice(20,22)!=='55')throw new Error('A chave informada não é de NF-e modelo 55. Confira a nota autorizada.');
+  const numeroFiscal=String(Number(chaveFiscal.slice(25,34)));
+  const numeroCadastro=String(a.numero_nf||d.numero_nf||'').replace(/\\D/g,'');
+  if(numeroCadastro && String(Number(numeroCadastro))!==numeroFiscal && !silencioso){
+    if(!confirm('A NF nº '+numeroFiscal+' da chave informada é diferente da NF nº '+numeroCadastro+' cadastrada na coleta. Deseja usar a NF-e da chave informada?'))return {ok:false,cancelado:true};
+  }
+  const basePayload={codigoServico:codigo,pesoKg:pesoPorVolume,medidas:d.medidas,numeroNf:numeroFiscal,chaveNFe:chaveFiscal,valorNf:valorPorVolume||d.valor_nf,mercadoria:d.mercadoria||'Cosméticos',itensDeclaracaoConteudo:itensDeclaracao,destino,restricaoAereaConfirmada:restricaoAerea,cienteObjetoNaoProibido,totalVolumes:qtdVolumes,pesoTotalKg:totalKg,valorTotalNf};
   if(restricaoAerea)basePayload.listaServicoAdicional=[{codigoServicoAdicional:'095'}];
   if(!silencioso)mostrarBalaoSistema('Correios',qtdVolumes>1?`Gerando ${qtdVolumes} pré-postagens • ${pesoPorVolume.toFixed(3).replace('.',',')} kg por volume...`:(restricaoAerea?'Gerando pré-postagem com restrição aérea (095)...':'Gerando pré-postagem liberada para transporte aéreo...'));
 
