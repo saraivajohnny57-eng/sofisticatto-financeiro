@@ -810,6 +810,22 @@ module.exports=async function(req,res){
     // V433: pré-validação autenticada de manutenção; nenhuma instrução PUT é transmitida.
     // A API de alteração exige o registro completo do boleto; não reconstruir campos
     // imutáveis/contratuais a partir de dados locais incompletos.
+    // V435: piloto 55994 — localização estrita por NF e conferência autenticada,
+    // sem qualquer chamada ao endpoint de alteração.
+    if(action==='conferir-piloto-55994-v435'){
+      if(amb!=='producao')throw new Error('Piloto disponível somente na produção.');
+      const rows=await supabaseRest('cobrancas_bancarias',{query:'?numero_nf=eq.55994&select=*&limit=100'});
+      const candidatos=(Array.isArray(rows)?rows:[]).filter(r=>String(r.banco||'').toLowerCase()==='bradesco');
+      if(candidatos.length!==1)return json(res,409,{ok:false,transmitido:false,mensagem:candidatos.length?'Há múltiplas parcelas/registros para a NF 55994. Identifique a parcela e o ID antes de consultar.':'NF 55994 não localizada no histórico Bradesco.',candidatos:candidatos.map(r=>({id:r.id,numero_nf:r.numero_nf,parcela_numero:r.parcela_numero,status_local:r.status}))});
+      const reg=candidatos[0];
+      if(/pago|liquid|cancel|baixad|protest/i.test(String(reg.status||'')))throw new Error('Situação local incompatível com manutenção.');
+      const q=await consultarTituloBradesco(amb,reg);
+      if(q.http_status<200||q.http_status>=300)throw new Error('Consulta Bradesco falhou: '+(detalheRespostaBradesco(q.data)||q.http_status));
+      const sit=interpretarConsultaBradesco(q.data,reg);
+      const valor=Number(reg.valor);
+      const elegivel=sit.codStatus===1&&!sit.pago&&!sit.baixado&&!sit.descontado&&['aberto','vencido'].includes(sit.statusNovo)&&Number.isFinite(valor)&&valor>0&&sit.valorTitulo!==null&&(Math.abs(sit.valorTitulo-valor)<=0.01||Math.abs(sit.valorTitulo/100-valor)<=0.01);
+      return json(res,200,{ok:true,transmitido:false,documento:'55994',titulo:{id:reg.id,parcela:reg.parcela_numero,nosso_numero:nossoNumeroRegistroBradesco(reg),status_local:reg.status,status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:sit.vencimento,valor_nominal_local:valor},elegivel_preliminar:elegivel,encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},proxima_etapa:elegivel?'Montar payload integral e validar escala dos juros antes de qualquer PUT.':'Revisar situação bancária; alteração bloqueada.',observacao:'Consulta somente leitura. Nenhum boleto alterado.'});
+    }
     if(action==='preparar-manutencao-encargos-v433'){
       if(amb!=='producao')throw new Error('Esta consulta deve utilizar o ambiente de produção.');
       const id=String(req.body?.id||'').trim();
