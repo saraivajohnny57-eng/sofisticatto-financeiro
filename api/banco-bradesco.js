@@ -821,12 +821,14 @@ module.exports=async function(req,res){
       const q=await consultarTituloBradesco(amb,reg);
       if(q.http_status<200||q.http_status>=300)throw new Error('Consulta bancária falhou: '+(detalheRespostaBradesco(q.data)||q.http_status));
       const sit=interpretarConsultaBradesco(q.data,reg);
-      if(sit.pago||sit.baixado||!['aberto','vencido'].includes(sit.statusNovo)||!sit.codStatus)throw new Error('Situação bancária não permite confirmar elegibilidade para manutenção.');
+      if(sit.pago||sit.baixado||sit.descontado||sit.codStatus!==1||!['aberto','vencido'].includes(sit.statusNovo))throw new Error('Situação bancária não permite confirmar elegibilidade para manutenção.');
       const valor=Number(reg.valor);
       if(!Number.isFinite(valor)||valor<=0)throw new Error('Valor nominal inválido.');
-      if(sit.valorTitulo!==null&&Math.abs(sit.valorTitulo-valor)>0.01)throw new Error('Valor nominal divergente entre banco e portal.');
+      // Não comparar campos de moeda sem confirmar a unidade (reais/centavos) da resposta bancária.
+      if(sit.valorTitulo===null)throw new Error('Consulta sem valor nominal bancário: não é possível validar manutenção.');
+      if(Math.abs(sit.valorTitulo-valor)>0.01 && Math.abs(sit.valorTitulo/100-valor)>0.01)throw new Error('Valor nominal divergente entre banco e portal.');
       const venc=String(sit.vencimento||'').slice(0,10);
-      if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(venc))throw new Error('Vencimento bancário inválido.');
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(venc))throw new Error('Vencimento bancário inválido.');
       return json(res,200,{ok:true,transmitido:false,operacao:'PREPARACAO_SEM_ALTERACAO',titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Validar representação de juros e obter todos os dados originais exigidos no PUT antes de habilitar transmissão.'});
     }
     if(action==='consultar-status-titulo'){
