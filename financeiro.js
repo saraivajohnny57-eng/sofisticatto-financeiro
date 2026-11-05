@@ -8091,6 +8091,8 @@ async function consultarPendenciasCarteiraV294(banco,opcoes={}){
       j=await bbReq('listar-pendencias-carteira',{method:'POST',body:{}});
     }else j=await bradescoReqProducao('listar-pendencias-carteira',{});
     const tit=Array.isArray(j?.titulos)?j.titulos:[];
+    // V426: snapshot da resposta bancária bruta, distinto do relatório combinado com registros locais.
+    if(banco==='bradesco'){window.bradescoRespostaBancariaV426={titulos:tit,consultadoEm:new Date().toISOString(),escopo:'listar-pendencias-carteira'};}
     const locaisBanco=(cobrancasBancarias||[]).filter(x=>codigoBancoCobranca(x?.banco_nome||x?.banco||'')===banco);
     const mapaLocal=new Map(locaisBanco.map(x=>[boletoLocalChaveV294(x),x]));
     const encontradosNoPortal=[],externos=[];
