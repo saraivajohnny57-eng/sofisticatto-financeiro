@@ -869,6 +869,28 @@ module.exports=async function(req,res){
         autorizacao_transmissao:false,
         observacao:'Contrato de consulta difere do contrato PUT de alteracao. Nao transmitir ate validar dados integrais.'
       };
+      // Conferência única: presença de dados do contrato PUT, sem construir
+      // nem transmitir um pedido que possa alterar título real.
+      const camposIdentidade=['cpfCnpj','produto','negociacao','nossoNumero'];
+      const identificadoresOk=camposIdentidade.every(k=>identificadoresAlteracao[k]!=null);
+      const camposPagadorVerificaveis={
+        nome:!!(dadosBanco.sacado||dadosBanco.nomePagador||reg.nome_cliente||reg.cliente_nome),
+        documento:!!(dadosBanco.cpfCnpjSacado||dadosBanco.nuCpfcnpjPagador||reg.documento||reg.cpf_cnpj),
+        endereco:!!(dadosBanco.endereco||dadosBanco.logradouroPagador||reg.endereco),
+        cep:!!(dadosBanco.cep||dadosBanco.cepPagador||reg.cep)
+      };
+      const camposTituloVerificaveis={
+        emissao:!!(dadosBanco.dataEmissao||dadosBanco.dtEmissao||reg.data_emissao||reg.emissao),
+        seuNumero:!!(dadosBanco.seuNumero||reg.seu_numero),
+        especie:!!(dadosBanco.especie||reg.especie),
+        vencimentoOriginal:!!dataBradescoIso(dadosBanco.dataVencto)
+      };
+      const pendenciasConsolidadas=[
+        ...Object.entries(camposPagadorVerificaveis).filter(([,v])=>!v).map(([k])=>'pagador.'+k),
+        ...Object.entries(camposTituloVerificaveis).filter(([,v])=>!v).map(([k])=>'titulo.'+k),
+        'escala e periodicidade de juros/comissao de permanencia nao homologadas no PUT',
+        'aceitacao de encargos retroativos em titulo vencido nao confirmada'
+      ];
       const valor=Number(reg.valor);
       const elegivel=sit.codStatus===1&&!sit.pago&&!sit.baixado&&!sit.descontado&&['aberto','vencido'].includes(sit.statusNovo)&&Number.isFinite(valor)&&valor>0&&sit.valorTitulo!==null&&(Math.abs(sit.valorTitulo-valor)<=0.01||Math.abs(sit.valorTitulo/100-valor)<=0.01);
       const vencimentoBanco=dataBradescoIso(dadosBanco.dataVencto)||'';
@@ -883,7 +905,7 @@ module.exports=async function(req,res){
       const multa=diasAtraso>0?Math.round(valor*2)/100:0;
       const juros=diasAtraso>0?Math.round(valor*100*0.05*diasAtraso/30)/100:0;
       const simulacao=dataLocalValida&&Number.isFinite(valor)&&valor>0?{data_referencia_utc:hoje,data_base:'VENCIMENTO_ORIGINAL_CADASTRO',vencimento_original:vencimentoLocal,dias_atraso:diasAtraso,valor_nominal:valor,multa_estimada:multa,juros_estimados:juros,total_estimado:Math.round((valor+multa+juros)*100)/100,carater:'SIMULACAO_LOCAL_SEM_CONFIRMACAO_DE_ENCARGOS_BANCARIOS'}:null;
-      return json(res,200,{ok:true,transmitido:false,documento:'55994',titulo:{id:reg.id,parcela:reg.parcela_numero,nosso_numero:nossoNumeroRegistroBradesco(reg),status_local:reg.status,status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:sit.vencimento,vencimento_original_banco:vencimentoBanco,vencimento_boleto_atualizado:vencimentoBoleto,vencimento_original_local:vencimentoLocal,valor_nominal_local:valor},elegivel_preliminar:elegivel&&datasConferem,preflight_manutencao:{consulta_autenticada:true,identidade_confirmada:!!nossoNumeroRegistroBradesco(reg),status_permite_manutencao:sit.codStatus===1&&!sit.pago&&!sit.baixado&&!sit.descontado,valor_nominal_confere:Number.isFinite(valor)&&valor>0&&sit.valorTitulo!==null&&(Math.abs(sit.valorTitulo-valor)<=0.01||Math.abs(sit.valorTitulo/100-valor)<=0.01),vencimento_original_confere:datasConferem,contrato_put_completo_validado:false,escala_juros_put_validada:false,transmissao_liberada:false,motivo_pendencia:'Payload integral e representação de encargos no endpoint de alteração ainda não validados.'},vencimento_confere:datasConferem,divergencia_vencimento:!datasConferem,diagnostico_datas_banco:datasInformadas,verificacao_contrato_alteracao:verificacaoContrato,inventario_campos_put:{carater:'INVENTARIO_INDICATIVO_SEM_DADOS_SENSIVEIS_NAO_E_PAYLOAD_VALIDADO',origem:origemCampos,mapeamento_alternativo:mapeamentoConfirmavel},simulacao,encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},proxima_etapa:elegivel&&datasConferem?'Montar payload integral e validar escala dos juros antes de qualquer PUT.':'Revisar situação bancária; alteração bloqueada.',observacao:'Consulta somente leitura. Nenhum boleto alterado.'});
+      return json(res,200,{ok:true,transmitido:false,documento:'55994',titulo:{id:reg.id,parcela:reg.parcela_numero,nosso_numero:nossoNumeroRegistroBradesco(reg),status_local:reg.status,status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:sit.vencimento,vencimento_original_banco:vencimentoBanco,vencimento_boleto_atualizado:vencimentoBoleto,vencimento_original_local:vencimentoLocal,valor_nominal_local:valor},elegivel_preliminar:elegivel&&datasConferem,preflight_manutencao:{consulta_autenticada:true,identidade_confirmada:!!nossoNumeroRegistroBradesco(reg),status_permite_manutencao:sit.codStatus===1&&!sit.pago&&!sit.baixado&&!sit.descontado,valor_nominal_confere:Number.isFinite(valor)&&valor>0&&sit.valorTitulo!==null&&(Math.abs(sit.valorTitulo-valor)<=0.01||Math.abs(sit.valorTitulo/100-valor)<=0.01),vencimento_original_confere:datasConferem,contrato_put_completo_validado:false,escala_juros_put_validada:false,transmissao_liberada:false,motivo_pendencia:'Payload integral e representação de encargos no endpoint de alteração ainda não validados.'},vencimento_confere:datasConferem,divergencia_vencimento:!datasConferem,diagnostico_datas_banco:datasInformadas,conferencia_unica_v446:{identificadores_ok:identificadoresOk,pagador:camposPagadorVerificaveis,titulo:camposTituloVerificaveis,pendencias:pendenciasConsolidadas,metodo:'CONSULTA_AUTENTICADA_E_VALIDACAO_LOCAL',transmitido:false,pronto_para_put:false},verificacao_contrato_alteracao:verificacaoContrato,inventario_campos_put:{carater:'INVENTARIO_INDICATIVO_SEM_DADOS_SENSIVEIS_NAO_E_PAYLOAD_VALIDADO',origem:origemCampos,mapeamento_alternativo:mapeamentoConfirmavel},simulacao,encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},proxima_etapa:elegivel&&datasConferem?'Montar payload integral e validar escala dos juros antes de qualquer PUT.':'Revisar situação bancária; alteração bloqueada.',observacao:'Consulta somente leitura. Nenhum boleto alterado.'});
     }
     if(action==='preparar-manutencao-encargos-v433'){
       if(amb!=='producao')throw new Error('Esta consulta deve utilizar o ambiente de produção.');
