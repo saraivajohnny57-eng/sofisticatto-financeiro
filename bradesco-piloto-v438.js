@@ -33,6 +33,8 @@ function montar(){
     'Campos do pagador localizados: '+Object.entries(f.pagador||{}).filter(([,v])=>v).map(([k])=>k).join(', '),
     'Campos do título com fonte candidata (sujeitos à validação): '+Object.entries(f.titulo||{}).filter(([,v])=>v).map(([k])=>k).join(', '),
     'Simulação local: multa '+format(s.multa_estimada)+' + juros '+format(s.juros_estimados)+' = '+format(s.total_estimado),
+    'Dados bancários originais confirmados: '+Object.entries(f.origem_confirmada||{}).filter(([k,v])=>k.endsWith('Banco')&&v).map(([k])=>k).join(', '),
+    'BLOQUEIOS DO CONTRATO PUT: '+(f.impedimentos_contratuais||[]).join('; '),
     'PENDÊNCIAS: '+(faltantes||'Nenhuma identificada'),
     'ALTERAÇÃO BANCÁRIA: NÃO TRANSMITIDA — contrato e escala dos encargos ainda não homologados.'
    ].join('\n');
