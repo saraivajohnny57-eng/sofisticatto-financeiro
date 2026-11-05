@@ -850,7 +850,7 @@ module.exports=async function(req,res){
       // Mapeamento sem valores: os nomes do PUT diferem dos nomes da emissão/consulta.
       // Nunca considerar ausência de propriedade homônima como ausência do dado.
       const configuracaoBanco=await obter(idRegistro(amb,'dados-bancarios'));
-      const banco=Array.isArray(configuracaoBanco)?configuracaoBanco[0]:configuracaoBanco;
+      const banco=configuracaoBanco?descriptografar(configuracaoBanco):{};
       const mapeamentoConfirmavel=[
         {campo_put:'nossoNumero',origem:'nossoNumeroRegistroBradesco(reg)',presente:!!nossoNumeroRegistroBradesco(reg)},
         {campo_put:'produto',origem:'banco.carteira / banco.produto',presente:!!String(banco?.carteira||banco?.produto||'').replace(/\D/g,'')},
