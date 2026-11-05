@@ -149,10 +149,19 @@ function requestBradescoJson({url,token,mtls,method='POST',body={}}){
     req.on('error',e=>{agent.destroy();reject(e)});req.write(rawBody);req.end();
   });
 }
+// V430: o DV impresso depois do hífen não faz parte do nosso número de consulta.
+// Não remover o último algarismo de valores sem hífen: podem ser identificadores válidos.
+function nossoNumeroConsultaBradesco(valor){
+  const raw=String(valor??'').trim();
+  const semDv=/^([0-9.\s]+)-([0-9])$/.exec(raw);
+  const numero=(semDv?semDv[1]:raw).replace(/\D/g,'');
+  if(!numero||numero.length>11)throw new Error('Nosso Número Bradesco ausente ou fora de 11 posições; confirme o cadastro e o DV impresso.');
+  return numero.padStart(11,'0');
+}
 function montarConsultaTituloBradesco(banco,reg){
   const dig=v=>String(v??'').replace(/\D/g,'');
   const cnpj=dig(banco?.cnpj), produto=dig(banco?.carteira||banco?.produto);
-  const nosso=dig(reg?.nosso_numero||reg?.banco_nosso_numero);
+  const nosso=nossoNumeroConsultaBradesco(reg?.nosso_numero||reg?.banco_nosso_numero);
   const negociacaoEmissao=dig(banco?.negociacao);
   const agencia=dig(banco?.agencia), conta=dig(banco?.conta);
   if(cnpj.length!==14)throw new Error('CNPJ do beneficiário Bradesco não está configurado com 14 dígitos.');
@@ -189,7 +198,7 @@ function montarConsultaTituloBradesco(banco,reg){
     },
     produto:String(produto),
     negociacao:String(negociacaoConsulta),
-    nossoNumero:String(nosso).padStart(11,'0'),
+    nossoNumero:nosso,
     sequencia:'0',
     status:'0'
   };
@@ -773,7 +782,7 @@ module.exports=async function(req,res){
       const id=String(req.body?.id||'').trim();
       let reg=null;
       if(id){const rows=await supabaseRest('cobrancas_bancarias',{query:`?id=eq.${encodeURIComponent(id)}&select=*&limit=1`});reg=Array.isArray(rows)?rows[0]:null;}
-      else if(req.body?.nosso_numero){const nn=String(req.body.nosso_numero).replace(/\D/g,'');const rows=await supabaseRest('cobrancas_bancarias',{query:`?banco=eq.bradesco&nosso_numero=eq.${encodeURIComponent(nn)}&select=*&limit=1`});reg=Array.isArray(rows)?rows[0]:null;}
+      else if(req.body?.nosso_numero){const nn=nossoNumeroConsultaBradesco(req.body.nosso_numero);const rows=await supabaseRest('cobrancas_bancarias',{query:'?banco=eq.bradesco&nosso_numero=not.is.null&select=*&limit=2000'});const matches=(Array.isArray(rows)?rows:[]).filter(x=>{try{return nossoNumeroConsultaBradesco(x.nosso_numero)===nn}catch(_){return false}});if(matches.length>1)throw new Error('Nosso Número ambíguo: há mais de um título correspondente. Consulte pelo ID.');reg=matches[0]||null;}
       if(!reg)throw new Error('Boleto Bradesco não encontrado no Histórico.');
       const q=await consultarTituloBradesco(amb,reg),sit=interpretarConsultaBradesco(q.data,reg),agora=new Date().toISOString();
       if(q.http_status<200||q.http_status>=300)throw new Error(detalheRespostaBradesco(q.data)||`Bradesco respondeu HTTP ${q.http_status}`);
