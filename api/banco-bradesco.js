@@ -158,10 +158,40 @@ function nossoNumeroConsultaBradesco(valor){
   if(!numero||numero.length>11)throw new Error('Nosso Número Bradesco ausente ou fora de 11 posições; confirme o cadastro e o DV impresso.');
   return numero.padStart(11,'0');
 }
+// V431: recuperar somente de código de barras/linha digitável Bradesco válidos.
+// Campo livre: agência (4), carteira (2), nosso número (11), conta (7), zero (1).
+function nossoNumeroPeloBoletoBradesco(reg){
+  const dig=v=>String(v??'').replace(/\D/g,'');
+  let barras=dig(reg?.codigo_barras);
+  const linha=dig(reg?.linha_digitavel);
+  if(barras.length!==44 && linha.length===47){
+    barras=linha.slice(0,4)+linha[32]+linha.slice(33)+linha.slice(4,9)+linha.slice(10,20)+linha.slice(21,31);
+  }
+  if(barras.length!==44||barras.slice(0,3)!=='237'||barras.slice(23,25)!=='09'||barras[43]!=='0')return null;
+  const nosso=barras.slice(25,36);
+  if(!/^\d{11}$/.test(nosso))return null;
+  // Se as duas representações existem, não aceitar dados conflitantes.
+  if(linha.length===47){
+    const reconstruida=linha.slice(0,4)+linha[32]+linha.slice(33)+linha.slice(4,9)+linha.slice(10,20)+linha.slice(21,31);
+    if(reconstruida!==barras)return null;
+  }
+  return nosso;
+}
+function nossoNumeroRegistroBradesco(reg){
+  const armazenado=reg?.nosso_numero||reg?.banco_nosso_numero;
+  const recuperado=nossoNumeroPeloBoletoBradesco(reg);
+  if(armazenado){
+    const normalizado=nossoNumeroConsultaBradesco(armazenado);
+    if(recuperado&&normalizado!==recuperado)throw new Error('Nosso Número do cadastro diverge do código de barras. Consulta interrompida para evitar associação incorreta.');
+    return normalizado;
+  }
+  if(!recuperado)throw new Error('Nosso Número ausente e não recuperável de código de barras/linha digitável válidos.');
+  return recuperado;
+}
 function montarConsultaTituloBradesco(banco,reg){
   const dig=v=>String(v??'').replace(/\D/g,'');
   const cnpj=dig(banco?.cnpj), produto=dig(banco?.carteira||banco?.produto);
-  const nosso=nossoNumeroConsultaBradesco(reg?.nosso_numero||reg?.banco_nosso_numero);
+  const nosso=nossoNumeroRegistroBradesco(reg);
   const negociacaoEmissao=dig(banco?.negociacao);
   const agencia=dig(banco?.agencia), conta=dig(banco?.conta);
   if(cnpj.length!==14)throw new Error('CNPJ do beneficiário Bradesco não está configurado com 14 dígitos.');
@@ -245,18 +275,18 @@ async function sincronizarStatusBoletosBradesco(amb,entrada={}){
   // V286: também revisa títulos localmente cancelados/baixados. A fonte de verdade
   // da sincronização é a resposta atual do Bradesco, não o estado previamente salvo.
   // V380: evitar que títulos antigos fiquem eternamente fora da janela dos 80 recentes.
-  const rows=await supabaseRest('cobrancas_bancarias',{query:'?nosso_numero=not.is.null&select=*&order=created_at.desc&limit=2000'});
+  const rows=await supabaseRest('cobrancas_bancarias',{query:'?select=*&order=created_at.desc&limit=2000'});
   const candidatos=(Array.isArray(rows)?rows:[])
-    .filter(r=>String(r.banco||'').toLowerCase()==='bradesco'&&['aberto','pago','vencido','cancelado'].includes(String(r.status||'')))
+    .filter(r=>String(r.banco||'').toLowerCase()==='bradesco'&&['aberto','pago','vencido','cancelado'].includes(String(r.status||''))&&(!!r.nosso_numero||!!nossoNumeroPeloBoletoBradesco(r)))
     .sort((a,b)=>String(a.bradesco_ultima_consulta||'').localeCompare(String(b.bradesco_ultima_consulta||'')))
     .slice(0,limite);
   if(!candidatos.length)return {consultados:0,atualizados:0,pagos:0,descontados:0,erros:[]};
   const resumo={consultados:0,atualizados:0,pagos:0,descontados:0,erros:[]},agora=new Date().toISOString();
   const processar=async reg=>{
     try{
-      const q=await consultarTituloBradesco(amb,reg),sit=interpretarConsultaBradesco(q.data,reg);
+      const recuperado=nossoNumeroRegistroBradesco(reg);const q=await consultarTituloBradesco(amb,reg),sit=interpretarConsultaBradesco(q.data,reg);
       if(q.http_status<200||q.http_status>=300)throw new Error(detalheRespostaBradesco(q.data)||`Bradesco respondeu HTTP ${q.http_status}`);
-      const upd={bradesco_descontado:!!sit.descontado,bradesco_status_detalhe:sit.descricao||bradescoStatusDescricao(sit.codStatus)||null,bradesco_data_pagamento:sit.dataPagamento,bradesco_valor_pago:sit.valorPago,bradesco_valor_creditado:null,bradesco_ultima_consulta:agora,banco_resposta:q.data,atualizado_em:agora};
+      const upd={...(reg.nosso_numero?{}:{nosso_numero:recuperado}),bradesco_descontado:!!sit.descontado,bradesco_status_detalhe:sit.descricao||bradescoStatusDescricao(sit.codStatus)||null,bradesco_data_pagamento:sit.dataPagamento,bradesco_valor_pago:sit.valorPago,bradesco_valor_creditado:null,bradesco_ultima_consulta:agora,banco_resposta:q.data,atualizado_em:agora};
       if(sit.statusNovo&&sit.statusNovo!==reg.status)upd.status=sit.statusNovo;
       await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(reg.id)}`,body:upd});
       resumo.consultados++;resumo.atualizados++;if(sit.pago)resumo.pagos++;if(sit.descontado)resumo.descontados++;
@@ -784,9 +814,9 @@ module.exports=async function(req,res){
       if(id){const rows=await supabaseRest('cobrancas_bancarias',{query:`?id=eq.${encodeURIComponent(id)}&select=*&limit=1`});reg=Array.isArray(rows)?rows[0]:null;}
       else if(req.body?.nosso_numero){const nn=nossoNumeroConsultaBradesco(req.body.nosso_numero);const rows=await supabaseRest('cobrancas_bancarias',{query:'?banco=eq.bradesco&nosso_numero=not.is.null&select=*&limit=2000'});const matches=(Array.isArray(rows)?rows:[]).filter(x=>{try{return nossoNumeroConsultaBradesco(x.nosso_numero)===nn}catch(_){return false}});if(matches.length>1)throw new Error('Nosso Número ambíguo: há mais de um título correspondente. Consulte pelo ID.');reg=matches[0]||null;}
       if(!reg)throw new Error('Boleto Bradesco não encontrado no Histórico.');
-      const q=await consultarTituloBradesco(amb,reg),sit=interpretarConsultaBradesco(q.data,reg),agora=new Date().toISOString();
+      const recuperado=nossoNumeroRegistroBradesco(reg);const q=await consultarTituloBradesco(amb,reg),sit=interpretarConsultaBradesco(q.data,reg),agora=new Date().toISOString();
       if(q.http_status<200||q.http_status>=300)throw new Error(detalheRespostaBradesco(q.data)||`Bradesco respondeu HTTP ${q.http_status}`);
-      const upd={bradesco_descontado:!!sit.descontado,bradesco_status_detalhe:sit.descricao||bradescoStatusDescricao(sit.codStatus)||null,bradesco_data_pagamento:sit.dataPagamento,bradesco_valor_pago:sit.valorPago,bradesco_valor_creditado:null,bradesco_ultima_consulta:agora,banco_resposta:q.data,atualizado_em:agora};
+      const upd={...(reg.nosso_numero?{}:{nosso_numero:recuperado}),bradesco_descontado:!!sit.descontado,bradesco_status_detalhe:sit.descricao||bradescoStatusDescricao(sit.codStatus)||null,bradesco_data_pagamento:sit.dataPagamento,bradesco_valor_pago:sit.valorPago,bradesco_valor_creditado:null,bradesco_ultima_consulta:agora,banco_resposta:q.data,atualizado_em:agora};
       if(sit.statusNovo&&sit.statusNovo!==reg.status)upd.status=sit.statusNovo;
       await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(reg.id)}`,body:upd});
       return json(res,200,{ok:true,consulta:{id:reg.id,http_status:q.http_status,codStatus:sit.codStatus,status:sit.descricao,descontado:sit.descontado,status_local:sit.statusNovo,data_pagamento:sit.dataPagamento,valor_pago:sit.valorPago,resposta:q.data}});
