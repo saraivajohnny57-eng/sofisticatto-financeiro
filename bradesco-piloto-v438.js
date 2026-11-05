@@ -37,6 +37,8 @@ function montar(){
     'BLOQUEIOS DO CONTRATO PUT: '+(f.impedimentos_contratuais||[]).join('; '),
     'Fontes locais V451: '+Object.entries(f.descoberta_campos_v451?.fontes_historico||{}).filter(([,v])=>v).map(([k])=>k).join(', '),
     'Aliases da API V451: '+Object.entries(f.descoberta_campos_v451?.nomes_encontrados||{}).map(([k,v])=>k+'=['+v.join(', ')+']').join('; '),
+    'Resposta histórica V452: '+Object.entries(f.auditoria_resposta_v452?.campos_originais_presentes||{}).map(([k,v])=>k+'=['+v.join(', ')+']').join('; '),
+    'Origem da emissão original comprovada pela resposta armazenada: '+(f.auditoria_resposta_v452?.origem_emissao_original_comprovada?'SIM':'NÃO'),
     'Manual Bradesco V450: '+(f.revisao_manual_v450?.endpoint||'não conferido'),
     'Escala dos juros no PUT homologada: '+(f.revisao_manual_v450?.juros_mensal_5_porcento_escala_homologada?'SIM':'NÃO'),
     'Alteração retroativa confirmada: '+(f.revisao_manual_v450?.retroativo_vencido_aceito_confirmado?'SIM':'NÃO'),
