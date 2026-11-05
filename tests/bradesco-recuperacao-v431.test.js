@@ -1,0 +1,10 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const src=fs.readFileSync(path.join(__dirname,'..','api','banco-bradesco.js'),'utf8');
+const begin=src.indexOf('function nossoNumeroConsultaBradesco('),end=src.indexOf('function montarConsultaTituloBradesco(');
+assert.ok(begin>=0&&end>begin);
+const ctx=vm.createContext({});vm.runInContext(src.slice(begin,end),ctx);
+const linha='23792274049626700000601028005203816080000024127';
+test('recupera 11 posições da linha digitável real do 56030',()=>assert.equal(ctx.nossoNumeroPeloBoletoBradesco({linha_digitavel:linha}),'62670000001'));
+test('rejeita linha de outro banco',()=>assert.equal(ctx.nossoNumeroPeloBoletoBradesco({linha_digitavel:'001'+linha.slice(3)}),null));
+test('não aceita divergência entre cadastro e linha',()=>assert.throws(()=>ctx.nossoNumeroRegistroBradesco({nosso_numero:'6267000001-9',linha_digitavel:linha})));
+test('recupera número se cadastro estiver vazio',()=>assert.equal(ctx.nossoNumeroRegistroBradesco({nosso_numero:null,linha_digitavel:linha}),'62670000001'));
