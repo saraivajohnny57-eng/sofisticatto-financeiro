@@ -815,8 +815,11 @@ module.exports=async function(req,res){
     if(action==='conferir-piloto-55994-v435'){
       if(amb!=='producao')throw new Error('Piloto disponível somente na produção.');
       const rows=await supabaseRest('cobrancas_bancarias',{query:'?numero_nf=eq.55994&select=*&limit=100'});
-      const candidatos=(Array.isArray(rows)?rows:[]).filter(r=>String(r.banco||'').toLowerCase()==='bradesco');
-      if(candidatos.length!==1)return json(res,409,{ok:false,transmitido:false,mensagem:candidatos.length?'Há múltiplas parcelas/registros para a NF 55994. Identifique a parcela e o ID antes de consultar.':'NF 55994 não localizada no histórico Bradesco.',candidatos:candidatos.map(r=>({id:r.id,numero_nf:r.numero_nf,parcela_numero:r.parcela_numero,status_local:r.status}))});
+      const todos=(Array.isArray(rows)?rows:[]).filter(r=>String(r.banco||'').toLowerCase()==='bradesco');
+      const parcela=String(req.body?.parcela||'').replace(/\D/g,'');
+      if(parcela && parcela.replace(/^0+/,'')!=='1')throw new Error('O piloto autorizado é exclusivamente a parcela 01 da NF 55994.');
+      const candidatos=parcela?todos.filter(r=>String(r.parcela_numero||'').replace(/\D/g,'').replace(/^0+/,'')===parcela.replace(/^0+/,'')):todos;
+      if(candidatos.length!==1)return json(res,409,{ok:false,transmitido:false,mensagem:candidatos.length?'Há múltiplas parcelas/registros para a NF 55994. Identifique a parcela e o ID antes de consultar.':'NF 55994 não localizada no histórico Bradesco.',candidatos:todos.map(r=>({id:r.id,numero_nf:r.numero_nf,parcela_numero:r.parcela_numero,status_local:r.status}))});
       const reg=candidatos[0];
       if(/pago|liquid|cancel|baixad|protest/i.test(String(reg.status||'')))throw new Error('Situação local incompatível com manutenção.');
       const q=await consultarTituloBradesco(amb,reg);
