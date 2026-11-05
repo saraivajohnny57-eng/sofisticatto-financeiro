@@ -16,8 +16,8 @@ function montar(){
  const inicio=Date.now();
  const ok=await window.consultarPendenciasCarteiraV294('bradesco',{silencioso:true,abrirRelatorio:false});
  if(!ok)throw Error('Consulta não concluída com sucesso.');
- const carteira=window.carteiraCompletaV296?.bradesco;
- if(!Array.isArray(carteira))throw Error('Resposta bancária não disponível para conciliação.');
+ const carteira=window.bradescoRespostaBancariaV426?.titulos;
+ if(!Array.isArray(carteira))throw Error('Resposta bancária bruta não disponível para conciliação.');
  const locais=typeof auditoriaEncargosBradescoPortalDados==='undefined'?[]:auditoriaEncargosBradescoPortalDados;
  if(!locais.length)throw Error('Execute primeiro a auditoria local.');
  const mapa=new Map();
@@ -35,7 +35,7 @@ function montar(){
  }
  return {x,resultado};
  });
- out.replaceChildren();const resumo=document.createElement('p');resumo.textContent='Consulta concluída em '+new Date(inicio).toLocaleString('pt-BR')+'. '+carteira.length+' registros retornados pela rotina; '+linhas.length+' candidatos locais comparados. Nenhum título liberado para manutenção.';out.appendChild(resumo);
+ out.replaceChildren();const resumo=document.createElement('p');resumo.textContent='Consulta de pendências concluída em '+new Date(inicio).toLocaleString('pt-BR')+'. '+carteira.length+' registros retornados pela rotina; '+linhas.length+' candidatos locais comparados. Resposta de pendências, não extrato completo da carteira. Nenhum título liberado para manutenção.';out.appendChild(resumo);
  const tabela=document.createElement('table');tabela.style.cssText='width:100%;font-size:12px';
  const cab=document.createElement('tr');['Documento','Parcela','Nosso número','Resultado'].forEach(v=>{const th=document.createElement('th');th.textContent=v;cab.appendChild(th)});tabela.appendChild(cab);
  linhas.forEach(({x,resultado})=>{const tr=document.createElement('tr');[x.numero_nf,x.parcela_numero,x.nosso_numero,resultado].forEach(v=>{const td=document.createElement('td');td.textContent=str(v);td.style.padding='5px';tr.appendChild(td)});tabela.appendChild(tr)});out.appendChild(tabela);
