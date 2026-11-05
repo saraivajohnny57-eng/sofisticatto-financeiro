@@ -807,6 +807,28 @@ module.exports=async function(req,res){
       const sit=interpretarConsultaBradesco(d,{nosso_numero:nn});
       return json(res,200,{ok:true,somente_leitura:true,consulta:{nosso_numero:nn,linha_digitavel:buscar('linhaDigitavel','linha_digitavel','linhaDig'),codigo_barras:buscar('cdBarras','codigoBarras','codigoBarraNumerico','codigo_barras'),url_boleto:buscar('urlImagemBoleto','urlBoleto','pdfUrl'),vencimento:sit.vencimento,status:sit.statusNovo,status_descricao:sit.descricao,valor_titulo:sit.valorTitulo,valor_boleto:sit.valorBoleto,valor_pago:sit.valorPago,juros:buscar('vlJuros','valorJuros'),multa:buscar('vlMulta','valorMulta')}});
     }
+    // V433: pré-validação autenticada de manutenção; nenhuma instrução PUT é transmitida.
+    // A API de alteração exige o registro completo do boleto; não reconstruir campos
+    // imutáveis/contratuais a partir de dados locais incompletos.
+    if(action==='preparar-manutencao-encargos-v433'){
+      if(amb!=='producao')throw new Error('Esta consulta deve utilizar o ambiente de produção.');
+      const id=String(req.body?.id||'').trim();
+      if(!id)throw new Error('Informe o ID do título para conferência individual.');
+      const rows=await supabaseRest('cobrancas_bancarias',{query:`?id=eq.${encodeURIComponent(id)}&select=*&limit=1`});
+      const reg=Array.isArray(rows)?rows[0]:null;
+      if(!reg||String(reg.banco||'').toLowerCase()!=='bradesco')throw new Error('Título Bradesco não encontrado.');
+      if(/pago|liquid|cancel|baixad|protest/i.test(String(reg.status||'')))throw new Error('Título com situação local incompatível com manutenção.');
+      const q=await consultarTituloBradesco(amb,reg);
+      if(q.http_status<200||q.http_status>=300)throw new Error('Consulta bancária falhou: '+(detalheRespostaBradesco(q.data)||q.http_status));
+      const sit=interpretarConsultaBradesco(q.data,reg);
+      if(sit.pago||sit.baixado||!['aberto','vencido'].includes(sit.statusNovo)||!sit.codStatus)throw new Error('Situação bancária não permite confirmar elegibilidade para manutenção.');
+      const valor=Number(reg.valor);
+      if(!Number.isFinite(valor)||valor<=0)throw new Error('Valor nominal inválido.');
+      if(sit.valorTitulo!==null&&Math.abs(sit.valorTitulo-valor)>0.01)throw new Error('Valor nominal divergente entre banco e portal.');
+      const venc=String(sit.vencimento||'').slice(0,10);
+      if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(venc))throw new Error('Vencimento bancário inválido.');
+      return json(res,200,{ok:true,transmitido:false,operacao:'PREPARACAO_SEM_ALTERACAO',titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Validar representação de juros e obter todos os dados originais exigidos no PUT antes de habilitar transmissão.'});
+    }
     if(action==='consultar-status-titulo'){
       if(amb!=='producao')throw new Error('A consulta de status desta versão está liberada para Produção.');
       const id=String(req.body?.id||'').trim();
