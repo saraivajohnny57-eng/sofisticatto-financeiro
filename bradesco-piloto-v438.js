@@ -31,7 +31,7 @@ function montar(){
     'Elegibilidade preliminar: '+(j.elegivel_preliminar?'SIM':'NÃO'),
     'Identificadores para alteração: '+(f.identificadores_ok?'LOCALIZADOS':'INCOMPLETOS'),
     'Campos do pagador localizados: '+Object.entries(f.pagador||{}).filter(([,v])=>v).map(([k])=>k).join(', '),
-    'Campos do título localizados: '+Object.entries(f.titulo||{}).filter(([,v])=>v).map(([k])=>k).join(', '),
+    'Campos do título com fonte candidata (sujeitos à validação): '+Object.entries(f.titulo||{}).filter(([,v])=>v).map(([k])=>k).join(', '),
     'Simulação local: multa '+format(s.multa_estimada)+' + juros '+format(s.juros_estimados)+' = '+format(s.total_estimado),
     'PENDÊNCIAS: '+(faltantes||'Nenhuma identificada'),
     'ALTERAÇÃO BANCÁRIA: NÃO TRANSMITIDA — contrato e escala dos encargos ainda não homologados.'

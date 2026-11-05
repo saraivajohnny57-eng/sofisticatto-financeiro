@@ -880,12 +880,18 @@ module.exports=async function(req,res){
         cep:!!(dadosBanco.cep||dadosBanco.cepPagador||reg.cep)
       };
       const camposTituloVerificaveis={
-        emissao:!!(dadosBanco.dataEmissao||dadosBanco.dtEmissao||reg.data_emissao||reg.emissao),
-        seuNumero:!!(dadosBanco.seuNumero||reg.seu_numero),
-        especie:!!(dadosBanco.especie||reg.especie),
+        emissao:!!(dadosBanco.dataEmissao||dadosBanco.dtEmissao||reg.data_emissao||reg.emissao||reg.emitido_em),
+        seuNumero:!!(dadosBanco.seuNumero||dadosBanco.nuCliente||reg.seu_numero||reg.numero_nf),
+        especie:!!(dadosBanco.especie||dadosBanco.cdEspecieTitulo||reg.especie||reg.cd_especie_titulo),
         vencimentoOriginal:!!dataBradescoIso(dadosBanco.dataVencto)
       };
-      const pendenciasConsolidadas=[
+      // Presença não prova equivalência: numero_nf pode representar NF original,
+      // e emitido_em pode ser posterior à data efetiva de emissão no banco.
+      const ressalvasOrigem=[
+        ...(reg.emitido_em&&!dadosBanco.dataEmissao&&!dadosBanco.dtEmissao&&!reg.data_emissao&&!reg.emissao?['emitido_em é timestamp do histórico; conferir dataEmissao bancária original']:[]),
+        ...(reg.numero_nf&&!dadosBanco.seuNumero&&!dadosBanco.nuCliente&&!reg.seu_numero?['numero_nf é referência local; não assumir equivalência com seuNumero do PUT']:[])
+      ];
+      const pendenciasConsolidadas=[...ressalvasOrigem,
         ...Object.entries(camposPagadorVerificaveis).filter(([,v])=>!v).map(([k])=>'pagador.'+k),
         ...Object.entries(camposTituloVerificaveis).filter(([,v])=>!v).map(([k])=>'titulo.'+k),
         'escala e periodicidade de juros/comissao de permanencia nao homologadas no PUT',
