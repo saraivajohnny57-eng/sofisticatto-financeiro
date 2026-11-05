@@ -18,12 +18,12 @@ function montar(){
  const alvo=$('bradescoV428Painel');if(!alvo||$('bradescoV429Painel'))return;
  const painel=document.createElement('section');painel.id='bradescoV429Painel';painel.style.cssText='margin:12px 0;padding:14px;border:1px solid #a995cf;border-radius:10px;background:#faf9fd';
  painel.innerHTML='<h4>V429 — Diagnóstico consolidado de encargos (sem transmissão)</h4><p>Uma única execução local verifica cadastro, duplicidade, situação local, cálculo, correspondência com a última resposta parcial de pendências e requisitos ainda não comprovados. Não consulta nem altera o banco ou Supabase.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn roxo" type="button" id="bradescoV429Executar">Executar diagnóstico completo</button><button class="btn azul" type="button" id="bradescoV429CSV" disabled>Baixar relatório completo CSV (não CNAB)</button></div><div id="bradescoV429Resultado" style="margin-top:12px;overflow:auto" aria-live="polite"></div>';
- alvo.insertAdjacentElement('afterend',painel);let linhas=[];
+ alvo.insertAdjacentElement('afterend',painel);let linhas=[],execucao=null;
  $('bradescoV429Executar').onclick=()=>{
-  const out=$('bradescoV429Resultado');out.replaceChildren();linhas=[];$('bradescoV429CSV').disabled=true;
+  const out=$('bradescoV429Resultado');out.replaceChildren();linhas=[];execucao=null;$('bradescoV429CSV').disabled=true;
   const locais=typeof auditoriaEncargosBradescoPortalDados==='undefined'?[]:auditoriaEncargosBradescoPortalDados;
   if(!Array.isArray(locais)||!locais.length){out.textContent='Execute primeiro a auditoria local. Nenhum teste bancário foi realizado.';return;}
-  const resultados=tests(),data=today();
+  const resultados=tests(),data=today(),geradoEm=new Date().toISOString();
   const snap=window.bradescoRespostaBancariaV426;
   const bank=Array.isArray(snap?.titulos)?snap.titulos:null;
   const mapa=new Map(),repetidos=new Map();
@@ -54,12 +54,16 @@ function montar(){
   const alerta=document.createElement('p');alerta.textContent='BLOQUEIOS PARA OPERAÇÃO REAL: validar autorização contratual dos juros/multa, canal técnico de manutenção Bradesco carteira 09, consulta individual atual de cada título, homologação e confirmação de aceite. Ausência em pendências não comprova pagamento.';out.appendChild(alerta);
   const tbl=document.createElement('table');tbl.style.cssText='min-width:900px;width:100%;font-size:12px';const h=document.createElement('tr');['Documento','Parcela','Nosso número','Atraso','Principal','Multa','Juros','Total simulado','Conferência','Pendências'].forEach(z=>{const th=document.createElement('th');th.textContent=z;h.appendChild(th)});tbl.appendChild(h);
   linhas.forEach(x=>{const tr=document.createElement('tr');[x.documento,x.parcela,x.nosso_numero,x.dias_atraso,x.principal_centavos===''?'—':money(x.principal_centavos),x.multa_centavos===''?'—':money(x.multa_centavos),x.juros_centavos===''?'—':money(x.juros_centavos),x.total_centavos===''?'—':money(x.total_centavos),x.comparacao,x.pendencias].forEach(z=>{const td=document.createElement('td');td.textContent=s(z);td.style.padding='5px';tr.appendChild(td)});tbl.appendChild(tr)});out.appendChild(tbl);
+  execucao={geradoEm,data,quantidade:linhas.length,vencidos:linhas.filter(x=>x.dias_atraso>0).length,pendencias:linhas.filter(x=>x.pendencias!=='NENHUMA_PENDENCIA_LOCAL').length,linhas:linhas.map(x=>({...x}))};
+  const info=document.createElement('p');info.textContent='Exportação vinculada a este diagnóstico: '+execucao.quantidade+' títulos, gerado em '+new Date(geradoEm).toLocaleString('pt-BR')+'. O CSV terá data/hora no nome e metadados para conferência.';out.insertBefore(info,out.firstChild);
   $('bradescoV429CSV').disabled=false;
  };
  $('bradescoV429CSV').onclick=()=>{
-  if(!linhas.length)return;
-  const cols=Object.keys(linhas[0]);const csv=[cols,...linhas.map(x=>cols.map(k=>x[k]))].map(row=>row.map(esc).join(';')).join('\r\n');
-  const u=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download='bradesco-v429-diagnostico-consolidado-nao-enviar.csv';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);
+  if(!execucao||!execucao.linhas.length)return;
+  const cols=['diagnostico_gerado_em','diagnostico_total_titulos','diagnostico_total_vencidos','diagnostico_total_pendencias',...Object.keys(execucao.linhas[0])];
+  const rows=execucao.linhas.map(x=>({diagnostico_gerado_em:execucao.geradoEm,diagnostico_total_titulos:execucao.quantidade,diagnostico_total_vencidos:execucao.vencidos,diagnostico_total_pendencias:execucao.pendencias,...x}));
+  const csv=[cols,...rows.map(x=>cols.map(k=>x[k]))].map(row=>row.map(esc).join(';')).join('\r\n');
+  const u=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download='bradesco-v432-diagnostico-'+execucao.geradoEm.replace(/[:.]/g,'-')+'-'+execucao.quantidade+'-titulos-nao-enviar.csv';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);
  };
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',montar);else montar();
