@@ -825,6 +825,16 @@ module.exports=async function(req,res){
       const q=await consultarTituloBradesco(amb,reg);
       if(q.http_status<200||q.http_status>=300)throw new Error('Consulta Bradesco falhou: '+(detalheRespostaBradesco(q.data)||q.http_status));
       const sit=interpretarConsultaBradesco(q.data,reg);
+      // Diagnóstico restrito a campos de data e status, sem expor resposta bruta,
+      // dados pessoais, credenciais ou permitir alteração do título.
+      const dadosBanco=q.data?.titulo||q.data?.Titulo||q.data?.boleto||{};
+      const nomesDatas=['dataVenctoBol','dataVencto','dataVencimento','dtVencimento','dataEmissao','dtEmissao','dataLimitePagamento','dtLimitePagamento','dtPagto'];
+      const datasInformadas={};
+      for(const campo of nomesDatas){
+        if(dadosBanco[campo]!==undefined&&dadosBanco[campo]!==null&&String(dadosBanco[campo]).trim()){
+          datasInformadas[campo]=String(dadosBanco[campo]).slice(0,24);
+        }
+      }
       const valor=Number(reg.valor);
       const elegivel=sit.codStatus===1&&!sit.pago&&!sit.baixado&&!sit.descontado&&['aberto','vencido'].includes(sit.statusNovo)&&Number.isFinite(valor)&&valor>0&&sit.valorTitulo!==null&&(Math.abs(sit.valorTitulo-valor)<=0.01||Math.abs(sit.valorTitulo/100-valor)<=0.01);
       const vencimentoBanco=String(sit.vencimento||'').slice(0,10);
@@ -838,7 +848,7 @@ module.exports=async function(req,res){
       const multa=diasAtraso>0?Math.round(valor*2)/100:0;
       const juros=diasAtraso>0?Math.round(valor*100*0.05*diasAtraso/30)/100:0;
       const simulacao=dataLocalValida&&Number.isFinite(valor)&&valor>0?{data_referencia_utc:hoje,data_base:'VENCIMENTO_ORIGINAL_CADASTRO',vencimento_original:vencimentoLocal,dias_atraso:diasAtraso,valor_nominal:valor,multa_estimada:multa,juros_estimados:juros,total_estimado:Math.round((valor+multa+juros)*100)/100,carater:'SIMULACAO_LOCAL_SEM_CONFIRMACAO_DE_ENCARGOS_BANCARIOS'}:null;
-      return json(res,200,{ok:true,transmitido:false,documento:'55994',titulo:{id:reg.id,parcela:reg.parcela_numero,nosso_numero:nossoNumeroRegistroBradesco(reg),status_local:reg.status,status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:sit.vencimento,vencimento_original_local:vencimentoLocal,valor_nominal_local:valor},elegivel_preliminar:elegivel&&datasConferem,vencimento_confere:datasConferem,divergencia_vencimento:!datasConferem,simulacao,encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},proxima_etapa:elegivel&&datasConferem?'Montar payload integral e validar escala dos juros antes de qualquer PUT.':'Revisar situação bancária; alteração bloqueada.',observacao:'Consulta somente leitura. Nenhum boleto alterado.'});
+      return json(res,200,{ok:true,transmitido:false,documento:'55994',titulo:{id:reg.id,parcela:reg.parcela_numero,nosso_numero:nossoNumeroRegistroBradesco(reg),status_local:reg.status,status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:sit.vencimento,vencimento_original_local:vencimentoLocal,valor_nominal_local:valor},elegivel_preliminar:elegivel&&datasConferem,vencimento_confere:datasConferem,divergencia_vencimento:!datasConferem,diagnostico_datas_banco:datasInformadas,simulacao,encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},proxima_etapa:elegivel&&datasConferem?'Montar payload integral e validar escala dos juros antes de qualquer PUT.':'Revisar situação bancária; alteração bloqueada.',observacao:'Consulta somente leitura. Nenhum boleto alterado.'});
     }
     if(action==='preparar-manutencao-encargos-v433'){
       if(amb!=='producao')throw new Error('Esta consulta deve utilizar o ambiente de produção.');
