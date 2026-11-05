@@ -881,7 +881,7 @@ module.exports=async function(req,res){
       };
       const camposTituloVerificaveis={
         emissao:!!(dadosBanco.dataEmissao||dadosBanco.dtEmissao||reg.data_emissao||reg.emissao||reg.emitido_em),
-        seuNumero:!!(dadosBanco.seuNumero||dadosBanco.nuCliente||reg.seu_numero||reg.numero_nf),
+        seuNumero:!!(dadosBanco.seuNumero||dadosBanco.nuCliente||reg.seu_numero||(/^BRADESCO-(.+)$/.test(String(reg.referencia||''))&&String(reg.referencia).slice(9))||reg.numero_nf),
         especie:!!(dadosBanco.especie||dadosBanco.cdEspecieTitulo||reg.especie||reg.cd_especie_titulo),
         vencimentoOriginal:!!dataBradescoIso(dadosBanco.dataVencto)
       };
@@ -889,7 +889,7 @@ module.exports=async function(req,res){
       // e emitido_em pode ser posterior à data efetiva de emissão no banco.
       const ressalvasOrigem=[
         ...(reg.emitido_em&&!dadosBanco.dataEmissao&&!dadosBanco.dtEmissao&&!reg.data_emissao&&!reg.emissao?['emitido_em é timestamp do histórico; conferir dataEmissao bancária original']:[]),
-        ...(reg.numero_nf&&!dadosBanco.seuNumero&&!dadosBanco.nuCliente&&!reg.seu_numero?['numero_nf é referência local; não assumir equivalência com seuNumero do PUT']:[])
+        ...(reg.referencia&&/^BRADESCO-(.+)$/.test(String(reg.referencia))&&!dadosBanco.seuNumero&&!dadosBanco.nuCliente&&!reg.seu_numero?['referencia BRADESCO- contém o Seu Número usado na emissão local; conferir contra o registro bancário original']:[]),...(reg.numero_nf&&!dadosBanco.seuNumero&&!dadosBanco.nuCliente&&!reg.seu_numero&&!/^BRADESCO-(.+)$/.test(String(reg.referencia||''))?['numero_nf é referência local; não assumir equivalência com seuNumero do PUT']:[])
       ];
       const pendenciasConsolidadas=[...ressalvasOrigem,
         ...Object.entries(camposPagadorVerificaveis).filter(([,v])=>!v).map(([k])=>'pagador.'+k),
