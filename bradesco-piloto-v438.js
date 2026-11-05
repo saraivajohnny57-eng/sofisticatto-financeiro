@@ -39,6 +39,8 @@ function montar(){
     'Aliases da API V451: '+Object.entries(f.descoberta_campos_v451?.nomes_encontrados||{}).map(([k,v])=>k+'=['+v.join(', ')+']').join('; '),
     'Resposta histórica V452: '+Object.entries(f.auditoria_resposta_v452?.campos_originais_presentes||{}).map(([k,v])=>k+'=['+v.join(', ')+']').join('; '),
     'Origem da emissão original comprovada pela resposta armazenada: '+(f.auditoria_resposta_v452?.origem_emissao_original_comprovada?'SIM':'NÃO'),
+    'Referência local corresponde à NF/parcela: '+(f.evidencias_v453?.referencia_compativel_com_nf_parcela?'SIM':'NÃO'),
+    'Pré-validação para transmissão: '+(f.evidencias_v453?.elegivel_para_transmissao?'LIBERADA':'BLOQUEADA'),
     'Manual Bradesco V450: '+(f.revisao_manual_v450?.endpoint||'não conferido'),
     'Escala dos juros no PUT homologada: '+(f.revisao_manual_v450?.juros_mensal_5_porcento_escala_homologada?'SIM':'NÃO'),
     'Alteração retroativa confirmada: '+(f.revisao_manual_v450?.retroativo_vencido_aceito_confirmado?'SIM':'NÃO'),
