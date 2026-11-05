@@ -817,7 +817,7 @@ module.exports=async function(req,res){
       const rows=await supabaseRest('cobrancas_bancarias',{query:'?numero_nf=eq.55994&select=*&limit=100'});
       const todos=(Array.isArray(rows)?rows:[]).filter(r=>String(r.banco||'').toLowerCase()==='bradesco');
       const parcela=String(req.body?.parcela||'').replace(/\D/g,'');
-      if(parcela && parcela.replace(/^0+/,'')!=='1')throw new Error('O piloto autorizado é exclusivamente a parcela 01 da NF 55994.');
+      if(parcela.replace(/^0+/,'')!=='1')throw new Error('Informe obrigatoriamente parcela 01 para conferir o piloto 55994.');
       const candidatos=parcela?todos.filter(r=>String(r.parcela_numero||'').replace(/\D/g,'').replace(/^0+/,'')===parcela.replace(/^0+/,'')):todos;
       if(candidatos.length!==1)return json(res,409,{ok:false,transmitido:false,mensagem:candidatos.length?'Há múltiplas parcelas/registros para a NF 55994. Identifique a parcela e o ID antes de consultar.':'NF 55994 não localizada no histórico Bradesco.',candidatos:todos.map(r=>({id:r.id,numero_nf:r.numero_nf,parcela_numero:r.parcela_numero,status_local:r.status}))});
       const reg=candidatos[0];
@@ -827,7 +827,15 @@ module.exports=async function(req,res){
       const sit=interpretarConsultaBradesco(q.data,reg);
       const valor=Number(reg.valor);
       const elegivel=sit.codStatus===1&&!sit.pago&&!sit.baixado&&!sit.descontado&&['aberto','vencido'].includes(sit.statusNovo)&&Number.isFinite(valor)&&valor>0&&sit.valorTitulo!==null&&(Math.abs(sit.valorTitulo-valor)<=0.01||Math.abs(sit.valorTitulo/100-valor)<=0.01);
-      return json(res,200,{ok:true,transmitido:false,documento:'55994',titulo:{id:reg.id,parcela:reg.parcela_numero,nosso_numero:nossoNumeroRegistroBradesco(reg),status_local:reg.status,status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:sit.vencimento,valor_nominal_local:valor},elegivel_preliminar:elegivel,encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},proxima_etapa:elegivel?'Montar payload integral e validar escala dos juros antes de qualquer PUT.':'Revisar situação bancária; alteração bloqueada.',observacao:'Consulta somente leitura. Nenhum boleto alterado.'});
+      const vencimentoBanco=String(sit.vencimento||'').slice(0,10);
+      const vencimentoLocal=String(reg.vencimento||'').slice(0,10);
+      const datasConferem=/^\d{4}-\d{2}-\d{2}$/.test(vencimentoBanco)&&vencimentoBanco===vencimentoLocal;
+      const hoje=new Date().toISOString().slice(0,10);
+      const diasAtraso=datasConferem?Math.max(0,Math.floor((Date.parse(hoje+'T00:00:00Z')-Date.parse(vencimentoBanco+'T00:00:00Z'))/86400000)):null;
+      const multa=diasAtraso>0?Math.round(valor*2)/100:0;
+      const juros=diasAtraso>0?Math.round(valor*100*0.05*diasAtraso/30)/100:0;
+      const simulacao=datasConferem&&Number.isFinite(valor)&&valor>0?{data_referencia_utc:hoje,dias_atraso:diasAtraso,valor_nominal:valor,multa_estimada:multa,juros_estimados:juros,total_estimado:Math.round((valor+multa+juros)*100)/100,carater:'SIMULACAO_SEM_VALOR_BANCARIO'}:null;
+      return json(res,200,{ok:true,transmitido:false,documento:'55994',titulo:{id:reg.id,parcela:reg.parcela_numero,nosso_numero:nossoNumeroRegistroBradesco(reg),status_local:reg.status,status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:sit.vencimento,valor_nominal_local:valor},elegivel_preliminar:elegivel&&datasConferem,vencimento_confere:datasConferem,simulacao,encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},proxima_etapa:elegivel&&datasConferem?'Montar payload integral e validar escala dos juros antes de qualquer PUT.':'Revisar situação bancária; alteração bloqueada.',observacao:'Consulta somente leitura. Nenhum boleto alterado.'});
     }
     if(action==='preparar-manutencao-encargos-v433'){
       if(amb!=='producao')throw new Error('Esta consulta deve utilizar o ambiente de produção.');
