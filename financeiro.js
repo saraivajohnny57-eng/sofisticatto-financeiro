@@ -10226,6 +10226,19 @@ async function incrementarTentativaLoteV279(p,loteId){
   await marcarFilaLoteV279(p,'enviando',loteId,{lote_tentativas:atual,lote_erro:null});
   p.lote_tentativas=atual;
 }
+// V457 — acompanhamento visual local do lote, sem consultas adicionais ao banco.
+function criarProgressoCobrancaMassaV457(total,comPasta){
+  const el=document.createElement('div');el.id='progresso-cobranca-massa-v457';
+  el.style.cssText='position:fixed;inset:0;z-index:2147483000;background:#160b2999;display:flex;align-items:center;justify-content:center;padding:18px';
+  el.innerHTML='<section role="status" aria-live="polite" style="background:white;color:#241737;border-radius:18px;box-shadow:0 12px 45px #0004;padding:26px;width:min(440px,95vw);font:15px Segoe UI,Arial,sans-serif"><h2 style="margin:0 0 12px;color:#6a1b9a">Emitindo boletos bancários</h2><div id="lote457etapa" style="margin-bottom:12px">Preparando lote...</div><progress id="lote457barra" max="100" value="0" style="width:100%;height:19px;accent-color:#6a1b9a"></progress><div id="lote457contadores" style="margin-top:15px;line-height:2"></div><small>Não feche esta página durante a emissão. Um resultado incerto interrompe o lote para evitar duplicidade.</small></section>';
+  document.body.appendChild(el);
+  const s={emitidos:0,salvos:0,erros:0,concluidos:0};
+  const atualizar=(etapa)=>{
+    const a=el.querySelector('#lote457etapa'),b=el.querySelector('#lote457barra'),d=el.querySelector('#lote457contadores');
+    if(a)a.textContent=etapa||'Processando...';if(b)b.value=total?Math.round(100*s.concluidos/total):0;
+    if(d)d.innerHTML=`Emitidos: <b>${s.emitidos}/${total}</b><br>Salvos na pasta: <b>${comPasta?s.salvos+'/'+total:'Desativado'}</b><br>Erros: <b>${s.erros}</b><br>Concluídos: <b>${s.concluidos}/${total}</b>`;
+  };atualizar('Preparando lote...');return {s,atualizar,fechar:()=>el.remove()};
+}
 async function emitirBoletosEmMassa(){
   if(negarOperacaoCobrancaV293()) return;
   const grupos=ordemCobrancaMassa(gruposSelecionadosCobrancaMassa());
@@ -10235,8 +10248,9 @@ async function emitirBoletosEmMassa(){
   const qtdBR=grupos.filter(g=>codigoBancoCobranca(g.rel.banco)==='bradesco').reduce((n,g)=>n+g.parcelas.length,0);
   const bloqueados=grupos.flatMap(g=>g.parcelas).filter(p=>['enviando','resultado_incerto','emitido'].includes(String(p.lote_estado||'').toLowerCase()));
   if(bloqueados.length)return alert(`${bloqueados.length} parcela(s) possuem estado de lote que impede novo envio (ENVIANDO, RESULTADO INCERTO ou EMITIDO).\n\nAtualize a fila e confira esses títulos antes de continuar.`);
-  const pasta=await escolherPastaCobrancaMassa();
-  if(window.showDirectoryPicker && !pasta)return;
+  const salvarPdfs=window.showDirectoryPicker?confirm('Deseja SALVAR OS PDFs NA PASTA durante a emissão?\n\nOK = emitir e salvar PDFs por cliente.\nCancelar = emitir somente no banco (mais rápido); os boletos continuam disponíveis no Histórico para impressão posterior.'):false;
+  const pasta=salvarPdfs?await escolherPastaCobrancaMassa():null;
+  if(salvarPdfs&&!pasta)return;
   if(!confirm(`EMISSÃO EM MASSA — CONFERÊNCIA FINAL\n\nEncargos padrão para ambos os bancos: multa 2% após vencimento e juros de mora 5% ao mês.\n\nClientes: ${grupos.length}\nBoletos: ${totalBoletos}\nBanco do Brasil: ${qtdBB}\nBradesco: ${qtdBR}\nTotal: ${cobMoeda(totalValor)}\n\nV279 registrará o estado de cada parcela antes e depois de falar com o banco. Continuar?`))return;
   const palavra=prompt('Digite exatamente EMITIR LOTE para confirmar a emissão real dos boletos selecionados:');
   if(String(palavra||'').trim().toUpperCase()!=='EMITIR LOTE')return alert('Emissão em massa cancelada. Nenhum novo envio foi iniciado.');
@@ -10244,6 +10258,7 @@ async function emitirBoletosEmMassa(){
   const loteCodigo=cobLoteCodigoV280(loteId);
   const btn=document.getElementById('btnEmitirMassa');if(btn){btn.disabled=true;btn.textContent='Emitindo lote...';}
   const resultados=[];
+  const progresso457=criarProgressoCobrancaMassaV457(totalBoletos,!!pasta);
   try{
     // Primeiro grava o identificador do lote em TODAS as parcelas. Se o SQL não existir,
     // nada é enviado a BB/Bradesco.
@@ -10251,6 +10266,7 @@ async function emitirBoletosEmMassa(){
     for(const g of grupos){
       const cod=codigoBancoCobranca(g.rel.banco),blobsGrupo=[],okGrupo=[];
       for(const p of g.parcelas){
+        progresso457.atualizar('Emitindo: '+String(g.rel.nome||'Cliente')+' — parcela '+String(p.parcela_numero||1));
         let iniciouPost=false;
         try{
           await incrementarTentativaLoteV279(p,loteId);
@@ -10310,12 +10326,12 @@ async function emitirBoletosEmMassa(){
               console.warn('V281: boleto Bradesco emitido; PDF pendente.',ePdf);
             }
           }
-          if(blob)blobsGrupo.push(blob);const rr={ok:true,g,p,ret,blob,loteId,pdfErro};resultados.push(rr);okGrupo.push(rr);
+          if(blob)blobsGrupo.push(blob);const rr={ok:true,g,p,ret,blob,loteId,pdfErro};resultados.push(rr);okGrupo.push(rr);progresso457.s.emitidos++;progresso457.s.concluidos++;progresso457.atualizar('Boleto emitido: '+String(g.rel.nome||'Cliente'));
         }catch(e){
           const seguro=iniciouPost&&erroSeguroParaNovaTentativaV279(e);
           const estado=iniciouPost?(seguro?'erro_seguro':'resultado_incerto'):'erro_seguro';
           try{await marcarFilaLoteV279(p,estado,loteId,{lote_erro:mensagemErroV279(e)})}catch(e2){console.error('V279: falha ao registrar estado do lote',e2)}
-          resultados.push({ok:false,g,p,erro:e,estado,loteId});
+          resultados.push({ok:false,g,p,erro:e,estado,loteId});progresso457.s.erros++;progresso457.s.concluidos++;progresso457.atualizar('Erro na parcela '+String(p.parcela_numero||1));
           // Resultado incerto é barreira de segurança: para o lote inteiro. Não avançamos
           // para novos títulos até o operador conferir o banco.
           if(estado==='resultado_incerto')throw Object.assign(new Error(`RESULTADO INCERTO em ${g.rel.nome}, parcela ${p.parcela_numero||1}. O lote foi interrompido para evitar duplicidade. Confira o banco antes de qualquer nova tentativa.`),{v279Interromper:true});
@@ -10332,18 +10348,18 @@ async function emitirBoletosEmMassa(){
             const combinado=await mesclarPdfsBb(ordenados.map(x=>x.blob));
             const nome=nomePadraoBoletoV325(g.rel.nome,g.rel.numero_nf||g.rel.numero_titulo||g.parcelas[0]?.numero_nf||'BOLETOS');
             await salvarBlobNaPastaCobrancaMassa(pasta,nome,combinado);
-            for(const x of okGrupo){x.blobCombinado=combinado;await marcarPdfLoteV281(x.p,'salvo',null);}
+            for(const x of okGrupo){x.blobCombinado=combinado;await marcarPdfLoteV281(x.p,'salvo',null);progresso457.s.salvos++;progresso457.atualizar('PDF salvo na pasta');}
           }catch(eAgrupar){
             console.warn('V346: não foi possível agrupar Bradesco; salvando parcelas separadamente.',eAgrupar);
             for(const x of okGrupo){
-              try{await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,x.p),x.blob);await marcarPdfLoteV281(x.p,'salvo',null)}
+              try{await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,x.p),x.blob);await marcarPdfLoteV281(x.p,'salvo',null);progresso457.s.salvos++;progresso457.atualizar('PDF salvo na pasta');}
               catch(e){x.pdfErro=mensagemErroV279(e);await marcarPdfLoteV281(x.p,'pendente',x.pdfErro)}
             }
             alert(`Os boletos de ${g.rel.nome} foram emitidos, mas não puderam ser agrupados. As parcelas disponíveis foram salvas individualmente.\n\n${mensagemErroV279(eAgrupar)}`);
           }
         }else{
           for(const x of okGrupo.filter(x=>x.blob&&!x.pdfErro)){
-            try{await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,x.p),x.blob);await marcarPdfLoteV281(x.p,'salvo',null)}
+            try{await salvarBlobNaPastaCobrancaMassa(pasta,nomeArquivoBoletoMassa(g,x.p),x.blob);await marcarPdfLoteV281(x.p,'salvo',null);progresso457.s.salvos++;progresso457.atualizar('PDF salvo na pasta');}
             catch(e){x.pdfErro=mensagemErroV279(e);await marcarPdfLoteV281(x.p,'pendente',x.pdfErro)}
           }
           alert(`Atenção: ${g.rel.nome} teve ${okGrupo.length} de ${g.parcelas.length} boleto(s) emitido(s) neste lote. PDFs disponíveis foram salvos separadamente; não foi gerado um PDF agrupado incompleto.`);
@@ -10355,6 +10371,7 @@ async function emitirBoletosEmMassa(){
     if(!e?.v279Interromper)alert('O lote foi interrompido antes de continuar.\n\n'+mensagemErroV279(e));
     else alert(mensagemErroV279(e));
   }finally{
+    progresso457.atualizar('Finalizando e atualizando o Histórico...');
     cobrancaMassaArquivosEmitidos=resultados.filter(x=>x.ok&&x.blob);
     const ok=resultados.filter(x=>x.ok).length;
     const seguros=resultados.filter(x=>!x.ok&&x.estado==='erro_seguro').length;
@@ -10368,6 +10385,7 @@ async function emitirBoletosEmMassa(){
       alert(`RESUMO DO LOTE ${loteCodigo}\n\nEmitidos: ${ok}\nErros seguros para corrigir e tentar manualmente depois: ${seguros}\nResultados incertos (NÃO REEMITIR antes de conferir o banco): ${incertos}\n\n${msg.slice(0,3500)}`);
     }
     try{await carregarFilaCobrancaMassa();await carregarCobrancasBancarias();}catch(e){console.warn(e)}
+    progresso457.atualizar('Lote finalizado');progresso457.fechar();
     if(btn){btn.disabled=false;btn.textContent='💳 Emitir em massa';}
   }
 }
