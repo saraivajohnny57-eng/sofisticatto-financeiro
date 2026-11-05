@@ -8034,7 +8034,7 @@ function abrirBoletoBradescoRegistro(id){
   // No título 56534, o Bradesco mostrou R$ 0,92/dia e multa R$ 11,14.
   const nominalCentavos=Math.round(Number(x.valor)*100);
   const truncarCentavos=v=>Math.floor(v+1e-8);
-  const encargoValido=Number.isSafeInteger(nominalCentavos)&&nominalCentavos>0&&/^\\d{4}-\\d{2}-\\d{2}/.test(String(x.vencimento||''));
+  const encargoValido=Number.isSafeInteger(nominalCentavos)&&nominalCentavos>0&&/^\d{4}-\d{2}-\d{2}/.test(String(x.vencimento||''));
   const moedaEncargo=centavos=>(centavos/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const multaPrevista=encargoValido?moedaEncargo(truncarCentavos(nominalCentavos*0.02)):null;
   const jurosDiaPrevisto=encargoValido?moedaEncargo(truncarCentavos(nominalCentavos*0.05/30)):null;
