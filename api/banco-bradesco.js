@@ -275,18 +275,18 @@ async function sincronizarStatusBoletosBradesco(amb,entrada={}){
   // V286: também revisa títulos localmente cancelados/baixados. A fonte de verdade
   // da sincronização é a resposta atual do Bradesco, não o estado previamente salvo.
   // V380: evitar que títulos antigos fiquem eternamente fora da janela dos 80 recentes.
-  const rows=await supabaseRest('cobrancas_bancarias',{query:'?nosso_numero=not.is.null&select=*&order=created_at.desc&limit=2000'});
+  const rows=await supabaseRest('cobrancas_bancarias',{query:'?select=*&order=created_at.desc&limit=2000'});
   const candidatos=(Array.isArray(rows)?rows:[])
-    .filter(r=>String(r.banco||'').toLowerCase()==='bradesco'&&['aberto','pago','vencido','cancelado'].includes(String(r.status||'')))
+    .filter(r=>String(r.banco||'').toLowerCase()==='bradesco'&&['aberto','pago','vencido','cancelado'].includes(String(r.status||''))&&(!!r.nosso_numero||!!nossoNumeroPeloBoletoBradesco(r)))
     .sort((a,b)=>String(a.bradesco_ultima_consulta||'').localeCompare(String(b.bradesco_ultima_consulta||'')))
     .slice(0,limite);
   if(!candidatos.length)return {consultados:0,atualizados:0,pagos:0,descontados:0,erros:[]};
   const resumo={consultados:0,atualizados:0,pagos:0,descontados:0,erros:[]},agora=new Date().toISOString();
   const processar=async reg=>{
     try{
-      const q=await consultarTituloBradesco(amb,reg),sit=interpretarConsultaBradesco(q.data,reg);
+      const recuperado=nossoNumeroRegistroBradesco(reg);const q=await consultarTituloBradesco(amb,reg),sit=interpretarConsultaBradesco(q.data,reg);
       if(q.http_status<200||q.http_status>=300)throw new Error(detalheRespostaBradesco(q.data)||`Bradesco respondeu HTTP ${q.http_status}`);
-      const upd={bradesco_descontado:!!sit.descontado,bradesco_status_detalhe:sit.descricao||bradescoStatusDescricao(sit.codStatus)||null,bradesco_data_pagamento:sit.dataPagamento,bradesco_valor_pago:sit.valorPago,bradesco_valor_creditado:null,bradesco_ultima_consulta:agora,banco_resposta:q.data,atualizado_em:agora};
+      const upd={...(reg.nosso_numero?{}:{nosso_numero:recuperado}),bradesco_descontado:!!sit.descontado,bradesco_status_detalhe:sit.descricao||bradescoStatusDescricao(sit.codStatus)||null,bradesco_data_pagamento:sit.dataPagamento,bradesco_valor_pago:sit.valorPago,bradesco_valor_creditado:null,bradesco_ultima_consulta:agora,banco_resposta:q.data,atualizado_em:agora};
       if(sit.statusNovo&&sit.statusNovo!==reg.status)upd.status=sit.statusNovo;
       await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(reg.id)}`,body:upd});
       resumo.consultados++;resumo.atualizados++;if(sit.pago)resumo.pagos++;if(sit.descontado)resumo.descontados++;
