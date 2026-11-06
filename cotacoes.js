@@ -1845,7 +1845,7 @@ async function consultarContratoGnreMg100129(){
   if(!chave){el.textContent='Consulta cancelada: autorização administrativa necessária.';return;}
   const resposta=await fetch('/api/integracoes?action=gnre-configuf-contrato',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:'{}'});
   const dados=await resposta.json();
-  if(!resposta.ok||!dados.ok){el.textContent='Falha ao consultar contrato: '+(dados.erro||'Resposta não aprovada')+' ('+(dados.codigo||resposta.status)+'). Nenhuma guia foi emitida.';return;}
-  el.textContent='WSDL oficial consultado. HTTP '+dados.http_status+'; operações: '+(dados.operacoes||[]).join(', ')+'; mensagens: '+(dados.mensagens||[]).join(', ')+'. Esta etapa verifica o contrato; ainda NÃO consulta os parâmetros da receita MG 100129. Nenhuma guia foi emitida.';
+  if(!resposta.ok||!dados.ok){el.textContent='Contrato ConfigUF não reconhecido: HTTP '+(dados.http_status||resposta.status)+'; raiz: '+(dados.elemento_raiz||'não identificada')+'; tamanho: '+(dados.tamanho_resposta??'indisponível')+' bytes; '+(dados.erro||'Verificar formato WSDL')+'. Nenhuma guia foi emitida.';return;}
+  el.textContent='WSDL oficial consultado. HTTP '+dados.http_status+'; raiz: '+(dados.elemento_raiz||'não identificada')+'; bytes: '+dados.tamanho_resposta+'; operações: '+(dados.operacoes||[]).join(', ')+'; mensagens: '+(dados.mensagens||[]).join(', ')+'. Esta etapa verifica o contrato; ainda NÃO consulta os parâmetros da receita MG 100129. Nenhuma guia foi emitida.';
  }catch(e){el.textContent='Falha de rede ao consultar contrato ConfigUF: '+String(e.message||e);}
 }
