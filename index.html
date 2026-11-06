@@ -1177,6 +1177,11 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <input id="freteGnreValor" inputmode="decimal" placeholder="0,00">
               </div>
               <div class="campo-largo">
+                <label class="relatorio-label" for="freteGnreXmlArquivo">Analisar XML da NF-e para GNRE (somente conferencia)</label>
+                <input id="freteGnreXmlArquivo" type="file" accept=".xml,text/xml,application/xml" onchange="analisarXmlGnreCotacao(this)">
+                <div id="freteGnreXmlStatus" role="status" aria-live="polite">Importe uma NF-e para conferir os dados fiscais. A analise nao gera guia.</div>
+              </div>
+              <div class="campo-largo">
                 <label class="relatorio-label" for="freteGnreJustificativa">Justificativa do valor manual (obrigatoria quando aplicavel)</label>
                 <input id="freteGnreJustificativa" maxlength="300" placeholder="Motivo da alteracao manual do valor da GNRE">
               </div>
@@ -3404,7 +3409,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="clientes.js?v=13.4"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="transportadoras.js?v=245-cobertura-unica-cache"></script>
-<script src="cotacoes.js?v=gnre-previa-20261106"></script>
+<script src="cotacoes.js?v=gnre-xml-previa-20261106"></script>
 <script src="whatsapp.js?v=11"></script>
 <script src="dashboard.js?v=11"></script>
 <script src="notificacoes.js?v=11"></script>
