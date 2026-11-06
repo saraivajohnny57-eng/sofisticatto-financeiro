@@ -252,6 +252,34 @@ async function salvarAliquotaFrete(id){
   else carregarAliquotasFrete();
 }
 
+// Previa fiscal local: reutiliza exatamente o valor exibido na cotacao.
+// Nao emite guia, nao chama API e nao confirma obrigacao tributaria.
+function conferirPreviaGnreCotacao(){
+  const saida = document.getElementById("freteGnrePrevia");
+  if(!saida) return;
+  const modo = freteValor("freteGnreModo");
+  const nomeModo = {nao:"Nao se aplica",automatico:"Estimativa DIFAL/FCP",planilha2:"2% (NF + frete)",manual:"Valor manual"}[modo];
+  const chave = String(freteValor("freteChaveNfe") || "").replace(/\\D/g,"");
+  const valorTexto = freteValor("freteGnreValor");
+  const valor = numeroFrete(valorTexto);
+  saida.replaceChildren();
+  const linha = texto => { const p=document.createElement("p");p.textContent=texto;saida.appendChild(p); };
+  linha("Modalidade: " + (nomeModo || "Nao identificada"));
+  if(modo === "nao"){linha("Sem GNRE nesta cotacao. A obrigacao fiscal nao foi avaliada automaticamente.");return;}
+  if(!valorTexto || !Number.isFinite(valor) || valor <= 0){
+    linha("Calculo incompleto. Confira os valores e as aliquotas antes de prosseguir.");return;
+  }
+  if(modo === "manual"){
+    const motivo=String(freteValor("freteGnreJustificativa") || "").trim();
+    if(motivo.length < 5){linha("Informe uma justificativa de pelo menos 5 caracteres para o valor manual.");return;}
+    linha("Justificativa: " + motivo);
+  }
+  linha("Valor estimado: " + valor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}));
+  linha("UF de destino: " + (freteValor("freteUf") || "Nao informada"));
+  linha("Chave NF-e: " + (chave.length===44 ? chave : "Nao disponivel ou invalida"));
+  linha("Situacao: analise fiscal pendente. Esta previa NAO gera XML oficial nem transmite GNRE.");
+}
+
 function calcularGnreFrete(){
   const modo = freteValor("freteGnreModo");
   const campo = freteCampo("freteGnreValor");
