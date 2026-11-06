@@ -1836,3 +1836,16 @@ async function gnreCertReqV423(method,body){const chave=await obterChaveIntegrac
 async function salvarCertGnreV423(){const status=document.getElementById('gnreCertStatusV423'),arquivo=document.getElementById('gnreCertArquivoV423')?.files?.[0],senhaEl=document.getElementById('gnreCertSenhaV423');if(!arquivo||!senhaEl?.value){status.textContent='Selecione um arquivo PFX/P12 e informe a senha.';return;}if(!/\.(pfx|p12)$/i.test(arquivo.name)||arquivo.size>250000||arquivo.size<100){status.textContent='Selecione um PFX/P12 válido com até 250 KB.';return;}status.textContent='Validando e salvando certificado no servidor...';try{const bytes=new Uint8Array(await arquivo.arrayBuffer());let bin='';for(let i=0;i<bytes.length;i+=8192)bin+=String.fromCharCode(...bytes.subarray(i,i+8192));const result=await gnreCertReqV423('POST',{arquivoBase64:btoa(bin),senha:senhaEl.value});status.textContent=result.mensagem;}catch(e){status.textContent='Erro: '+e.message;}finally{senhaEl.value='';document.getElementById('gnreCertArquivoV423').value='';}}
 async function statusCertGnreV423(){const el=document.getElementById('gnreCertStatusV423');try{const d=await gnreCertReqV423('GET');el.textContent=d.cadastrado?'Certificado cifrado cadastrado no portal. Atualizado em: '+new Date(d.atualizado_em).toLocaleString('pt-BR'):'Sem certificado cadastrado no portal; diagnóstico usará configuração da Vercel, se existir.';}catch(e){el.textContent=e.message;}}
 async function excluirCertGnreV423(){if(!confirm('Remover o certificado GNRE cadastrado no portal?'))return;const el=document.getElementById('gnreCertStatusV423');try{await gnreCertReqV423('DELETE');el.textContent='Certificado do portal removido.';}catch(e){el.textContent=e.message;}}
+
+async function consultarContratoGnreMg100129(){
+ const el=document.getElementById('gnreConfigufContratoResultado');if(!el)return;
+ el.textContent='Consultando contrato oficial GnreConfigUF em homologação com o A1 cadastrado...';
+ try{
+  const chave=await obterChaveIntegracoesCotacao();
+  if(!chave){el.textContent='Consulta cancelada: autorização administrativa necessária.';return;}
+  const resposta=await fetch('/api/integracoes?action=gnre-configuf-contrato',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:'{}'});
+  const dados=await resposta.json();
+  if(!resposta.ok||!dados.ok){el.textContent='Falha ao consultar contrato: '+(dados.erro||'Resposta não aprovada')+' ('+(dados.codigo||resposta.status)+'). Nenhuma guia foi emitida.';return;}
+  el.textContent='WSDL oficial consultado. HTTP '+dados.http_status+'; operações: '+(dados.operacoes||[]).join(', ')+'; mensagens: '+(dados.mensagens||[]).join(', ')+'. Esta etapa verifica o contrato; ainda NÃO consulta os parâmetros da receita MG 100129. Nenhuma guia foi emitida.';
+ }catch(e){el.textContent='Falha de rede ao consultar contrato ConfigUF: '+String(e.message||e);}
+}
