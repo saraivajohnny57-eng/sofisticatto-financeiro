@@ -254,6 +254,39 @@ async function salvarAliquotaFrete(id){
 
 // Previa fiscal local: reutiliza exatamente o valor exibido na cotacao.
 // Nao emite guia, nao chama API e nao confirma obrigacao tributaria.
+// Analise local do XML de NF-e. Nao decide obrigacao de GNRE e nao transmite dados.
+let freteGnreNfeLida = null;
+async function analisarXmlGnreCotacao(input){
+  const saida=document.getElementById("freteGnreXmlStatus");
+  if(!saida || !input?.files?.length) return;
+  freteGnreNfeLida=null;
+  try{
+    const arquivo=input.files[0];
+    if(arquivo.size>3*1024*1024) throw new Error("XML excede 3 MB.");
+    const xml=await arquivo.text();
+    if(/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error("XML com declaracoes nao permitidas.");
+    const doc=new DOMParser().parseFromString(xml,"application/xml");
+    if(doc.getElementsByTagName("parsererror").length) throw new Error("XML malformado.");
+    const elementos=nome=>Array.from(doc.getElementsByTagName("*")).filter(el=>el.localName===nome);
+    const raiz=elementos("NFe")[0];
+    const inf=elementos("infNFe")[0];
+    if(!raiz || !inf) throw new Error("Arquivo nao contem uma NF-e.");
+    const obter=(pai,nome)=>Array.from(pai?.getElementsByTagName("*")||[]).find(el=>el.localName===nome)?.textContent?.trim()||"";
+    const ide=elementos("ide")[0],emit=elementos("emit")[0],dest=elementos("dest")[0],total=elementos("ICMSTot")[0];
+    const chave=String(inf.getAttribute("Id")||"").replace(/^NFe/,"");
+    if(!/^\\d{44}$/.test(chave)) throw new Error("Chave de NF-e invalida.");
+    const ufOrigem=obter(ide,"cUF"), ufDestino=obter(dest,"UF");
+    const numero=obter(ide,"nNF");
+    const valor=Number(obter(total,"vNF"));
+    if(!numero || !ufDestino || !Number.isFinite(valor) || valor<=0) throw new Error("Dados fiscais obrigatorios ausentes.");
+    const cnpj=obter(emit,"CNPJ");
+    freteGnreNfeLida={chave,numero,ufDestino,cnpjEmitente:cnpj,valorNf:valor,ufCodigo:ufOrigem};
+    saida.textContent="NF-e "+numero+" | UF "+ufDestino+" | Valor "+valor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})+" | Chave "+chave+" | Situacao: analise tributaria pendente. Nenhuma GNRE foi gerada.";
+  }catch(erro){
+    saida.textContent="Nao foi possivel analisar XML: "+erro.message;
+  }
+}
+
 function conferirPreviaGnreCotacao(){
   const saida = document.getElementById("freteGnrePrevia");
   if(!saida) return;
@@ -274,7 +307,7 @@ function conferirPreviaGnreCotacao(){
     linha("Justificativa: " + motivo);
   }
   linha("Valor estimado: " + valor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}));
-  linha("UF de destino: " + (freteValor("freteUf") || "Nao informada"));
+  linha("UF de destino: " + (freteValor("freteUf") || "Nao informada"));\n  if(freteGnreNfeLida) linha("NF-e XML conferida: "+freteGnreNfeLida.numero+" | Chave: "+freteGnreNfeLida.chave);
   linha("Situacao: analise fiscal pendente. Esta previa NAO gera XML oficial nem transmite GNRE.");
 }
 
