@@ -280,8 +280,25 @@ async function analisarXmlGnreCotacao(input){
     const valor=Number(obter(total,"vNF"));
     if(!numero || !ufDestino || !Number.isFinite(valor) || valor<=0) throw new Error("Dados fiscais obrigatorios ausentes.");
     const cnpj=obter(emit,"CNPJ");
-    freteGnreNfeLida={chave,numero,ufDestino,cnpjEmitente:cnpj,valorNf:valor,ufCodigo:ufOrigem};
-    saida.textContent="NF-e "+numero+" | UF "+ufDestino+" | Valor "+valor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})+" | Chave "+chave+" | Situacao: analise tributaria pendente. Nenhuma GNRE foi gerada.";
+    const itens=elementos("det").map(item=>{
+      const prod=Array.from(item.getElementsByTagName("*")).find(el=>el.localName==="prod");
+      const imposto=Array.from(item.getElementsByTagName("*")).find(el=>el.localName==="imposto");
+      const icms=Array.from(imposto?.getElementsByTagName("*")||[]).find(el=>el.localName==="ICMS");
+      return {cfop:obter(prod,"CFOP"),ncm:obter(prod,"NCM"),cst:obter(icms,"CST"),csosn:obter(icms,"CSOSN")};
+    });
+    if(!itens.length) throw new Error("NF-e sem itens fiscais.");
+    const cfops=[...new Set(itens.map(i=>i.cfop).filter(Boolean))];
+    const situacoes=[...new Set(itens.map(i=>i.cst||i.csosn).filter(Boolean))];
+    const ufTela=String(freteValor("freteUf")||"").toUpperCase();
+    const nfTela=String(freteValor("freteNumeroNf")||"").trim();
+    const valorTelaTexto=String(freteValor("freteValorNf")||"").trim();
+    const valorTela=numeroFrete(valorTelaTexto);
+    const divergencias=[];
+    if(ufTela && ufTela!==ufDestino) divergencias.push("UF da cotacao difere da NF-e");
+    if(nfTela && nfTela!==numero) divergencias.push("numero da NF da cotacao difere do XML");
+    if(valorTelaTexto && Math.abs(valorTela-valor)>0.01) divergencias.push("valor da cotacao difere do XML");
+    freteGnreNfeLida={chave,numero,ufDestino,cnpjEmitente:cnpj,valorNf:valor,ufCodigo:ufOrigem,itens,divergencias};
+    saida.textContent="NF-e "+numero+" | UF "+ufDestino+" | Valor "+valor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})+" | Chave "+chave+" | CFOP: "+(cfops.join(", ")||"nao informado")+" | CST/CSOSN: "+(situacoes.join(", ")||"nao informado")+(divergencias.length?" | ATENCAO: "+divergencias.join("; "):"")+" | Analise tributaria pendente. Nenhuma GNRE foi gerada.";
   }catch(erro){
     saida.textContent="Nao foi possivel analisar XML: "+erro.message;
   }
@@ -308,7 +325,10 @@ function conferirPreviaGnreCotacao(){
   }
   linha("Valor estimado: " + valor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}));
   linha("UF de destino: " + (freteValor("freteUf") || "Nao informada"));
-  if(freteGnreNfeLida) linha("NF-e XML conferida: "+freteGnreNfeLida.numero+" | Chave: "+freteGnreNfeLida.chave);
+  if(freteGnreNfeLida){
+    linha("NF-e XML conferida: "+freteGnreNfeLida.numero+" | Chave: "+freteGnreNfeLida.chave);
+    if(freteGnreNfeLida.divergencias.length) linha("ATENCAO: "+freteGnreNfeLida.divergencias.join("; "));
+  }
   linha("Situacao: analise fiscal pendente. Esta previa NAO gera XML oficial nem transmite GNRE.");
 }
 
