@@ -12,7 +12,8 @@ const repo = require('../lib/integracoes/gnre-idempotencia-repo');
 function baseEnv() {
   setEnv({
     SUPABASE_URL: 'https://fake.supabase.test',
-    SUPABASE_SERVICE_ROLE_KEY: 'service-ficticia'
+    SUPABASE_SERVICE_ROLE_KEY: 'service-ficticia',
+    INTEGRATIONS_ENCRYPTION_KEY: 'chave-ficticia-de-testes-gnre-32bytes'
   });
 }
 
@@ -95,7 +96,7 @@ test('transições de estado enviam PATCH com estado correto', async () => {
     return response([]);
   }, async () => {
     await repo.marcarEnviando('k1');
-    await repo.concluir('k1', { http_status: 200, categoria: 'soap_recebido' });
+    await repo.concluir('k1', { http_status: 200, categoria: 'soap_recebido', recibo_completo: '00001234567890', recibo_retorno_mascarado: '••••••7890' });
     await repo.falhar('k2', { http_status: 500, categoria: 'http_erro' });
     await repo.incerto('k3', { erro_codigo: 'ECONNRESET' });
   });
@@ -103,6 +104,8 @@ test('transições de estado enviam PATCH com estado correto', async () => {
   assert.equal(patches[0].body.estado, 'enviando');
   assert.equal(patches[1].body.estado, 'concluido');
   assert.equal(patches[1].body.http_status, 200);
+  assert.ok(patches[1].body.recibo_retorno_cifrado);
+  assert.ok(!JSON.stringify(patches[1].body).includes('00001234567890'));
   assert.equal(patches[2].body.estado, 'falha');
   assert.equal(patches[2].body.http_status, 500);
   assert.equal(patches[3].body.estado, 'resultado_incerto');
@@ -133,7 +136,7 @@ test('transição concorrente ou estado divergente bloqueia atualização', asyn
   baseEnv();
   await withFetch(async () => response([]), async () => {
     await assert.rejects(
-      () => repo.concluir('chave-inexistente', { http_status: 200, categoria: 'ok' }),
+      () => repo.concluir('chave-inexistente', { http_status: 200, categoria: 'ok', recibo_completo: '00001234567890' }),
       { code: 'GNRE_ESTADO_DIVERGENTE' }
     );
   });
