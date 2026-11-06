@@ -1,0 +1,14 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const {validarPreAlteracao}=require('../../lib/bradesco-validar-alteracao-encargos');
+const original={nossoNumero:'62710000024',produto:'09',negociacao:'123',seuNumero:'55994-01',dataEmissao:'2026-09-18',especie:'01',dataVencto:'2026-10-18',valorTitulo:441.91};
+const proposto={...original,comissaoPermanencia:{codigoComissaoPermanencia:2,diasComissaoPermanencia:1,valorComissaoPermanencia:5},codigoMulta:2,diasMulta:1,valorMulta:2};
+const consulta={http_status:200,codStatus:1,pago:false,baixado:false,descontado:false};
+const entrada=()=>({original:{...original},proposto:{...proposto,comissaoPermanencia:{...proposto.comissaoPermanencia}},consulta:{...consulta},confirmacaoEscala:'CONTRATO_PUT_VALIDADO'});
+test('sem homologação da escala do PUT, nunca autoriza alteração',()=>{const x=entrada();delete x.confirmacaoEscala;assert.equal(validarPreAlteracao(x).apto,false)});
+test('com contrato validado e dados consistentes, aprova apenas pré-validação',()=>assert.equal(validarPreAlteracao(entrada()).apto,true));
+test('rejeita mudança de valor nominal e vencimento',()=>{const x=entrada();x.proposto.valorTitulo=464.01;x.proposto.dataVencto='2026-11-06';assert.equal(validarPreAlteracao(x).apto,false)});
+test('rejeita título pago, baixado ou descontado',()=>{for(const k of ['pago','baixado','descontado']){const x=entrada();x.consulta[k]=true;assert.equal(validarPreAlteracao(x).apto,false)}});
+test('rejeita dados originais incompletos',()=>{const x=entrada();delete x.original.dataEmissao;assert.equal(validarPreAlteracao(x).apto,false)});
+test('rejeita juros e multa ausentes',()=>{const x=entrada();delete x.proposto.comissaoPermanencia;delete x.proposto.valorMulta;assert.equal(validarPreAlteracao(x).apto,false)});
