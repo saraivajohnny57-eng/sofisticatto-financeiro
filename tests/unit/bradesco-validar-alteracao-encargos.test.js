@@ -12,3 +12,5 @@ test('rejeita mudança de valor nominal e vencimento',()=>{const x=entrada();x.p
 test('rejeita título pago, baixado ou descontado',()=>{for(const k of ['pago','baixado','descontado']){const x=entrada();x.consulta[k]=true;assert.equal(validarPreAlteracao(x).apto,false)}});
 test('rejeita dados originais incompletos',()=>{const x=entrada();delete x.original.dataEmissao;assert.equal(validarPreAlteracao(x).apto,false)});
 test('rejeita juros e multa ausentes',()=>{const x=entrada();delete x.proposto.comissaoPermanencia;delete x.proposto.valorMulta;assert.equal(validarPreAlteracao(x).apto,false)});
+
+test('rejeita dias de cobrança não informados',()=>{const x=entrada();delete x.proposto.diasMulta;delete x.proposto.comissaoPermanencia.diasComissaoPermanencia;assert.equal(validarPreAlteracao(x).apto,false)});
