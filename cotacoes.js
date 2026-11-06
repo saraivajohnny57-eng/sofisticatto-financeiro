@@ -304,6 +304,14 @@ async function analisarXmlGnreCotacao(input){
   }
 }
 
+function preencherVencimentoGnreSeVazio(){
+  const campo=document.getElementById("freteGnreVencimento");
+  if(!campo || campo.value) return;
+  const agora=new Date();
+  const local=new Date(agora.getTime()-agora.getTimezoneOffset()*60000);
+  campo.value=local.toISOString().slice(0,10);
+}
+
 function conferirPreviaGnreCotacao(){
   const saida = document.getElementById("freteGnrePrevia");
   if(!saida) return;
@@ -323,6 +331,8 @@ function conferirPreviaGnreCotacao(){
     if(motivo.length < 5){linha("Informe uma justificativa de pelo menos 5 caracteres para o valor manual.");return;}
     linha("Justificativa: " + motivo);
   }
+  preencherVencimentoGnreSeVazio();
+  linha("Vencimento previsto (editavel): "+(freteValor("freteGnreVencimento")||"nao informado")+"; sujeito a confirmacao fiscal.");
   linha("Valor estimado: " + valor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}));
   linha("UF de destino: " + (freteValor("freteUf") || "Nao informada"));
   if(freteGnreNfeLida){
