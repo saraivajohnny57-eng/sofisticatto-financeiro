@@ -50,6 +50,7 @@ const gnreReconciliacao = require("../lib/integracoes/gnre-reconciliacao");
 const gnreRecepcaoPlano = require("../lib/integracoes/gnre-recepcao-plano");
 const gnreRecepcaoHttp = require("../lib/integracoes/gnre-recepcao-http");
 const gnreArquivoGuias = require("../lib/integracoes/gnre-arquivo-guias");
+const gnreConsultaLote = require("../lib/integracoes/gnre-consulta-lote");
 const diagnosticoDfeV445 = require("../lib/integracoes/diagnostico-dfe-v445");
 const ROTAS = Object.freeze({
   "diagnostico-dfe-v445": diagnosticoDfeV445,
@@ -60,6 +61,7 @@ const ROTAS = Object.freeze({
   "gnre-recepcao-plano": gnreRecepcaoPlano,
   "gnre-recepcao": gnreRecepcaoHttp,
   "gnre-arquivo-guias": gnreArquivoGuias,
+  "gnre-consulta-lote": gnreConsultaLote,
   "validar-chave": validarChave,
   "status-servidor": statusServidor,
   "salvar-credenciais": salvarCredenciais,
