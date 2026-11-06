@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - fix-bradesco-encargos-escala-20261106
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 permissions:
   contents: read
