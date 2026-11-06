@@ -144,7 +144,7 @@ test('com flag e confirmação, delega ao executor e respeita o bloqueio de idem
   await handler(fakeRequest({
     method: 'POST',
     headers: ADMIN,
-    body: { guias: guias(), confirmacao: 'TRANSMITIR_HOMOLOGACAO' }
+    body: { guias: guias(), confirmacao: 'TRANSMITIR_HOMOLOGACAO', referencia_nfe: { chave_nfe: '52261105451985000195550010000511091000626728', numero_nfe: '51109', uf_favorecida: 'MG', receita: '100102', valor_principal: '19.01', vencimento: '2026-11-06' } }
   }), res);
   // O repositório stub sempre devolve conflito → execução bloqueada.
   assert.equal(res.statusCode, 502);
