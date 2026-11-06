@@ -184,3 +184,5 @@ test('lote inválido falha antes de reservar idempotência', async () => {
   assert.throws(() => montarPlanoRecepcao([]), /1 a 50 guias/);
   assert.equal(repo.chamadas.length, 0);
 });
+
+test('GNRE extrai recibo de 14 digitos e preserva privacidade',()=>{const {extrairRecibo,mascararRecibo}=require('../lib/integracoes/gnre-recepcao-executor');const recibo=extrairRecibo('<soap:Envelope><numeroRecibo>00000012345678</numeroRecibo></soap:Envelope>');assert.equal(recibo,'00000012345678');assert.equal(mascararRecibo(recibo),'••••••••••5678');});
