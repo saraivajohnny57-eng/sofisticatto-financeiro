@@ -455,7 +455,7 @@ function abrirModalChaveIntegracoesCotacao(){
     fundo.className="modal-chave-integracoes-fundo";
     fundo.innerHTML=`
       <div class="modal-chave-integracoes-card">
-        <h3>🔐 Liberar cotação automática</h3>
+        <h3>🔐 Autorizar integrações do portal</h3>
         <p>Informe sua Senha Mestre de Integrações. Em computadores já autorizados, a migração é automática.</p>
         <label>Senha mestre
           <div class="modal-chave-integracoes-campo">
@@ -488,7 +488,7 @@ function abrirModalChaveIntegracoesCotacao(){
       btn.disabled=true;btn.textContent="Validando...";erro.textContent="";
       try{
         const validacao=await validarChaveIntegracoesCotacao(chave);
-        if(!validacao.ok){erro.textContent="Senha/autorização inválida. Confira a configuração na Vercel.";return;}
+        if(!validacao.ok){erro.textContent="Autorização recusada nesta Preview. Confira se a senha mestre foi configurada para esta branch e publique novamente após alterar a variável.";return;}
         const autorizado=localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key")||chave;
         sessionStorage.setItem("integrations_admin_key",autorizado);
         localStorage.setItem("integrations_admin_key",autorizado);
@@ -511,6 +511,7 @@ async function obterChaveIntegracoesCotacao(){
       if(v.ok)return localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key")||chave;
     }catch{}
     sessionStorage.removeItem("integrations_admin_key");
+    localStorage.removeItem("integrations_admin_key");
   }
   return abrirModalChaveIntegracoesCotacao();
 }
