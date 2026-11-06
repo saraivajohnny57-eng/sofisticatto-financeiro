@@ -259,7 +259,6 @@ function conferirPreviaGnreCotacao(){
   if(!saida) return;
   const modo = freteValor("freteGnreModo");
   const nomeModo = {nao:"Nao se aplica",automatico:"Estimativa DIFAL/FCP",planilha2:"2% (NF + frete)",manual:"Valor manual"}[modo];
-  const chave = String(freteValor("freteChaveNfe") || "").replace(/\\D/g,"");
   const valorTexto = freteValor("freteGnreValor");
   const valor = numeroFrete(valorTexto);
   saida.replaceChildren();
@@ -276,7 +275,6 @@ function conferirPreviaGnreCotacao(){
   }
   linha("Valor estimado: " + valor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}));
   linha("UF de destino: " + (freteValor("freteUf") || "Nao informada"));
-  linha("Chave NF-e: " + (chave.length===44 ? chave : "Nao disponivel ou invalida"));
   linha("Situacao: analise fiscal pendente. Esta previa NAO gera XML oficial nem transmite GNRE.");
 }
 
