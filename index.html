@@ -1176,6 +1176,16 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <label class="relatorio-label">GNRE estimada/manual</label>
                 <input id="freteGnreValor" inputmode="decimal" placeholder="0,00">
               </div>
+              <div class="campo-largo">
+                <label class="relatorio-label" for="freteGnreJustificativa">Justificativa do valor manual (obrigatoria quando aplicavel)</label>
+                <input id="freteGnreJustificativa" maxlength="300" placeholder="Motivo da alteracao manual do valor da GNRE">
+              </div>
+              <div class="campo-largo">
+                <button type="button" class="btn roxo" onclick="conferirPreviaGnreCotacao()">Conferir previa da GNRE</button>
+                <div id="freteGnrePrevia" role="status" aria-live="polite" style="margin-top:10px;padding:12px;border:1px solid #d8c8e8;border-radius:10px;white-space:pre-wrap;">
+                  A previa e apenas informativa. Nenhuma guia sera emitida.
+                </div>
+              </div>
               <div>
                 <label class="relatorio-label">Alíquota interna aplicada</label>
                 <input id="freteAliquotaInfo" readonly placeholder="Selecione UF e valor">
@@ -3394,7 +3404,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="clientes.js?v=13.4"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="transportadoras.js?v=245-cobertura-unica-cache"></script>
-<script src="cotacoes.js?v=393-braspress-auto"></script>
+<script src="cotacoes.js?v=gnre-previa-20261106"></script>
 <script src="whatsapp.js?v=11"></script>
 <script src="dashboard.js?v=11"></script>
 <script src="notificacoes.js?v=11"></script>
