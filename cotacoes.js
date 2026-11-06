@@ -307,7 +307,8 @@ function conferirPreviaGnreCotacao(){
     linha("Justificativa: " + motivo);
   }
   linha("Valor estimado: " + valor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}));
-  linha("UF de destino: " + (freteValor("freteUf") || "Nao informada"));\n  if(freteGnreNfeLida) linha("NF-e XML conferida: "+freteGnreNfeLida.numero+" | Chave: "+freteGnreNfeLida.chave);
+  linha("UF de destino: " + (freteValor("freteUf") || "Nao informada"));
+  if(freteGnreNfeLida) linha("NF-e XML conferida: "+freteGnreNfeLida.numero+" | Chave: "+freteGnreNfeLida.chave);
   linha("Situacao: analise fiscal pendente. Esta previa NAO gera XML oficial nem transmite GNRE.");
 }
 
