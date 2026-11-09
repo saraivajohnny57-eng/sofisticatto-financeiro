@@ -81,10 +81,19 @@ test('MG 100129 preenche convenio apos valor e dataPagamento ao final (tipo 12 F
 test('MG 100129 rejeita campos obrigatorios faltantes e tipo valor incorreto',()=>{
  for(const patch of [
   {detalhamentoReceita:'123456'}, {dataPagamento:null}, {dataPagamento:'2026-02-30'},
-  {convenio:null}, {convenio:''}, {tipoDocumentoOrigem:'09'}, {tipoValor:'11'},
+  {tipoDocumentoOrigem:'09'}, {tipoValor:'11'},
   {contribuinte:null},
   {contribuinte:{...casoFcpMg.contribuinte,cep:null}},
  ]){
   assert.throws(()=>guiaSimples({...casoFcpMg,...patch}),/MG\/100129|Data GNRE invalida|convenio/);
  }
+});
+
+test('MG 100129 com exigeConvenio=S aceita convenio vazio e omite elemento XML',()=>{
+ for(const conv of [null,'', '   ']){
+  const xml=guiaSimples({...casoFcpMg,convenio:conv});
+  assert.doesNotMatch(xml,/<convenio>/);
+  assert.match(xml,/<valor tipo="12">79\.17<\/valor><\/item>/);
+ }
+ assert.throws(()=>guiaSimples({...casoFcpMg,convenio:'a'.repeat(31)}),/convenio/);
 });

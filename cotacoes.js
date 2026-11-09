@@ -1938,7 +1938,7 @@ async function carregarNfePreenvioGnreMg(input){
    throw Error('Este pré-envio exige NF-e GO → MG com DIFAL informado.');
   gnrePreenvioNfeLida=dados;
   saida.textContent='NF-e '+dados.numero+' | MG | DIFAL R$ '+dados.valorDifal+' | FCP no XML R$ '+fcp+
-   '\nProtocolo presente. Preencha vencimento, data de pagamento e convênio conforme confirmação fiscal.';
+   '\nProtocolo presente. Confirme vencimento e data de pagamento; convênio é opcional.';
  }catch(e){saida.textContent='NF-e não preparada: '+String(e.message||e);gnrePreenvioNfeLida=null;}
 }
 async function verificarPreenvioGnreMg(){

@@ -42,3 +42,21 @@ test('lote MG/100129 completo sintético passa no XSD oficial v2.00',
   assert.equal(out.ok,true,JSON.stringify(out));
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+test('lote FCP MG 100129 sem convenio opcional continua valido no XSD 2.00',
+ {skip:available?false:'xmlschema indisponivel'},()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'gnre-fcp-sem-conv-'));
+ try{
+  const file=path.join(dir,'lote.xml');
+  const guia=guiaSimples({
+   ufFavorecida:'MG',receita:'100129',detalhamentoReceita:'000051',
+   valorPrincipal:'79.17',dataVencimento:'2026-11-09',dataPagamento:'2026-11-09',
+   convenio:null,documentoOrigem:'51109',tipoDocumentoOrigem:'10',
+   contribuinte:{cnpj:'12345678000195',endereco:'Rua Exemplo',municipio:'08707',uf:'GO',cep:'74550470'}
+  });
+  assert.doesNotMatch(guia,/<convenio>/);
+  fs.writeFileSync(file,montarLoteGnre([guia]),'utf8');
+  const r=spawnSync('python3',[validator,'--schema',schema,'--xml',file],{encoding:'utf8'});
+  assert.equal(r.status,0,JSON.stringify({stdout:r.stdout,stderr:r.stderr}).slice(0,2500));
+ } finally { fs.rmSync(dir,{recursive:true,force:true}); }
+});

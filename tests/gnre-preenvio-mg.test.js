@@ -19,7 +19,7 @@ test('pre-envio exige conferencia fiscal, sem criar lote ou transmitir se incomp
  const r=prepararPreEnvio({nfe,fiscal:{}});
  assert.equal(r.apto_para_revisao,false);
  assert.equal(r.transmissao,false);
- assert.ok(r.pendencias.length>=5);
+ assert.ok(r.pendencias.length>=4);
  assert.equal(r.plano,undefined);
 });
 test('pre-envio MG 100102 correto cria hash e idempotencia, sem XML nem emissao',()=>{
@@ -45,9 +45,9 @@ test('pre-envio rejeita protocolos, UF, contribuinte e valores incompatíveis',(
   assert.throws(()=>prepararPreEnvio({nfe:{...nfe,...p},fiscal}));
  }
 });
-test('não permite substituir datas ou convênio por confirmação automática',()=>{
+test('nao pula datas e obrigacao fiscal, convenio informado precisa de confirmacao',()=>{
  for(const p of [{vencimentoConfirmado:false},{convenioConfirmado:false},
- {obrigacaoConfirmada:false},{convenio:''},{vencimento:'2026-02-30'}]){
+ {obrigacaoConfirmada:false},{vencimento:'2026-02-30'}]){
   const r=prepararPreEnvio({nfe,fiscal:{...fiscal,...p}});
   assert.equal(r.apto_para_revisao,false);
   assert.ok(r.pendencias.length>0);
@@ -67,4 +67,19 @@ test('API e painel usam somente a rota de pre-envio administrativo',()=>{
  assert.doesNotMatch(mod,/enviarSoap|executarRecepcao|TRANSMITIR_HOMOLOGACAO/);
  assert.match(mod,/exigirAdmin/);
  assert.match(mod,/GNRE_AMBIENTE/);
+});
+
+test('pre-envio permite convenio vazio com exigeConvenio S e mantem confirmação fiscal',()=>{
+ const r=prepararPreEnvio({nfe,fiscal:{...fiscal,convenio:'',convenioConfirmado:false}});
+ assert.equal(r.apto_para_revisao,true);
+ assert.equal(r.pendencias.length,0);
+ assert.equal(r.transmissao,false);
+});
+test('pre-envio rejeita convenio opcional invalido e exige confirmacao se preenchido',()=>{
+ for(const convenio of ['a'.repeat(31),'<injetado>']){
+  const r=prepararPreEnvio({nfe,fiscal:{...fiscal,convenio}});
+  assert.equal(r.apto_para_revisao,false);
+ }
+ const r=prepararPreEnvio({nfe,fiscal:{...fiscal,convenio:'CONVENIO TESTE',convenioConfirmado:false}});
+ assert.equal(r.apto_para_revisao,false);
 });

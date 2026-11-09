@@ -1383,11 +1383,11 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <div class="frete-cadastro-grid" style="margin-top:12px">
             <div><label class="relatorio-label" for="gnrePreenvioVencimento">Vencimento legal confirmado</label><input id="gnrePreenvioVencimento" type="date" autocomplete="off"></div>
             <div><label class="relatorio-label" for="gnrePreenvioPagamento">Data prevista de pagamento</label><input id="gnrePreenvioPagamento" type="date" autocomplete="off"></div>
-            <div class="campo-largo"><label class="relatorio-label" for="gnrePreenvioConvenio">Número de convênio / protocolo fiscal (até 30 caracteres)</label><input id="gnrePreenvioConvenio" type="text" maxlength="30" autocomplete="off" placeholder="Preencher somente após confirmação fiscal"></div>
+            <div class="campo-largo"><label class="relatorio-label" for="gnrePreenvioConvenio">Convênio (opcional na receita MG/100102)</label><input id="gnrePreenvioConvenio" type="text" maxlength="30" autocomplete="off" placeholder="Deixe em branco se não houver convênio"></div>
           </div>
           <div style="font-size:13px;margin:12px 0;display:grid;gap:7px">
             <label><input type="checkbox" id="gnrePreenvioConfirmaVencimento"> Confirmei o vencimento legal com a regra fiscal aplicável.</label>
-            <label><input type="checkbox" id="gnrePreenvioConfirmaConvenio"> Confirmei o convênio/protocolo com o setor fiscal.</label>
+            <label><input type="checkbox" id="gnrePreenvioConfirmaConvenio"> Se informei um convênio opcional, confirmei seu número.</label>
             <label><input type="checkbox" id="gnrePreenvioConfirmaObrigacao"> O responsável fiscal confirmou a obrigação de DIFAL desta operação.</label>
           </div>
           <button type="button" class="buscar" onclick="verificarPreenvioGnreMg()">🔎 Conferir pré-envio sem transmitir</button>

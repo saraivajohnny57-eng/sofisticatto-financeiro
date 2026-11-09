@@ -32,7 +32,7 @@ test('GNRE DIFAL MG 100102: tipo 11, sem detalhe, com todos os campos exigidos',
 test('GNRE DIFAL MG 100102 rejeita guias sem os campos obrigatorios do ConfigUF',()=>{
  for(const patch of [
   {dataVencimento:null},{dataPagamento:null},{dataPagamento:'2026-02-30'},
-  {convenio:null},{convenio:''},{documentoOrigem:null},
+  {convenio:'a'.repeat(31)},{documentoOrigem:null},
   {tipoDocumentoOrigem:'09'},{tipoValor:'12'},{contribuinte:null},
   {detalhamentoReceita:'000051'},
   {contribuinte:{...dados.contribuinte,municipio:'5208707'}},
@@ -50,4 +50,12 @@ test('lote GNRE DIFAL MG 100102 sintetico valido no XSD oficial v2.00',
   assert.equal(r.status,0,JSON.stringify({stdout:r.stdout,stderr:r.stderr}).slice(0,2500));
   assert.equal(JSON.parse(r.stdout).ok,true);
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('MG 100102 exigeConvenio=S permite omitir convenio sem alterar DIFAL',()=>{
+ for(const convenio of [null,'', '   ']){
+  const xml=guiaSimples({...dados,convenio});
+  assert.doesNotMatch(xml,/<convenio>/);
+  assert.match(xml,/<valor tipo="11">19\.01<\/valor><\/item>/);
+ }
 });
