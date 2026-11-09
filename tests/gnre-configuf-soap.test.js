@@ -143,13 +143,15 @@ test('endereco HTTPS 443 so pode ser testado em modo comparativo explicito',()=>
  assert.throws(()=>validarWsdlConfigUf(
    alternativo.replace('https://','http://'),{permitir443:true}));
 });
-test('diagnostico 443 envia somente consulta MG sem receita e nao altera endpoint 444',()=>{
+test('diagnostico HTTPS 443 envia somente consulta MG sem receita e usa endpoint aprovado',()=>{
  const codigo=fs.readFileSync(path.join(__dirname,'../lib/integracoes/gnre-configuf-consulta.js'),'utf8');
  const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
  const ui=fs.readFileSync(path.join(__dirname,'../cotacoes.js'),'utf8');
  assert.match(codigo,/tipo_teste==='comparar_443'/);
+ assert.match(codigo,/const destino=validarWsdlConfigUf\(wsdl\.xml,\{permitir443:true\}\)/);
+ assert.match(codigo,/if\(destino\.href!==ENDPOINT_ALTERNATIVO_443\)/);
  assert.match(codigo,/consultarSoap\(destinoAlternativo,tls,null\)/);
- assert.match(codigo,/https:\/\/www\.testegnre\.pe\.gov\.br:444\/gnreWS\/services\/GnreConfigUF\?wsdl/);
+ assert.match(codigo,/const WSDL=ENDPOINT_ALTERNATIVO_443\+'\?wsdl'/);
  assert.doesNotMatch(codigo,/GnreLoteRecepcao|processarGuia|emitirGuia/);
  assert.match(html,/onclick="compararGnreConfigUf443\(\)"/);
  assert.match(ui,/async function compararGnreConfigUf443\(\)/);
