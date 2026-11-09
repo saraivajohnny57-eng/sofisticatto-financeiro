@@ -53,12 +53,37 @@ test('rejeita identificacao e documento invalidos sem inserir XML arbitrario', (
 
 // O numero 123456 e um exemplo SINTETICO apenas para testar o formato XSD.
 test('inclui detalhamentoReceita opcional para receita 100129 na ordem correta do XSD', () => {
-  const xml = guiaSimples({
-    ...dados, receita:'100129', detalhamentoReceita:'123456',
-    documentoOrigem:'51109', tipoDocumentoOrigem:'10'
-  });
-  assert.match(xml, /<receita>100129<\/receita><detalhamentoReceita>123456<\/detalhamentoReceita><documentoOrigem tipo="10">/);
+  const casoFcpMg={
+  ...dados,
+  receita:'100129',detalhamentoReceita:'000051',
+  documentoOrigem:'51109',tipoDocumentoOrigem:'10',
+  dataPagamento:'2026-11-09',convenio:'TESTE CONVENIO',
+  contribuinte:{
+    cnpj:'12345678000195',razaoSocial:'Empresa de Teste',
+    endereco:'Rua de Teste, 100',municipio:'5208707',uf:'GO',cep:'74550470'
+  }
+};
+  const xml = guiaSimples(casoFcpMg);
+  assert.match(xml, /<receita>100129<\/receita><detalhamentoReceita>000051<\/detalhamentoReceita><documentoOrigem tipo="10">/);
   assert.doesNotMatch(guiaSimples(dados), /<detalhamentoReceita>/);
   for(const invalido of ['1','00001','abcdef','1234567','<xml/>'])
-    assert.throws(()=>guiaSimples({...dados,detalhamentoReceita:invalido}),/detalhamentoReceita/);
+    assert.throws(()=>guiaSimples({...casoFcpMg,detalhamentoReceita:invalido}),/detalhamentoReceita/);
+});
+
+test('MG 100129 preenche convenio apos valor e dataPagamento ao final (tipo 12 FCP)', () => {
+ const xml=guiaSimples(casoFcpMg);
+ assert.match(xml, /<valor tipo="12">79\.17<\/valor><convenio>TESTE CONVENIO<\/convenio><\/item>/);
+ assert.match(xml, /<\/itensGNRE><valorGNRE>79\.17<\/valorGNRE><dataPagamento>2026-11-09<\/dataPagamento>/);
+ assert.match(xml, /<endereco>Rua de Teste, 100<\/endereco><municipio>5208707<\/municipio><uf>GO<\/uf><cep>74550470<\/cep>/);
+ assert.match(guiaSimples({...casoFcpMg,detalhamentoReceita:'000052'}), /<detalhamentoReceita>000052<\/detalhamentoReceita>/);
+});
+test('MG 100129 rejeita campos obrigatorios faltantes e tipo valor incorreto',()=>{
+ for(const patch of [
+  {detalhamentoReceita:'123456'}, {dataPagamento:null}, {dataPagamento:'2026-02-30'},
+  {convenio:null}, {convenio:''}, {tipoDocumentoOrigem:'09'}, {tipoValor:'11'},
+  {contribuinte:null},
+  {contribuinte:{...casoFcpMg.contribuinte,cep:null}},
+ ]){
+  assert.throws(()=>guiaSimples({...casoFcpMg,...patch}),/MG\/100129|Data GNRE invalida|convenio/);
+ }
 });
