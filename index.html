@@ -1407,6 +1407,12 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <div id="gnrePilotoResultado" role="status" style="margin-top:9px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere"></div>
           </div>
         </div>
+        <div class="card" id="gnrePaConfiguracao" style="margin-top:12px;padding:16px">
+          <strong>GNRE Pará — NF-e 51076 / DIFAL por operação (receita 100102)</strong>
+          <p style="margin:8px 0;font-size:13px">A nota GO → PA tem DIFAL informado, mas precisa da configuração fiscal do Pará. Verifique os campos obrigatórios no WebService GNRE de homologação antes de preparar qualquer emissão. O código estadual 0303 exige confirmação de aplicação e campo correto.</p>
+          <button type="button" class="buscar" onclick="consultarConfigUfPa100102()">Consultar ConfigUF Pará / 100102 (sem emitir)</button>
+          <div id="gnrePaConfigufResultado" role="status" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;margin-top:10px"></div>
+        </div>
         <div class="card" id="gnreProducaoPreparacao" style="margin-top:12px;padding:16px">
           <strong>Preparar primeira GNRE de PRODUÇÃO — GO → MG / 100102</strong>
           <p style="font-size:13px;margin:9px 0">Somente análise. Selecione uma NF-e nova no campo de XML acima e confirme os dados fiscais. A NF-e 51109 pertence ao teste de homologação e não será transmitida novamente.</p>

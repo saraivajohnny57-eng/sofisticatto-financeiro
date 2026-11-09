@@ -2219,6 +2219,45 @@ async function verificarGnrePreProducaoMg(){
  }catch(e){el.textContent='Falha ao conferir: '+String(e.message||e)+'. Nenhum lote transmitido.';}
 }
 
+// Somente leitura: consulta receita 100102 no ConfigUF do Pará em homologação.
+// Não gera guia, não presume que o código 0303 seja detalhamento ou convênio.
+async function consultarConfigUfPa100102(){
+ const el=document.getElementById('gnrePaConfigufResultado');
+ if(!el)return;
+ el.textContent='Consultando configuração oficial do Pará em homologação, sem transmissão...';
+ try{
+  const chave=await obterChaveIntegracoesCotacao();
+  if(!chave){el.textContent='Consulta cancelada: autorize este dispositivo com a Senha Mestre (campo oculto).';return;}
+  const r=await fetch('/api/integracoes?action=gnre-pa-configuf',{
+   method:'POST',
+   headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+   body:'{}',cache:'no-store'
+  });
+  const d=await r.json().catch(()=>({}));
+  if(r.status===401){
+   el.textContent='Autorização administrativa expirada ou inválida nesta Preview. Reautorize o dispositivo; nenhuma guia foi transmitida.';
+   return;
+  }
+  if(!r.ok){el.textContent='Consulta do Pará não concluída: '+(d.erro||'erro de conexão')+'. Nenhuma guia foi transmitida.';return;}
+  const p=d.campos_configuf||{};
+  el.textContent=(d.ok?'ConfigUF PA/100102: receita confirmada.':'ConfigUF PA/100102: ainda sem confirmação.')
+   +'\nCódigo GNRE: '+(d.codigo_gnre||'não informado')
+   +'\nDiagnóstico: '+(d.diagnostico||'não informado')
+   +'\nDocumento de origem: '+(p.exige_documento_origem||'não confirmado')
+   +'\nConvênio: '+(p.exige_convenio||'não confirmado')
+   +'\nData de pagamento: '+(p.exige_data_pagamento||'não confirmado')
+   +'\nContribuinte emitente: '+(p.exige_contribuinte_emitente||'não confirmado')
+   +'\nContribuinte destinatário: '+(p.exige_contribuinte_destinatario||'não confirmado')
+   +'\nDetalhamento de receita: '+(p.detalhamento_verificado?'identificado':'não confirmado')
+   +'\nCampos adicionais: '+(p.campos_adicionais_verificados?'identificados':'não confirmados')
+   +'\nCódigo estadual 0303: campo ainda não confirmado, não será inserido automaticamente.'
+   +'\nS=opcional; O=obrigatório; N=não exigido. "Não confirmado" requer validação.'
+   +'\nNenhuma GNRE foi emitida. Produção depende de autorização fiscal específica.';
+ }catch(e){
+  el.textContent='Consulta indisponível: '+String(e.message||e)+'. Não ocorreu emissão.';
+ }
+}
+
 // Confirmacao independente do endpoint ConfigUF HTTPS 443, aprovado em SOAP 450.
 // Nao transmite guias. Os endpoints de recepcao/resultado usam 443 apenas na homologacao Preview.
 async function compararGnreConfigUf443(){
