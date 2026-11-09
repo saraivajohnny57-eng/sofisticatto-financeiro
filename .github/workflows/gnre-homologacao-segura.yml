@@ -1,0 +1,31 @@
+name: GNRE - contrato e testes offline para homologacao
+on:
+  push:
+    branches:
+      - gnre-homologacao-segura-20261109
+  pull_request:
+    branches:
+      - gnre-xml-calculos-integracao
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Instalar dependencias sem scripts de instalacao
+        run: npm ci --ignore-scripts
+      - name: GNRE regressao por recibo e XML canonico
+        run: node --require ./tests/helpers/no-network.js --test tests/gnre-consulta-xml.test.js tests/gnre-consulta-lote-contrato-2026.test.js tests/unit/gnre-recibo-seguro.test.js
+      - name: Suíte completa com rede bloqueada
+        run: npm test
+      - name: Resumo de segurança
+        if: always()
+        run: echo "Sem segredos, sem acesso a GNRE, sem lote transmitido. Testes offline." >> "$GITHUB_STEP_SUMMARY"
