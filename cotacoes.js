@@ -1911,15 +1911,36 @@ function coletarFiscalGnreMg(){
   convenioConfirmado:check('gnrePreenvioConfirmaConvenio'),
   obrigacaoConfirmada:check('gnrePreenvioConfirmaObrigacao')};
 }
+// Diagnostico local da NF-e importada; NAO significa tributo devido.
+// O piloto MG/100102 nao pode ser aplicado automaticamente a outras UFs.
+function diagnosticarNfeGnreMg100102(nfe){
+ const pendencias=[];
+ if(!nfe)return ['Importe primeiro um XML de NF-e autorizado.'];
+ if(nfe.ufOrigem!=='GO'||nfe.ufDestino!=='MG')
+  pendencias.push('Esta rotina está homologada apenas para GO → MG. Destino detectado: '+(nfe.ufDestino||'não informado')+'. Configure a UF e receita correspondentes antes de emitir.');
+ if(nfe.consumidorFinal!=='1')
+  pendencias.push('A NF-e não está identificada como operação com consumidor final (indFinal diferente de 1).');
+ if(nfe.indIeDest!=='9')
+  pendencias.push('O destinatário não está classificado como não contribuinte (indIEDest diferente de 9).');
+ const valor=String(nfe.valorDifal||'');
+ if(!/^(?:0|[1-9]\d{0,10})\.\d{2}$/.test(valor)||Number(valor)<=0)
+  pendencias.push('DIFAL de destino (vICMSUFDest) não foi encontrado com valor positivo no total da NF-e; não é seguro calcular ou emitir guia automaticamente.');
+ return pendencias;
+}
+
 async function carregarNfePreenvioGnreMg(input){
  const saida=document.getElementById('gnrePreenvioNfeResumo');
  if(!saida)return;
  gnrePreenvioNfeLida=null;
  gnrePreenvioLoteAprovado=null;
+ for(const id of ['gnrePreenvioResultado','gnreProducaoResultado']){
+  const el=document.getElementById(id);if(el)el.textContent='';
+ }
  const arquivo=input?.files?.[0];
  if(!arquivo){saida.textContent='Nenhuma NF-e carregada.';return;}
  try{
-  if(!/\.xml$/i.test(arquivo.name)||arquivo.size>3*1024*1024||arquivo.size<100)throw Error('Selecione XML com até 3 MB.');
+  if(!/\.xml$/i.test(arquivo.name)||arquivo.size>3*1024*1024||arquivo.size<100)
+   throw Error('Selecione um XML de NF-e com até 3 MB.');
   const xml=await arquivo.text();
   if(/<!DOCTYPE|<!ENTITY/i.test(xml))throw Error('Declaração XML não permitida.');
   const doc=new DOMParser().parseFromString(xml,'application/xml');
@@ -1928,10 +1949,11 @@ async function carregarNfePreenvioGnreMg(input){
   const val=(pai,n)=>el(pai,n)?.textContent?.trim()||'';
   const inf=el(doc,'infNFe'),ide=el(inf,'ide'),emit=el(inf,'emit'),dest=el(inf,'dest');
   const end=el(emit,'enderEmit'),total=el(inf,'ICMSTot'),prot=el(doc,'infProt');
-  if(!inf||!ide||!emit||!dest||!end||!total||!prot)throw Error('NF-e sem dados ou protocolo completos.');
+  if(!inf||!ide||!emit||!dest||!end||!total||!prot)
+   throw Error('NF-e sem dados ou protocolo completos.');
   const chave=String(inf.getAttribute('Id')||'').replace(/^NFe/,'');
   const itens=Array.from(inf.getElementsByTagName('*')).filter(e=>e.localName==='det');
-  const fcp=itens.reduce((s,item)=>s+Number(val(el(item,'ICMSUFDest'),'vFCPUFDest')||0),0).toFixed(2);
+  const fcp=itens.reduce((sum,item)=>sum+Number(val(el(item,'ICMSUFDest'),'vFCPUFDest')||0),0).toFixed(2);
   const dados={
    chave,numero:val(ide,'nNF'),cnpjEmitente:val(emit,'CNPJ'),
    chaveProtocolo:val(prot,'chNFe'),statusAutorizacao:val(prot,'cStat'),
@@ -1944,16 +1966,42 @@ async function carregarNfePreenvioGnreMg(input){
   };
   if(!/^\d{44}$/.test(chave)||!itens.length||dados.chaveProtocolo!==chave||dados.statusAutorizacao!=='100')
    throw Error('NF-e sem chave/protocolo de autorização válido.');
-  if(dados.ufOrigem!=='GO'||dados.ufDestino!=='MG'||!dados.valorDifal)
-   throw Error('Este pré-envio exige NF-e GO → MG com DIFAL informado.');
+  if(dados.ambienteNfe!=='1')
+   throw Error('A NF-e deve estar autorizada no ambiente de produção (tpAmb=1).');
   gnrePreenvioNfeLida=dados;
-  saida.textContent='NF-e '+dados.numero+' | MG | DIFAL R$ '+dados.valorDifal+' | FCP no XML R$ '+fcp+
-   '\nProtocolo presente. Confirme vencimento e data de pagamento; convênio é opcional.';
- }catch(e){saida.textContent='NF-e não preparada: '+String(e.message||e);gnrePreenvioNfeLida=null;}
+  const pendencias=diagnosticarNfeGnreMg100102(dados);
+  const valor=Number(dados.valorDifal);
+  const difal=/^\d+(?:\.\d{2})$/.test(dados.valorDifal)&&Number.isFinite(valor)
+   ?valor.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'não informado no XML';
+  const linhas=[
+   'NF-e '+(dados.numero||'sem número')+' IMPORTADA para análise | '+(dados.ufOrigem||'?')+' → '+(dados.ufDestino||'?'),
+   'DIFAL no XML: '+difal+' | FCP por item: R$ '+fcp,
+   'Consumidor final: '+(dados.consumidorFinal==='1'?'sim':'não identificado')+
+    ' | Não contribuinte: '+(dados.indIeDest==='9'?'sim':'não identificado'),
+   'Autorização NF-e: protocolo 100 confirmado.'
+  ];
+  if(pendencias.length){
+   linhas.push('Importação concluída, porém a emissão MG/100102 NÃO está liberada:');
+   linhas.push(...pendencias.map(p=>'- '+p));
+   linhas.push('A NF-e pode ser analisada; nenhuma guia será gerada ou transmitida.');
+  }else{
+   linhas.push('NF-e compatível com a etapa MG/100102 para conferência fiscal. Nenhuma guia transmitida.');
+  }
+  saida.textContent=linhas.join('\n');
+ }catch(e){
+  gnrePreenvioNfeLida=null;
+  saida.textContent='Não foi possível ler a NF-e: '+String(e.message||e);
+ }
 }
 async function verificarPreenvioGnreMg(){
  const saida=document.getElementById('gnrePreenvioResultado');if(!saida)return;
  if(!gnrePreenvioNfeLida){saida.textContent='Importe primeiro a NF-e autorizada.';return;}
+ const incompatibilidades=diagnosticarNfeGnreMg100102(gnrePreenvioNfeLida);
+ if(incompatibilidades.length){
+  saida.textContent='NF-e importada, mas este pré-envio MG/100102 não se aplica:\n- '+
+   incompatibilidades.join('\n- ')+'\nNenhuma guia transmitida.';
+  return;
+ }
  saida.textContent='Conferindo pré-envio, sem transmitir...';
  try{
   const chave=await obterChaveIntegracoesCotacao();
@@ -2143,6 +2191,12 @@ async function verificarGnrePreProducaoMg(){
  const el=document.getElementById('gnreProducaoResultado');if(!el)return;
  if(!gnrePreenvioNfeLida){
   el.textContent='Selecione primeiro um XML autorizado de NF-e NOVA. A nota 51109 foi usada na homologação.';
+  return;
+ }
+ const incompatibilidades=diagnosticarNfeGnreMg100102(gnrePreenvioNfeLida);
+ if(incompatibilidades.length){
+  el.textContent='NF-e importada para análise, mas não elegível para o piloto de produção MG/100102:\n- '+
+   incompatibilidades.join('\n- ')+'\nNenhuma guia foi transmitida.';
   return;
  }
  el.textContent='Conferindo dados fiscais, certificado e duplicidades, sem transmitir...';
