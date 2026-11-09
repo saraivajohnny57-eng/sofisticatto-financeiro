@@ -27,7 +27,7 @@ test('rejeita valores invalidos e campos fiscais ausentes', () => {
 test('preparacao GNRE encaminha detalhamento de receita sem inventar o codigo', () => {
  const r=preparar({...base,receita:'100129',detalhamentoReceita:'000051',
    dataPagamento:'2026-11-09',convenio:'TESTE CONVENIO',
-   contribuinte:{cnpj:'12345678000195',endereco:'Rua Teste',municipio:'5208707',uf:'GO',cep:'74550470'},
+   contribuinte:{cnpj:'12345678000195',endereco:'Rua Teste',municipio:'08707',uf:'GO',cep:'74550470'},
    modo:'manual',valorManual:95.83,motivoAlteracao:'Conferencia fiscal',obrigacaoConfirmada:true});
  assert.match(r.xml,/<receita>100129<\/receita><detalhamentoReceita>000051<\/detalhamentoReceita>/);
  assert.match(r.xml, /<valor tipo="12">95\.83<\/valor>/);

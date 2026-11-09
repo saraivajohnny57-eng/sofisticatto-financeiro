@@ -51,18 +51,19 @@ test('rejeita identificacao e documento invalidos sem inserir XML arbitrario', (
   for (const caso of casos) assert.throws(() => guiaSimples({ ...dados, ...caso }));
 });
 
-// O numero 123456 e um exemplo SINTETICO apenas para testar o formato XSD.
-test('inclui detalhamentoReceita opcional para receita 100129 na ordem correta do XSD', () => {
-  const casoFcpMg={
+const casoFcpMg={
   ...dados,
   receita:'100129',detalhamentoReceita:'000051',
   documentoOrigem:'51109',tipoDocumentoOrigem:'10',
   dataPagamento:'2026-11-09',convenio:'TESTE CONVENIO',
   contribuinte:{
     cnpj:'12345678000195',razaoSocial:'Empresa de Teste',
-    endereco:'Rua de Teste, 100',municipio:'5208707',uf:'GO',cep:'74550470'
+    endereco:'Rua de Teste, 100',municipio:'08707',uf:'GO',cep:'74550470'
   }
 };
+
+// O exemplo usa os codigos oficiais de detalhamento; o municipio GNRE tem 5 digitos.
+test('inclui detalhamentoReceita opcional para receita 100129 na ordem correta do XSD', () => {
   const xml = guiaSimples(casoFcpMg);
   assert.match(xml, /<receita>100129<\/receita><detalhamentoReceita>000051<\/detalhamentoReceita><documentoOrigem tipo="10">/);
   assert.doesNotMatch(guiaSimples(dados), /<detalhamentoReceita>/);

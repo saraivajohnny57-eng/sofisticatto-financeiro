@@ -20,7 +20,7 @@ function guiaFcp(){
   convenio:'CONVENIO DE TESTE',
   documentoOrigem:'51109',tipoDocumentoOrigem:'10',
   contribuinte:{cnpj:'12345678000195',razaoSocial:'Empresa de Teste',
-   endereco:'Rua Exemplo, 100',municipio:'5208707',uf:'GO',cep:'74550470'}
+   endereco:'Rua Exemplo, 100',municipio:'08707',uf:'GO',cep:'74550470'}
  });
 }
 test('FCP MG/100129 gera lote com tipo 12 e campos exigidos pelo ConfigUF',()=>{
