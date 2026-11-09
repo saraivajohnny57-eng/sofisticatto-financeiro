@@ -1927,3 +1927,32 @@ async function compararGnreConfigUf443(){
      +'. Nenhuma guia foi transmitida.';
  }
 }
+
+
+// Consulta os contratos de recepcao/resultado GNRE sem enviar nenhum lote.
+async function verificarGnreLotesWsdl443(){
+ const el=document.getElementById('gnreLotesWsdl443Resultado');
+ if(!el)return;
+ el.textContent='Verificando WSDLs dos servicos de recepcao e consulta em HTTPS 443 (somente leitura)...';
+ try{
+  const chave=await obterChaveIntegracoesCotacao();
+  if(!chave){el.textContent='Autorizacao administrativa necessaria.';return;}
+  const response=await fetch('/api/integracoes?action=gnre-lotes-wsdl443',{
+   method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+   body:'{}'
+  });
+  const d=await response.json();
+  if(!Array.isArray(d.contratos)){
+   el.textContent='Nao foi possivel confirmar os contratos: '+(d.erro||'Resposta inesperada')+'. Nenhuma guia foi enviada.';
+   return;
+  }
+  const linhas=d.contratos.map(x=>x.servico+': '+(x.contrato_aprovado?'WSDL 443 CONFIRMADO':'WSDL 443 NAO confirmado')
+   +' | HTTP '+(x.wsdl_http||'indisponivel')
+   +' | SOAP 1.2: '+(x.wsdl_soap12?'sim':'nao confirmado')
+   +' | endpoint '+(x.endpoint_anunciado||'nao confirmado')
+   +(x.codigo?' | codigo '+x.codigo:''));
+  el.textContent='Preflight GNRE — '+(d.ok?'contratos de lote CONFIRMADOS':'verificacao incompleta')
+   +'\n'+linhas.join('\n')
+   +'\nSomente leitura. Nenhuma guia fiscal foi transmitida.';
+ }catch(e){el.textContent='Falha ao verificar WSDLs: '+String(e?.message||'Erro')+'. Nenhuma guia foi transmitida.';}
+}
