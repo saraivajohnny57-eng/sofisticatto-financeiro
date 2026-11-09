@@ -1898,7 +1898,7 @@ async function consultarReceitaGnreMg100129(){
 
 
 // Confirmacao independente do endpoint ConfigUF HTTPS 443, aprovado em SOAP 450.
-// Nao emite e nao altera endpoints de recepcao/resultado de lotes.
+// Nao transmite guias. Os endpoints de recepcao/resultado usam 443 apenas na homologacao Preview.
 async function compararGnreConfigUf443(){
  const el=document.getElementById('gnreComparacao443Resultado');
  if(!el)return;
@@ -1921,7 +1921,7 @@ async function compararGnreConfigUf443(){
      +'\nEndereço testado: '+(d.endereco_testado||'https://www.testegnre.pe.gov.br/gnreWS/services/GnreConfigUF')
      +'\nEndereço anunciado no WSDL: '+(d.endereco_anunciado_wsdl||'não disponível')
      +'\nDiagnóstico: '+(d.conclusao||d.fase||'Consulte o resultado')
-     +'\nO ConfigUF principal utiliza HTTPS 443. Os endpoints de lotes na porta 444 NÃO foram modificados. Nenhuma guia foi transmitida.';
+     +'\nConfigUF, recepcao e consulta de lotes usam HTTPS 443 na homologacao Preview. Nenhuma guia foi transmitida.';
  }catch(e){
    el.textContent='Não foi possível concluir a comparação HTTPS 443. '+String(e?.message||'Falha desconhecida')
      +'. Nenhuma guia foi transmitida.';
