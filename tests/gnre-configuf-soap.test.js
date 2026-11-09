@@ -171,3 +171,20 @@ test('consulta DIFAL MG 100102 utiliza apenas o codigo permitido sem abrir outra
  assert.match(html,/consultarReceitaGnreMg100102\(\)/);
  assert.match(ui,/async function consultarReceitaGnreMg100102\(\)/);
 });
+
+test('ConfigUF exige a receita solicitada no retorno 450, sem falso positivo',()=>{
+ const resposta=(codigo)=>'<soap12:Envelope><soap12:Body><TConfigUf>'
+  +'<situacaoConsulta><codigo>450</codigo></situacaoConsulta>'
+  +'<receitas><receita codigo="'+codigo+'"/></receitas>'
+  +'</TConfigUf></soap12:Body></soap12:Envelope>';
+ const r=analisarConfigUf({http_status:200,xml:resposta('100129'),receita:'100102'});
+ assert.equal(r.ok,false);
+ assert.equal(r.codigo_situacao,'450');
+ assert.equal(r.receita_confirmada,false);
+ assert.deepEqual(r.receitas_encontradas,['100129']);
+ const correto=analisarConfigUf({http_status:200,xml:resposta('100102'),receita:'100102'});
+ assert.equal(correto.ok,true);
+ assert.equal(correto.receita_confirmada,true);
+ const geral=analisarConfigUf({http_status:200,xml:resposta('100129'),receita:null});
+ assert.equal(geral.ok,true);
+});
