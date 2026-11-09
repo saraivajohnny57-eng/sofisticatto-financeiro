@@ -2138,6 +2138,33 @@ async function solicitarPdfHomologacaoGnre51109(){
  }
 }
 
+// Consulta somente leitura, sem abrir emissão de guias pagáveis.
+async function verificarGnrePreProducaoMg(){
+ const el=document.getElementById('gnreProducaoResultado');if(!el)return;
+ if(!gnrePreenvioNfeLida){
+  el.textContent='Selecione primeiro um XML autorizado de NF-e NOVA. A nota 51109 foi usada na homologação.';
+  return;
+ }
+ el.textContent='Conferindo dados fiscais, certificado e duplicidades, sem transmitir...';
+ try{
+  const chave=await obterChaveIntegracoesCotacao();
+  if(!chave){el.textContent='Autorização de administrador necessária.';return;}
+  const r=await fetch('/api/integracoes?action=gnre-producao-preflight',{
+   method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+   body:JSON.stringify({nfe:gnrePreenvioNfeLida,fiscal:coletarFiscalGnreMg()}),
+   cache:'no-store'
+  });
+  const d=await r.json();
+  const pend=Array.isArray(d.pendencias)?d.pendencias:[];
+  el.textContent=(d.apto_para_revisao?'Pré-produção pronta para revisão final.':'Pré-produção ainda com pendências.')
+   +(d.resumo?'\nNF-e: '+d.resumo.numero_nfe+' | Receita: '+d.resumo.receita+' | Valor DIFAL: R$ '+d.resumo.valor_difal:'')
+   +(d.plano?'\nEndpoint planejado: '+d.plano.destino+'\nHash do lote: '+d.plano.lote_sha256:'')
+   +(pend.length?'\nPendências:\n- '+pend.join('\n- '):'')
+   +'\nNenhuma GNRE de produção foi emitida. Habilitação e autorização por NF-e serão exigidas na etapa final.';
+  if(!r.ok)el.textContent='Conferência indisponível: '+(d.erro||'erro do servidor')+'\nNenhuma guia foi transmitida.';
+ }catch(e){el.textContent='Falha ao conferir: '+String(e.message||e)+'. Nenhum lote transmitido.';}
+}
+
 // Confirmacao independente do endpoint ConfigUF HTTPS 443, aprovado em SOAP 450.
 // Nao transmite guias. Os endpoints de recepcao/resultado usam 443 apenas na homologacao Preview.
 async function compararGnreConfigUf443(){

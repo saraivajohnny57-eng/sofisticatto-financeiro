@@ -1407,6 +1407,12 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <div id="gnrePilotoResultado" role="status" style="margin-top:9px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere"></div>
           </div>
         </div>
+        <div class="card" id="gnreProducaoPreparacao" style="margin-top:12px;padding:16px">
+          <strong>Preparar primeira GNRE de PRODUÇÃO — GO → MG / 100102</strong>
+          <p style="font-size:13px;margin:9px 0">Somente análise. Selecione uma NF-e nova no campo de XML acima e confirme os dados fiscais. A NF-e 51109 pertence ao teste de homologação e não será transmitida novamente.</p>
+          <button type="button" class="buscar" onclick="verificarGnrePreProducaoMg()">Conferir NF-e para produção (sem emitir)</button>
+          <div id="gnreProducaoResultado" role="status" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;margin-top:10px"></div>
+        </div>
         <div class="card">
           <div class="top"><div><h2>Alíquotas para estimativa GNRE/DIFAL</h2><p>Valores importados da planilha enviada.</p></div><button class="buscar" onclick="carregarAliquotasFrete()">Atualizar</button></div>
           <div class="table-wrap"><table><thead><tr><th>UF</th><th>Origem produto</th><th>Interestadual GO</th><th>Interna destino</th><th>FCP</th><th>Ações</th></tr></thead><tbody id="freteTabelaAliquotas"></tbody></table></div>
