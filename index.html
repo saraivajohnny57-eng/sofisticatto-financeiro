@@ -1433,6 +1433,18 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <label style="display:block;font-size:13px;margin-top:8px"><input type="checkbox" id="gnrePaConvenioConfirmado"> Convênio confirmado (somente se informado)</label>
           <button type="button" class="buscar" onclick="verificarPreenvioPa100102()" style="margin-top:10px">Conferir pré-envio PA/100102 (sem emitir)</button>
           <div id="gnrePaPreenvioResultado" role="status" style="font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:10px"></div>
+          <div style="border:1px solid #d4c6ee;border-radius:12px;padding:12px;margin-top:12px">
+            <strong>Primeiro envio PA/51076 em HOMOLOGAÇÃO — bloqueado até liberação específica</strong>
+            <p style="font-size:13px;margin:8px 0">O envio exige aprovação fiscal, hash da NF-e e do lote autorizados no servidor, ausência de duplicidades e confirmação manual. NÃO é uma guia de produção nem documento pagável. Depois da primeira tentativa, nunca reenviar automaticamente.</p>
+            <button type="button" class="buscar" onclick="consultarHabilitacaoGnrePa51076()">Verificar liberação do teste PA (sem emitir)</button>
+            <label style="display:block;font-size:13px;margin-top:10px">
+              <input id="gnrePaPilotoAutorizacao" type="checkbox"> Autorizo UMA transmissão real de teste ao serviço de HOMOLOGAÇÃO para NF-e 51076, R$ 21,10.
+            </label>
+            <button type="button" class="buscar" id="gnrePaBotaoTransmitir" onclick="transmitirGnrePilotoPa51076()" disabled style="opacity:.6">
+              Transmitir uma única vez em HOMOLOGAÇÃO (quando autorizado)
+            </button>
+            <div id="gnrePaPilotoResultado" role="status" style="font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:10px">Transmissão desabilitada. Consulte a liberação; nenhuma guia foi transmitida.</div>
+          </div>
         </div>
         <div class="card" id="gnreProducaoPreparacao" style="margin-top:12px;padding:16px">
           <strong>Preparar primeira GNRE de PRODUÇÃO — GO → MG / 100102</strong>

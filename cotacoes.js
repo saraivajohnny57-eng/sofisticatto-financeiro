@@ -2314,7 +2314,22 @@ async function consultarGnreConfigufAuto(){
 
 // O pré-envio PA não aceita dados manuais de imposto ou chave: usa a NF-e importada.
 // Apenas calcula estrutura candidata e compara certificado/idempotencia.
+let gnrePaPlanoAprovado=null;
+function coletarFiscalGnrePa(){
+ const campo=id=>String(document.getElementById(id)?.value||'').trim();
+ const marcado=id=>Boolean(document.getElementById(id)?.checked);
+ return {
+  vencimento:campo('gnrePaVencimento'),pagamento:campo('gnrePaPagamento'),
+  convenio:campo('gnrePaConvenio'),
+  vencimentoConfirmado:marcado('gnrePaVencimentoConfirmado'),
+  obrigacaoConfirmada:marcado('gnrePaObrigacaoConfirmada'),
+  convenioConfirmado:marcado('gnrePaConvenioConfirmado')
+ };
+}
 async function verificarPreenvioPa100102(){
+ gnrePaPlanoAprovado=null;
+ const btn=document.getElementById('gnrePaBotaoTransmitir');
+ if(btn)btn.disabled=true;
  const el=document.getElementById('gnrePaPreenvioResultado');
  if(!el)return;
  const nfe=gnrePreenvioNfeLida;
@@ -2326,15 +2341,7 @@ async function verificarPreenvioPa100102(){
  if(receita!=='100102'){
   el.textContent='Para o pré-envio PA somente a receita 100102 está configurada. Nenhuma guia emitida.';return;
  }
- const campo=id=>String(document.getElementById(id)?.value||'').trim();
- const marcado=id=>Boolean(document.getElementById(id)?.checked);
- const fiscal={
-  vencimento:campo('gnrePaVencimento'),pagamento:campo('gnrePaPagamento'),
-  convenio:campo('gnrePaConvenio'),
-  vencimentoConfirmado:marcado('gnrePaVencimentoConfirmado'),
-  obrigacaoConfirmada:marcado('gnrePaObrigacaoConfirmada'),
-  convenioConfirmado:marcado('gnrePaConvenioConfirmado')
- };
+ const fiscal=coletarFiscalGnrePa();
  el.textContent='Conferindo dados fiscais sem transmitir. Certificado e duplicidade serão verificados se não houver pendências fiscais...';
  try{
   const chave=await obterChaveIntegracoesCotacao();
@@ -2347,6 +2354,11 @@ async function verificarPreenvioPa100102(){
   const d=await r.json().catch(()=>({}));
   if(!r.ok){el.textContent='Pré-envio indisponível: '+(d.erro||'servidor não respondeu')+'. Nenhuma GNRE emitida.';return;}
   const pend=Array.isArray(d.pendencias)?d.pendencias:[];
+  if(d.apto_para_revisao&&d.checagens_executadas&&d.certificado_verificado
+      &&d.duplicidade_verificada&&d.plano?.lote_sha256){
+   gnrePaPlanoAprovado={chave:nfe.chave,sha:d.plano.lote_sha256,
+    fiscal_snapshot:JSON.stringify(fiscal)};
+  }
   el.textContent=(d.apto_para_revisao?'Estrutura PA/100102 pronta para revisão técnica.':
     'Pré-envio PA/100102 com pendências.')
    +'\nNF-e: '+(d.resumo?.numero_nfe||nfe.numero)
@@ -2363,6 +2375,84 @@ async function verificarPreenvioPa100102(){
    +'\nNenhuma guia foi transmitida ou emitida. Não usar este pré-envio para pagamento.';
  }catch(e){
   el.textContent='Falha na conferência: '+String(e.message||e)+'. Nenhum lote enviado.';
+ }
+}
+
+// Piloto PA: status SEM transmissão. Somente aciona o executor quando a
+// janela de NF-e + lote estiver fixa em variáveis exclusivas da Preview.
+async function consultarHabilitacaoGnrePa51076(){
+ const el=document.getElementById('gnrePaPilotoResultado');
+ const btn=document.getElementById('gnrePaBotaoTransmitir');
+ if(btn)btn.disabled=true;
+ if(!el)return;
+ el.textContent='Verificando bloqueio único da NF-e 51076 no servidor, sem transmissão...';
+ try{
+  const admin=await obterChaveIntegracoesCotacao();
+  if(!admin)throw Error('Autorização de administrador necessária.');
+  const r=await fetch('/api/integracoes?action=gnre-piloto-pa-51076',{
+   method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':admin},
+   body:JSON.stringify({modo:'status'}),cache:'no-store'
+  });
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw Error(d.erro||'Consulta de idempotência indisponível.');
+  if(d.habilitado&&gnrePaPlanoAprovado&&
+   gnrePreenvioNfeLida?.chave===gnrePaPlanoAprovado.chave&&
+   gnrePaPlanoAprovado.fiscal_snapshot===JSON.stringify(coletarFiscalGnrePa())){
+   if(btn)btn.disabled=false;
+   el.textContent='Janela de HOMOLOGAÇÃO liberada para a NF-e 51076 e lote conferido. Confirme os dados fiscais e marque a autorização expressa antes de clicar em Transmitir UMA vez.';
+  }else{
+   el.textContent=d.bloqueado
+    ?'NF-e já possui reserva ou registro anterior. NÃO reenviar; consulte o resultado.'
+    :(d.habilitado
+     ?'Janela configurada; execute novamente o pré-envio PA com os mesmos dados antes de transmitir.'
+     :'Transmissão PA/51076 ainda DESABILITADA no servidor. Necessários hashes fixados e autorização específica. Nenhuma guia enviada.');
+  }
+ }catch(e){
+  el.textContent='Não foi possível confirmar a liberação: '+String(e.message||e)+'. Nenhuma guia enviada.';
+ }
+}
+async function transmitirGnrePilotoPa51076(){
+ const el=document.getElementById('gnrePaPilotoResultado');
+ const btn=document.getElementById('gnrePaBotaoTransmitir');
+ if(!el||!btn||btn.disabled)return;
+ const nfe=gnrePreenvioNfeLida;
+ const fiscal=coletarFiscalGnrePa();
+ if(!gnrePaPlanoAprovado||!nfe||nfe.chave!==gnrePaPlanoAprovado.chave
+    ||JSON.stringify(fiscal)!==gnrePaPlanoAprovado.fiscal_snapshot){
+  btn.disabled=true;
+  el.textContent='A NF-e ou os dados fiscais foram alterados. Refaça o pré-envio e confira a liberação. Nenhuma guia enviada.';
+  return;
+ }
+ if(!document.getElementById('gnrePaPilotoAutorizacao')?.checked){
+  el.textContent='Marque a autorização expressa para UMA transmissão de teste em homologação.';
+  return;
+ }
+ if(!confirm('CONFIRMA UMA ÚNICA transmissão GNRE em HOMOLOGAÇÃO para NF-e 51076, PA/100102, R$ 21,10? NÃO é guia pagável. Em caso de resultado incerto, NÃO reenviar.')){
+  el.textContent='Operação cancelada. Nenhuma guia enviada.';return;
+ }
+ btn.disabled=true;
+ el.textContent='Executando única tentativa em homologação. Aguarde o retorno sem repetir o clique...';
+ try{
+  const admin=await obterChaveIntegracoesCotacao();
+  if(!admin)throw Error('Autorização administrativa não confirmada.');
+  const r=await fetch('/api/integracoes?action=gnre-piloto-pa-51076',{
+   method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':admin},
+   body:JSON.stringify({nfe,fiscal,lote_sha256:gnrePaPlanoAprovado.sha,
+    confirmacao:'TRANSMITIR_HOMOLOGACAO_PA_51076',autorizacao_usuario:true}),
+   cache:'no-store'
+  });
+  const d=await r.json().catch(()=>({}));
+  el.textContent=(d.ok?'Lote recebido pela GNRE em HOMOLOGAÇÃO.':'Recepção ainda NÃO confirmada.')
+   +'\nEstado: '+(d.estado||'desconhecido')
+   +(d.codigo_gnre?'\nCódigo GNRE: '+d.codigo_gnre:'')
+   +(d.recibo_mascarado?'\nRecibo: '+d.recibo_mascarado:'')
+   +'\n'+(d.aviso||d.erro||d.motivo||'Consultar resultado antes de qualquer nova tentativa.')
+   +'\nA reserva da NF-e impede reenvio automático. Documento não pagável.';
+ }catch(e){
+  el.textContent='Resultado INCERTO: '+String(e.message||e)+'. NÃO reenviar. Verificar o registro e recibo.';
+ }finally{
+  const check=document.getElementById('gnrePaPilotoAutorizacao');if(check)check.checked=false;
+  btn.disabled=true;
  }
 }
 

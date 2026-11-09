@@ -62,6 +62,7 @@ const gnreProducaoPreflight = require("../lib/integracoes/gnre-producao-prefligh
 const gnrePaConfiguf = require("../lib/integracoes/gnre-pa-configuf");
 const gnreMultiConfiguf = require("../lib/integracoes/gnre-configuf-multi-rota");
 const gnrePreenvioPa = require("../lib/integracoes/gnre-preenvio-pa-rota");
+const gnrePilotoPa = require("../lib/integracoes/gnre-piloto-pa-51076");
 const diagnosticoDfeV445 = require("../lib/integracoes/diagnostico-dfe-v445");
 const ROTAS = Object.freeze({
   "diagnostico-dfe-v445": diagnosticoDfeV445,
@@ -84,6 +85,7 @@ const ROTAS = Object.freeze({
   "gnre-pa-configuf": gnrePaConfiguf,
   "gnre-configuf-multi": gnreMultiConfiguf,
   "gnre-preenvio-pa": gnrePreenvioPa,
+  "gnre-piloto-pa-51076": gnrePilotoPa,
   "validar-chave": validarChave,
   "status-servidor": statusServidor,
   "salvar-credenciais": salvarCredenciais,
