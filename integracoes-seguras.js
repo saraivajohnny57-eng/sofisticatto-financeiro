@@ -21,9 +21,11 @@ function statusCampoIntegracao(id,texto,tipo=""){
   el.className=`integracao-chave-status ${tipo}`.trim();
 }
 
+// Mantida apenas por compatibilidade com telas antigas. Segredos permanecem
+// mascarados mesmo se um botão legado tentar alternar a visibilidade.
 function alternarSenhaIntegracao(id){
   const campo=document.getElementById(id);
-  if(campo)campo.type=campo.type==="password"?"text":"password";
+  if(campo&&campo.tagName==='INPUT')campo.type="password";
 }
 
 async function requisicaoIntegracoes(url,opcoes={}){
