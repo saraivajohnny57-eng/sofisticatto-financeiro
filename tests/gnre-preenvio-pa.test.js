@@ -94,8 +94,22 @@ test('preflight PA confirma A1 da preview e duplicidade, mas nao faz emissao',as
  assert.equal(r.body.apto_para_revisao,true);
  assert.equal(r.body.certificado_verificado,true);
  assert.equal(r.body.duplicidade_verificada,true);
+ assert.equal(r.body.checagens_executadas,true);
  assert.equal(r.body.transmissao,false);
  assert.equal(calls,1);
+});
+test('pendencia fiscal nao executa verificacao de certificado nem duplicidade e informa motivo',async()=>{
+ env();
+ const res=fakeResponse();
+ await handler(fakeRequest({method:'POST',headers:auth,body:{nfe,
+  fiscal:{...fiscal,obrigacaoConfirmada:false}}}),res);
+ assert.equal(res.statusCode,200);
+ assert.equal(res.body.apto_para_revisao,false);
+ assert.equal(res.body.checagens_executadas,false);
+ assert.equal(res.body.certificado_verificado,null);
+ assert.equal(res.body.duplicidade_verificada,null);
+ assert.equal(calls,0);
+ assert.match(res.body.pendencias.join(' '),/obrigacao de DIFAL/);
 });
 test('preflight bloqueia duplicidade, falta de admin e producao',async()=>{
  env();rows=[{ambiente:'producao',situacao:'registrada'}];

@@ -2335,7 +2335,7 @@ async function verificarPreenvioPa100102(){
   obrigacaoConfirmada:marcado('gnrePaObrigacaoConfirmada'),
   convenioConfirmado:marcado('gnrePaConvenioConfirmado')
  };
- el.textContent='Preparando estrutura e conferindo duplicidade, sem transmitir...';
+ el.textContent='Conferindo dados fiscais sem transmitir. Certificado e duplicidade serão verificados se não houver pendências fiscais...';
  try{
   const chave=await obterChaveIntegracoesCotacao();
   if(!chave){el.textContent='Autorização administrativa necessária; nenhuma guia transmitida.';return;}
@@ -2355,8 +2355,10 @@ async function verificarPreenvioPa100102(){
    +'\nDocumento de origem: tipo 24 — CHAVE DO DFe (44 dígitos)'
    +'\nDetalhamento: não aplicável | Campos adicionais: não aplicáveis'
    +(d.plano?'\nSHA-256 do lote candidato: '+d.plano.lote_sha256:'')
-   +'\nA1 compatível: '+(d.certificado_verificado?'sim':'não confirmado')
-   +'\nDuplicidade local verificada: '+(d.duplicidade_verificada?'sem ocorrência':'não confirmada')
+   +'\nCertificado A1: '+(!d.checagens_executadas?'ainda não verificado (aguardando confirmação fiscal)':
+       d.certificado_verificado?'compatível':'não compatível ou não confirmado')
+   +'\nPesquisa de duplicidade: '+(!d.checagens_executadas?'ainda não realizada (aguardando confirmação fiscal)':
+       d.duplicidade_verificada?'sem ocorrência':'possível duplicidade ou consulta inconclusiva')
    +(pend.length?'\nPendências:\n- '+pend.join('\n- '):'')
    +'\nNenhuma guia foi transmitida ou emitida. Não usar este pré-envio para pagamento.';
  }catch(e){
