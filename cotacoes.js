@@ -1899,6 +1899,78 @@ async function consultarReceitaGnreMg100129(receitaSolicitada='100129'){
 }
 
 
+
+// Pré-envio seguro: leitura local da NF-e e validação administrativa sem transmitir.
+let gnrePreenvioNfeLida=null;
+async function carregarNfePreenvioGnreMg(input){
+ const saida=document.getElementById('gnrePreenvioNfeResumo');
+ if(!saida)return;
+ gnrePreenvioNfeLida=null;
+ const arquivo=input?.files?.[0];
+ if(!arquivo){saida.textContent='Nenhuma NF-e carregada.';return;}
+ try{
+  if(!/\.xml$/i.test(arquivo.name)||arquivo.size>3*1024*1024||arquivo.size<100)throw Error('Selecione XML com até 3 MB.');
+  const xml=await arquivo.text();
+  if(/<!DOCTYPE|<!ENTITY/i.test(xml))throw Error('Declaração XML não permitida.');
+  const doc=new DOMParser().parseFromString(xml,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length)throw Error('XML inválido.');
+  const el=(pai,n)=>Array.from(pai?.getElementsByTagName('*')||[]).find(e=>e.localName===n)||null;
+  const val=(pai,n)=>el(pai,n)?.textContent?.trim()||'';
+  const inf=el(doc,'infNFe'),ide=el(inf,'ide'),emit=el(inf,'emit'),dest=el(inf,'dest');
+  const end=el(emit,'enderEmit'),total=el(inf,'ICMSTot'),prot=el(doc,'infProt');
+  if(!inf||!ide||!emit||!dest||!end||!total||!prot)throw Error('NF-e sem dados ou protocolo completos.');
+  const chave=String(inf.getAttribute('Id')||'').replace(/^NFe/,'');
+  const itens=Array.from(inf.getElementsByTagName('*')).filter(e=>e.localName==='det');
+  const fcp=itens.reduce((s,item)=>s+Number(val(el(item,'ICMSUFDest'),'vFCPUFDest')||0),0).toFixed(2);
+  const dados={
+   chave,numero:val(ide,'nNF'),cnpjEmitente:val(emit,'CNPJ'),
+   chaveProtocolo:val(prot,'chNFe'),statusAutorizacao:val(prot,'cStat'),
+   ambienteNfe:val(ide,'tpAmb'),consumidorFinal:val(ide,'indFinal'),indIeDest:val(dest,'indIEDest'),
+   ufOrigem:val(end,'UF'),ufDestino:val(el(dest,'enderDest'),'UF'),
+   municipioEmitente:val(end,'cMun'),cepEmitente:val(end,'CEP'),
+   enderecoEmitente:[val(end,'xLgr'),val(end,'nro')].filter(Boolean).join(', '),
+   razaoSocialEmitente:val(emit,'xNome'),
+   valorDifal:val(total,'vICMSUFDest'),valorFcp:fcp
+  };
+  if(!/^\d{44}$/.test(chave)||!itens.length||dados.chaveProtocolo!==chave||dados.statusAutorizacao!=='100')
+   throw Error('NF-e sem chave/protocolo de autorização válido.');
+  if(dados.ufOrigem!=='GO'||dados.ufDestino!=='MG'||!dados.valorDifal)
+   throw Error('Este pré-envio exige NF-e GO → MG com DIFAL informado.');
+  gnrePreenvioNfeLida=dados;
+  saida.textContent='NF-e '+dados.numero+' | MG | DIFAL R$ '+dados.valorDifal+' | FCP no XML R$ '+fcp+
+   '\nProtocolo presente. Preencha vencimento, data de pagamento e convênio conforme confirmação fiscal.';
+ }catch(e){saida.textContent='NF-e não preparada: '+String(e.message||e);gnrePreenvioNfeLida=null;}
+}
+async function verificarPreenvioGnreMg(){
+ const saida=document.getElementById('gnrePreenvioResultado');if(!saida)return;
+ if(!gnrePreenvioNfeLida){saida.textContent='Importe primeiro a NF-e autorizada.';return;}
+ saida.textContent='Conferindo pré-envio, sem transmitir...';
+ try{
+  const chave=await obterChaveIntegracoesCotacao();
+  if(!chave){saida.textContent='Autorização administrativa necessária.';return;}
+  const val=id=>String(document.getElementById(id)?.value||'').trim();
+  const check=id=>Boolean(document.getElementById(id)?.checked);
+  const fiscal={vencimento:val('gnrePreenvioVencimento'),pagamento:val('gnrePreenvioPagamento'),
+   convenio:val('gnrePreenvioConvenio'),vencimentoConfirmado:check('gnrePreenvioConfirmaVencimento'),
+   convenioConfirmado:check('gnrePreenvioConfirmaConvenio'),
+   obrigacaoConfirmada:check('gnrePreenvioConfirmaObrigacao')};
+  const r=await fetch('/api/integracoes?action=gnre-preenvio-mg',{method:'POST',
+   headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+   body:JSON.stringify({nfe:gnrePreenvioNfeLida,fiscal})});
+  const d=await r.json();
+  if(!r.ok||!d.ok){saida.textContent='Pré-envio não concluído: '+(d.erro||'verificar dados')+
+   '. Nenhuma guia transmitida.';return;}
+  const pendencias=Array.isArray(d.pendencias)?d.pendencias:[];
+  saida.textContent=(d.apto_para_revisao?'Estrutura pronta para revisão fiscal final.':'Pré-envio com pendências.')
+   +'\nReceita: 100102 (DIFAL), valor: R$ '+(d.resumo?.valor_difal||'não informado')
+   +'\nCertificado compatível: '+(d.certificado_verificado?'sim':'não confirmado')
+   +(d.reserva_existente?'\nLote já registrado: NÃO reenviar.':'')
+   +(d.plano?.lote_sha256?'\nSHA-256 do lote: '+d.plano.lote_sha256:'')
+   +(pendencias.length?'\nPendências:\n- '+pendencias.join('\n- '):'')
+   +'\nNenhuma guia foi transmitida. Esta conferência não comprova a aceitação pela GNRE.';
+ }catch(e){saida.textContent='Falha no pré-envio: '+String(e.message||e)+'. Nenhuma guia transmitida.';}
+}
+
 // Confirmacao independente do endpoint ConfigUF HTTPS 443, aprovado em SOAP 450.
 // Nao transmite guias. Os endpoints de recepcao/resultado usam 443 apenas na homologacao Preview.
 async function compararGnreConfigUf443(){
