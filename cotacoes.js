@@ -2027,23 +2027,33 @@ async function transmitirGnrePilotoMg51109(){
 }
 async function consultarGnrePilotoMg51109(){
  const el=document.getElementById('gnrePilotoResultado');if(!el)return;
- const chaveId=gnrePreenvioLoteAprovado?.chaveIdempotencia;
- if(!chaveId){el.textContent='Faça a conferência pré-envio para identificar o lote antes da consulta.';return;}
+ const chaveId=gnrePreenvioLoteAprovado?.chaveIdempotencia||null;
+ // A consulta do piloto também pode recuperar o recibo cifrado direto do
+ // servidor, mesmo após atualizar a página. Nunca retransmite a guia.
  el.textContent='Consultando o recibo registrado na GNRE. Esta operação NÃO retransmite o lote...';
  try{
   const chave=await obterChaveIntegracoesCotacao();if(!chave)throw Error('Autorização administrativa necessária.');
   const r=await fetch('/api/integracoes?action=gnre-consulta-lote',{
    method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
-   body:JSON.stringify({idempotency_key:chaveId})
+   body:JSON.stringify({...(chaveId?{idempotency_key:chaveId}:{piloto_mg_51109:true})})
   });
   const d=await r.json();
   const guias=Array.isArray(d.guias)?d.guias:[];
-  el.textContent='Consulta de resultado GNRE: '+(d.ok?'resposta lida':'não confirmada')
-   +'\nSituação: '+(d.estado||'não informada')
-   +'\nCódigo: '+(d.codigo||'não informado')
-   +'\nDescrição: '+(d.descricao||d.erro||d.aviso||'não informada')
-   +(guias.length?'\nGuias: '+guias.map(g=>[g.situacao,g.receita,g.uf,g.valor].join(' | ')).join('; '):'')
-   +'\n'+(d.aviso||'A autorização fiscal e o arquivamento precisam ser confirmados.');
+  const diag=d.diagnostico||{};
+  const codigo402=String(d.codigo||'')==='402';
+  el.textContent='Consulta de resultado GNRE: '+(d.ok?'resposta recebida':'não confirmada')
+   +'\nCódigo do lote: '+(d.codigo||'não informado')
+   +'\nDescrição: '+(d.descricao||d.erro||'não informada')
+   +'\nSituação individual: '+(d.estado||'não identificada')
+   +'\nGuias individuais identificadas: '+guias.length
+   +'\nGuia individual processada: '+(d.guia_confirmada?'SIM (sujeita à conferência do documento)':'NÃO CONFIRMADA')
+   +(guias.length?'\nDetalhes: '+guias.map(g=>[g.situacao,g.receita,g.uf,g.valor].join(' | ')).join('; '):'')
+   +(diag.formato_resultado?'\nFormato do resultado GNRE: '+diag.formato_resultado:'')
+   +(Number.isInteger(diag.resultado_bytes)?'\nTamanho dos dados de resultado: '+diag.resultado_bytes+' bytes':'')
+   +(diag.pdf_guias_presente?'\nPDF coletivo consta no retorno (ainda não arquivado).':'')
+   +(diag.arquivo_pagamento_presente?'\nArquivo de pagamento consta no retorno (ainda não validado).':'')
+   +(codigo402&&!d.guia_confirmada?'\nATENÇÃO: lote 402 processado, mas autorização individual NÃO comprovada.':'')
+   +'\n'+(d.aviso||'Não retransmita o lote; confirme o resultado individual com a GNRE.');
  }catch(e){el.textContent='Falha na consulta: '+String(e.message||e)+'. Não reenvie o lote.';}
 }
 

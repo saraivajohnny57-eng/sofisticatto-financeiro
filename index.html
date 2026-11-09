@@ -1393,13 +1393,13 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <button type="button" class="buscar" onclick="verificarPreenvioGnreMg()">🔎 Conferir pré-envio sem transmitir</button>
           <div id="gnrePreenvioResultado" role="status" style="margin-top:10px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere"></div>
           <div style="margin-top:14px;padding:12px;border:1px solid #d9d2e8;border-radius:10px">
-            <strong>Primeira transmissão real de homologação — somente NF-e 51109</strong>
+            <strong>NF-e 51109 — primeira transmissão RECEBIDA; somente consulta (não reenviar)</strong>
             <p style="margin:8px 0;font-size:12px">Esta ação envia UMA guia DIFAL de R$ 19,01 ao servidor GNRE de homologação. Não é emissão em produção nem guia válida para pagamento. Se houver erro ou resultado incerto, NÃO repita o envio.</p>
             <label style="display:block;margin:10px 0;font-size:13px">
-              <input type="checkbox" id="gnrePilotoAutorizacao"> Autorizo uma transmissão fiscal de teste em homologação para a NF-e 51109, após conferir os dados.
+              <input type="checkbox" id="gnrePilotoAutorizacao" disabled> Primeira transmissão já registrada; não reenviar a NF-e 51109.
             </label>
             <div style="display:flex;flex-wrap:wrap;gap:7px">
-              <button type="button" class="buscar" onclick="transmitirGnrePilotoMg51109()">Transmitir uma vez em HOMOLOGAÇÃO</button>
+              <button type="button" class="buscar" disabled title="Envio já recebido pela GNRE. Somente consultar resultado." style="opacity:.5;cursor:not-allowed">Transmissão 51109 encerrada</button>
               <button type="button" class="buscar" onclick="consultarGnrePilotoMg51109()">Consultar resultado do lote</button>
             </div>
             <div id="gnrePilotoResultado" role="status" style="margin-top:9px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere"></div>
