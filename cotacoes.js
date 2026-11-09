@@ -460,7 +460,7 @@ function abrirModalChaveIntegracoesCotacao(){
         <label>Senha mestre
           <div class="modal-chave-integracoes-campo">
             <input id="campoChaveIntegracoesCotacao" type="password" autocomplete="off" placeholder="Digite a senha mestre">
-            <button type="button" id="verChaveIntegracoesCotacao">👁</button>
+
           </div>
         </label>
         <div id="erroChaveIntegracoesCotacao" class="modal-chave-integracoes-erro"></div>
@@ -476,9 +476,6 @@ function abrirModalChaveIntegracoesCotacao(){
     const btn=fundo.querySelector("#validarChaveIntegracoesCotacao");
     input.focus();
 
-    fundo.querySelector("#verChaveIntegracoesCotacao").onclick=()=>{
-      input.type=input.type==="password"?"text":"password";
-    };
     fundo.querySelector("#cancelarChaveIntegracoesCotacao").onclick=()=>{
       fundo.remove();resolve("");
     };
