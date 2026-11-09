@@ -67,3 +67,24 @@ test('WSDL valida binding SOAP12 acao e HTTPS oficial porta 444',()=>{
   assert.throws(()=>validarWsdlConfigUf(WSDL.replace('www.testegnre.pe.gov.br:444','www.testegnre.pe.gov.br:443')));
   assert.throws(()=>validarWsdlConfigUf(WSDL.replace('https://www.testegnre.pe.gov.br:444','http://www.testegnre.pe.gov.br:444')));
 });
+
+const {spawnSync}=require('node:child_process');
+const os=require('node:os');
+const base=path.join(__dirname,'..');
+const schemaConfig=path.join(base,'docs/gnre-xsd/consulta_config_uf_v1.00.xsd');
+const scriptValidador=path.join(base,'scripts/gnre-validar-xsd.py');
+const xmlschemaDisponivel=spawnSync('python3',['-c','import xmlschema'],{encoding:'utf8'}).status===0;
+test('XML real de consulta MG com e sem receita passa no XSD ConfigUF versionado',
+  {skip:xmlschemaDisponivel?false:'Python xmlschema indisponivel'},()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'gnre-configuf-'));
+  try {
+    for(const receita of ['100129',null]){
+      const xml=montarDadosConfigUf({uf:'MG',receita});
+      const nome=path.join(dir,receita?'com-receita.xml':'sem-receita.xml');
+      fs.writeFileSync(nome,xml,'utf8');
+      const resultado=spawnSync('python3',[scriptValidador,'--schema',schemaConfig,'--xml',nome],{encoding:'utf8'});
+      assert.equal(resultado.status,0,resultado.stdout+' '+resultado.stderr);
+      assert.equal(JSON.parse(resultado.stdout).ok,true);
+    }
+  } finally {fs.rmSync(dir,{recursive:true,force:true});}
+});
