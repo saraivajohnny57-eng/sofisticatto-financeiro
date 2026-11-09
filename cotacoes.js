@@ -1956,6 +1956,8 @@ async function carregarNfePreenvioGnreMg(input){
   const fcp=itens.reduce((sum,item)=>sum+Number(val(el(item,'ICMSUFDest'),'vFCPUFDest')||0),0).toFixed(2);
   const dados={
    chave,numero:val(ide,'nNF'),cnpjEmitente:val(emit,'CNPJ'),
+   dataEmissao:val(ide,'dhEmi').slice(0,10),
+   dataSaida:val(ide,'dhSaiEnt').slice(0,10),
    chaveProtocolo:val(prot,'chNFe'),statusAutorizacao:val(prot,'cStat'),
    ambienteNfe:val(ide,'tpAmb'),consumidorFinal:val(ide,'indFinal'),indIeDest:val(dest,'indIEDest'),
    ufOrigem:val(end,'UF'),ufDestino:val(el(dest,'enderDest'),'UF'),
@@ -1978,7 +1980,9 @@ async function carregarNfePreenvioGnreMg(input){
    'DIFAL no XML: '+difal+' | FCP por item: R$ '+fcp,
    'Consumidor final: '+(dados.consumidorFinal==='1'?'sim':'não identificado')+
     ' | Não contribuinte: '+(dados.indIeDest==='9'?'sim':'não identificado'),
-   'Autorização NF-e: protocolo 100 confirmado.'
+   'Autorização NF-e: protocolo 100 confirmado.',
+   'Emissão: '+(dados.dataEmissao||'não informada')+
+    ' | Saída: '+(dados.dataSaida||'não informada')
   ];
   if(pendencias.length){
    linhas.push('Importação concluída, porém a emissão MG/100102 NÃO está liberada:');
@@ -2372,6 +2376,9 @@ async function verificarPreenvioPa100102(){
    +'\nPesquisa de duplicidade: '+(!d.checagens_executadas?'ainda não realizada (aguardando confirmação fiscal)':
        d.duplicidade_verificada?'sem ocorrência':'possível duplicidade ou consulta inconclusiva')
    +(pend.length?'\nPendências:\n- '+pend.join('\n- '):'')
+   +'\nEmissão da NF-e: '+(nfe.dataEmissao||'não informada')+
+    ' | Saída declarada: '+(nfe.dataSaida||'não informada')
+   +'\nATENÇÃO: o vencimento do DIFAL no Pará depende de inscrição estadual do remetente no PA. Se não inscrito, a legislação prevê recolhimento na saída; com inscrição, há prazo específico. Confira a situação fiscal, pagamento anterior e eventuais encargos antes de produção.'
    +'\nNenhuma guia foi transmitida ou emitida. Não usar este pré-envio para pagamento.';
  }catch(e){
   el.textContent='Falha na conferência: '+String(e.message||e)+'. Nenhum lote enviado.';

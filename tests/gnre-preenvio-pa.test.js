@@ -134,6 +134,14 @@ test('lote PA com tipo 24 e chave de 44 digitos passa XSD oficial 2.00',
   assert.equal(JSON.parse(p.stdout).ok,true);
  }finally{fs.rmSync(folder,{recursive:true,force:true});}
 });
+test('aviso fiscal PA identifica data da NF-e e impede presumir vencimento do teste',()=>{
+ const js=fs.readFileSync(path.join(__dirname,'../cotacoes.js'),'utf8');
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+ assert.match(js,/dataEmissao:val\(ide,'dhEmi'\)/);
+ assert.match(js,/dataSaida:val\(ide,'dhSaiEnt'\)/);
+ assert.match(js,/vencimento do DIFAL no Pará depende de inscrição estadual/);
+ assert.match(html,/A data 09\/11\/2026 usada no piloto NÃO foi confirmada/);
+});
 test('rota PA é read-only e a UI nunca chama recepcao diretamente',()=>{
  const route=fs.readFileSync(path.join(__dirname,'../lib/integracoes/gnre-preenvio-pa-rota.js'),'utf8');
  const ui=fs.readFileSync(path.join(__dirname,'../cotacoes.js'),'utf8');
