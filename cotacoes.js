@@ -460,7 +460,7 @@ function abrirModalChaveIntegracoesCotacao(){
         <label>Senha mestre
           <div class="modal-chave-integracoes-campo">
             <input id="campoChaveIntegracoesCotacao" type="password" autocomplete="off" placeholder="Digite a senha mestre">
-            <button type="button" id="verChaveIntegracoesCotacao">👁</button>
+
           </div>
         </label>
         <div id="erroChaveIntegracoesCotacao" class="modal-chave-integracoes-erro"></div>
@@ -476,9 +476,6 @@ function abrirModalChaveIntegracoesCotacao(){
     const btn=fundo.querySelector("#validarChaveIntegracoesCotacao");
     input.focus();
 
-    fundo.querySelector("#verChaveIntegracoesCotacao").onclick=()=>{
-      input.type=input.type==="password"?"text":"password";
-    };
     fundo.querySelector("#cancelarChaveIntegracoesCotacao").onclick=()=>{
       fundo.remove();resolve("");
     };
@@ -1871,17 +1868,30 @@ async function consultarReceitaGnreMg100129(){
        +' | '+(ufDiagnostico.descricao_situacao||ufDiagnostico.fault||ufDiagnostico.erro||'sem descrição')
     :'Controle MG sem receita: não necessário para este tipo de retorno.';
   const endereco=d.endereco_efetivo_solicitacao||d.endereco_wsdl||'não identificado';
-  const orientacao=d.codigo_situacao==='199'
-    ?'Código 199: a GNRE rejeitou a comunicação apesar do HTTP 200. Compare o endereço abaixo com o endereço de AUTOMAÇÃO do portal oficial; confirme a habilitação do CNPJ do certificado no WebService de homologação.'
-    :(d.classificacao==='falha_especifica_da_receita_ou_configuracao'
-      ?'A consulta geral da UF funciona, mas a receita específica foi rejeitada.'
-      :'Resultado de aplicação pendente de verificação.');
+  const orientacao=d.classificacao==='codigo_199_nas_duas_consultas'
+    ?'Código 199 nas duas consultas: rejeição comum de comunicação, não limitada à receita 100129. O certificado A1 e o WSDL responderam, mas isso não comprova habilitação fiscal. Verifique na Automação GNRE de HOMOLOGAÇÃO o endereço oficial, a autorização do CNPJ do e-CNPJ e a situação do serviço. A rejeição 102 é a indicação específica de CNPJ não habilitado.'
+    :(d.codigo_situacao==='199'
+      ?'Código 199: comunicação rejeitada pela aplicação apesar de HTTP 200. Confira endereço do WebService e habilitação do e-CNPJ em homologação. Não confundir com a rejeição 102.'
+      :(d.classificacao==='falha_especifica_da_receita_ou_configuracao'
+        ?'A consulta geral da UF funciona, mas a receita específica foi rejeitada.'
+        :'Resultado de aplicação pendente de verificação.'));
   el.textContent=statusReceita+'\n'+statusUf
     +'\nEndereço SOAP utilizado: '+endereco
     +'\nAção SOAP: '+(d.acao_soap||'não informada')
     +'\nDiagnóstico: '+(d.classificacao||'indisponível')
     +'\n'+orientacao
     +'\nNenhuma guia foi transmitida.';
+  if(d.codigo_situacao==='199'){
+    const aviso=document.createElement('div');
+    aviso.style.marginTop='8px';
+    const link=document.createElement('a');
+    link.href='https://www.testegnre.pe.gov.br:444/gnre/portal/automacao.jsp';
+    link.target='_blank';
+    link.rel='noopener noreferrer';
+    link.textContent='Abrir Automação GNRE — homologação (conferir habilitação e endereço)';
+    aviso.appendChild(link);
+    el.appendChild(aviso);
+  }
   if(d.xml_configuracao){const b=document.createElement('button');b.type='button';b.className='buscar';b.textContent='Baixar retorno XML ConfigUF';b.onclick=()=>{const blob=new Blob([d.xml_configuracao],{type:'application/xml'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='gnre-configuf-mg-100129-homologacao.xml';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};el.appendChild(document.createElement('br'));el.appendChild(b);}
  }catch(e){el.textContent='Falha na consulta ConfigUF: '+String(e.message||e);}
 }

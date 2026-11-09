@@ -34,6 +34,9 @@ jobs:
       - name: Sintaxe dos modulos GNRE e interface
         run: |
           node --check cotacoes.js
+          node --check senha-segura.js
+          node --check financeiro.js
+          node --check integracoes-seguras.js
           node --check lib/integracoes/gnre-configuf-consulta.js
           node --check lib/integracoes/gnre-configuf-xml.js
       - name: Suíte completa com rede bloqueada
