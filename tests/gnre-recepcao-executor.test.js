@@ -92,7 +92,7 @@ test('lotes diferentes geram chaves diferentes', () => {
 test('plano de recepção monta envelope oficial com destino de recepção', () => {
   const plano = montarPlanoRecepcao([guiaValida()]);
   assert.equal(plano.servico, 'recepcao');
-  assert.match(plano.destino, /:444\/gnreWS\/services\/GnreLoteRecepcao$/);
+  assert.match(plano.destino, /\/gnreWS\/services\/GnreLoteRecepcao$/);
   assert.equal(plano.soapAction, 'http://www.gnre.pe.gov.br/webservice/GnreLoteRecepcao/processar');
   assert.match(plano.xml, /<TLote_GNRE/);
   assert.equal(plano.guias, 1);

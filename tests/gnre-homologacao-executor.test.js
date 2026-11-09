@@ -102,7 +102,7 @@ test('montarPlanoConsulta monta envelope oficial e metadados', () => {
   assert.match(plano.xml, /<TConsLote_GNRE xmlns="http:\/\/www\.gnre\.pe\.gov\.br">/);
   assert.match(plano.xml, /<numeroRecibo>0000001234<\/numeroRecibo>/);
   assert.match(plano.xml, /http:\/\/www\.w3\.org\/2003\/05\/soap-envelope/);
-  assert.match(plano.destino, /:444\/gnreWS\/services\/GnreResultadoLote$/);
+  assert.match(plano.destino, /\/gnreWS\/services\/GnreResultadoLote$/);
   assert.equal(plano.soapAction, 'http://www.gnre.pe.gov.br/webservice/GnreResultadoLote/consultar');
   assert.equal(plano.xml_sha256.length, 64);
   assert.equal(plano.recibo_mascarado, '••••••1234');

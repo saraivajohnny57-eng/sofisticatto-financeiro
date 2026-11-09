@@ -44,18 +44,18 @@ test('GNRE actions e namespaces conferem com os WSDLs oficiais SVRS', () => {
   assert.ok(envelopeConsulta.includes(`xmlns="${nsConsulta}"`), 'namespace de consulta diverge do WSDL');
 });
 
-test('GNRE homologação usa host, porta 444 e caminho do portal oficial', () => {
+test('GNRE homologação usa host, HTTPS 443 e caminho do portal oficial', () => {
   assert.equal(
     SERVICOS.recepcao,
-    'https://www.testegnre.pe.gov.br:444/gnreWS/services/GnreLoteRecepcao'
+    'https://www.testegnre.pe.gov.br/gnreWS/services/GnreLoteRecepcao'
   );
   assert.equal(
     SERVICOS.resultado,
-    'https://www.testegnre.pe.gov.br:444/gnreWS/services/GnreResultadoLote'
+    'https://www.testegnre.pe.gov.br/gnreWS/services/GnreResultadoLote'
   );
   assert.equal(
     SERVICOS.configuracao,
-    'https://www.testegnre.pe.gov.br:444/gnreWS/services/GnreConfigUF'
+    'https://www.testegnre.pe.gov.br/gnreWS/services/GnreConfigUF'
   );
 });
 
