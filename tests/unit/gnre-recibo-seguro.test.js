@@ -7,8 +7,11 @@ const guia = '<TDadosGNRE versao="2.00"><ufFavorecida>MG</ufFavorecida></TDadosG
 
 test('extrai recibos GNRE de 10 e 14 digitos sem expor na mascara', () => {
  for (const recibo of ['1234567890', '12345678901234']) {
-  assert.equal(extrairRecibo('<numeroRecibo>'+recibo+'</numeroRecibo>'),recibo);
-  assert.equal(extrairRecibo('<ns:numeroRecibo>'+recibo+'</ns:numeroRecibo>'),recibo);
+  const soap='<soap:Envelope><TRetLote_GNRE><ambiente>2</ambiente><situacaoRecepcao>'
+   +'<codigo>100</codigo><descricao>Recebido</descricao></situacaoRecepcao>'
+   +'<recibo><numero>'+recibo+'</numero></recibo></TRetLote_GNRE></soap:Envelope>';
+  assert.equal(extrairRecibo(soap),recibo);
+  assert.equal(extrairRecibo('<numeroRecibo>'+recibo+'</numeroRecibo>'),null);
   assert.ok(!mascararRecibo(recibo).includes(recibo));
   assert.ok(mascararRecibo(recibo).endsWith(recibo.slice(-4)));
   assert.match(montarConsulta(recibo), /TConsLote_GNRE/);

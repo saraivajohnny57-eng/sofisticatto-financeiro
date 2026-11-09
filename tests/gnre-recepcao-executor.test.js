@@ -62,7 +62,11 @@ function transporteOk(body, status = 200) {
 }
 
 const CERT = { pfx: Buffer.from('pfx-ficticio'), passphrase: 'senha-ficticia' };
-const RECIBO_OK = '<soap:Envelope><gnreRespostaMsg><numeroRecibo>1234567890</numeroRecibo></gnreRespostaMsg></soap:Envelope>';
+const RECIBO_OK = '<soap:Envelope><soap:Body><TRetLote_GNRE>'
+  +'<ambiente>2</ambiente><situacaoRecepcao><codigo>100</codigo>'
+  +'<descricao>Lote recebido com sucesso</descricao></situacaoRecepcao>'
+  +'<recibo><numero>1234567890</numero><dataHoraRecibo>2026-11-09T13:10:00</dataHoraRecibo>'
+  +'<tempoEstimadoProc>1000</tempoEstimadoProc></recibo></TRetLote_GNRE></soap:Body></soap:Envelope>';
 
 test('mascararRecibo expõe apenas os 4 últimos dígitos', () => {
   assert.equal(mascararRecibo('1234567890'), '••••••7890');
@@ -70,10 +74,11 @@ test('mascararRecibo expõe apenas os 4 últimos dígitos', () => {
   assert.equal(mascararRecibo(null), '');
 });
 
-test('extrairRecibo lê numeroRecibo do envelope e ignora ausência', () => {
+test('extrairRecibo lê recibo.numero apenas de retorno de recepcao codigo 100', () => {
   assert.equal(extrairRecibo(RECIBO_OK), '1234567890');
   assert.equal(extrairRecibo('<soap:Envelope><outro/></soap:Envelope>'), null);
   assert.equal(extrairRecibo(''), null);
+  assert.equal(extrairRecibo('<soap:Envelope><numeroRecibo>1234567890</numeroRecibo></soap:Envelope>'), null);
 });
 
 test('chave de idempotência da recepção é derivada do hash do lote', () => {
@@ -125,6 +130,7 @@ test('recepção bem-sucedida registra recibo mascarado', async () => {
   });
   assert.equal(r.ok, true);
   assert.equal(r.estado, ESTADOS.CONCLUIDO);
+  assert.equal(r.codigo_gnre, '100');
   assert.equal(r.recibo_mascarado, '••••••7890');
   assert.equal(r.possui_recibo, true);
   assert.ok(!JSON.stringify(r).includes('1234567890'), 'recibo completo não deve sair');
@@ -166,7 +172,7 @@ test('falha de transporte vira resultado incerto e bloqueia reenvio', async () =
   assert.equal(chamadas, 1);
 });
 
-test('SOAP Fault é registrado como falha', async () => {
+test('SOAP Fault sem confirmacao oficial vira resultado incerto (sem reenvio)', async () => {
   const repo = new RepositorioMemoria();
   const r = await executarRecepcao({
     guias: [guiaValida()],
@@ -175,7 +181,7 @@ test('SOAP Fault é registrado como falha', async () => {
     transport: transporteOk('<soap:Envelope><soap:Fault><faultstring>x</faultstring></soap:Fault></soap:Envelope>'),
     permitirTransmissao: true
   });
-  assert.equal(r.estado, ESTADOS.FALHA);
+  assert.equal(r.estado, ESTADOS.INCERTO);
   assert.equal(r.categoria, 'soap_fault');
 });
 
@@ -183,4 +189,30 @@ test('lote inválido falha antes de reservar idempotência', async () => {
   const repo = new RepositorioMemoria();
   assert.throws(() => montarPlanoRecepcao([]), /1 a 50 guias/);
   assert.equal(repo.chamadas.length, 0);
+});
+
+test('rejeicao aplicacional 102 e tratada como falha sem recibo', async () => {
+ const repo=new RepositorioMemoria();
+ const resposta='<soap:Envelope><TRetLote_GNRE><ambiente>2</ambiente><situacaoRecepcao>'
+  +'<codigo>102</codigo><descricao>CNPJ nao habilitado</descricao></situacaoRecepcao>'
+  +'</TRetLote_GNRE></soap:Envelope>';
+ const transport=transporteOk(resposta);
+ const r=await executarRecepcao({guias:[guiaValida()],repositorio:repo,
+  certificado:CERT,transport,permitirTransmissao:true});
+ assert.equal(r.ok,false);
+ assert.equal(r.estado,ESTADOS.FALHA);
+ assert.equal(r.codigo_gnre,'102');
+ assert.equal(transport.enviados.length,1);
+});
+test('HTTP 200 sem codigo 100 + recibo e incerto e nao pode reencaminhar', async () => {
+ const repo=new RepositorioMemoria();
+ const transport=transporteOk('<soap:Envelope><outro/></soap:Envelope>');
+ const guias=[guiaValida()];
+ const first=await executarRecepcao({guias,repositorio:repo,certificado:CERT,
+   transport,permitirTransmissao:true});
+ assert.equal(first.estado,ESTADOS.INCERTO);
+ const second=await executarRecepcao({guias,repositorio:repo,certificado:CERT,
+   transport,permitirTransmissao:true});
+ assert.equal(second.bloqueado,true);
+ assert.equal(transport.enviados.length,1);
 });
