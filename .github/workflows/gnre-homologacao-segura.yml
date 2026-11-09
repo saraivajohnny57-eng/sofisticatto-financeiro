@@ -31,6 +31,11 @@ jobs:
         run: python3 -c "import xmlschema; print('XML Schema validator OK', xmlschema.__version__)"
       - name: GNRE regressao por recibo e XML canonico
         run: node --require ./tests/helpers/no-network.js --test tests/gnre-consulta-xml.test.js tests/gnre-consulta-lote-contrato-2026.test.js tests/unit/gnre-recibo-seguro.test.js
+      - name: Sintaxe dos modulos GNRE e interface
+        run: |
+          node --check cotacoes.js
+          node --check lib/integracoes/gnre-configuf-consulta.js
+          node --check lib/integracoes/gnre-configuf-xml.js
       - name: Suíte completa com rede bloqueada
         run: npm test
       - name: Resumo de segurança
