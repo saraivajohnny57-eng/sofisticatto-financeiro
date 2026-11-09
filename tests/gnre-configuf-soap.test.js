@@ -130,3 +130,29 @@ test('rota administrativa usa a decisao 199 e nao retransmite GNRE fiscal',()=>{
  assert.ok(handler.includes("endereco_efetivo_solicitacao:destino.href"));
  assert.doesNotMatch(handler,/GnreLoteRecepcao|GNRE_TRANSMISSAO_HABILITADA/);
 });
+
+test('endereco HTTPS 443 so pode ser testado em modo comparativo explicito',()=>{
+ const alternativo=WSDL.replace(/https:\/\/www\.testegnre\.pe\.gov\.br:444\/gnreWS/, 'https://www.testegnre.pe.gov.br/gnreWS');
+ assert.throws(()=>validarWsdlConfigUf(alternativo),'Modo padrao deve rejeitar ausencia da porta 444');
+ assert.equal(validarWsdlConfigUf(alternativo,{permitir443:true}).href,
+   'https://www.testegnre.pe.gov.br/gnreWS/services/GnreConfigUF');
+ assert.throws(()=>validarWsdlConfigUf(
+   alternativo.replace('www.testegnre.pe.gov.br','www.gnre.pe.gov.br'),{permitir443:true}));
+ assert.throws(()=>validarWsdlConfigUf(
+   alternativo.replace('www.testegnre.pe.gov.br','localhost'),{permitir443:true}));
+ assert.throws(()=>validarWsdlConfigUf(
+   alternativo.replace('https://','http://'),{permitir443:true}));
+});
+test('diagnostico 443 envia somente consulta MG sem receita e nao altera endpoint 444',()=>{
+ const codigo=fs.readFileSync(path.join(__dirname,'../lib/integracoes/gnre-configuf-consulta.js'),'utf8');
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../cotacoes.js'),'utf8');
+ assert.match(codigo,/tipo_teste==='comparar_443'/);
+ assert.match(codigo,/consultarSoap\(destinoAlternativo,tls,null\)/);
+ assert.match(codigo,/https:\/\/www\.testegnre\.pe\.gov\.br:444\/gnreWS\/services\/GnreConfigUF\?wsdl/);
+ assert.doesNotMatch(codigo,/GnreLoteRecepcao|processarGuia|emitirGuia/);
+ assert.match(html,/onclick="compararGnreConfigUf443\(\)"/);
+ assert.match(ui,/async function compararGnreConfigUf443\(\)/);
+ assert.match(ui,/tipo_teste:'comparar_443'/);
+ assert.match(ui,/NÃO foi modificado/);
+});
