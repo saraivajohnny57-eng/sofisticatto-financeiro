@@ -13,12 +13,14 @@ function ler(rel) {
   return fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
 }
 
-test('WSDL de homologação publicado pelo serviço confirma porta 444, actions e namespaces', () => {
+test('WSDL historico de homologacao preserva endpoints 444 e operacoes oficiais; runtime usa 443 validado', () => {
   const recepcao = ler('docs/gnre-oficial/homologacao-GnreLoteRecepcao.wsdl');
   const consulta = ler('docs/gnre-oficial/homologacao-GnreResultadoLote.wsdl');
 
-  assert.ok(recepcao.includes(`<soap12:address location="${SERVICOS.recepcao}"/>`));
-  assert.ok(consulta.includes(`<soap12:address location="${SERVICOS.resultado}"/>`));
+  assert.ok(recepcao.includes('<soap12:address location="https://www.testegnre.pe.gov.br:444/gnreWS/services/GnreLoteRecepcao"/>'));
+  assert.equal(SERVICOS.recepcao, 'https://www.testegnre.pe.gov.br/gnreWS/services/GnreLoteRecepcao');
+  assert.ok(consulta.includes('<soap12:address location="https://www.testegnre.pe.gov.br:444/gnreWS/services/GnreResultadoLote"/>'));
+  assert.equal(SERVICOS.resultado, 'https://www.testegnre.pe.gov.br/gnreWS/services/GnreResultadoLote');
   assert.ok(recepcao.includes(`soapAction="${SOAP_ACTIONS.recepcao}"`));
   assert.ok(consulta.includes(`soapAction="${SOAP_ACTIONS.consulta}"`));
   assert.ok(recepcao.includes('targetNamespace="http://www.gnre.pe.gov.br/webservice/GnreLoteRecepcao"'));
