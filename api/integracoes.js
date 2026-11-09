@@ -47,6 +47,7 @@ const gnreCertificado = require("../lib/integracoes/gnre-certificado");
 const gnreDiagnostico = require("../lib/integracoes/gnre-diagnostico");
 const gnreConfigufContrato = require("../lib/integracoes/gnre-configuf-contrato");
 const gnreConfigufConsulta = require("../lib/integracoes/gnre-configuf-consulta");
+const gnreLotesWsdl443 = require("../lib/integracoes/gnre-wsdl-lotes-443");
 const gnreHomologacaoPlano = require("../lib/integracoes/gnre-homologacao-plano");
 const gnreReconciliacao = require("../lib/integracoes/gnre-reconciliacao");
 const gnreRecepcaoPlano = require("../lib/integracoes/gnre-recepcao-plano");
@@ -59,6 +60,7 @@ const ROTAS = Object.freeze({
   "gnre-diagnostico": gnreDiagnostico,
   "gnre-configuf-contrato": gnreConfigufContrato,
   "gnre-configuf-consulta": gnreConfigufConsulta,
+  "gnre-lotes-wsdl443": gnreLotesWsdl443,
   "gnre-certificado": gnreCertificado,
   "gnre-homologacao-plano": gnreHomologacaoPlano,
   "gnre-reconciliacao": gnreReconciliacao,
