@@ -1895,3 +1895,35 @@ async function consultarReceitaGnreMg100129(){
   if(d.xml_configuracao){const b=document.createElement('button');b.type='button';b.className='buscar';b.textContent='Baixar retorno XML ConfigUF';b.onclick=()=>{const blob=new Blob([d.xml_configuracao],{type:'application/xml'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='gnre-configuf-mg-100129-homologacao.xml';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};el.appendChild(document.createElement('br'));el.appendChild(b);}
  }catch(e){el.textContent='Falha na consulta ConfigUF: '+String(e.message||e);}
 }
+
+
+// Diagnóstico pontual de um endereço alternativo de homologação. Não emite,
+// não altera URL padrão e não envia o XML fiscal de lote.
+async function compararGnreConfigUf443(){
+ const el=document.getElementById('gnreComparacao443Resultado');
+ if(!el)return;
+ el.textContent='Consultando WSDL na porta HTTPS padrão (443) e, se válido, a configuração geral MG. Nenhuma guia será enviada...';
+ try{
+   const chave=await obterChaveIntegracoesCotacao();
+   if(!chave){el.textContent='Teste cancelado: autorização administrativa necessária.';return}
+   const resposta=await fetch('/api/integracoes?action=gnre-configuf-consulta',{
+     method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+     body:JSON.stringify({tipo_teste:'comparar_443'})
+   });
+   const d=await resposta.json();
+   const codigo=d.codigo_situacao||d.codigo||'não informado';
+   const situacao=d.ok?'CONFIGURAÇÃO MG CONFIRMADA':'configuração MG NÃO confirmada';
+   const wsdl=String(d.http_status_wsdl||'não disponível');
+   const http=String(d.http_status||'não disponível');
+   el.textContent='Comparação GNRE HTTPS 443 — '+situacao
+     +'\nWSDL HTTP: '+wsdl+' | consulta SOAP HTTP: '+http+' | código GNRE: '+codigo
+     +'\nMensagem: '+(d.descricao_situacao||d.fault||d.erro||d.conclusao||'Não informada')
+     +'\nEndereço testado: '+(d.endereco_testado||'https://www.testegnre.pe.gov.br/gnreWS/services/GnreConfigUF')
+     +'\nEndereço anunciado no WSDL: '+(d.endereco_anunciado_wsdl||'não disponível')
+     +'\nDiagnóstico: '+(d.conclusao||d.fase||'Consulte o resultado')
+     +'\nO endereço usado atualmente na porta 444 NÃO foi modificado. Nenhuma guia foi transmitida.';
+ }catch(e){
+   el.textContent='Não foi possível concluir a comparação HTTPS 443. '+String(e?.message||'Falha desconhecida')
+     +'. Nenhuma guia foi transmitida.';
+ }
+}
