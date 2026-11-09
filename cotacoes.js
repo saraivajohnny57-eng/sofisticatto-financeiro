@@ -1902,10 +1902,20 @@ async function consultarReceitaGnreMg100129(receitaSolicitada='100129'){
 
 // Pré-envio seguro: leitura local da NF-e e validação administrativa sem transmitir.
 let gnrePreenvioNfeLida=null;
+let gnrePreenvioLoteAprovado=null;
+function coletarFiscalGnreMg(){
+ const val=id=>String(document.getElementById(id)?.value||'').trim();
+ const check=id=>Boolean(document.getElementById(id)?.checked);
+ return {vencimento:val('gnrePreenvioVencimento'),pagamento:val('gnrePreenvioPagamento'),
+  convenio:val('gnrePreenvioConvenio'),vencimentoConfirmado:check('gnrePreenvioConfirmaVencimento'),
+  convenioConfirmado:check('gnrePreenvioConfirmaConvenio'),
+  obrigacaoConfirmada:check('gnrePreenvioConfirmaObrigacao')};
+}
 async function carregarNfePreenvioGnreMg(input){
  const saida=document.getElementById('gnrePreenvioNfeResumo');
  if(!saida)return;
  gnrePreenvioNfeLida=null;
+ gnrePreenvioLoteAprovado=null;
  const arquivo=input?.files?.[0];
  if(!arquivo){saida.textContent='Nenhuma NF-e carregada.';return;}
  try{
@@ -1948,18 +1958,15 @@ async function verificarPreenvioGnreMg(){
  try{
   const chave=await obterChaveIntegracoesCotacao();
   if(!chave){saida.textContent='Autorização administrativa necessária.';return;}
-  const val=id=>String(document.getElementById(id)?.value||'').trim();
-  const check=id=>Boolean(document.getElementById(id)?.checked);
-  const fiscal={vencimento:val('gnrePreenvioVencimento'),pagamento:val('gnrePreenvioPagamento'),
-   convenio:val('gnrePreenvioConvenio'),vencimentoConfirmado:check('gnrePreenvioConfirmaVencimento'),
-   convenioConfirmado:check('gnrePreenvioConfirmaConvenio'),
-   obrigacaoConfirmada:check('gnrePreenvioConfirmaObrigacao')};
+  const fiscal=coletarFiscalGnreMg();
   const r=await fetch('/api/integracoes?action=gnre-preenvio-mg',{method:'POST',
    headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
    body:JSON.stringify({nfe:gnrePreenvioNfeLida,fiscal})});
   const d=await r.json();
   if(!r.ok||!d.ok){saida.textContent='Pré-envio não concluído: '+(d.erro||'verificar dados')+
    '. Nenhuma guia transmitida.';return;}
+  gnrePreenvioLoteAprovado=d.apto_para_revisao&&d.plano?.lote_sha256
+   ?{sha:d.plano.lote_sha256,chaveIdempotencia:d.plano.idempotency_key}:null;
   const pendencias=Array.isArray(d.pendencias)?d.pendencias:[];
   saida.textContent=(d.apto_para_revisao?'Estrutura pronta para revisão fiscal final.':'Pré-envio com pendências.')
    +'\nReceita: 100102 (DIFAL), valor: R$ '+(d.resumo?.valor_difal||'não informado')
@@ -1974,6 +1981,70 @@ async function verificarPreenvioGnreMg(){
    +(pendencias.length?'\nPendências:\n- '+pendencias.join('\n- '):'')
    +'\nNenhuma guia foi transmitida. Esta conferência não comprova a aceitação pela GNRE.';
  }catch(e){saida.textContent='Falha no pré-envio: '+String(e.message||e)+'. Nenhuma guia transmitida.';}
+}
+
+// Só é permitido enviar após pré-envio aprovado, autorização explícita
+// e segunda confirmação do operador. Nunca realiza chamadas automaticamente.
+async function transmitirGnrePilotoMg51109(){
+ const el=document.getElementById('gnrePilotoResultado');if(!el)return;
+ if(!gnrePreenvioLoteAprovado||!gnrePreenvioNfeLida){
+  el.textContent='Primeiro execute e aprove a conferência pré-envio para NF-e 51109.';return;
+ }
+ if(!document.getElementById('gnrePilotoAutorizacao')?.checked){
+  el.textContent='Marque a autorização expressa para uma transmissão de teste.';return;
+ }
+ if(!confirm('CONFIRMA UMA ÚNICA TRANSMISSÃO REAL ao WebService GNRE de HOMOLOGAÇÃO para a NF-e 51109, receita MG 100102, R$ 19,01? Não é guia para pagamento. NÃO REENVIE se houver resultado incerto.')){
+  el.textContent='Transmissão cancelada. Nenhuma guia enviada.';return;
+ }
+ const btn=document.querySelector('button[onclick="transmitirGnrePilotoMg51109()"]');
+ if(btn)btn.disabled=true;
+ el.textContent='Enviando uma única tentativa de lote de homologação. Não atualize nem repita a operação...';
+ try{
+  const chave=await obterChaveIntegracoesCotacao();if(!chave)throw Error('Autorização administrativa necessária.');
+  const r=await fetch('/api/integracoes?action=gnre-piloto-mg',{
+   method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+   body:JSON.stringify({nfe:gnrePreenvioNfeLida,fiscal:coletarFiscalGnreMg(),
+    lote_sha256:gnrePreenvioLoteAprovado.sha,autorizacao_usuario:true,
+    confirmacao:'TRANSMITIR_HOMOLOGACAO_51109'})
+  });
+  const d=await r.json();
+  if(d.idempotency_key)gnrePreenvioLoteAprovado.chaveIdempotencia=d.idempotency_key;
+  const estado=d.estado||'nao_confirmado';
+  el.textContent=(d.ok?'Lote RECEBIDO em homologação.':'Lote NÃO confirmado como recebido.')
+   +'\nEstado: '+estado
+   +(d.codigo_gnre?'\nCódigo GNRE: '+d.codigo_gnre:'')
+   +(d.recibo_mascarado?'\nRecibo: '+d.recibo_mascarado:'')
+   +(d.arquivamento?'\nRegistro: '+d.arquivamento:'')
+   +'\n'+(d.aviso||d.erro||d.motivo||'Confira a situação antes de qualquer nova tentativa.')
+   +'\nNenhum resultado de recepção equivale à autorização final da guia.';
+ }catch(e){
+  el.textContent='Resultado indeterminado: '+String(e.message||'erro de rede')
+    +'. NÃO reenviar sem verificar o estado da primeira tentativa.';
+ }finally{
+  document.getElementById('gnrePilotoAutorizacao').checked=false;
+  if(btn)btn.disabled=false;
+ }
+}
+async function consultarGnrePilotoMg51109(){
+ const el=document.getElementById('gnrePilotoResultado');if(!el)return;
+ const chaveId=gnrePreenvioLoteAprovado?.chaveIdempotencia;
+ if(!chaveId){el.textContent='Faça a conferência pré-envio para identificar o lote antes da consulta.';return;}
+ el.textContent='Consultando o recibo registrado na GNRE. Esta operação NÃO retransmite o lote...';
+ try{
+  const chave=await obterChaveIntegracoesCotacao();if(!chave)throw Error('Autorização administrativa necessária.');
+  const r=await fetch('/api/integracoes?action=gnre-consulta-lote',{
+   method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+   body:JSON.stringify({idempotency_key:chaveId})
+  });
+  const d=await r.json();
+  const guias=Array.isArray(d.guias)?d.guias:[];
+  el.textContent='Consulta de resultado GNRE: '+(d.ok?'resposta lida':'não confirmada')
+   +'\nSituação: '+(d.estado||'não informada')
+   +'\nCódigo: '+(d.codigo||'não informado')
+   +'\nDescrição: '+(d.descricao||d.erro||d.aviso||'não informada')
+   +(guias.length?'\nGuias: '+guias.map(g=>[g.situacao,g.receita,g.uf,g.valor].join(' | ')).join('; '):'')
+   +'\n'+(d.aviso||'A autorização fiscal e o arquivamento precisam ser confirmados.');
+ }catch(e){el.textContent='Falha na consulta: '+String(e.message||e)+'. Não reenvie o lote.';}
 }
 
 // Confirmacao independente do endpoint ConfigUF HTTPS 443, aprovado em SOAP 450.

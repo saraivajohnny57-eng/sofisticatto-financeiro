@@ -55,6 +55,7 @@ const gnreRecepcaoHttp = require("../lib/integracoes/gnre-recepcao-http");
 const gnreArquivoGuias = require("../lib/integracoes/gnre-arquivo-guias");
 const gnreConsultaLote = require("../lib/integracoes/gnre-consulta-lote");
 const gnrePreenvioMg = require("../lib/integracoes/gnre-preenvio-mg");
+const gnrePilotoMg = require("../lib/integracoes/gnre-piloto-mg");
 const diagnosticoDfeV445 = require("../lib/integracoes/diagnostico-dfe-v445");
 const ROTAS = Object.freeze({
   "diagnostico-dfe-v445": diagnosticoDfeV445,
@@ -70,6 +71,7 @@ const ROTAS = Object.freeze({
   "gnre-arquivo-guias": gnreArquivoGuias,
   "gnre-consulta-lote": gnreConsultaLote,
   "gnre-preenvio-mg": gnrePreenvioMg,
+  "gnre-piloto-mg": gnrePilotoMg,
   "validar-chave": validarChave,
   "status-servidor": statusServidor,
   "salvar-credenciais": salvarCredenciais,
