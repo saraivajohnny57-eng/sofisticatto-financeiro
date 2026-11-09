@@ -2258,6 +2258,60 @@ async function consultarConfigUfPa100102(){
  }
 }
 
+// Consulta automática ConfigUF da UF que veio no XML da NF-e.
+// Mantém todas as rotinas de emissão/produção separadas e desabilitadas aqui.
+async function consultarGnreConfigufAuto(){
+ const el=document.getElementById('gnreMultiResultado');
+ if(!el)return;
+ const nfe=gnrePreenvioNfeLida;
+ if(!nfe){el.textContent='Importe uma NF-e autorizada para identificar a UF de destino antes da consulta.';return;}
+ const uf=String(nfe.ufDestino||'').toUpperCase();
+ const receita=String(document.getElementById('gnreMultiReceita')?.value||'').trim();
+ if(!/^[A-Z]{2}$/.test(uf)||!/^\d{6}$/.test(receita)){
+  el.textContent='UF do XML ou receita inválida. Informe seis dígitos de receita. Nenhuma guia será emitida.';return;
+ }
+ el.textContent='Consultando ConfigUF '+uf+'/'+receita+' em homologação (somente leitura)...';
+ try{
+  const chave=await obterChaveIntegracoesCotacao();
+  if(!chave){el.textContent='Autorização administrativa necessária. Informe a Senha Mestre apenas no campo oculto do portal.';return;}
+  const r=await fetch('/api/integracoes?action=gnre-configuf-multi',{
+   method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+   body:JSON.stringify({uf,receita}),cache:'no-store'
+  });
+  const d=await r.json().catch(()=>({}));
+  if(r.status===401){el.textContent='Autorização administrativa inválida ou expirada. Reautorize pelo portal; nenhuma guia foi transmitida.';return;}
+  if(!r.ok||!d.ok){el.textContent='ConfigUF não confirmada para '+uf+'/'+receita+': '+
+    (d.diagnostico||d.erro||'retorno sem aprovação')+
+    '. Nenhuma guia foi emitida.';return;}
+  const p=d.perfil||{};
+  const ex=p.exigencias||{};
+  const linhas=['ConfigUF '+uf+'/'+receita+' — código GNRE '+d.codigo_gnre+
+    ' — CONSULTA APROVADA (sem emissão).',
+   'NF-e importada: '+nfe.numero+' | destino '+uf+
+     ' | DIFAL no XML R$ '+(nfe.valorDifal||'não informado'),
+   'Obrigatoriedade declarada pela GNRE:',
+   ...Object.entries(ex).map(([nome,codigo])=>' • '+nome.replaceAll('_',' ')+': '+codigo),
+   'Tipos de documento de origem:',
+   ...(p.documentos?.length?p.documentos.map(v=>' • '+v.codigo+' — '+v.descricao):[' • Nenhum tipo detalhado no retorno']),
+   'Detalhamentos de receita:',
+   ...(p.detalhamentos?.length?p.detalhamentos.map(v=>' • '+v.codigo+' — '+v.descricao):[' • Nenhum detalhamento relacionado']),
+   'Campos adicionais:',
+   ...(p.campos_adicionais?.length?p.campos_adicionais.map(v=>
+     ' • '+v.codigo+' — '+v.titulo+' | tipo '+v.tipo+' | obrigatório '+v.obrigatorio):
+     [' • Nenhum campo adicional listado']),
+   'Código 0303: '+(p.codigo_0303?.identificado?'identificado em '+p.codigo_0303.campos.join(', '):
+     'não identificado no perfil retornado; NÃO preencher automaticamente'),
+   ...(p.pendencias?.length?['Pendências do perfil:',...p.pendencias.map(v=>' • '+v)]:[]),
+   'Este perfil não substitui a validação fiscal estadual nem comprova habilitação em produção.',
+   'Nenhuma GNRE emitida. A geração e o envio permanecem bloqueados para novas UFs.'
+  ];
+  el.textContent=linhas.join('\n');
+ }catch(e){
+  el.textContent='Não foi possível consultar ConfigUF: '+String(e.message||e)+
+    '. Nenhuma guia foi emitida.';
+ }
+}
+
 // Confirmacao independente do endpoint ConfigUF HTTPS 443, aprovado em SOAP 450.
 // Nao transmite guias. Os endpoints de recepcao/resultado usam 443 apenas na homologacao Preview.
 async function compararGnreConfigUf443(){

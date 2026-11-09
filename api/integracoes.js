@@ -60,6 +60,7 @@ const gnreExportarRetorno = require("../lib/integracoes/gnre-exportar-retorno-51
 const gnrePdfHomologacao = require("../lib/integracoes/gnre-pdf-homologacao-51109");
 const gnreProducaoPreflight = require("../lib/integracoes/gnre-producao-preflight");
 const gnrePaConfiguf = require("../lib/integracoes/gnre-pa-configuf");
+const gnreMultiConfiguf = require("../lib/integracoes/gnre-configuf-multi-rota");
 const diagnosticoDfeV445 = require("../lib/integracoes/diagnostico-dfe-v445");
 const ROTAS = Object.freeze({
   "diagnostico-dfe-v445": diagnosticoDfeV445,
@@ -80,6 +81,7 @@ const ROTAS = Object.freeze({
   "gnre-pdf-homologacao-51109": gnrePdfHomologacao,
   "gnre-producao-preflight": gnreProducaoPreflight,
   "gnre-pa-configuf": gnrePaConfiguf,
+  "gnre-configuf-multi": gnreMultiConfiguf,
   "validar-chave": validarChave,
   "status-servidor": statusServidor,
   "salvar-credenciais": salvarCredenciais,

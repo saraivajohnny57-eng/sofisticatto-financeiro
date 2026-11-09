@@ -88,7 +88,7 @@ test('API PA e UI estao ligados apenas a diagnostico ConfigUF; nenhuma emissao d
  const c=fs.readFileSync(path.join(root,'cotacoes.js'),'utf8');
  const module=fs.readFileSync(path.join(root,'lib/integracoes/gnre-pa-configuf.js'),'utf8');
  assert.match(a,/"gnre-pa-configuf": gnrePaConfiguf/);
- assert.match(i,/onclick="consultarConfigUfPa100102\(\)"/);
+ assert.match(i,/onclick="consultarGnreConfigufAuto\(\)"/);
  assert.match(c,/async function consultarConfigUfPa100102\(\)/);
  assert.doesNotMatch(module,/executarRecepcao|GnreLoteRecepcao|permitirTransmissao:true/);
  assert.match(module,/transmissao:false/);

@@ -1407,11 +1407,15 @@ SOFISTICATTO COSMÉTICOS</textarea>
             <div id="gnrePilotoResultado" role="status" style="margin-top:9px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere"></div>
           </div>
         </div>
-        <div class="card" id="gnrePaConfiguracao" style="margin-top:12px;padding:16px">
-          <strong>GNRE Pará — NF-e 51076 / DIFAL por operação (receita 100102)</strong>
-          <p style="margin:8px 0;font-size:13px">A nota GO → PA tem DIFAL informado, mas precisa da configuração fiscal do Pará. Verifique os campos obrigatórios no WebService GNRE de homologação antes de preparar qualquer emissão. O código estadual 0303 exige confirmação de aplicação e campo correto.</p>
-          <button type="button" class="buscar" onclick="consultarConfigUfPa100102()">Consultar ConfigUF Pará / 100102 (sem emitir)</button>
-          <div id="gnrePaConfigufResultado" role="status" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;margin-top:10px"></div>
+        <div class="card" id="gnreConfigufMulti" style="margin-top:12px;padding:16px">
+          <strong>GNRE multestado — ConfigUF automática da NF-e</strong>
+          <p style="margin:8px 0;font-size:13px">Importe uma NF-e autorizada acima. O portal consulta as regras da UF de destino (por exemplo, PA na NF-e 51076) e apresenta documentos, detalhamentos e campos adicionais informados pela GNRE. Nenhuma guia será emitida.</p>
+          <div style="display:flex;align-items:end;gap:10px;flex-wrap:wrap">
+            <div><label class="relatorio-label" for="gnreMultiReceita">Receita GNRE (6 dígitos)</label>
+              <input type="text" id="gnreMultiReceita" value="100102" maxlength="6" inputmode="numeric" style="max-width:130px" autocomplete="off"></div>
+            <button type="button" class="buscar" onclick="consultarGnreConfigufAuto()">Consultar regras da UF importada (sem emitir)</button>
+          </div>
+          <div id="gnreMultiResultado" role="status" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;margin-top:10px"></div>
         </div>
         <div class="card" id="gnreProducaoPreparacao" style="margin-top:12px;padding:16px">
           <strong>Preparar primeira GNRE de PRODUÇÃO — GO → MG / 100102</strong>
