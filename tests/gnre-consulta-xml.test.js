@@ -24,7 +24,7 @@ test('GNRE receipt query composes with SOAP 1.2 without nested XML declarations'
 
 test('consulta GNRE aceita recibos de 14 digitos sem truncar, segundo atualizacao de 2024',()=>{
  const xml=montarConsultaRecibo('00000000123456');
- assert.match(xml,/<numeroRecibo>00000000123456<\\/numeroRecibo>/);
- assert.match(xml,/^<TConsLote_GNRE xmlns="http:\\/\\/www\\.gnre\\.pe\\.gov\\.br">/);
+ assert.ok(xml.includes('<numeroRecibo>00000000123456</numeroRecibo>'));
+ assert.ok(xml.startsWith('<TConsLote_GNRE xmlns="http://www.gnre.pe.gov.br">'));
  assert.doesNotMatch(xml,/incluirPDFGuias|versao=/);
 });
