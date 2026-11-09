@@ -22,6 +22,13 @@ jobs:
           node-version: '22'
       - name: Instalar dependencias sem scripts de instalacao
         run: npm ci --ignore-scripts
+      - name: Preparar validador XSD real em Python isolado
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/gnre-xmlschema"
+          "${RUNNER_TEMP}/gnre-xmlschema/bin/pip" install --disable-pip-version-check "xmlschema==3.4.3"
+          echo "${RUNNER_TEMP}/gnre-xmlschema/bin" >> "$GITHUB_PATH"
+      - name: Confirmar XSD disponível
+        run: python3 -c "import xmlschema; print('XML Schema validator OK', xmlschema.__version__)"
       - name: GNRE regressao por recibo e XML canonico
         run: node --require ./tests/helpers/no-network.js --test tests/gnre-consulta-xml.test.js tests/gnre-consulta-lote-contrato-2026.test.js tests/unit/gnre-recibo-seguro.test.js
       - name: Suíte completa com rede bloqueada
