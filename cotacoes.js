@@ -1859,7 +1859,26 @@ async function consultarReceitaGnreMg100129(){
   if(!chave){el.textContent='Autorização administrativa necessária.';return;}
   const resposta=await fetch('/api/integracoes?action=gnre-configuf-consulta',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:'{}'});
   const d=await resposta.json();
-  el.textContent='ConfigUF MG 100129 — HTTP '+(d.http_status||resposta.status)+'; situação '+(d.codigo_situacao||'não identificada')+'; descrição '+(d.descricao_situacao||d.fault||d.erro||'não informada')+'; raiz SOAP: '+(d.elemento_raiz||'não identificada')+'; elementos da resposta: '+(d.elementos_body||[]).join(', ')+'; bytes: '+(d.tamanho_resposta??'não informado')+'; receitas: '+(d.receitas_encontradas||[]).join(', ')+'; campos: '+(d.campos_identificados||[]).join(', ')+'. '+(d.ok?'Consulta oficial aprovada.':'Consulta não aprovada; verificar retorno SOAP.')+' Nenhuma guia foi emitida.';
+  const ufDiagnostico=d.diagnostico_sem_receita;
+  const ufTexto=ufDiagnostico
+    ?' | Controle sem filtro de receita: HTTP '+(ufDiagnostico.http_status||'indisponível')
+      +', '+(ufDiagnostico.ok?'consulta geral de MG aprovada':'consulta geral de MG também não aprovada')
+      +(ufDiagnostico.fault?'; erro: '+ufDiagnostico.fault:'')
+      +(ufDiagnostico.erro?'; falha: '+ufDiagnostico.erro:'')
+    :'';
+  const classificacao=d.classificacao==='falha_especifica_da_receita_ou_configuracao'
+    ?' | O serviço responde para a UF, mas não confirma a receita 100129: verificar parametrização estadual.'
+    :'';
+  el.textContent='ConfigUF MG 100129 — HTTP '+(d.http_status||resposta.status)
+    +'; situação '+(d.codigo_situacao||'não identificada')
+    +'; descrição '+(d.descricao_situacao||d.fault||d.erro||'não informada')
+    +'; raiz SOAP: '+(d.elemento_raiz||'não identificada')
+    +'; bytes: '+(d.tamanho_resposta??'não informado')
+    +'; receitas: '+(d.receitas_encontradas||[]).join(', ')
+    +'; campos: '+(d.campos_identificados||[]).join(', ')
+    +ufTexto+classificacao
+    +'. '+(d.ok?'Consulta da receita aprovada.':'Consulta da receita NÃO aprovada.')
+    +' Nenhuma guia foi emitida.';
   if(d.xml_configuracao){const b=document.createElement('button');b.type='button';b.className='buscar';b.textContent='Baixar retorno XML ConfigUF';b.onclick=()=>{const blob=new Blob([d.xml_configuracao],{type:'application/xml'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='gnre-configuf-mg-100129-homologacao.xml';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};el.appendChild(document.createElement('br'));el.appendChild(b);}
  }catch(e){el.textContent='Falha na consulta ConfigUF: '+String(e.message||e);}
 }
