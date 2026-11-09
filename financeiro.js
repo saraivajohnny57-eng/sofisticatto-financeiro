@@ -1946,16 +1946,16 @@ function atualizarCamposUsuarioComercial(){
   if(sel)sel.disabled=tipo!=="vendedora_rastreio";
 }
 
-function obterChaveAdminSmtp(){
+async function obterChaveAdminSmtp(){
   let chave=sessionStorage.getItem("integrations_admin_key")||localStorage.getItem("integrations_admin_key")||"";
   if(chave) return chave;
-  chave=prompt("Informe a chave administrativa INTEGRATIONS_ADMIN_KEY para configurar o remetente:")||"";
+  chave=await solicitarSegredoSofisticatto({titulo:"Configurar remetente SMTP",descricao:"Informe a chave administrativa de integrações para autorizar a configuração do remetente.",rotulo:"Chave administrativa"})||"";
   chave=chave.trim();
   if(chave) sessionStorage.setItem("integrations_admin_key",chave);
   return chave;
 }
 async function apiSmtpUsuario(acao,{login="",email="",nome="",senha_app=""}={}){
-  const chave=obterChaveAdminSmtp();
+  const chave=await obterChaveAdminSmtp();
   if(!chave) throw new Error("Chave administrativa não informada.");
   const r=await fetch('/api/remetentes-smtp',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-key':chave},body:JSON.stringify({acao,login,email,nome,senha_app})});
   const d=await r.json().catch(()=>({}));
@@ -1965,7 +1965,7 @@ async function apiSmtpUsuario(acao,{login="",email="",nome="",senha_app=""}={}){
 }
 async function configurarSmtpUsuario(login,email,nome){
   if(!email){alert('Cadastre primeiro o e-mail remetente deste usuário.');return;}
-  const senha=prompt('Cole a senha de aplicativo do Google para '+email+' (os espaços podem ser mantidos):')||'';
+  const senha=await solicitarSegredoSofisticatto({titulo:'Senha de aplicativo do Google',descricao:'Cole a senha de aplicativo para '+email+'. Os espaços serão preservados.',rotulo:'Senha de aplicativo'})||'';
   if(!senha.trim()) return;
   try{const d=await apiSmtpUsuario('salvar',{login,email,nome,senha_app:senha});alert(d.mensagem+'\n\nAgora clique em Testar.');carregarUsuarios();}
   catch(e){alert('SMTP: '+e.message);}
@@ -10227,7 +10227,7 @@ function bbAdminKey(){return sessionStorage.getItem('integrations_admin_key')||l
 async function garantirAutorizacaoIntegracoesV315(forcar=false){
   if(!forcar&&bbAdminKey())return bbAdminKey();
   if(forcar){sessionStorage.removeItem('integrations_admin_key');localStorage.removeItem('integrations_admin_key');}
-  const senha=String(prompt('Acesso aos relatórios bancários\n\nDigite a Senha Mestre de Integrações. Neste computador ela será solicitada somente nesta autorização:')||'').trim();
+  const senha=String(await solicitarSegredoSofisticatto({titulo:'Acesso aos relatórios bancários',descricao:'Informe a Senha Mestre de Integrações para autorizar este computador. A digitação permanece oculta.',rotulo:'Senha Mestre de Integrações'})||'').trim();
   if(!senha)throw new Error('Autorização bancária cancelada.');
   const r=await fetch('/api/integracoes?action=validar-chave',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':senha,'x-device-name':'Sofisticatto Financeiro - '+(navigator.userAgentData?.platform||navigator.platform||'computador')},body:JSON.stringify({device_name:'Sofisticatto Financeiro - '+(navigator.userAgentData?.platform||navigator.platform||'computador')})});
   const j=await r.json().catch(()=>({}));
