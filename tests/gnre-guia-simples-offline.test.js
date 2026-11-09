@@ -75,7 +75,7 @@ test('MG 100129 preenche convenio apos valor e dataPagamento ao final (tipo 12 F
  const xml=guiaSimples(casoFcpMg);
  assert.match(xml, /<valor tipo="12">79\.17<\/valor><convenio>TESTE CONVENIO<\/convenio><\/item>/);
  assert.match(xml, /<\/itensGNRE><valorGNRE>79\.17<\/valorGNRE><dataPagamento>2026-11-09<\/dataPagamento>/);
- assert.match(xml, /<endereco>Rua de Teste, 100<\/endereco><municipio>5208707<\/municipio><uf>GO<\/uf><cep>74550470<\/cep>/);
+ assert.match(xml, /<endereco>Rua de Teste, 100<\/endereco><municipio>08707<\/municipio><uf>GO<\/uf><cep>74550470<\/cep>/);
  assert.match(guiaSimples({...casoFcpMg,detalhamentoReceita:'000052'}), /<detalhamentoReceita>000052<\/detalhamentoReceita>/);
 });
 test('MG 100129 rejeita campos obrigatorios faltantes e tipo valor incorreto',()=>{
