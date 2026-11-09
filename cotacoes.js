@@ -2312,6 +2312,58 @@ async function consultarGnreConfigufAuto(){
  }
 }
 
+// O pré-envio PA não aceita dados manuais de imposto ou chave: usa a NF-e importada.
+// Apenas calcula estrutura candidata e compara certificado/idempotencia.
+async function verificarPreenvioPa100102(){
+ const el=document.getElementById('gnrePaPreenvioResultado');
+ if(!el)return;
+ const nfe=gnrePreenvioNfeLida;
+ if(!nfe){el.textContent='Importe uma NF-e autorizada antes de conferir o Pará.';return;}
+ if(nfe.ufOrigem!=='GO'||nfe.ufDestino!=='PA'){
+  el.textContent='Esta conferência é apenas para GO → PA. NF-e atual: '+nfe.ufOrigem+' → '+nfe.ufDestino+'. Nenhuma guia emitida.';return;
+ }
+ const receita=String(document.getElementById('gnreMultiReceita')?.value||'').trim();
+ if(receita!=='100102'){
+  el.textContent='Para o pré-envio PA somente a receita 100102 está configurada. Nenhuma guia emitida.';return;
+ }
+ const campo=id=>String(document.getElementById(id)?.value||'').trim();
+ const marcado=id=>Boolean(document.getElementById(id)?.checked);
+ const fiscal={
+  vencimento:campo('gnrePaVencimento'),pagamento:campo('gnrePaPagamento'),
+  convenio:campo('gnrePaConvenio'),
+  vencimentoConfirmado:marcado('gnrePaVencimentoConfirmado'),
+  obrigacaoConfirmada:marcado('gnrePaObrigacaoConfirmada'),
+  convenioConfirmado:marcado('gnrePaConvenioConfirmado')
+ };
+ el.textContent='Preparando estrutura e conferindo duplicidade, sem transmitir...';
+ try{
+  const chave=await obterChaveIntegracoesCotacao();
+  if(!chave){el.textContent='Autorização administrativa necessária; nenhuma guia transmitida.';return;}
+  const r=await fetch('/api/integracoes?action=gnre-preenvio-pa',{
+   method:'POST',
+   headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+   body:JSON.stringify({nfe,fiscal}),cache:'no-store'
+  });
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok){el.textContent='Pré-envio indisponível: '+(d.erro||'servidor não respondeu')+'. Nenhuma GNRE emitida.';return;}
+  const pend=Array.isArray(d.pendencias)?d.pendencias:[];
+  el.textContent=(d.apto_para_revisao?'Estrutura PA/100102 pronta para revisão técnica.':
+    'Pré-envio PA/100102 com pendências.')
+   +'\nNF-e: '+(d.resumo?.numero_nfe||nfe.numero)
+   +' | DIFAL: R$ '+(d.resumo?.valor_difal||nfe.valorDifal)
+   +' | FCP NF-e: R$ '+(d.resumo?.valor_fcp_nfe||nfe.valorFcp)
+   +'\nDocumento de origem: tipo 24 — CHAVE DO DFe (44 dígitos)'
+   +'\nDetalhamento: não aplicável | Campos adicionais: não aplicáveis'
+   +(d.plano?'\nSHA-256 do lote candidato: '+d.plano.lote_sha256:'')
+   +'\nA1 compatível: '+(d.certificado_verificado?'sim':'não confirmado')
+   +'\nDuplicidade local verificada: '+(d.duplicidade_verificada?'sem ocorrência':'não confirmada')
+   +(pend.length?'\nPendências:\n- '+pend.join('\n- '):'')
+   +'\nNenhuma guia foi transmitida ou emitida. Não usar este pré-envio para pagamento.';
+ }catch(e){
+  el.textContent='Falha na conferência: '+String(e.message||e)+'. Nenhum lote enviado.';
+ }
+}
+
 // Confirmacao independente do endpoint ConfigUF HTTPS 443, aprovado em SOAP 450.
 // Nao transmite guias. Os endpoints de recepcao/resultado usam 443 apenas na homologacao Preview.
 async function compararGnreConfigUf443(){

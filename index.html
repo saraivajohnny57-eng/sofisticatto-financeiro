@@ -1417,6 +1417,23 @@ SOFISTICATTO COSMÉTICOS</textarea>
           </div>
           <div id="gnreMultiResultado" role="status" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;margin-top:10px"></div>
         </div>
+        <div class="card" id="gnrePreenvioPa" style="margin-top:12px;padding:16px">
+          <strong>Pré-envio GNRE Pará — receita 100102 (sem transmissão)</strong>
+          <p style="font-size:13px;margin:8px 0">Para NF-e GO → PA autorizada, o documento de origem segue o retorno ConfigUF: tipo 24 (CHAVE DO DFe). Sem detalhamento ou campos adicionais. O valor do DIFAL é lido da NF-e, nunca digitado manualmente. Esta etapa não emite nem transmite guias.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:12px">
+            <label style="flex:1;min-width:180px;font-size:13px">Vencimento legal do Pará (confirmar com o fiscal)
+              <input type="date" id="gnrePaVencimento" style="display:block;width:100%;margin-top:4px"></label>
+            <label style="flex:1;min-width:180px;font-size:13px">Data prevista do pagamento
+              <input type="date" id="gnrePaPagamento" style="display:block;width:100%;margin-top:4px"></label>
+          </div>
+          <label style="display:block;font-size:13px;margin-top:8px">Convênio (somente se aplicável)
+            <input type="text" id="gnrePaConvenio" maxlength="30" autocomplete="off" placeholder="Deixe em branco quando não houver" style="display:block;width:100%;margin-top:4px"></label>
+          <label style="display:block;font-size:13px;margin-top:8px"><input type="checkbox" id="gnrePaVencimentoConfirmado"> Responsável fiscal confirmou o vencimento legal do PA</label>
+          <label style="display:block;font-size:13px;margin-top:8px"><input type="checkbox" id="gnrePaObrigacaoConfirmada"> Responsável fiscal confirmou a obrigação de DIFAL nesta operação</label>
+          <label style="display:block;font-size:13px;margin-top:8px"><input type="checkbox" id="gnrePaConvenioConfirmado"> Convênio confirmado (somente se informado)</label>
+          <button type="button" class="buscar" onclick="verificarPreenvioPa100102()" style="margin-top:10px">Conferir pré-envio PA/100102 (sem emitir)</button>
+          <div id="gnrePaPreenvioResultado" role="status" style="font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:10px"></div>
+        </div>
         <div class="card" id="gnreProducaoPreparacao" style="margin-top:12px;padding:16px">
           <strong>Preparar primeira GNRE de PRODUÇÃO — GO → MG / 100102</strong>
           <p style="font-size:13px;margin:9px 0">Somente análise. Selecione uma NF-e nova no campo de XML acima e confirme os dados fiscais. A NF-e 51109 pertence ao teste de homologação e não será transmitida novamente.</p>
