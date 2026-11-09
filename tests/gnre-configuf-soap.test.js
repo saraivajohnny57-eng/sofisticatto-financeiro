@@ -158,3 +158,16 @@ test('diagnostico HTTPS 443 envia somente consulta MG sem receita e usa endpoint
  assert.match(ui,/tipo_teste:'comparar_443'/);
  assert.match(ui,/recepcao e consulta de lotes usam HTTPS 443/);
 });
+
+test('consulta DIFAL MG 100102 utiliza apenas o codigo permitido sem abrir outras UFs/receitas',()=>{
+ const xml=montarEnvelopeConfigUf({uf:'MG',receita:'100102'});
+ assert.match(xml,/<ambiente>2<\/ambiente><uf>MG<\/uf><receita>100102<\/receita>/);
+ assert.throws(()=>montarEnvelopeConfigUf({uf:'MG',receita:'100110'}));
+ const api=fs.readFileSync(path.join(__dirname,'../lib/integracoes/gnre-configuf-consulta.js'),'utf8');
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../cotacoes.js'),'utf8');
+ assert.match(api,/consultarSoap\(destino,tls,receitaAlvo\)/);
+ assert.match(api,/RECEITAS_PERMITIDAS\.includes\(receitaAlvo\)/);
+ assert.match(html,/consultarReceitaGnreMg100102\(\)/);
+ assert.match(ui,/async function consultarReceitaGnreMg100102\(\)/);
+});

@@ -1848,16 +1848,18 @@ async function consultarContratoGnreMg100129(){
  }catch(e){el.textContent='Falha de rede ao consultar contrato ConfigUF: '+String(e.message||e);}
 }
 
-async function consultarReceitaGnreMg100129(){
- const el=document.getElementById('gnreConfigufReceitaResultado');if(!el)return;
- el.textContent='Consultando receita 100129 de MG no GnreConfigUF (homologação)...';
+async function consultarReceitaGnreMg100102(){return consultarReceitaGnreMg100129('100102');}
+async function consultarReceitaGnreMg100129(receitaSolicitada='100129'){
+  const receita=receitaSolicitada==='100102'?'100102':'100129';
+ const el=document.getElementById(receita==='100102'?'gnreConfigufDifalResultado':'gnreConfigufReceitaResultado');if(!el)return;
+ el.textContent='Consultando receita '+receita+' de MG no GnreConfigUF (homologação)...';
  try{
   const chave=await obterChaveIntegracoesCotacao();
   if(!chave){el.textContent='Autorização administrativa necessária.';return;}
-  const resposta=await fetch('/api/integracoes?action=gnre-configuf-consulta',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:'{}'});
+  const resposta=await fetch('/api/integracoes?action=gnre-configuf-consulta',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},body:JSON.stringify({receita})});
   const d=await resposta.json();
   const ufDiagnostico=d.diagnostico_sem_receita;
-  const statusReceita='Receita MG 100129: '+(d.ok?'APROVADA':'NÃO aprovada')
+  const statusReceita='Receita MG '+receita+': '+(d.ok?'APROVADA':'NÃO aprovada')
     +' | HTTP '+(d.http_status||resposta.status)
     +' | código '+(d.codigo_situacao||'não informado')
     +' | '+(d.descricao_situacao||d.fault||d.erro||'sem descrição');
@@ -1869,7 +1871,7 @@ async function consultarReceitaGnreMg100129(){
     :'Controle MG sem receita: não necessário para este tipo de retorno.';
   const endereco=d.endereco_efetivo_solicitacao||d.endereco_wsdl||'não identificado';
   const orientacao=d.classificacao==='codigo_199_nas_duas_consultas'
-    ?'Código 199 nas duas consultas: rejeição comum de comunicação, não limitada à receita 100129. O certificado A1 e o WSDL responderam, mas isso não comprova habilitação fiscal. Verifique na Automação GNRE de HOMOLOGAÇÃO o endereço oficial, a autorização do CNPJ do e-CNPJ e a situação do serviço. A rejeição 102 é a indicação específica de CNPJ não habilitado.'
+    ?'Código 199 nas duas consultas: rejeição comum de comunicação, não limitada à receita selecionada. O certificado A1 e o WSDL responderam, mas isso não comprova habilitação fiscal. Verifique na Automação GNRE de HOMOLOGAÇÃO o endereço oficial, a autorização do CNPJ do e-CNPJ e a situação do serviço. A rejeição 102 é a indicação específica de CNPJ não habilitado.'
     :(d.codigo_situacao==='199'
       ?'Código 199: comunicação rejeitada pela aplicação apesar de HTTP 200. Confira endereço do WebService e habilitação do e-CNPJ em homologação. Não confundir com a rejeição 102.'
       :(d.classificacao==='falha_especifica_da_receita_ou_configuracao'
@@ -1892,7 +1894,7 @@ async function consultarReceitaGnreMg100129(){
     aviso.appendChild(link);
     el.appendChild(aviso);
   }
-  if(d.xml_configuracao){const b=document.createElement('button');b.type='button';b.className='buscar';b.textContent='Baixar retorno XML ConfigUF';b.onclick=()=>{const blob=new Blob([d.xml_configuracao],{type:'application/xml'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='gnre-configuf-mg-100129-homologacao.xml';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};el.appendChild(document.createElement('br'));el.appendChild(b);}
+  if(d.xml_configuracao){const b=document.createElement('button');b.type='button';b.className='buscar';b.textContent='Baixar retorno XML ConfigUF';b.onclick=()=>{const blob=new Blob([d.xml_configuracao],{type:'application/xml'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='gnre-configuf-mg-'+receita+'-homologacao.xml';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};el.appendChild(document.createElement('br'));el.appendChild(b);}
  }catch(e){el.textContent='Falha na consulta ConfigUF: '+String(e.message||e);}
 }
 
