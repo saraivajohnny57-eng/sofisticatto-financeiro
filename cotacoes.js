@@ -2065,6 +2065,43 @@ async function consultarGnrePilotoMg51109(){
  }catch(e){el.textContent='Falha na consulta: '+String(e.message||e)+'. Não reenvie o lote.';}
 }
 
+// XML técnico retornado pela GNRE, não é guia pagável nem PDF.
+async function baixarXmlRetornoGnre51109(){
+ const el=document.getElementById('gnrePilotoResultado');
+ if(!el)return;
+ el.textContent='Recuperando XML do lote já processado em homologação (sem retransmitir)...';
+ try{
+  const chave=await obterChaveIntegracoesCotacao();
+  if(!chave)throw Error('Autorização administrativa necessária.');
+  const r=await fetch('/api/integracoes?action=gnre-exportar-retorno-51109',{
+   method:'POST',
+   headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+   body:JSON.stringify({piloto_mg_51109:true}),
+   cache:'no-store'
+  });
+  if(!r.ok){
+   const erro=await r.json().catch(()=>({}));
+   throw Error(erro.erro||'O XML não pôde ser recuperado.');
+  }
+  const tipo=String(r.headers.get('content-type')||'');
+  if(!tipo.includes('xml'))throw Error('O servidor não retornou XML.');
+  const raw=await r.text();
+  if(!raw.includes('TResultLote_GNRE')||raw.length>1024*1024)
+   throw Error('Resposta não reconhecida como retorno GNRE.');
+  const blob=new Blob([raw],{type:'application/xml;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  try{
+   const a=document.createElement('a');
+   a.href=url;
+   a.download='GNRE-HOMOLOGACAO-NFE-51109-RETORNO.xml';
+   document.body.appendChild(a);a.click();a.remove();
+  }finally{URL.revokeObjectURL(url);}
+  el.textContent='XML de retorno da GNRE preparado. Documento técnico de HOMOLOGAÇÃO — NÃO utilizar para pagamento. Nenhuma guia foi retransmitida.';
+ }catch(e){
+  el.textContent='Download não concluído: '+String(e.message||'erro')+'. Nenhuma guia retransmitida.';
+ }
+}
+
 // Confirmacao independente do endpoint ConfigUF HTTPS 443, aprovado em SOAP 450.
 // Nao transmite guias. Os endpoints de recepcao/resultado usam 443 apenas na homologacao Preview.
 async function compararGnreConfigUf443(){
