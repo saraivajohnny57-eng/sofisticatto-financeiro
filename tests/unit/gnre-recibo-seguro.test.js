@@ -11,7 +11,7 @@ test('extrai recibos GNRE de 10 e 14 digitos sem expor na mascara', () => {
   assert.equal(extrairRecibo('<ns:numeroRecibo>'+recibo+'</ns:numeroRecibo>'),recibo);
   assert.ok(!mascararRecibo(recibo).includes(recibo));
   assert.ok(mascararRecibo(recibo).endsWith(recibo.slice(-4)));
-  assert.match(montarConsulta(recibo), /TconsLote_GNRE/);
+  assert.match(montarConsulta(recibo), /TConsLote_GNRE/);
  }
  assert.equal(extrairRecibo('<numeroRecibo>123</numeroRecibo>'),null);
 });
