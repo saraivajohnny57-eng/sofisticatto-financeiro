@@ -26,8 +26,9 @@ test('plano de producao usa exclusivamente endpoint oficial, nao envia',()=>{
  assert.doesNotMatch(JSON.stringify(p),/TDadosGNRE|CNPJ|12345678000195/);
 });
 test('nota 51109 do piloto, datas vencidas e obrigacao fiscal nao confirmada bloqueiam pre-producao',()=>{
+ const chavePiloto=chave.slice(0,25)+'000051109'+chave.slice(34);
  for(const [nf,fi] of [
-  [{...nfe,numero:'51109',chave:chave.slice(0,25)+'000051109'+chave.slice(34)},fiscal],
+  [{...nfe,numero:'51109',chave:chavePiloto,chaveProtocolo:chavePiloto},fiscal],
   [nfe,{...fiscal,pagamento:'2020-01-01'}],
   [nfe,{...fiscal,vencimento:'2020-01-01'}],
   [nfe,{...fiscal,obrigacaoConfirmada:false}],
@@ -58,7 +59,7 @@ test('preflight de producao nao permite emissao nem com certificado compativel',
  const r=await req();assert.equal(r.statusCode,200);
  assert.equal(r.body.transmissao,false);
  assert.equal(r.body.pronto_para_transmitir,false);
- assert.equal(r.body.certificado_compativel,true);
+ assert.equal(r.body.certificado_preview_compativel,true);
  assert.equal(r.body.apto_para_revisao,false);
  assert.ok(r.body.pendencias.some(x=>/Habilitacao/.test(x)));
  assert.equal(calls,1);
