@@ -3,7 +3,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
-const {SOAP_ACTION,montarDadosConfigUf,montarEnvelopeConfigUf,analisarConfigUf,validarWsdlConfigUf}=require('../lib/integracoes/gnre-configuf-xml');
+const {SOAP_ACTION,montarDadosConfigUf,montarEnvelopeConfigUf,analisarConfigUf,validarWsdlConfigUf,deveConsultarUfSemReceita,classificarConfigUf}=require('../lib/integracoes/gnre-configuf-xml');
 
 const SOAP12='http://schemas.xmlsoap.org/wsdl/soap12/';
 const WSDL='<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:soap12="'+SOAP12+'">'
@@ -87,4 +87,46 @@ test('XML real de consulta MG com e sem receita passa no XSD ConfigUF versionado
       assert.equal(JSON.parse(resultado.stdout).ok,true);
     }
   } finally {fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('GNRE codigo 199 mesmo com HTTP 200 ativa controle MG sem receita',()=>{
+ const xml='<soapenv:Envelope xmlns:soapenv="http://www.w3.org/2003/05/soap-envelope"><soapenv:Body>'
+  +'<gnreRespostaMsg><TConfigUf><situacaoConsulta><codigo>199</codigo>'
+  +'<descricao>Erro ao validar a comunicacao. Confira o endereco informado em AUTOMACAO.</descricao>'
+  +'</situacaoConsulta></TConfigUf></gnreRespostaMsg>'
+  +'</soapenv:Body></soapenv:Envelope>';
+ const a=analisarConfigUf({http_status:200,xml});
+ assert.equal(a.http_status,200);
+ assert.equal(a.ok,false);
+ assert.equal(a.codigo_situacao,'199');
+ assert.equal(a.falha_soap,false);
+ assert.equal(deveConsultarUfSemReceita(a),true);
+ assert.equal(classificarConfigUf(a,null),'codigo_199_validacao_de_comunicacao');
+});
+test('rejeicao 199 em receita e controle da UF identifica falha comum de comunicacao',()=>{
+ const a={ok:false,http_status:200,codigo_situacao:'199'};
+ const uf={ok:false,http_status:200,codigo_situacao:'199'};
+ assert.equal(classificarConfigUf(a,uf),'codigo_199_nas_duas_consultas');
+});
+test('rejeicao 199 so na receita e consulta geral UF aprovada identifica filtro',()=>{
+ const a={ok:false,http_status:200,codigo_situacao:'199'};
+ const uf={ok:true,http_status:200,codigo_situacao:'450'};
+ assert.equal(classificarConfigUf(a,uf),'codigo_199_apenas_com_filtro_de_receita');
+});
+test('nao consulta UF de novo quando receita 450 ja foi confirmada',()=>{
+ const a={ok:true,http_status:200,codigo_situacao:'450'};
+ assert.equal(deveConsultarUfSemReceita(a),false);
+ assert.equal(classificarConfigUf(a,null),'receita_confirmada');
+});
+test('consulta de controle continua para Fault ou HTTP 500 sem engolir rejeicao HTTP 200',()=>{
+ assert.equal(deveConsultarUfSemReceita({ok:false,http_status:500,falha_soap:false}),true);
+ assert.equal(deveConsultarUfSemReceita({ok:false,http_status:200,falha_soap:true}),true);
+ assert.equal(deveConsultarUfSemReceita({ok:false,http_status:200,codigo_situacao:'451'}),false);
+});
+test('rota administrativa usa a decisao 199 e nao retransmite GNRE fiscal',()=>{
+ const handler=fs.readFileSync(path.join(__dirname,'../lib/integracoes/gnre-configuf-consulta.js'),'utf8');
+ assert.ok(handler.includes('if(deveConsultarUfSemReceita(analise))'));
+ assert.ok(handler.includes('consultarSoap(destino,tls,null)'));
+ assert.ok(handler.includes("endereco_efetivo_solicitacao:destino.href"));
+ assert.doesNotMatch(handler,/GnreLoteRecepcao|GNRE_TRANSMISSAO_HABILITADA/);
 });
