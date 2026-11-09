@@ -1955,7 +1955,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <label><span>Senha da API Braspress</span>
             <div class="integracao-campo-senha">
               <input id="braspressRapidoSenha" type="password" autocomplete="new-password" placeholder="Senha recebida da Braspress">
-              <button type="button" onclick="alternarSenhaIntegracao('braspressRapidoSenha')">👁</button>
+              
             </div>
           </label>
         </div>
@@ -2297,7 +2297,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <div class="integracao-campo-senha">
                 <input id="integracaoAdminKey" type="password"
                   placeholder="INTEGRATIONS_ADMIN_KEY">
-                <button type="button" onclick="alternarSenhaIntegracao('integracaoAdminKey')">👁</button>
+                
               </div>
             </label>
             <div class="email-acoes">
@@ -2389,13 +2389,13 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <label><span>Senha do usuário / WebService</span>
                 <div class="integracao-campo-senha">
                   <input id="integracaoCredSenha" type="password" autocomplete="new-password">
-                  <button type="button" onclick="alternarSenhaIntegracao('integracaoCredSenha')">👁</button>
+                  
                 </div>
               </label>
               <label><span>Senha de rastreio/pagador SSW (opção 383)</span>
                 <div class="integracao-campo-senha">
                   <input id="integracaoCredSenhaRastreioSSW" type="password" autocomplete="new-password" placeholder="Somente para transportadoras SSW">
-                  <button type="button" onclick="alternarSenhaIntegracao('integracaoCredSenhaRastreioSSW')">👁</button>
+                  
                 </div>
               </label>
               <label><span>CNPJ usado no rastreio SSW</span><input id="integracaoCredCnpjRastreioSSW" autocomplete="off" placeholder="Padrão: 05.451.985/0001-95"></label>
@@ -2405,20 +2405,20 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <label><span>Bearer Token</span>
                 <div class="integracao-campo-senha">
                   <input id="integracaoCredToken" type="password" autocomplete="off">
-                  <button type="button" onclick="alternarSenhaIntegracao('integracaoCredToken')">👁</button>
+                  
                 </div>
               </label>
               <label><span>API Key</span>
                 <div class="integracao-campo-senha">
                   <input id="integracaoCredApiKey" type="password" autocomplete="off">
-                  <button type="button" onclick="alternarSenhaIntegracao('integracaoCredApiKey')">👁</button>
+                  
                 </div>
               </label>
               <label><span>Client ID</span><input id="integracaoCredClientId" autocomplete="off"></label>
               <label><span>Client Secret</span>
                 <div class="integracao-campo-senha">
                   <input id="integracaoCredClientSecret" type="password" autocomplete="off">
-                  <button type="button" onclick="alternarSenhaIntegracao('integracaoCredClientSecret')">👁</button>
+                  
                 </div>
               </label>
             </div>
@@ -3234,7 +3234,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
       <h2>Criar Usuário</h2>
       <div class="inputs">
         <input type="text" id="novoLogin" placeholder="Login">
-        <input type="text" id="novaSenha" placeholder="Senha">
+        <input type="password" id="novaSenha" autocomplete="new-password" placeholder="Senha">
         <select id="novoTipo" onchange="atualizarCamposUsuarioComercial();atualizarCamposUsuarioEntregador()">
           <option value="financeiro">Financeiro</option><option value="banco">Banco</option><option value="cobranca">Cobrança — somente boletos emitidos</option><option value="admin">Admin</option>
           <option value="vendedora_rastreio">Vendedora — Rastreamento + E-mail</option>
@@ -3407,6 +3407,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 </div>
 
 
+<script src="senha-segura.js?v=20261109-campos-mascarados"></script>
 <script src="financeiro.js?v=412-segunda-via"></script>
 <script src="etiquetas-terceirizados.js?v=333"></script>
 <script src="correios-faturas.js?v=236"></script>
