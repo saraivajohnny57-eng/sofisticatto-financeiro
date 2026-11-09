@@ -50,3 +50,15 @@ test('rejeita identificacao e documento invalidos sem inserir XML arbitrario', (
   ];
   for (const caso of casos) assert.throws(() => guiaSimples({ ...dados, ...caso }));
 });
+
+// O numero 123456 e um exemplo SINTETICO apenas para testar o formato XSD.
+test('inclui detalhamentoReceita opcional para receita 100129 na ordem correta do XSD', () => {
+  const xml = guiaSimples({
+    ...dados, receita:'100129', detalhamentoReceita:'123456',
+    documentoOrigem:'51109', tipoDocumentoOrigem:'10'
+  });
+  assert.match(xml, /<receita>100129<\/receita><detalhamentoReceita>123456<\/detalhamentoReceita><documentoOrigem tipo="10">/);
+  assert.doesNotMatch(guiaSimples(dados), /<detalhamentoReceita>/);
+  for(const invalido of ['1','00001','abcdef','1234567','<xml/>'])
+    assert.throws(()=>guiaSimples({...dados,detalhamentoReceita:invalido}),/detalhamentoReceita/);
+});

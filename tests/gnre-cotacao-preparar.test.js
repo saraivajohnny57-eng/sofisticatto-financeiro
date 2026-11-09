@@ -23,3 +23,9 @@ test('rejeita valores invalidos e campos fiscais ausentes', () => {
  for(const v of [NaN,Infinity,-1,0.001,'95.83']) assert.throws(()=>preparar({modo:'manual',valorManual:v,motivoAlteracao:'Conferencia fiscal'}));
  assert.throws(()=>preparar({modo:'automatico',valorAutomatico:95.83,obrigacaoConfirmada:true}));
 });
+
+test('preparacao GNRE encaminha detalhamento de receita sem inventar o codigo', () => {
+ const r=preparar({...base,receita:'100129',detalhamentoReceita:'123456',
+   modo:'manual',valorManual:95.83,motivoAlteracao:'Conferencia fiscal',obrigacaoConfirmada:true});
+ assert.match(r.xml,/<receita>100129<\/receita><detalhamentoReceita>123456<\/detalhamentoReceita>/);
+});
