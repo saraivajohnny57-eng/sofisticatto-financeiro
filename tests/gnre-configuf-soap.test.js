@@ -156,5 +156,5 @@ test('diagnostico HTTPS 443 envia somente consulta MG sem receita e usa endpoint
  assert.match(html,/onclick="compararGnreConfigUf443\(\)"/);
  assert.match(ui,/async function compararGnreConfigUf443\(\)/);
  assert.match(ui,/tipo_teste:'comparar_443'/);
- assert.match(ui,/NÃO foi modificado/);
+ assert.match(ui,/Os endpoints de lotes na porta 444 NÃO foram modificados/);
 });
