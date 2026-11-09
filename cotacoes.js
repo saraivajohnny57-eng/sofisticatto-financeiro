@@ -2102,6 +2102,42 @@ async function baixarXmlRetornoGnre51109(){
  }
 }
 
+// Solicita PDF do MESMO recibo (incluirPDFGuias=S). Sem retransmitir lote.
+async function solicitarPdfHomologacaoGnre51109(){
+ const el=document.getElementById('gnrePilotoResultado');if(!el)return;
+ el.textContent='Consultando PDF oficial do lote já processado em HOMOLOGAÇÃO. Nenhum novo envio...';
+ try{
+  const chave=await obterChaveIntegracoesCotacao();
+  if(!chave)throw Error('Autorização administrativa necessária.');
+  const r=await fetch('/api/integracoes?action=gnre-pdf-homologacao-51109',{
+   method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':chave},
+   body:JSON.stringify({piloto_mg_51109:true}),cache:'no-store'
+  });
+  const tipo=String(r.headers.get('content-type')||'').toLowerCase();
+  if(tipo.includes('application/pdf')&&r.ok){
+   const blob=await r.blob();
+   if(blob.size<100||blob.size>2800000)throw Error('PDF fora do tamanho esperado.');
+   const url=URL.createObjectURL(blob);
+   try{
+    const a=document.createElement('a');a.href=url;
+    a.download='GNRE-OFICIAL-HOMOLOGACAO-NFE-51109.pdf';
+    document.body.appendChild(a);a.click();a.remove();
+   }finally{URL.revokeObjectURL(url);}
+   el.textContent='PDF original retornado pela GNRE. Este documento é SOMENTE de HOMOLOGAÇÃO — NÃO PAGAR. Nenhuma guia retransmitida.';
+   return;
+  }
+  const d=await r.json().catch(()=>({}));
+  if(r.ok&&d.pdf_disponivel===false){
+   el.textContent='Guia processada com sucesso; o serviço não disponibilizou PDF mesmo com incluirPDFGuias=S.'
+    +'\nMantenha o XML oficial de retorno arquivado. NÃO retransmitir.'
+   return;
+  }
+  throw Error(d.erro||'A GNRE não retornou um PDF válido.');
+ }catch(e){
+  el.textContent='Não foi possível recuperar o PDF: '+String(e.message||e)+'. Não reenvie o lote.';
+ }
+}
+
 // Confirmacao independente do endpoint ConfigUF HTTPS 443, aprovado em SOAP 450.
 // Nao transmite guias. Os endpoints de recepcao/resultado usam 443 apenas na homologacao Preview.
 async function compararGnreConfigUf443(){

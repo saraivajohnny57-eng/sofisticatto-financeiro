@@ -57,6 +57,7 @@ const gnreConsultaLote = require("../lib/integracoes/gnre-consulta-lote");
 const gnrePreenvioMg = require("../lib/integracoes/gnre-preenvio-mg");
 const gnrePilotoMg = require("../lib/integracoes/gnre-piloto-mg");
 const gnreExportarRetorno = require("../lib/integracoes/gnre-exportar-retorno-51109");
+const gnrePdfHomologacao = require("../lib/integracoes/gnre-pdf-homologacao-51109");
 const diagnosticoDfeV445 = require("../lib/integracoes/diagnostico-dfe-v445");
 const ROTAS = Object.freeze({
   "diagnostico-dfe-v445": diagnosticoDfeV445,
@@ -74,6 +75,7 @@ const ROTAS = Object.freeze({
   "gnre-preenvio-mg": gnrePreenvioMg,
   "gnre-piloto-mg": gnrePilotoMg,
   "gnre-exportar-retorno-51109": gnreExportarRetorno,
+  "gnre-pdf-homologacao-51109": gnrePdfHomologacao,
   "validar-chave": validarChave,
   "status-servidor": statusServidor,
   "salvar-credenciais": salvarCredenciais,
