@@ -78,7 +78,8 @@ test('TConsLote_GNRE rejeita raiz, ambiente, tamanho e estrutura inválidos', { 
   }
 });
 
-test('montarConsultaRecibo recusa recibos de 14 dígitos e valores não numéricos', () => {
-  assert.throws(() => montarConsultaRecibo('00000000123456'), /10 digitos/);
+test('montarConsultaRecibo aceita recibos de 14 dígitos atualizados em 2024 e rejeita valores não numéricos', () => {
+  // O XSD arquivado ainda descreve 10 dígitos; não o falsificar ou reescrever.
+  assert.ok(montarConsultaRecibo('00000000123456').includes('<numeroRecibo>00000000123456</numeroRecibo>'));
   assert.throws(() => montarConsultaRecibo('000000123A'), /10 ou 14 digitos/);
 });

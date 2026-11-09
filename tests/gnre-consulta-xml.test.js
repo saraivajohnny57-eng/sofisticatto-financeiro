@@ -9,7 +9,7 @@ test('GNRE query XML always uses homologation and preserves receipt leading zero
  assert.doesNotMatch(xml,/<ambiente>1<\/ambiente>/);
 });
 test('GNRE query XML refuses malformed receipt and cannot inject XML',()=>{
- for(const x of ['123','00000000000001','0000000000</numeroRecibo><ambiente>1</ambiente>',null,undefined])
+ for(const x of ['123','000000000000001','0000000000</numeroRecibo><ambiente>1</ambiente>',null,undefined])
   assert.throws(()=>montarConsultaRecibo(x));
 });
 
@@ -20,4 +20,11 @@ test('GNRE receipt query composes with SOAP 1.2 without nested XML declarations'
  const envelope=montarEnvelopeSoap12({servico:'consulta',xmlDados:fragment});
  assert.equal(envelope.split('<?xml').length-1,1);
  assert.ok(envelope.includes('<numeroRecibo>0000001234</numeroRecibo>'));
+});
+
+test('consulta GNRE aceita recibos de 14 digitos sem truncar, segundo atualizacao de 2024',()=>{
+ const xml=montarConsultaRecibo('00000000123456');
+ assert.ok(xml.includes('<numeroRecibo>00000000123456</numeroRecibo>'));
+ assert.ok(xml.startsWith('<TConsLote_GNRE xmlns="http://www.gnre.pe.gov.br">'));
+ assert.doesNotMatch(xml,/incluirPDFGuias|versao=/);
 });
