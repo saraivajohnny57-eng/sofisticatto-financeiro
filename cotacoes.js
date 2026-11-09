@@ -2053,6 +2053,14 @@ async function consultarGnrePilotoMg51109(){
    +(diag.pdf_guias_presente?'\nPDF coletivo consta no retorno (ainda não arquivado).':'')
    +(diag.arquivo_pagamento_presente?'\nArquivo de pagamento consta no retorno (ainda não validado).':'')
    +(codigo402&&!d.guia_confirmada?'\nATENÇÃO: lote 402 processado, mas autorização individual NÃO comprovada.':'')
+   +(d.conciliacao?'\nConferência com a NF-e arquivada: '+(d.conciliacao.confirmado?'COMPATÍVEL':'AINDA NÃO CONFIRMADA')
+     +(d.conciliacao.resumo?'\nDocumento NF-e: '+d.conciliacao.resumo.numero_nfe
+       +' | receita: '+d.conciliacao.resumo.receita+' | UF: '+d.conciliacao.resumo.uf_favorecida
+       +' | valor: R$ '+d.conciliacao.resumo.valor_principal
+       +'\nNúmero oficial da guia identificado: '+(d.conciliacao.resumo.possui_numero_guia?'sim':'não')
+       +' | PDF disponível: '+(d.conciliacao.resumo.possui_pdf_individual||d.conciliacao.resumo.pdf_lote_indicado?'indicado no retorno':'não localizado'):'')
+     +(d.conciliacao.pendencias?.length?'\nPendências:\n- '+d.conciliacao.pendencias.join('\n- '):'')
+     +'\nDocumento apenas de HOMOLOGAÇÃO — não pagar.':'')
    +'\n'+(d.aviso||'Não retransmita o lote; confirme o resultado individual com a GNRE.');
  }catch(e){el.textContent='Falha na consulta: '+String(e.message||e)+'. Não reenvie o lote.';}
 }
