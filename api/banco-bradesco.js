@@ -960,15 +960,15 @@ module.exports=async function(req,res){
         codigo_multa_percentual:2,
         codigo_comissao_percentual:2,
         juros_mensal_5_porcento_escala_homologada:false,
-        retroativo_vencido_aceito_confirmado:false,
+        retroativo_vencido_aceito_confirmado:true,
         put_autorizado:false,
-        observacao:'Código 2 indica percentual, mas não comprova unidade, escala e aplicação retroativa; nenhum PUT é enviado.'
+        observacao:'Código 2 indica percentual. O Bradesco confirmou juros mensais e manutenção em vencidos abertos no WF-99571; escala numérica e dias do PUT ainda precisam de prova. Nenhum PUT é enviado.'
       };
       const pendenciasConsolidadas=[...impedimentosContratuais,...ressalvasOrigem,
         ...Object.entries(camposPagadorVerificaveis).filter(([,v])=>!v).map(([k])=>'pagador.'+k),
         ...Object.entries(camposTituloVerificaveis).filter(([,v])=>!v).map(([k])=>'titulo.'+k),
-        'escala e periodicidade de juros/comissao de permanencia nao homologadas no PUT',
-        'aceitacao de encargos retroativos em titulo vencido nao confirmada'
+        'escala numérica e dias de inicio do PUT nao homologados; periodicidade mensal confirmada no WF-99571',
+        'encargos retroativos permitidos em titulo vencido aberto segundo WF-99571; valores e inicio ainda sujeitos ao contrato PUT'
       ];
       const valor=Number(reg.valor);
       const elegivel=sit.codStatus===1&&!sit.pago&&!sit.baixado&&!sit.descontado&&['aberto','vencido'].includes(sit.statusNovo)&&Number.isFinite(valor)&&valor>0&&sit.valorTitulo!==null&&(Math.abs(sit.valorTitulo-valor)<=0.01||Math.abs(sit.valorTitulo/100-valor)<=0.01);
@@ -1008,7 +1008,8 @@ module.exports=async function(req,res){
       // Diagnóstico de fontes do contrato PUT: não pressupor equivalência entre consulta e alteração.
       // Apenas nomes e presença; não retornar CPF/CNPJ ou outros dados pessoais ao cliente.
       const tituloConsulta=q.data?.titulo||q.data?.Titulo||q.data?.boleto||{};
-      const camposConsulta=['seuNumero','dataEmissao','dataVencto','valorTitulo','especie','codigoMulta','diasMulta','valorMulta'];
+      // Os nomes abaixo são os campos reais de CONSULTA (CBTTIAGS), não os nomes do PUT.
+      const camposConsulta=['snumero','dataEmis','dataVencto','valMoeda','qtdeCas','especDocto','dataMulta','diasMulta','valMulta','qtdeCasMul','codValMul','dataPerm','diasJuros','valPerm','codComisPerm'];
       const camposEncontrados=camposConsulta.filter(c=>tituloConsulta[c]!==undefined&&tituloConsulta[c]!==null&&String(tituloConsulta[c]).trim()!=='');
       const camposNaoEncontrados=camposConsulta.filter(c=>!camposEncontrados.includes(c));
       const diagnosticoPut={origem:'consulta bancária autenticada',campos_encontrados:camposEncontrados,campos_sem_correspondencia_direta:camposNaoEncontrados,payload_integral_montado:false,escala_percentual_put_confirmada:false,dias_inicio_confirmados:false,transmissao_autorizada:false};
