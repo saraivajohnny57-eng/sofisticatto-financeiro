@@ -10,7 +10,7 @@ function xml(codigo='100',recibo='1234567890',ambiente='2'){
   +'<ambiente>'+ambiente+'</ambiente><situacaoRecepcao><codigo>'+codigo+'</codigo>'
   +'<descricao>Lote recebido com sucesso</descricao></situacaoRecepcao>'
   +(recibo?'<recibo><numero>'+recibo+'</numero>'
-   +'<dataHoraRecibo>2026-11-09T13:10:00</dataHoraRecibo>'
+   +'<dataHoraRecibo>2026-11-09 13:10:00</dataHoraRecibo>'
    +'<tempoEstimadoProc>1000</tempoEstimadoProc></recibo>':'')
   +'</TRetLote_GNRE></soap:Body></soap:Envelope>';
 }
