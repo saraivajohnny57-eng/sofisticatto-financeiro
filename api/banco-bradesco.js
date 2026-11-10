@@ -845,10 +845,13 @@ module.exports=async function(req,res){
         Number(titulo.codComisPerm||0)!==0||
         Number(titulo.valMulta||0)!==0||
         Number(titulo.qmoedaComisPerm||0)!==0;
+      const {auditoria}=require('../lib/bradesco/wf99571-payload-audit');
+      const auditoriaPayload=auditoria(titulo,reg);
       const pendencias=[
         ...Object.entries(dadosConfirmados).filter(([,ok])=>!ok).map(([campo])=>'Identidade bancária não confirmada: '+campo),
         ...(!situacaoApta?['Status bancário atual incompatível com alteração']:[]),
         ...(encargosJaPresentes?['Há encargos registrados no título; reconciliar antes de novo PUT']:[]),
+        ...auditoriaPayload.pendencias,
         'Payload integral da API de alteração ainda não validado por todos os campos originais'
       ];
       return json(res,200,{ok:true,operacao:'CONFERENCIA_SOMENTE_LEITURA',
@@ -859,7 +862,7 @@ module.exports=async function(req,res){
         encargos_ja_presentes:encargosJaPresentes,
         encargos_propostos:{juros_mensal_percentual:5,multa_percentual:2,
           juros_escala:'050000',multa_escala:'020000',inicio_dias_apos_vencimento:1},
-        pendencias,put_liberado:false,transmitido:false,
+        pendencias,auditoria_payload:{campos_mapeados:auditoriaPayload.total_campos_mapeados,campos_ausentes:auditoriaPayload.campos_ausentes,ancoras:auditoriaPayload.ancoras_confirmadas},put_liberado:false,transmitido:false,
         aviso:'Consulta real ao Bradesco concluída; nenhuma alteração de título transmitida.'});
     }
     if(action==='conferir-piloto-55994-v435'){
