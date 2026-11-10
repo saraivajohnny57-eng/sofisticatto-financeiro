@@ -61,4 +61,41 @@ async function verificarReceitasGnreNova(){
  finally{btn.disabled=false}
 }
 window.verificarReceitasGnreNova=verificarReceitasGnreNova;
+async function prepararDuasGuiasGnreNova(){
+ const btn=el('freteGnrePrepararDuas'),check=el('freteGnreNovaConfirmada');
+ if(!btn)return;
+ btn.disabled=true;
+ try{
+  const nfe=typeof freteGnreNfeLida!=='undefined'?freteGnreNfeLida:null;
+  if(!check?.checked)throw new Error('Confirme que esta NF-e corresponde a uma operacao nova, sem GNRE emitida.');
+  if(!nfe?.nfeNova)throw new Error('Importe o XML autorizado da NF-e nova.');
+  if(nfe.divergencias?.length)throw new Error('Corrija divergencias entre NF-e e cotacao antes do preflight.');
+  const key=chaveAdm();
+  if(!key)throw new Error('Autorize o acesso administrativo as integracoes.');
+  const vencimento=el('freteGnreVencimento')?.value||'';
+  const pagamento=el('freteGnreDataPagamento')?.value||'';
+  if(!vencimento||!pagamento)throw new Error('Informe vencimento legal e data prevista de pagamento.');
+  if(nfe.nfeNova.statusAutorizacao!=='100'||nfe.nfeNova.chaveProtocolo!==nfe.chave)
+   throw new Error('O XML nao comprova NF-e autorizada (cStat 100 e protocolo).');
+  msg('Validando as duas receitas na ConfigUF e verificando duplicidades...');
+  const resposta=await fetch('/api/integracoes?action=gnre-duas-guias-nova',{
+   method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':key},
+   body:JSON.stringify({novaOperacao:true,nfe:nfe.nfeNova,fiscal:{vencimento,pagamento}})
+  });
+  const dados=await resposta.json().catch(()=>({ok:false,erro:'Resposta do servidor invalida'}));
+  if(!resposta.ok||dados.ok!==true)throw new Error(dados.erro||dados.diagnostico||'Falha no preflight');
+  const detal=el('freteGnreNovaDetalhes');
+  if(detal){
+   const card=document.createElement('p');
+   card.textContent='PREPARACAO EM HOMOLOGACAO: '+dados.tributos.map(t=>t.tributo+' '+t.receita+' R$ '+t.valor+' / documento '+t.tipo_documento).join(' | ')+
+    ' | Soma para cotacao R$ '+dados.total_cotacao+
+    '. Chave de verificacao do lote: '+dados.lote_sha256.slice(0,16)+'…';
+   detal.appendChild(card);
+  }
+  msg('Preflight concluido: dois XMLs preparados no servidor. Nenhuma guia transmitida ou pagavel; aguardam validacao XSD, conciliacao fiscal e retorno oficial.');
+ }catch(e){msg('Nao foi possivel preparar as duas guias: '+String(e.message||e)+' Nenhuma guia transmitida.')}
+ finally{btn.disabled=false}
+}
+window.prepararDuasGuiasGnreNova=prepararDuasGuiasGnreNova;
+
 })();
