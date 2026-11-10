@@ -9,6 +9,11 @@ function montar(){
  const h=document.createElement('h4');h.textContent='Piloto Bradesco — boleto 55994-01';panel.appendChild(h);
  const p=document.createElement('p');p.textContent='Consulta individual autenticada ao Bradesco para verificar situação, vencimento, valor e simulação de multa de 2% + juros de 5% ao mês. Somente leitura: não altera nem reemite boleto.';panel.appendChild(p);
  const b=document.createElement('button');b.type='button';b.className='btn roxo';b.textContent='Executar conferência única 55994-01';panel.appendChild(b);
+ const preflightButton=document.createElement('button');
+ preflightButton.type='button';preflightButton.className='btn roxo';
+ preflightButton.textContent='Validar payload e dados originais (sem alterar)';
+ preflightButton.style.marginLeft='8px';
+ panel.appendChild(preflightButton);
  const result=document.createElement('pre');result.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';result.setAttribute('aria-live','polite');panel.appendChild(result);
  b.onclick=async()=>{
   b.disabled=true;result.textContent='Consultando Bradesco...';
@@ -49,6 +54,28 @@ function montar(){
    ].join('\n');
   }catch(e){result.textContent='Não foi possível concluir a conferência: '+String(e.message||e);}
   finally{b.disabled=false;}
+ };
+ preflightButton.onclick=async()=>{
+  preflightButton.disabled=true;result.textContent='Consultando dados originais no Bradesco...';
+  try{
+   if(typeof bradescoReqProducao!=='function')throw new Error('Autorização de integrações indisponível.');
+   const j=await bradescoReqProducao('preflight-wf99571-55994',{});
+   result.textContent=[
+    'BRADESCO WF-99571 — PRÉ-VALIDAÇÃO DO PUT',
+    'Consulta autenticada: '+(j.consulta_autenticada?'CONCLUÍDA':'NÃO CONFIRMADA'),
+    'Seu Número confirmado: '+(j.origem?.seu_numero_confirmado?'SIM':'NÃO'),
+    'Emissão original confirmada: '+(j.origem?.emissao_confirmada?'SIM':'NÃO'),
+    'Espécie DM confirmada: '+(j.origem?.especie_confirmada?'SIM':'NÃO'),
+    'Vencimento original confirmado: '+(j.origem?.vencimento_original_confirmado?'SIM':'NÃO'),
+    'Juros mensal: 5% — '+(j.proposta_formatada?.juros||''),
+    'Multa: 2% — '+(j.proposta_formatada?.multa||''),
+    'Início: 1 dia corrido após vencimento',
+    'Pendências de contrato: '+((j.pendencias||[]).join('; ')||'Nenhuma identificada pelo mapeamento parcial'),
+    'PUT integral aprovado: '+(j.contrato_put_integral_validado?'SIM':'NÃO'),
+    'TRANSMISSÃO: NÃO REALIZADA'
+   ].join('\n');
+  }catch(e){result.textContent='Pré-validação indisponível: '+String(e.message||e);}
+  finally{preflightButton.disabled=false}
  };
  base.insertAdjacentElement('afterend',panel);
 }
