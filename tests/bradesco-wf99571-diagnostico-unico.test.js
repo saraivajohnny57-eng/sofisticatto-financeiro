@@ -14,9 +14,9 @@ const base=()=>({
 const run=(p)=>validarCandidato(p.t,p.reg,{},p.cp,p.sit);
 test('analisa estrutura candidata em uma unica chamada sem transmitir',()=>{
  const d=run(base());
- assert.equal(d.verificacoes.length,16);
+ assert.equal(d.verificacoes.length,17);
  assert.equal(d.pendencias.length,0);
- assert.equal(d.conclusao,'ESTRUTURA_CANDIDATA_MONTADA_REQUER_VALIDACAO_CONTRATUAL');
+ assert.equal(d.conclusao,'DADOS_CONFERIDOS_PENDENTE_VALIDACAO_SEMANTICA_DO_PUT');
  assert.equal(d.alteracao_enviada,false);
  assert.equal(d.liberar_put,false);
  assert.equal(d.hash_payload_candidato.length,64);
