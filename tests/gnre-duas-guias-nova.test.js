@@ -12,7 +12,8 @@ const FLAGS={emitente:'O',destinatario:'N',documento_origem:'O',
  detalhamento:'N',produto:'N',periodo_referencia:'N',
  vencimento:'O',pagamento:'O',convenio:'S',campos_adicionais:'N',valor_fcp:'N'};
 const perfil=(cod,docs=['24'])=>({ok:true,uf:'PA',receita:cod,exigencias:{...FLAGS},
- documentos:docs.map(codigo=>({codigo,descricao:'Chave DF-e'})),pendencias:[]});
+ documentos:docs.map(codigo=>({codigo,descricao:'Chave DF-e'})),pendencias:[],
+ tipos_gnre_receita:['0'],tipos_gnre_uf:['0']});
 function base(){
  const nfe={chave:chave(),numero:'51076',cnpjEmitente:'05451985000195',
   ufDestino:'PA',ufOrigem:'GO',razaoSocialEmitente:'Sofisticatto',
@@ -63,4 +64,13 @@ test('mesmo lote gera hash igual e nao transmite',()=>{
  const a=prepararDuasGuias(base()),b=prepararDuasGuias(base());
  assert.equal(a.resumo.idempotency_key,b.resumo.idempotency_key);
  assert.equal(a.resumo.lote_sha256.length,64);
+});
+
+test('tipo de GNRE 0 precisa constar na configuracao da UF e receita',()=>{
+ const b=base();b.perfis['100129'].tipos_gnre_receita=['1'];
+ assert.throws(()=>prepararDuasGuias(b),/tipo GNRE 0/);
+});
+test('convenio obrigatorio bloqueia ausencia de dados fiscais',()=>{
+ const b=base();b.perfis['100129'].exigencias.convenio='O';
+ assert.throws(()=>prepararDuasGuias(b),/exige convenio/);
 });
