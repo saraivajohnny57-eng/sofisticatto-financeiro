@@ -76,7 +76,7 @@ async function prepararDuasGuiasGnreNova(){
   if(!check?.checked)throw new Error('Confirme que esta NF-e corresponde a uma operacao nova, sem GNRE emitida.');
   if(!nfe?.nfeNova)throw new Error('Importe o XML autorizado da NF-e nova.');
   if(nfe.divergencias?.length)throw new Error('Corrija divergencias entre NF-e e cotacao antes do preflight.');
-  const key=chaveAdm();
+  const key=await chaveAdm();
   if(!key)throw new Error('Autorize o acesso administrativo as integracoes.');
   const vencimento=el('freteGnreVencimento')?.value||'';
   const pagamento=el('freteGnreDataPagamento')?.value||'';
