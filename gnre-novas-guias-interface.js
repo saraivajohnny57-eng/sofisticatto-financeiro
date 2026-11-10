@@ -6,8 +6,14 @@ const R=[{codigo:'100102',nome:'DIFAL',campo:'difalXml'},{codigo:'100129',nome:'
 function el(id){return document.getElementById(id)}
 function msg(texto){const x=el('freteGnreNovaSituacao');if(x)x.textContent=texto}
 function valor(x){return Number(x||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
-function chaveAdm(){
- return sessionStorage.getItem('integrations_admin_key')||localStorage.getItem('integrations_admin_key')||'';
+async function chaveAdm(){
+ // O token gravado pode expirar ou pertencer a outro deploy/segredo.
+ // Reutiliza a validacao administrativa com renovacao de dispositivo.
+ if(typeof obterChaveIntegracoesCotacao!=='function')
+  throw new Error('Autorizacao de integracoes indisponivel nesta versao.');
+ const chave=await obterChaveIntegracoesCotacao();
+ if(!chave)throw new Error('Autorizacao cancelada ou nao validada.');
+ return chave;
 }
 async function verificarReceitasGnreNova(){
  const btn=el('freteGnreConsultarConfigUf'),x=el('freteGnreNovaDetalhes');
@@ -20,7 +26,7 @@ async function verificarReceitasGnreNova(){
   if(!/^[A-Z]{2}$/.test(nfe.ufDestino))throw new Error('UF de destino inválida.');
   if(!Number.isFinite(nfe.difalXml)||!Number.isFinite(nfe.fcpXml)||nfe.difalXml<0||nfe.fcpXml<0)
    throw new Error('Valores fiscais DIFAL/FCP inválidos.');
-  const key=chaveAdm();
+  const key=await chaveAdm();
   if(!key)throw new Error('Autorize as integrações com a senha mestre antes de consultar a ConfigUF.');
   msg('Consultando a configuração GNRE de '+nfe.ufDestino+'...');
   const estados=[];
