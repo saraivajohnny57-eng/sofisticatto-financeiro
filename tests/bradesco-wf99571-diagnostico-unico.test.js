@@ -14,7 +14,7 @@ const base=()=>({
 const run=(p)=>validarCandidato(p.t,p.reg,{},p.cp,p.sit);
 test('analisa estrutura candidata em uma unica chamada sem transmitir',()=>{
  const d=run(base());
- assert.equal(d.verificacoes.length,19);
+ assert.equal(d.verificacoes.length,20);
  assert.equal(d.pendencias.length,0);
  assert.equal(d.conclusao,'DADOS_PRONTOS_REQUER_VALIDACAO_FINAL_DO_ENDPOINT');
  assert.equal(d.alteracao_enviada,false);
