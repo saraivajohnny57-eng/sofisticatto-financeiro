@@ -61,6 +61,7 @@ const gnrePdfHomologacao = require("../lib/integracoes/gnre-pdf-homologacao-5110
 const gnreProducaoPreflight = require("../lib/integracoes/gnre-producao-preflight");
 const gnrePaConfiguf = require("../lib/integracoes/gnre-pa-configuf");
 const gnreMultiConfiguf = require("../lib/integracoes/gnre-configuf-multi-rota");
+const gnreDuasGuiasNova = require("../lib/integracoes/gnre-duas-guias-nova-rota");
 const gnrePreenvioPa = require("../lib/integracoes/gnre-preenvio-pa-rota");
 const gnrePilotoPa = require("../lib/integracoes/gnre-piloto-pa-51076");
 const diagnosticoDfeV445 = require("../lib/integracoes/diagnostico-dfe-v445");
@@ -84,6 +85,7 @@ const ROTAS = Object.freeze({
   "gnre-producao-preflight": gnreProducaoPreflight,
   "gnre-pa-configuf": gnrePaConfiguf,
   "gnre-configuf-multi": gnreMultiConfiguf,
+  "gnre-duas-guias-nova": gnreDuasGuiasNova,
   "gnre-preenvio-pa": gnrePreenvioPa,
   "gnre-piloto-pa-51076": gnrePilotoPa,
   "validar-chave": validarChave,
