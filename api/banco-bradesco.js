@@ -847,6 +847,12 @@ module.exports=async function(req,res){
         Number(titulo.qmoedaComisPerm||0)!==0;
       const {auditoria}=require('../lib/bradesco/wf99571-payload-audit');
       const auditoriaPayload=auditoria(titulo,reg);
+      const bancoConfigCript=await obter(idRegistro(amb,'dados-bancarios'));
+      if(!bancoConfigCript)throw new Error('Configuração bancária indisponível para o diagnóstico único.');
+      const bancoConfig=descriptografar(bancoConfigCript)||{};
+      const consultaIdentificadores=montarConsultaTituloBradesco(bancoConfig,reg);
+      const {validarCandidato}=require('../lib/bradesco/wf99571-diagnostico-unico');
+      const diagnosticoUnico=validarCandidato(titulo,reg,bancoConfig,consultaIdentificadores,situacao);
       const pendencias=[
         ...Object.entries(dadosConfirmados).filter(([,ok])=>!ok).map(([campo])=>'Identidade bancária não confirmada: '+campo),
         ...(!situacaoApta?['Status bancário atual incompatível com alteração']:[]),
@@ -862,7 +868,7 @@ module.exports=async function(req,res){
         encargos_ja_presentes:encargosJaPresentes,
         encargos_propostos:{juros_mensal_percentual:5,multa_percentual:2,
           juros_escala:'050000',multa_escala:'020000',inicio_dias_apos_vencimento:1},
-        pendencias,auditoria_payload:{campos_mapeados:auditoriaPayload.total_campos_mapeados,campos_ausentes:auditoriaPayload.campos_ausentes,ancoras:auditoriaPayload.ancoras_confirmadas},put_liberado:false,transmitido:false,
+        pendencias,diagnostico_unico:diagnosticoUnico,auditoria_payload:{campos_mapeados:auditoriaPayload.total_campos_mapeados,campos_ausentes:auditoriaPayload.campos_ausentes,ancoras:auditoriaPayload.ancoras_confirmadas},put_liberado:false,transmitido:false,
         aviso:'Consulta real ao Bradesco concluída; nenhuma alteração de título transmitida.'});
     }
     if(action==='conferir-piloto-55994-v435'){
