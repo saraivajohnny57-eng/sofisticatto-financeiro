@@ -1,0 +1,35 @@
+name: GNRE dupla guia - testes sem rede
+on:
+  push:
+    branches: [gnre-xml-calculos-integracao]
+    paths:
+      - 'lib/integracoes/gnre-duas-guias-nova.js'
+      - 'lib/integracoes/gnre-duas-guias-nova-rota.js'
+      - 'gnre-novas-guias-interface.js'
+      - 'cotacoes.js'
+      - 'index.html'
+      - 'tests/gnre-duas-guias-nova.test.js'
+      - '.github/workflows/gnre-duas-guias.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gnre-duas-guias:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Check syntax
+        run: |
+          node --check lib/integracoes/gnre-duas-guias-nova.js
+          node --check lib/integracoes/gnre-duas-guias-nova-rota.js
+          node --check gnre-novas-guias-interface.js
+          node --check cotacoes.js
+      - name: Test GNRE without external requests
+        run: node --require ./tests/helpers/no-network.js --test tests/gnre-duas-guias-nova.test.js
