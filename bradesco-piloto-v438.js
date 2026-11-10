@@ -12,7 +12,7 @@ function montar(){
  p.textContent='Consulta autenticada do título 56078-02 (Nosso Número 62710000058) para validar status, vencimento original, emissão e dados dos encargos. Não altera o título.';
  panel.appendChild(p);
  const b=document.createElement('button');b.type='button';b.className='btn roxo';
- b.textContent='Conferir título 56078-02 no Bradesco (sem alterar)';
+ b.textContent='Executar diagnóstico único do boleto 56078-02';
  panel.appendChild(b);
  const result=document.createElement('pre');result.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
  result.setAttribute('aria-live','polite');panel.appendChild(result);
@@ -21,23 +21,29 @@ function montar(){
   try{
    if(typeof bradescoReqProducao!=='function')throw new Error('Autorização de integrações indisponível.');
    const j=await bradescoReqProducao('conferir-piloto-56078-v459',{});
+   const d=j.diagnostico_unico||{};
+   const ok=(d.verificacoes||[]).filter(x=>x.ok).length;
+   const total=(d.verificacoes||[]).length;
    result.textContent=[
-    'BRADESCO — PILOTO 56078-02',
-    'Consulta autenticada: '+(j.ok?'CONCLUÍDA':'NÃO CONFIRMADA'),
-    'Nosso Número: '+j.nosso_numero,
-    'Vencimento original: '+j.vencimento_original,
-    'Valor nominal: R$ '+Number(j.valor_nominal||0).toFixed(2).replace('.',','),
+    'BRADESCO — DIAGNÓSTICO ÚNICO DO TÍTULO 56078-02',
+    'Consulta autenticada: '+(j.ok?'CONCLUÍDA':'FALHOU'),
     'Status bancário: '+j.status_descricao+' (código '+j.status_codigo+')',
-    'Status preliminarmente compatível: '+(j.situacao_apta?'SIM':'NÃO'),
-    'Seu Número, emissão, espécie, vencimento e valor confirmados: '+
-       (Object.values(j.verificacoes||{}).every(Boolean)?'SIM':'NÃO'),
-    'Juros: 5% ao mês / Multa: 2% / Início: 1 dia após vencimento',
-    'Encargos já presentes: '+(j.encargos_ja_presentes?'SIM':'NÃO'),
-    'Campos mapeados do contrato: '+(j.auditoria_payload?.campos_mapeados??'não informado'),
-    'Campos ausentes da resposta: '+((j.auditoria_payload?.campos_ausentes||[]).join(', ')||'nenhum dentre os mapeados'),
-    'Pendências: '+(j.pendencias||[]).join('; '),
-    'PUT liberado: NÃO',
-    'Alteração bancária: NÃO TRANSMITIDA'
+    'Verificações contratuais: '+ok+'/'+total,
+    'Payload candidato: '+(d.estrutura_candidata_montada?'ESTRUTURA MONTADA':'BLOQUEADO'),
+    'Valor original: R$ '+Number(j.valor_nominal||0).toFixed(2).replace('.',',')+
+      ' | vencimento original: '+j.vencimento_original,
+    'Encargos previstos: 5% ao mês + multa 2% (início: 1 dia)',
+    'Hash do payload (sem dados pessoais): '+(d.hash_payload_candidato||'não gerado'),
+    '',
+    'IMPEDIMENTOS REAIS:',
+    ...(d.pendencias?.length?d.pendencias.map(x=>'• '+x):['Nenhuma divergência de dados detectada']),
+    '',
+    'VALIDAÇÕES CONTRATUAIS PENDENTES:',
+    ...(d.alertas||[]).map(x=>'• '+x),
+    '',
+    'RESULTADO: '+(d.conclusao||'SEM DIAGNÓSTICO'),
+    'ALTERAÇÃO NO BRADESCO: NÃO EXECUTADA',
+    'O envio só será liberado após validar integralmente o contrato e confirmar a manutenção controlada.'
    ].join('\n');
   }catch(e){result.textContent='Falha na conferência: '+String(e.message||e);}
   finally{b.disabled=false;}
