@@ -1187,6 +1187,16 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <button type="button" class="btn roxo" id="freteGnreConsultarConfigUf" onclick="verificarReceitasGnreNova()">Consultar exigências DIFAL e FCP da UF</button>
                 <p id="freteGnreNovaSituacao" role="status" aria-live="polite" style="font-size:13px;margin-top:8px">Importe a NF-e nova para iniciar a conferência. As guias antigas não serão alteradas.</p>
                 <div id="freteGnreNovaDetalhes" style="font-size:13px;overflow-wrap:anywhere"></div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:10px 0">
+                  <label>Data prevista do pagamento
+                    <input type="date" id="freteGnreDataPagamento" aria-label="Data prevista do pagamento GNRE">
+                  </label>
+                  <label style="display:flex;gap:8px;align-items:center">
+                    <input type="checkbox" id="freteGnreNovaConfirmada">
+                    Confirmo que é uma NF-e nova e que não foram emitidas GNREs para ela
+                  </label>
+                </div>
+                <button type="button" class="btn roxo" id="freteGnrePrepararDuas" onclick="prepararDuasGuiasGnreNova()">Preparar as duas GNREs (sem transmitir)</button>
                 <small>Conferência não gera guias pagáveis. A emissão só será disponibilizada depois das validações fiscais e do retorno oficial.</small>
               </div>
               <div>
@@ -3510,7 +3520,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="transportadoras.js?v=245-cobertura-unica-cache"></script>
 <script src="gnre-divisao-fiscal.js?v=20261110"></script>
 <script src="cotacoes.js?v=gnre-divisao-20261110"></script>
-<script src="gnre-novas-guias-interface.js?v=20261110"></script>
+<script src="gnre-novas-guias-interface.js?v=20261110-2"></script>
 <script src="whatsapp.js?v=11"></script>
 <script src="dashboard.js?v=11"></script>
 <script src="notificacoes.js?v=11"></script>
