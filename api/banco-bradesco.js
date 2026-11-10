@@ -812,6 +812,56 @@ module.exports=async function(req,res){
     // imutáveis/contratuais a partir de dados locais incompletos.
     // V435: piloto 55994 — localização estrita por NF e conferência autenticada,
     // sem qualquer chamada ao endpoint de alteração.
+    if(action==='conferir-piloto-56078-v459'){
+      if(amb!=='producao')throw new Error('Consulta do piloto somente no ambiente bancário de produção.');
+      const rows=await supabaseRest('cobrancas_bancarias',{query:'?referencia=eq.BRADESCO-56078-02&select=*&limit=2'});
+      if(!Array.isArray(rows)||rows.length!==1)throw new Error('A parcela 56078-02 não foi localizada de forma única.');
+      const reg=rows[0];
+      if(String(reg.banco||'').toLowerCase()!=='bradesco'||
+        String(reg.numero_nf)!=='56078'||Number(reg.parcela_numero)!==2||
+        String(reg.referencia)!=='BRADESCO-56078-02'||
+        nossoNumeroRegistroBradesco(reg)!=='62710000058'||
+        Math.abs(Number(reg.valor)-527.96)>0.001||
+        String(reg.vencimento).slice(0,10)!=='2026-11-08'){
+        throw new Error('Identidade do piloto divergente; nenhuma alteração permitida.');
+      }
+      const consulta=await consultarTituloBradesco(amb,reg);
+      if(consulta.http_status<200||consulta.http_status>=300)
+        throw new Error('Consulta ao Bradesco não confirmada: '+(detalheRespostaBradesco(consulta.data)||consulta.http_status));
+      const situacao=interpretarConsultaBradesco(consulta.data,reg);
+      const titulo=consulta.data?.titulo||consulta.data?.Titulo||consulta.data?.boleto||{};
+      const dataOriginal=dataBradescoIso(titulo.dataVencto);
+      const nominalBanco=Number(titulo.valMoeda);
+      const nominalConfere=Number.isFinite(nominalBanco)&&(Math.abs(nominalBanco-527.96)<=0.01||Math.abs(nominalBanco/100-527.96)<=0.01);
+      const dadosConfirmados={
+        seu_numero:String(titulo.snumero||'')==='56078-02',
+        emissao:String(titulo.dataEmis||'')==='28092026',
+        especie:String(titulo.especDocto||'')==='DM',
+        vencimento:dataOriginal==='2026-11-08',
+        valor_nominal:nominalConfere
+      };
+      const situacaoApta=situacao.codStatus===1&&!situacao.pago&&!situacao.baixado&&!situacao.descontado;
+      const encargosJaPresentes=Number(titulo.codValMul||0)!==0||
+        Number(titulo.codComisPerm||0)!==0||
+        Number(titulo.valMulta||0)!==0||
+        Number(titulo.qmoedaComisPerm||0)!==0;
+      const pendencias=[
+        ...Object.entries(dadosConfirmados).filter(([,ok])=>!ok).map(([campo])=>'Identidade bancária não confirmada: '+campo),
+        ...(!situacaoApta?['Status bancário atual incompatível com alteração']:[]),
+        ...(encargosJaPresentes?['Há encargos registrados no título; reconciliar antes de novo PUT']:[]),
+        'Payload integral da API de alteração ainda não validado por todos os campos originais'
+      ];
+      return json(res,200,{ok:true,operacao:'CONFERENCIA_SOMENTE_LEITURA',
+        piloto:'56078-02',nosso_numero:'62710000058',valor_nominal:527.96,
+        vencimento_original:'2026-11-08',status_codigo:situacao.codStatus,
+        status_descricao:situacao.descricao,emissao_confirmada:dadosConfirmados.emissao,
+        verificacoes:dadosConfirmados,situacao_apta:situacaoApta,
+        encargos_ja_presentes:encargosJaPresentes,
+        encargos_propostos:{juros_mensal_percentual:5,multa_percentual:2,
+          juros_escala:'050000',multa_escala:'020000',inicio_dias_apos_vencimento:1},
+        pendencias,put_liberado:false,transmitido:false,
+        aviso:'Consulta real ao Bradesco concluída; nenhuma alteração de título transmitida.'});
+    }
     if(action==='conferir-piloto-55994-v435'){
       if(amb!=='producao')throw new Error('Piloto disponível somente na produção.');
       const rows=await supabaseRest('cobrancas_bancarias',{query:'?numero_nf=eq.55994&select=*&limit=100'});
