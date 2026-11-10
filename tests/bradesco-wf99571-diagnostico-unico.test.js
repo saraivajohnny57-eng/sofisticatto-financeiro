@@ -14,9 +14,10 @@ const base=()=>({
 const run=(p)=>validarCandidato(p.t,p.reg,{},p.cp,p.sit);
 test('analisa estrutura candidata em uma unica chamada sem transmitir',()=>{
  const d=run(base());
- assert.equal(d.verificacoes.length,17);
- assert.equal(d.pendencias.length,0);
- assert.equal(d.conclusao,'DADOS_CONFERIDOS_PENDENTE_VALIDACAO_SEMANTICA_DO_PUT');
+ assert.equal(d.verificacoes.length,18);
+ assert.ok(d.pendencias.some(x=>x.includes('Código de protesto')));
+ assert.ok(d.pendencias.some(x=>x.includes('zero à esquerda')));
+ assert.equal(d.conclusao,'BLOQUEADO_POR_CONTRATO');
  assert.equal(d.alteracao_enviada,false);
  assert.equal(d.liberar_put,false);
  assert.equal(d.hash_payload_candidato.length,64);
@@ -40,4 +41,17 @@ test('pago ou com encargos ja registrados bloqueia envio',()=>{
 test('não altera data e valor nominal em dados de origem',()=>{
  const p=base(),before=JSON.stringify(p);
  run(p);assert.equal(JSON.stringify(p),before);
+});
+
+test('retorno com documento do avalista sem nome impede alteração',()=>{
+ const p=base();p.t.sacador={cnpj:'11222333000181',nome:''};
+ const r=run(p);
+ assert.ok(r.pendencias.some(x=>x.includes('sacador avalista')));
+ assert.equal(r.liberar_put,false);
+});
+test('não altera cobrança com dados originais ambiguos mesmo com origem conferida',()=>{
+ const r=run(base());
+ assert.equal(r.alteracao_enviada,false);
+ assert.equal(r.liberar_put,false);
+ assert.equal(r.conclusao,'BLOQUEADO_POR_CONTRATO');
 });
