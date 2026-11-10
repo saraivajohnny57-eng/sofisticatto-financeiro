@@ -1181,6 +1181,14 @@ SOFISTICATTO COSMÉTICOS</textarea>
                   Selecione “Calcular estimativa DIFAL” para visualizar o DIFAL (100102), o FCP (100129) e a soma exibida na cotação. A emissão de guias separadas exige conferência fiscal; esta tela não emite.
                 </div>
               </div>
+              <div class="campo-largo" id="freteGnreNovaGuias" style="border:1px solid #d8c8e8;border-radius:12px;padding:12px;background:#faf7ff">
+                <strong>GNRE — novas NF-e: conferência de duas guias</strong>
+                <p style="font-size:13px">Após importar uma NF-e nova, consulte as exigências oficiais da UF para DIFAL (100102) e FCP (100129). Documentos e receitas são obtidos da ConfigUF, não escolhidos livremente na tela.</p>
+                <button type="button" class="btn roxo" id="freteGnreConsultarConfigUf" onclick="verificarReceitasGnreNova()">Consultar exigências DIFAL e FCP da UF</button>
+                <p id="freteGnreNovaSituacao" role="status" aria-live="polite" style="font-size:13px;margin-top:8px">Importe a NF-e nova para iniciar a conferência. As guias antigas não serão alteradas.</p>
+                <div id="freteGnreNovaDetalhes" style="font-size:13px;overflow-wrap:anywhere"></div>
+                <small>Conferência não gera guias pagáveis. A emissão só será disponibilizada depois das validações fiscais e do retorno oficial.</small>
+              </div>
               <div>
                 <label class="relatorio-label" for="freteGnreVencimento">Vencimento previsto da GNRE (editavel)</label>
                 <input id="freteGnreVencimento" type="date" onclick="preencherVencimentoGnreSeVazio()" onfocus="preencherVencimentoGnreSeVazio()">
@@ -3502,6 +3510,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="transportadoras.js?v=245-cobertura-unica-cache"></script>
 <script src="gnre-divisao-fiscal.js?v=20261110"></script>
 <script src="cotacoes.js?v=gnre-divisao-20261110"></script>
+<script src="gnre-novas-guias-interface.js?v=20261110"></script>
 <script src="whatsapp.js?v=11"></script>
 <script src="dashboard.js?v=11"></script>
 <script src="notificacoes.js?v=11"></script>
