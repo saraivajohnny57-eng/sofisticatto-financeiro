@@ -284,7 +284,8 @@ async function analisarXmlGnreCotacao(input){
       const prod=Array.from(item.getElementsByTagName("*")).find(el=>el.localName==="prod");
       const imposto=Array.from(item.getElementsByTagName("*")).find(el=>el.localName==="imposto");
       const icms=Array.from(imposto?.getElementsByTagName("*")||[]).find(el=>el.localName==="ICMS");
-      return {cfop:obter(prod,"CFOP"),ncm:obter(prod,"NCM"),cst:obter(icms,"CST"),csosn:obter(icms,"CSOSN")};
+      return {cfop:obter(prod,"CFOP"),ncm:obter(prod,"NCM"),cst:obter(icms,"CST"),csosn:obter(icms,"CSOSN"),
+       difal:Number(obter(imposto,"vICMSUFDest")||0),fcp:Number(obter(imposto,"vFCPUFDest")||0)};
     });
     if(!itens.length) throw new Error("NF-e sem itens fiscais.");
     const cfops=[...new Set(itens.map(i=>i.cfop).filter(Boolean))];
@@ -297,8 +298,15 @@ async function analisarXmlGnreCotacao(input){
     if(ufTela && ufTela!==ufDestino) divergencias.push("UF da cotacao difere da NF-e");
     if(nfTela && nfTela!==numero) divergencias.push("numero da NF da cotacao difere do XML");
     if(valorTelaTexto && Math.abs(valorTela-valor)>0.01) divergencias.push("valor da cotacao difere do XML");
-    freteGnreNfeLida={chave,numero,ufDestino,cnpjEmitente:cnpj,valorNf:valor,ufCodigo:ufOrigem,itens,divergencias};
-    saida.textContent="NF-e "+numero+" | UF "+ufDestino+" | Valor "+valor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})+" | Chave "+chave+" | CFOP: "+(cfops.join(", ")||"nao informado")+" | CST/CSOSN: "+(situacoes.join(", ")||"nao informado")+(divergencias.length?" | ATENCAO: "+divergencias.join("; "):"")+" | Analise tributaria pendente. Nenhuma GNRE foi gerada.";
+    const difalXml=Number(obter(total,"vICMSUFDest")||itens.reduce((t,i)=>t+i.difal,0).toFixed(2));
+    const fcpXml=Number(itens.reduce((t,i)=>t+i.fcp,0).toFixed(2));
+    freteGnreNfeLida={chave,numero,ufDestino,cnpjEmitente:cnpj,valorNf:valor,ufCodigo:ufOrigem,itens,divergencias,difalXml,fcpXml};
+    saida.textContent="NF-e "+numero+" | UF "+ufDestino+" | Valor "+valor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})+
+      " | DIFAL declarado: "+difalXml.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})+
+      " | FCP declarado nos itens: "+fcpXml.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})+
+      " | Chave "+chave+" | CFOP: "+(cfops.join(", ")||"nao informado")+" | CST/CSOSN: "+(situacoes.join(", ")||"nao informado")+
+      (divergencias.length?" | ATENCAO: "+divergencias.join("; "):"")+" | A estimativa da cotação não substitui os tributos declarados na NF-e. Nenhuma GNRE foi gerada.";
+    calcularGnreFrete();
   }catch(erro){
     saida.textContent="Nao foi possivel analisar XML: "+erro.message;
   }
@@ -334,15 +342,36 @@ function conferirPreviaGnreCotacao(){
   preencherVencimentoGnreSeVazio();
   linha("Vencimento previsto (editavel): "+(freteValor("freteGnreVencimento")||"nao informado")+"; sujeito a confirmacao fiscal.");
   linha("Valor estimado: " + valor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}));
+  if(modo==="automatico"&&freteGnreDivisaoAtual){
+    const c=freteGnreDivisaoAtual;
+    linha("DIFAL (100102, previsto): "+Number(c.difal).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}));
+    linha("FCP (100129, previsto): "+Number(c.fcp).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}));
+    linha("Total na cotação = DIFAL + FCP (valores arredondados separadamente).");
+    linha("Duas guias diferentes somente depois de validar as duas receitas na ConfigUF e os valores com o contador.");
+  }
   linha("UF de destino: " + (freteValor("freteUf") || "Nao informada"));
   if(freteGnreNfeLida){
     linha("NF-e XML conferida: "+freteGnreNfeLida.numero+" | Chave: "+freteGnreNfeLida.chave);
     if(freteGnreNfeLida.divergencias.length) linha("ATENCAO: "+freteGnreNfeLida.divergencias.join("; "));
+    linha("DIFAL da NF-e: "+moedaFrete(freteGnreNfeLida.difalXml)+" | FCP declarado na NF-e: "+moedaFrete(freteGnreNfeLida.fcpXml)+".");
+    if(modo==="automatico"&&freteGnreDivisaoAtual){
+      const confronto=window.SofisticattoGnreDivisao.compararComNfe(freteGnreDivisaoAtual,{
+        valorNf:freteGnreNfeLida.valorNf,difalXml:freteGnreNfeLida.difalXml,
+        fcpXml:freteGnreNfeLida.fcpXml
+      });
+      if(confronto.pendencias.length)linha("PENDÊNCIAS (impedem emissão automática): "+confronto.pendencias.join("; "));
+    }
   }
   linha("Situacao: analise fiscal pendente. Esta previa NAO gera XML oficial nem transmite GNRE.");
 }
 
+let freteGnreDivisaoAtual=null;
+function mostrarDivisaoGnreFrete(texto){
+ const el=freteCampo("freteGnreDivisao");
+ if(el)el.textContent=texto;
+}
 function calcularGnreFrete(){
+  freteGnreDivisaoAtual=null;
   const modo = freteValor("freteGnreModo");
   const campo = freteCampo("freteGnreValor");
   const informacao = freteCampo("freteAliquotaInfo");
@@ -353,11 +382,13 @@ function calcularGnreFrete(){
   if(modo === "nao"){
     campo.value = "";
     informacao.value = "Não se aplica";
+    mostrarDivisaoGnreFrete("Sem GNRE nesta cotação.");
     return;
   }
 
   if(modo === "manual"){
     informacao.value = "Valor informado manualmente";
+    mostrarDivisaoGnreFrete("Valor manual: sem separação entre DIFAL e FCP. Informe justificativa e valide com o fiscal antes de emitir.");
     return;
   }
 
@@ -372,6 +403,7 @@ function calcularGnreFrete(){
     const total = Math.round((nf + frete) * 0.02 * 100) / 100;
     campo.value = total.toLocaleString("pt-BR", {minimumFractionDigits:2,maximumFractionDigits:2});
     informacao.value = "Planilha: (NF + frete) × 2% — estimativa";
+    mostrarDivisaoGnreFrete("Estimativa simplificada de 2%: não representa automaticamente o FCP de 100129 nem o DIFAL de 100102. Para separar tributos, use o modo de cálculo automático e confira as alíquotas por UF.");
     return;
   }
 
@@ -385,29 +417,46 @@ function calcularGnreFrete(){
   if(!aliquota || !valorNf){
     campo.value = "";
     informacao.value = "Alíquota ou valor não localizado";
+    mostrarDivisaoGnreFrete("Informe valor da operação, UF e origem do produto e configure as alíquotas na tabela para calcular o DIFAL/FCP.");
     return;
   }
 
-  const difal = Math.max(
-    0,
-    valorNf * (
-      Number(aliquota.aliquota_interna) -
-      Number(aliquota.aliquota_interestadual)
-    )
-  );
-
-  const fcp = valorNf * Number(aliquota.fcp || 0);
-  const total = difal + fcp;
-
-  campo.value = total.toLocaleString("pt-BR", {
-    minimumFractionDigits:2,
-    maximumFractionDigits:2
-  });
-
-  informacao.value =
-    `${(Number(aliquota.aliquota_interestadual)*100).toFixed(2)}% → ` +
-    `${(Number(aliquota.aliquota_interna)*100).toFixed(2)}% + ` +
-    `FCP ${(Number(aliquota.fcp)*100).toFixed(2)}%`;
+  try{
+    const calc=window.SofisticattoGnreDivisao.estimar({
+      valorOperacao:valorNf,
+      aliquotaInterestadual:Number(aliquota.aliquota_interestadual),
+      aliquotaInterna:Number(aliquota.aliquota_interna),
+      aliquotaFcp:Number(aliquota.fcp||0)
+    });
+    freteGnreDivisaoAtual=calc;
+    // O valor gravado na cotação permanece APENAS o total somado,
+    // com cada componente arredondado antes de somar (igual à planilha).
+    campo.value=Number(calc.total).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+    informacao.value=
+      `${(Number(aliquota.aliquota_interestadual)*100).toFixed(2)}% → `+
+      `${(Number(aliquota.aliquota_interna)*100).toFixed(2)}% + `+
+      `FCP ${(Number(aliquota.fcp)*100).toFixed(2)}%`;
+    const linhas=[
+      "Prévia de tributos — estimativa da planilha (não é guia emitida)",
+      "DIFAL (receita sugerida 100102): "+Number(calc.difal).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}),
+      "FCP (receita sugerida 100129): "+Number(calc.fcp).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}),
+      "TOTAL PARA INFORMAR AO CLIENTE: "+Number(calc.total).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}),
+      "A emissão separada depende de ConfigUF, incidência confirmada e conciliação com o XML da NF-e. Não gerar automaticamente 100099."
+    ];
+    if(freteGnreNfeLida){
+      const confronto=window.SofisticattoGnreDivisao.compararComNfe(calc,{
+        valorNf:freteGnreNfeLida.valorNf,difalXml:freteGnreNfeLida.difalXml,
+        fcpXml:freteGnreNfeLida.fcpXml
+      });
+      if(confronto.pendencias.length)linhas.push("PENDÊNCIAS DA NF-e:\n- "+confronto.pendencias.join("\n- "));
+      else linhas.push("Valores da estimativa conciliados com a NF-e.");
+    }
+    mostrarDivisaoGnreFrete(linhas.join("\n"));
+  }catch(e){
+    campo.value="";
+    informacao.value="Cálculo não confirmado";
+    mostrarDivisaoGnreFrete("Não foi possível calcular a estimativa: "+String(e.message||e)+". Verifique as alíquotas fiscais.");
+  }
 }
 
 

@@ -1173,8 +1173,13 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <input id="freteGnreFreteBase" inputmode="decimal" placeholder="0,00" oninput="calcularGnreFrete()">
               </div>
               <div>
-                <label class="relatorio-label">GNRE estimada/manual</label>
+                <label class="relatorio-label">Total estimado GNRE para a cotação (DIFAL + FCP)</label>
                 <input id="freteGnreValor" inputmode="decimal" placeholder="0,00">
+              </div>
+              <div class="campo-largo">
+                <div id="freteGnreDivisao" role="status" aria-live="polite" style="font-size:13px;border:1px solid #d8c8e8;border-radius:10px;padding:10px;white-space:pre-wrap">
+                  Selecione “Calcular estimativa DIFAL” para visualizar o DIFAL (100102), o FCP (100129) e a soma exibida na cotação. A emissão de guias separadas exige conferência fiscal; esta tela não emite.
+                </div>
               </div>
               <div>
                 <label class="relatorio-label" for="freteGnreVencimento">Vencimento previsto da GNRE (editavel)</label>
@@ -3495,7 +3500,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="clientes.js?v=13.4"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="transportadoras.js?v=245-cobertura-unica-cache"></script>
-<script src="cotacoes.js?v=gnre-vencimento-20261106"></script>
+<script src="gnre-divisao-fiscal.js?v=20261110"></script>
+<script src="cotacoes.js?v=gnre-divisao-20261110"></script>
 <script src="whatsapp.js?v=11"></script>
 <script src="dashboard.js?v=11"></script>
 <script src="notificacoes.js?v=11"></script>
