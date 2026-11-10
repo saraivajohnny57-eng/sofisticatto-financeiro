@@ -5,10 +5,15 @@ on:
     paths:
       - 'lib/integracoes/gnre-duas-guias-nova.js'
       - 'lib/integracoes/gnre-duas-guias-nova-rota.js'
+      - 'lib/integracoes/gnre-duas-guias-resultado-rota.js'
+      - 'lib/integracoes/gnre-conferencia-dupla.js'
+      - 'lib/integracoes/gnre-configuf-multi.js'
+      - 'lib/integracoes/gnre-interpretar-resultado.js'
       - 'gnre-novas-guias-interface.js'
       - 'cotacoes.js'
       - 'index.html'
       - 'tests/gnre-duas-guias-nova.test.js'
+      - 'tests/gnre-duas-guias-retorno.test.js'
       - '.github/workflows/gnre-duas-guias.yml'
   workflow_dispatch:
 permissions:
@@ -29,7 +34,11 @@ jobs:
         run: |
           node --check lib/integracoes/gnre-duas-guias-nova.js
           node --check lib/integracoes/gnre-duas-guias-nova-rota.js
+          node --check lib/integracoes/gnre-duas-guias-resultado-rota.js
+          node --check lib/integracoes/gnre-conferencia-dupla.js
+          node --check lib/integracoes/gnre-configuf-multi.js
+          node --check lib/integracoes/gnre-interpretar-resultado.js
           node --check gnre-novas-guias-interface.js
           node --check cotacoes.js
       - name: Test GNRE without external requests
-        run: node --require ./tests/helpers/no-network.js --test tests/gnre-duas-guias-nova.test.js
+        run: node --require ./tests/helpers/no-network.js --test tests/gnre-duas-guias-nova.test.js tests/gnre-duas-guias-retorno.test.js
