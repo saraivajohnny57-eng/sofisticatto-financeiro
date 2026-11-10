@@ -33,6 +33,8 @@ function montar(){
        (Object.values(j.verificacoes||{}).every(Boolean)?'SIM':'NÃO'),
     'Juros: 5% ao mês / Multa: 2% / Início: 1 dia após vencimento',
     'Encargos já presentes: '+(j.encargos_ja_presentes?'SIM':'NÃO'),
+    'Campos mapeados do contrato: '+(j.auditoria_payload?.campos_mapeados??'não informado'),
+    'Campos ausentes da resposta: '+((j.auditoria_payload?.campos_ausentes||[]).join(', ')||'nenhum dentre os mapeados'),
     'Pendências: '+(j.pendencias||[]).join('; '),
     'PUT liberado: NÃO',
     'Alteração bancária: NÃO TRANSMITIDA'
