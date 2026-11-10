@@ -49,6 +49,7 @@ const gnreHomologacaoPlano = require("../lib/integracoes/gnre-homologacao-plano"
 const gnreReconciliacao = require("../lib/integracoes/gnre-reconciliacao");
 const gnreRecepcaoPlano = require("../lib/integracoes/gnre-recepcao-plano");
 const gnreRecepcaoHttp = require("../lib/integracoes/gnre-recepcao-http");
+const gnreParNovaNfe = require("../lib/integracoes/gnre-par-nova-nfe-http");
 const diagnosticoDfeV445 = require("../lib/integracoes/diagnostico-dfe-v445");
 const ROTAS = Object.freeze({
   "diagnostico-dfe-v445": diagnosticoDfeV445,
@@ -58,6 +59,7 @@ const ROTAS = Object.freeze({
   "gnre-reconciliacao": gnreReconciliacao,
   "gnre-recepcao-plano": gnreRecepcaoPlano,
   "gnre-recepcao": gnreRecepcaoHttp,
+  "gnre-par-nova-nfe": gnreParNovaNfe,
   "validar-chave": validarChave,
   "status-servidor": statusServidor,
   "salvar-credenciais": salvarCredenciais,
