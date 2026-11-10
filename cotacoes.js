@@ -300,7 +300,23 @@ async function analisarXmlGnreCotacao(input){
     if(valorTelaTexto && Math.abs(valorTela-valor)>0.01) divergencias.push("valor da cotacao difere do XML");
     const difalXml=Number(obter(total,"vICMSUFDest")||itens.reduce((t,i)=>t+i.difal,0).toFixed(2));
     const fcpXml=Number(itens.reduce((t,i)=>t+i.fcp,0).toFixed(2));
-    freteGnreNfeLida={chave,numero,ufDestino,cnpjEmitente:cnpj,valorNf:valor,ufCodigo:ufOrigem,itens,divergencias,difalXml,fcpXml};
+    const prot=elementos("protNFe")[0];
+    const ender=Array.from(emit?.getElementsByTagName("*")||[]).find(el=>el.localName==="enderEmit");
+    const enderecoEmitente=[obter(ender,"xLgr"),obter(ender,"nro"),obter(ender,"xBairro")].filter(Boolean).join(", ").slice(0,60);
+    const nfeNova={
+      chave,numero,cnpjEmitente:cnpj,ufDestino,
+      ufOrigem:obter(ender,"UF"),
+      razaoSocialEmitente:obter(emit,"xNome").slice(0,60),
+      enderecoEmitente,
+      municipioEmitente:obter(ender,"cMun"),
+      cepEmitente:obter(ender,"CEP"),
+      statusAutorizacao:obter(prot,"cStat"),
+      chaveProtocolo:obter(prot,"chNFe"),
+      ambienteNfe:obter(ide,"tpAmb"),
+      difal:difalXml.toFixed(2),
+      fcp:fcpXml.toFixed(2)
+    };
+    freteGnreNfeLida={chave,numero,ufDestino,cnpjEmitente:cnpj,valorNf:valor,ufCodigo:ufOrigem,itens,divergencias,difalXml,fcpXml,nfeNova};
     saida.textContent="NF-e "+numero+" | UF "+ufDestino+" | Valor "+valor.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})+
       " | DIFAL declarado: "+difalXml.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})+
       " | FCP declarado nos itens: "+fcpXml.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})+
