@@ -2380,3 +2380,12 @@ body.sof-menu-fechado .sidebar .logo,body.sof-menu-fechado .sidebar .usuario-log
 body.sof-menu-fechado .sidebar .menu button:hover{background:#ddd5f7}
 @media(max-width:768px){body.sof-menu-fechado .sidebar{left:7px;top:50%;width:56px!important;padding:7px 5px!important}body.sof-menu-fechado .main{padding-left:68px!important;padding-right:10px!important}body.sof-menu-fechado .sidebar .menu{display:flex!important}body.sof-menu-fechado .sidebar .logout{display:flex!important}}
 @media print{body.sof-menu-fechado .sidebar{display:none!important}body.sof-menu-fechado .main{padding-left:0!important}}
+
+/* VOLUME ETIQUETA: permanecer em uma só linha na prévia e na captura do PDF. */
+.etiqueta-papel .etiqueta-volume{
+  white-space:nowrap;
+  overflow:visible;
+  word-break:keep-all;
+  overflow-wrap:normal;
+  line-height:1;
+}

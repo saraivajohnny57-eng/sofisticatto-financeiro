@@ -48,10 +48,20 @@ async function pdfEtiquetas(progress){
       pdf.addImage(base.image,"JPEG",0,0,150,100,undefined,"FAST");
       pdf.setTextColor(0,0,0);
       pdf.setFont("helvetica",base.bold?"bold":"normal");
-      pdf.setFontSize(base.fontPt);
       const label="VOL: "+formatarVolumeEtiqueta(i,d.quantidade_volumes);
-      const tx=base.align==="right"?base.x+base.w:base.align==="center"?base.x+base.w/2:base.x;
-      pdf.text(label,tx,base.y+Math.min(base.h*0.79,base.fontPt*0.3528*1.12),{align:base.align==="right"?"right":base.align==="center"?"center":"left",maxWidth:base.w});
+      // Não usar maxWidth do jsPDF: esse parâmetro quebra "VOL: 11 / 32"
+      // em duas linhas quando a caixa HTML não comporta a fonte original.
+      // Ajustar proporcionalmente a fonte e manter o texto vetorial em linha única.
+      const alinhamento=base.align==="right"?"right":base.align==="center"?"center":"left";
+      const tx=alinhamento==="right"?base.x+base.w:alinhamento==="center"?base.x+base.w/2:base.x;
+      const larguraSegura=Math.max(8,Math.min(base.w-1.2,alinhamento==="right"?base.x+base.w-1:150-base.x-1));
+      pdf.setFontSize(base.fontPt);
+      const larguraTexto=pdf.getTextWidth(label);
+      const fonteAjustada=larguraTexto>larguraSegura
+        ?Math.max(7,base.fontPt*(larguraSegura/larguraTexto)*0.96):base.fontPt;
+      pdf.setFontSize(fonteAjustada);
+      const alturaTexto=fonteAjustada*0.3528;
+      pdf.text(label,tx,base.y+Math.min(base.h*0.79,alturaTexto*1.12),{align:alinhamento});
       if(progress)progress(i,d.quantidade_volumes);
       if(i%20===0)await new Promise(resolve=>setTimeout(resolve,0));
     }
