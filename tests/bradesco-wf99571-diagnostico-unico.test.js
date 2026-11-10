@@ -14,10 +14,9 @@ const base=()=>({
 const run=(p)=>validarCandidato(p.t,p.reg,{},p.cp,p.sit);
 test('analisa estrutura candidata em uma unica chamada sem transmitir',()=>{
  const d=run(base());
- assert.equal(d.verificacoes.length,18);
- assert.ok(d.pendencias.some(x=>x.includes('Código de protesto')));
- assert.ok(d.pendencias.some(x=>x.includes('zero à esquerda')));
- assert.equal(d.conclusao,'BLOQUEADO_POR_CONTRATO');
+ assert.equal(d.verificacoes.length,19);
+ assert.equal(d.pendencias.length,0);
+ assert.equal(d.conclusao,'DADOS_PRONTOS_REQUER_VALIDACAO_FINAL_DO_ENDPOINT');
  assert.equal(d.alteracao_enviada,false);
  assert.equal(d.liberar_put,false);
  assert.equal(d.hash_payload_candidato.length,64);
@@ -53,5 +52,13 @@ test('não altera cobrança com dados originais ambiguos mesmo com origem confer
  const r=run(base());
  assert.equal(r.alteracao_enviada,false);
  assert.equal(r.liberar_put,false);
- assert.equal(r.conclusao,'BLOQUEADO_POR_CONTRATO');
+ assert.equal(r.conclusao,'DADOS_PRONTOS_REQUER_VALIDACAO_FINAL_DO_ENDPOINT');
+});
+
+test('vencimento nao e enviado como alteracao e zero do protesto segue o exemplo do manual',()=>{
+ const p=run(base());
+ assert.equal(p.valor_nominal_preservado,true);
+ assert.equal(p.vencimento_original_preservado,true);
+ assert.equal(p.liberar_put,false);
+ assert.ok(p.alertas.some(x=>x.includes('codInstrucaoProtesto 0')));
 });
