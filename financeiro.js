@@ -8111,7 +8111,7 @@ async function consultarPendenciasCarteiraV294(banco,opcoes={}){
     const chavesBanco=new Set(tit.map(x=>`${banco}|${String(x.nosso_numero||'').replace(/\D/g,'')}`));
     const pendLocais=locaisBanco.filter(x=>chavesBanco.has(boletoLocalChaveV294(x))&&['aberto','vencido'].includes(String(x.status||'')));
     const combinado=[
-      ...pendLocais.map(x=>{const k=boletoLocalChaveV294(x),bx=tit.find(t=>`${banco}|${String(t.nosso_numero||'').replace(/\D/g,'')}`===k);return {vencimento:x.vencimento,status:x.status,descontado:banco==='bb'?!!x.bb_descontado:!!x.bradesco_descontado,status_banco:bx?.status_banco||'',cliente:x.cliente_nome||'',cpf_cnpj:x.cpf_cnpj||'',seu_numero:x.numero_nf||x.referencia||'',nosso_numero:x.nosso_numero||'',valor:Number(x.valor||0),origem:'PORTAL'};}),
+      ...pendLocais.map(x=>{const k=boletoLocalChaveV294(x),bx=tit.find(t=>`${banco}|${String(t.nosso_numero||'').replace(/\D/g,'')}`===k);return {vencimento:x.vencimento,status:x.status,descontado:banco==='bb'?!!x.bb_descontado:!!x.bradesco_descontado,status_banco:bx?.status_banco||'',cliente:x.cliente_nome||'',cpf_cnpj:x.cpf_cnpj||'',seu_numero:numeroNfParcelaExibicaoV459(x),nosso_numero:x.nosso_numero||'',valor:Number(x.valor||0),origem:'PORTAL'};}),
       ...pendExternas.map(x=>({...x,origem:'BANCO'}))
     ];
     window.carteiraExternaV294=window.carteiraExternaV294||{};window.carteiraExternaV294[banco]=pendExternas;
@@ -8442,6 +8442,23 @@ function imprimirRelatorioBancoV290(bancoCod){
   w.document.close();
 }
 
+// Número fiscal permanece inalterado; sufixo é somente apresentação do título/parcela.
+function numeroNfParcelaExibicaoV459(x){
+  const nf=String(x?.numero_nf||'').trim();
+  if(!nf)return '—';
+  const parte=Number(x?.parcela_numero);
+  const qtd=Number(x?.parcela_total);
+  const ref=String(x?.referencia||'');
+  const match=/^BRADESCO-([A-Za-z0-9]+)-(\d{1,3})$/i.exec(ref);
+  // Fonte prioritária: parcela registrada. Na falta, referência Bradesco confiável.
+  const n=Number.isInteger(parte)&&parte>0?parte:(match&&match[1]===nf?Number(match[2]):0);
+  if(!n)return nf;
+  if(match&&match[1]!==nf)return nf;
+  if(!(qtd>1||match))return nf;
+  const suffix='-'+String(n).padStart(2,'0');
+  return nf.endsWith(suffix)?nf:nf+suffix;
+}
+
 function renderHistoricoCobrancas(){
   const tb=document.getElementById('cobHistoricoTabela'); if(!tb)return;
   const lista=cobrancasFiltradasHistoricoV178();
@@ -8462,7 +8479,7 @@ function renderHistoricoCobrancas(){
         :(x.banco==='bb'&&x.status==='pendente_integracao'
           ?`<button class="btn verde" onclick="verificarConciliarTituloBb('${x.id}')">🔎 Verificar no BB</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
           :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`)));
-    return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${dataEmissaoCobrancaV177(x)?new Date(dataEmissaoCobrancaV177(x)+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${((x.status==='aberto'||x.status==='vencido')&&dataVencidaV314(x.vencimento))?'Vencido / Em aberto':cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)} ${bradescoStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}${x.bradesco_data_pagamento?`<div class="bb-status-meta">Pagamento: ${new Date(x.bradesco_data_pagamento+'T12:00:00').toLocaleDateString('pt-BR')}${x.bradesco_valor_pago!=null?' • Pago '+cobMoeda(x.bradesco_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
+    return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(numeroNfParcelaExibicaoV459(x))}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${dataEmissaoCobrancaV177(x)?new Date(dataEmissaoCobrancaV177(x)+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${((x.status==='aberto'||x.status==='vencido')&&dataVencidaV314(x.vencimento))?'Vencido / Em aberto':cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)} ${bradescoStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}${x.bradesco_data_pagamento?`<div class="bb-status-meta">Pagamento: ${new Date(x.bradesco_data_pagamento+'T12:00:00').toLocaleDateString('pt-BR')}${x.bradesco_valor_pago!=null?' • Pago '+cobMoeda(x.bradesco_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
   }).join(''):'<tr><td colspan="8">Nenhuma cobrança encontrada.</td></tr>';
 }
 
