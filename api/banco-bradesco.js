@@ -812,6 +812,22 @@ module.exports=async function(req,res){
     // imutáveis/contratuais a partir de dados locais incompletos.
     // V435: piloto 55994 — localização estrita por NF e conferência autenticada,
     // sem qualquer chamada ao endpoint de alteração.
+    if(action==='preflight-wf99571-55994'){
+      if(amb!=='producao')throw new Error('Consulta real do piloto somente na produção.');
+      const rows=await supabaseRest('cobrancas_bancarias',{query:'?referencia=eq.BRADESCO-55994-01&select=*&limit=2'});
+      if(!Array.isArray(rows)||rows.length!==1)throw new Error('Título 55994-01 não localizado univocamente.');
+      const reg=rows[0];
+      if(String(reg.banco||'').toLowerCase()!=='bradesco')throw new Error('Banco do título divergente.');
+      const consulta=await consultarTituloBradesco(amb,reg);
+      if(consulta.http_status<200||consulta.http_status>=300)
+        throw new Error('Consulta bancária não concluída: '+(detalheRespostaBradesco(consulta.data)||consulta.http_status));
+      const tituloBanco=consulta.data?.titulo||consulta.data?.Titulo||consulta.data?.boleto||{};
+      const {verificarOriginal}=require('../lib/bradesco/wf99571-preflight');
+      const preflight=verificarOriginal(reg,tituloBanco);
+      return json(res,200,{ok:true,...preflight,
+        consulta_autenticada:true,consulta_ao_banco_realizada:true,
+        observacao:'Consulta de título somente leitura. Nenhum PUT executado e nenhum registro alterado.'});
+    }
     if(action==='conferir-piloto-55994-v435'){
       if(amb!=='producao')throw new Error('Piloto disponível somente na produção.');
       const rows=await supabaseRest('cobrancas_bancarias',{query:'?numero_nf=eq.55994&select=*&limit=100'});
