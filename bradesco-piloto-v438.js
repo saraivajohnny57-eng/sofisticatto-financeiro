@@ -1,4 +1,4 @@
-/* Piloto Bradesco 56078-02 — somente consulta, sem PUT. */
+/* Piloto Bradesco 56078-02 — consulta e execução única controlada. */
 (function(){
 'use strict';
 function montar(){
@@ -9,11 +9,16 @@ function montar(){
  panel.style.cssText='margin:14px 0;padding:16px;border:1px solid #b9a5d5;border-radius:12px;background:#faf8fd';
  const h=document.createElement('h4');h.textContent='Piloto Bradesco — boleto 56078-02';panel.appendChild(h);
  const p=document.createElement('p');
- p.textContent='Consulta autenticada do título 56078-02 (Nosso Número 62710000058) para validar status, vencimento original, emissão e dados dos encargos. Não altera o título.';
+ p.textContent='Nosso Número 62710000058. O diagnóstico consulta o banco sem alterar; a execução exige confirmação explícita e permite apenas uma tentativa no servidor.';
  panel.appendChild(p);
  const b=document.createElement('button');b.type='button';b.className='btn roxo';
  b.textContent='Executar diagnóstico único do boleto 56078-02';
  panel.appendChild(b);
+ const executar=document.createElement('button');
+ executar.type='button';executar.className='btn roxo';
+ executar.textContent='Executar UMA alteração real — juros 5% + multa 2%';
+ executar.style.cssText='margin-left:8px;background:#8b2543';
+ panel.appendChild(executar);
  const result=document.createElement('pre');result.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
  result.setAttribute('aria-live','polite');panel.appendChild(result);
  b.onclick=async()=>{
@@ -48,6 +53,33 @@ function montar(){
    ].join('\n');
   }catch(e){result.textContent='Falha na conferência: '+String(e.message||e);}
   finally{b.disabled=false;}
+ };
+ executar.onclick=async()=>{
+  const mensagem='ATENÇÃO: ação REAL no Bradesco!\\nBoleto 56078-02, Nosso Número 62710000058.\\nJuros 5% ao mês e multa 2%.\\nO sistema tentará executar uma única alteração, sem repetição automática. Confirma?';
+  if(!window.confirm(mensagem.replace(/\\n/g,'\n')))return;
+  executar.disabled=true;
+  b.disabled=true;
+  result.textContent='Registrando tentativa única e consultando o título antes da transmissão...';
+  try{
+   const j=await bradescoReqProducao('executar-manutencao-56078-wf99571',
+    {autorizacao:'AUTORIZO-56078-02-JUROS5-MULTA2'});
+   result.textContent=[
+    'BRADESCO — EXECUÇÃO CONTROLADA 56078-02',
+    'Transmissão efetuada: '+(j.transmitido?'SIM':j.transmissao_incerta?'RESULTADO INCERTO':'NÃO CONFIRMADA'),
+    'Estado: '+(j.estado||'verificar no banco'),
+    'Código de juros: '+(j.codigo_juros??'aguardando'),
+    'Código de multa: '+(j.codigo_multa??'aguardando'),
+    'Vencimento preservado: '+(j.vencimento_preservado===true?'SIM':'não confirmado'),
+    'Valor nominal preservado: '+(j.valor_nominal_preservado===true?'SIM':'não confirmado'),
+    'Aviso: '+(j.aviso||'Consultar o banco antes de qualquer outra tentativa.'),
+    'REENVIO AUTOMÁTICO: PROIBIDO'
+   ].join('\n');
+  }catch(e){
+   const info=e.bradescoResponse||{};
+   result.textContent='Resultado da execução: '+String(info.aviso||info.erro||e.message||e)+
+     '\nNão repetir o PUT. Verifique se existe tentativa registrada e consulte o Bradesco.';
+  }
+  // Nunca reabilitar o botão após qualquer tentativa. O servidor também bloqueia a duplicidade.
  };
  base.insertAdjacentElement('afterend',panel);
 }
