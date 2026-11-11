@@ -812,6 +812,16 @@ module.exports=async function(req,res){
     // imutáveis/contratuais a partir de dados locais incompletos.
     // V435: piloto 55994 — localização estrita por NF e conferência autenticada,
     // sem qualquer chamada ao endpoint de alteração.
+    if(action==='status-manutencao-56078-wf99571'){
+      const rows=await supabaseRest('bradesco_manutencao_controlada',{
+        query:'?referencia=eq.BRADESCO-56078-02&select=status,http_status,codigo_retorno,criado_em&limit=1'
+      });
+      const registro=Array.isArray(rows)&&rows.length?rows[0]:null;
+      return json(res,200,{ok:true,estado:registro?.status||'sem_tentativa',
+        codigo_retorno:registro?.codigo_retorno||null,
+        http_status:registro?.http_status||null,
+        bloqueado:!!registro,sem_reenvio:!!registro});
+    }
     if(action==='consultar-manutencao-56078-wf99571'){
       if(amb!=='producao')return json(res,403,{ok:false,erro:'Somente Bradesco produção.'});
       const ref='BRADESCO-56078-02',tabela='bradesco_manutencao_controlada';
