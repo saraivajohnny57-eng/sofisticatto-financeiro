@@ -19,6 +19,11 @@ function montar(){
  executar.textContent='Executar UMA alteração real — juros 5% + multa 2%';
  executar.style.cssText='margin-left:8px;background:#8b2543';
  panel.appendChild(executar);
+ const consultarResultado=document.createElement('button');
+ consultarResultado.type='button';consultarResultado.className='btn roxo';
+ consultarResultado.textContent='Consultar resultado bancário sem reenviar';
+ consultarResultado.style.marginLeft='8px';
+ panel.appendChild(consultarResultado);
  const result=document.createElement('pre');result.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
  result.setAttribute('aria-live','polite');panel.appendChild(result);
  b.onclick=async()=>{
@@ -69,6 +74,8 @@ function montar(){
     'Estado: '+(j.estado||'verificar no banco'),
     'Código de juros: '+(j.codigo_juros??'aguardando'),
     'Código de multa: '+(j.codigo_multa??'aguardando'),
+    'Taxa de juros: '+(j.taxa_juros??'aguardando'),
+    'Taxa de multa: '+(j.taxa_multa??'aguardando'),
     'Vencimento preservado: '+(j.vencimento_preservado===true?'SIM':'não confirmado'),
     'Valor nominal preservado: '+(j.valor_nominal_preservado===true?'SIM':'não confirmado'),
     'Aviso: '+(j.aviso||'Consultar o banco antes de qualquer outra tentativa.'),
@@ -80,6 +87,23 @@ function montar(){
      '\nNão repetir o PUT. Verifique se existe tentativa registrada e consulte o Bradesco.';
   }
   // Nunca reabilitar o botão após qualquer tentativa. O servidor também bloqueia a duplicidade.
+ };
+ consultarResultado.onclick=async()=>{
+  consultarResultado.disabled=true;
+  result.textContent='Consultando o Bradesco sem transmitir alteração...';
+  try{
+   const j=await bradescoReqProducao('consultar-manutencao-56078-wf99571',{});
+   result.textContent=[
+    'CONCILIAÇÃO DO BOLETO 56078-02 — SOMENTE CONSULTA',
+    'Estado: '+(j.estado||'não informado'),
+    'Juros: código '+(j.codigo_juros??'-')+' | valor percentual retornado '+(j.taxa_juros??'-'),
+    'Multa: código '+(j.codigo_multa??'-')+' | valor percentual retornado '+(j.taxa_multa??'-'),
+    'Confirmação completa: '+(j.confirmado?'SIM':'NÃO'),
+    'Aviso: '+(j.aviso||''),
+    'NENHUM NOVO PUT ENVIADO'
+   ].join('\n');
+  }catch(e){result.textContent='Não foi possível conciliar: '+String(e.bradescoResponse?.aviso||e.message||e)+'\nNão reenviar o PUT.'}
+  finally{consultarResultado.disabled=false;}
  };
  base.insertAdjacentElement('afterend',panel);
 }
