@@ -815,7 +815,7 @@ module.exports=async function(req,res){
     if(action==='consultar-manutencao-56078-wf99571'){
       if(amb!=='producao')return json(res,403,{ok:false,erro:'Somente Bradesco produção.'});
       const ref='BRADESCO-56078-02',tabela='bradesco_manutencao_controlada';
-      const tentativas=await supabaseRest(tabela,{query:'?referencia=eq.'+ref+'&select=status,http_status,depois,criado_em&limit=1'});
+      const tentativas=await supabaseRest(tabela,{query:'?referencia=eq.'+ref+'&select=status,http_status,codigo_retorno,detalhes,depois,criado_em&limit=1'});
       if(!tentativas?.length)return json(res,200,{ok:true,estado:'sem_tentativa',transmitido:false});
       const rows=await supabaseRest('cobrancas_bancarias',{query:'?referencia=eq.'+ref+'&select=*&limit=2'});
       if(!Array.isArray(rows)||rows.length!==1)return json(res,409,{ok:false,erro:'Título não localizado.'});
@@ -835,13 +835,21 @@ module.exports=async function(req,res){
           body:{status:'confirmado',atualizado_em:new Date().toISOString(),
             depois:{codigo_juros:juros,codigo_multa:multa,taxa_juros:taxaJuros,taxa_multa:taxaMulta,
               dias_juros:diasJuros,dias_multa:diasMulta,
-            dias_juros:diasJuros,dias_multa:diasMulta,
               valor_nominal_preservado:true,vencimento_original_preservado:true}}});
       }
-      return json(res,200,{ok:true,estado:correto?'confirmado':tentativas[0].status,
+      const tentativa=tentativas[0];
+      const rejeitado=tentativa.status==='rejeitado'&&!correto;
+      return json(res,200,{ok:true,estado:correto?'confirmado':tentativa.status,
         codigo_juros:juros,codigo_multa:multa,taxa_juros:taxaJuros,taxa_multa:taxaMulta,
+        dias_juros:diasJuros,dias_multa:diasMulta,
+        retorno_original:{http_status:tentativa.http_status,codigo:tentativa.codigo_retorno||null},
+        diagnostico_rejeicao:rejeitado&&tentativa.codigo_retorno==='CBTT0797'
+          ?'O Bradesco rejeitou os parâmetros de protesto/negativação. É necessário confirmar a combinação correta com o banco antes de qualquer nova tentativa.'
+          :null,
         sem_reenvio:true,confirmado:correto,
-        aviso:correto?'Encargos confirmados na consulta do título.':'Encargos ainda não confirmados; consultar novamente sem retransmitir.'});
+        aviso:correto?'Encargos confirmados na consulta do título.':
+          rejeitado?'Tentativa rejeitada pelo Bradesco; os encargos não foram confirmados. Não reenviar sem análise do contrato.':
+          'Encargos ainda não confirmados; consultar novamente sem retransmitir.'});
     }
     if(action==='executar-manutencao-56078-wf99571'){
       // NÃO executar por GET nem aceitar título/valor/parcela arbitrários.
