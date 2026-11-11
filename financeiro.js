@@ -1867,7 +1867,7 @@ function centavosRelatorioV428(valor){
  return Number.isSafeInteger(c)?c:null;
 }
 function distribuirParcelasRelatorioV428(totalCentavos,quantidade){
- if(!Number.isSafeInteger(totalCentavos)||totalCentavos<=0||!Number.isInteger(quantidade)||quantidade<1)return [];
+ if(!Number.isSafeInteger(totalCentavos)||totalCentavos<quantidade||!Number.isInteger(quantidade)||quantidade<1)return [];
  const base=Math.floor(totalCentavos/quantidade),resto=totalCentavos%quantidade;
  const valores=Array(quantidade).fill(base);
  for(let i=0;i<resto;i++)valores[i]++;
@@ -1913,7 +1913,7 @@ async function editarRelatorio(id){
      const ps=Array.isArray(rel.parcelas_json)?rel.parcelas_json:[];
      if(ps.length){
        const valores=distribuirParcelasRelatorioV428(novoValorCent,ps.length);
-       if(!valores.length)return alert('Não foi possível recalcular as parcelas.');
+       if(!valores.length)return alert('O total precisa ter pelo menos R$ 0,01 por parcela. Não foi possível recalcular.');
        dados.parcelas_json=ps.map((p,i)=>({...p,valor:valores[i]}));
      }
    }else{
