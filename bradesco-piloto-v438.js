@@ -24,7 +24,19 @@ function montar(){
  consultarResultado.textContent='Consultar resultado bancário sem reenviar';
  consultarResultado.style.marginLeft='8px';
  panel.appendChild(consultarResultado);
- const result=document.createElement('pre');result.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
+ executar.disabled=true;
+ executar.title='Verificando se já existe uma tentativa registrada...';
+ const verificarTentativa=async()=>{
+  try {
+   if(typeof bradescoReqProducao!=='function')return;
+   const status=await bradescoReqProducao('status-manutencao-56078-wf99571',{});
+   executar.disabled=!!status.bloqueado;
+   executar.title=status.bloqueado
+     ?'Tentativa anterior registrada: '+String(status.estado||'')+' '+String(status.codigo_retorno||'')
+     :'Nenhuma tentativa registrada; operação depende de autorização.';
+  }catch(_){executar.disabled=true;executar.title='Não foi possível confirmar a segurança da operação.';}
+ };
+  const result=document.createElement('pre');result.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
  result.setAttribute('aria-live','polite');panel.appendChild(result);
  b.onclick=async()=>{
   b.disabled=true;result.textContent='Consultando título 56078-02 no Bradesco...';
@@ -103,9 +115,12 @@ function montar(){
   result.textContent='Consultando o Bradesco sem transmitir alteração...';
   try{
    const j=await bradescoReqProducao('consultar-manutencao-56078-wf99571',{});
+   if(j.sem_reenvio)executar.disabled=true;
    result.textContent=[
     'CONCILIAÇÃO DO BOLETO 56078-02 — SOMENTE CONSULTA',
     'Estado: '+(j.estado||'não informado'),
+    'Retorno da tentativa: '+(j.retorno_original?.codigo||'-')+' (HTTP '+(j.retorno_original?.http_status||'-')+')',
+    ...(j.diagnostico_rejeicao?['Diagnóstico: '+j.diagnostico_rejeicao]:[]),
     'Juros: código '+(j.codigo_juros??'-')+' | valor percentual retornado '+(j.taxa_juros??'-'),
     'Multa: código '+(j.codigo_multa??'-')+' | valor percentual retornado '+(j.taxa_multa??'-'),
     'Dias juros: '+(j.dias_juros??'-')+' | dias multa: '+(j.dias_multa??'-'),
@@ -117,6 +132,7 @@ function montar(){
   finally{consultarResultado.disabled=false;}
  };
  base.insertAdjacentElement('afterend',panel);
+ verificarTentativa();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',montar);else montar();
 })();
