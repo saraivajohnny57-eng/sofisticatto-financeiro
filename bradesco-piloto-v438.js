@@ -76,6 +76,8 @@ function montar(){
     'Código de multa: '+(j.codigo_multa??'aguardando'),
     'Taxa de juros: '+(j.taxa_juros??'aguardando'),
     'Taxa de multa: '+(j.taxa_multa??'aguardando'),
+    'Dias para juros: '+(j.dias_juros??'aguardando'),
+    'Dias para multa: '+(j.dias_multa??'aguardando'),
     'Vencimento preservado: '+(j.vencimento_preservado===true?'SIM':'não confirmado'),
     'Valor nominal preservado: '+(j.valor_nominal_preservado===true?'SIM':'não confirmado'),
     'Aviso: '+(j.aviso||'Consultar o banco antes de qualquer outra tentativa.'),
@@ -83,7 +85,7 @@ function montar(){
    ].join('\n');
   }catch(e){
    const info=e.bradescoResponse||{};
-   result.textContent='Resultado da execução: '+String(info.aviso||info.erro||e.message||e)+
+   result.textContent='Resultado da execução: '+String(info.retorno||info.aviso||info.erro||e.message||e)+
      '\nNão repetir o PUT. Verifique se existe tentativa registrada e consulte o Bradesco.';
   }
   // Nunca reabilitar o botão após qualquer tentativa. O servidor também bloqueia a duplicidade.
@@ -98,6 +100,7 @@ function montar(){
     'Estado: '+(j.estado||'não informado'),
     'Juros: código '+(j.codigo_juros??'-')+' | valor percentual retornado '+(j.taxa_juros??'-'),
     'Multa: código '+(j.codigo_multa??'-')+' | valor percentual retornado '+(j.taxa_multa??'-'),
+    'Dias juros: '+(j.dias_juros??'-')+' | dias multa: '+(j.dias_multa??'-'),
     'Confirmação completa: '+(j.confirmado?'SIM':'NÃO'),
     'Aviso: '+(j.aviso||''),
     'NENHUM NOVO PUT ENVIADO'
