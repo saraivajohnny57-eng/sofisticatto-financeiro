@@ -33,9 +33,10 @@ test('consulta posterior exige ambos percentuais e conservacao do nominal',()=>{
  assert.match(txt,/nominalMantido/);
  assert.match(txt,/dataBradescoIso\(tb.dataVencto\)==='2026-11-08'/);
 });
-test('interface nao reabilita botao de executar depois da tentativa',()=>{
+test('interface so reabilita botao quando nao houve transmissao nem reserva',()=>{
  assert.match(ui,/executar.disabled=true/);
- assert.doesNotMatch(ui,/executar.disabled=false/);
+ assert.match(ui,/if\(info.transmitido===false&&!info.sem_reenvio\)/);
+ assert.match(ui,/executar.disabled=false/);
  assert.match(ui,/consultar-manutencao-56078-wf99571/);
 });
 test('conciliacao nao tem PUT',()=>{
