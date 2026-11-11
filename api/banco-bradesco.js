@@ -824,15 +824,18 @@ module.exports=async function(req,res){
         return json(res,202,{ok:false,estado:'consulta_indisponivel',sem_reenvio:true});
       const t=consulta.data?.titulo||consulta.data?.Titulo||consulta.data?.boleto||{};
       const juros=Number(t.codComisPerm||0),multa=Number(t.codValMul||0),
-        taxaJuros=Number(t.qmoedaComisPerm||0),taxaMulta=Number(t.valMulta||0);
+        taxaJuros=Number(t.qmoedaComisPerm||0),taxaMulta=Number(t.valMulta||0),
+        diasJuros=Number(t.diasComisPerm||0),diasMulta=Number(t.diasMulta||0);
       const nominal=Number(t.valMoeda);
-      const correto=juros===2&&multa===2&&taxaJuros===50000&&taxaMulta===20000&&
+      const correto=juros===2&&multa===2&&taxaJuros===50000&&taxaMulta===20000&&diasJuros===1&&diasMulta===1&&
         (Math.abs(nominal-52796)<0.01||Math.abs(nominal-527.96)<0.01)&&
         String(t.snumero||'')==='56078-02'&&dataBradescoIso(t.dataVencto)==='2026-11-08';
       if(correto){
         await supabaseRest(tabela,{method:'PATCH',query:'?referencia=eq.'+ref,
           body:{status:'confirmado',atualizado_em:new Date().toISOString(),
             depois:{codigo_juros:juros,codigo_multa:multa,taxa_juros:taxaJuros,taxa_multa:taxaMulta,
+              dias_juros:diasJuros,dias_multa:diasMulta,
+            dias_juros:diasJuros,dias_multa:diasMulta,
               valor_nominal_preservado:true,vencimento_original_preservado:true}}});
       }
       return json(res,200,{ok:true,estado:correto?'confirmado':tentativas[0].status,
@@ -931,11 +934,13 @@ module.exports=async function(req,res){
         const tb=segunda.data?.titulo||segunda.data?.Titulo||segunda.data?.boleto||{};
         const juros=Number(tb.codComisPerm||0),multa=Number(tb.codValMul||0);
         const taxaJuros=Number(tb.qmoedaComisPerm||0),taxaMulta=Number(tb.valMulta||0);
+        const diasJuros=Number(tb.diasComisPerm||0),diasMulta=Number(tb.diasMulta||0);
         const nominal=Number(tb.valMoeda);
         const nominalMantido=Math.abs(nominal-52796)<0.01||Math.abs(nominal-527.96)<0.01;
         // Código 2 confirma modalidade percentual, mas não a taxa.
         // Somente considerar confirmado quando a API reportar os dois percentuais exatos.
-        const correto=juros===2&&multa===2&&taxaJuros===50000&&taxaMulta===20000&&nominalMantido&&
+        const correto=juros===2&&multa===2&&taxaJuros===50000&&taxaMulta===20000&&
+          diasJuros===1&&diasMulta===1&&nominalMantido&&
           String(tb.snumero||'')==='56078-02'&&dataBradescoIso(tb.dataVencto)==='2026-11-08';
         await atualizar({status:correto?'confirmado':'aceito_pendente_conciliacao',
           depois:{codigo_juros:juros,codigo_multa:multa,taxa_juros:taxaJuros,taxa_multa:taxaMulta,
