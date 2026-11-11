@@ -812,6 +812,34 @@ module.exports=async function(req,res){
     // imutáveis/contratuais a partir de dados locais incompletos.
     // V435: piloto 55994 — localização estrita por NF e conferência autenticada,
     // sem qualquer chamada ao endpoint de alteração.
+    if(action==='consultar-manutencao-56078-wf99571'){
+      if(amb!=='producao')return json(res,403,{ok:false,erro:'Somente Bradesco produção.'});
+      const ref='BRADESCO-56078-02',tabela='bradesco_manutencao_controlada';
+      const tentativas=await supabaseRest(tabela,{query:'?referencia=eq.'+ref+'&select=status,http_status,depois,criado_em&limit=1'});
+      if(!tentativas?.length)return json(res,200,{ok:true,estado:'sem_tentativa',transmitido:false});
+      const rows=await supabaseRest('cobrancas_bancarias',{query:'?referencia=eq.'+ref+'&select=*&limit=2'});
+      if(!Array.isArray(rows)||rows.length!==1)return json(res,409,{ok:false,erro:'Título não localizado.'});
+      const consulta=await consultarTituloBradesco(amb,rows[0]);
+      if(consulta.http_status<200||consulta.http_status>=300)
+        return json(res,202,{ok:false,estado:'consulta_indisponivel',sem_reenvio:true});
+      const t=consulta.data?.titulo||consulta.data?.Titulo||consulta.data?.boleto||{};
+      const juros=Number(t.codComisPerm||0),multa=Number(t.codValMul||0),
+        taxaJuros=Number(t.qmoedaComisPerm||0),taxaMulta=Number(t.valMulta||0);
+      const nominal=Number(t.valMoeda);
+      const correto=juros===2&&multa===2&&taxaJuros===50000&&taxaMulta===20000&&
+        (Math.abs(nominal-52796)<0.01||Math.abs(nominal-527.96)<0.01)&&
+        String(t.snumero||'')==='56078-02'&&dataBradescoIso(t.dataVencto)==='2026-11-08';
+      if(correto){
+        await supabaseRest(tabela,{method:'PATCH',query:'?referencia=eq.'+ref,
+          body:{status:'confirmado',atualizado_em:new Date().toISOString(),
+            depois:{codigo_juros:juros,codigo_multa:multa,taxa_juros:taxaJuros,taxa_multa:taxaMulta,
+              valor_nominal_preservado:true,vencimento_original_preservado:true}}});
+      }
+      return json(res,200,{ok:true,estado:correto?'confirmado':tentativas[0].status,
+        codigo_juros:juros,codigo_multa:multa,taxa_juros:taxaJuros,taxa_multa:taxaMulta,
+        sem_reenvio:true,confirmado:correto,
+        aviso:correto?'Encargos confirmados na consulta do título.':'Encargos ainda não confirmados; consultar novamente sem retransmitir.'});
+    }
     if(action==='executar-manutencao-56078-wf99571'){
       // NÃO executar por GET nem aceitar título/valor/parcela arbitrários.
       if(req.method!=='POST')return json(res,405,{ok:false,erro:'Somente POST autenticado.'});
