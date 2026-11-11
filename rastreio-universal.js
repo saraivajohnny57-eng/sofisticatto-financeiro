@@ -132,7 +132,7 @@
     if(timer) clearInterval(timer);
     timer = setInterval(async ()=>{
       const tabela = document.getElementById("rastreamentoTabelaSaidas");
-      if(tabela && tabela.offsetParent !== null){
+      if(!document.hidden && tabela && tabela.offsetParent !== null){
         try{
           await carregarTransportadorasRastreamentoUniversal();
           await carregarRastreamentosLogistica("saida");
@@ -141,7 +141,7 @@
           console.warn("Atualização automática de rastreio:", e?.message || e);
         }
       }
-    }, 60000);
+    }, 180000);
 
     console.info("Rastreamento universal instalado para", transportadorasRastreamentoIntegrado.length, "transportadora(s).");
   }
