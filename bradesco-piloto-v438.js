@@ -24,19 +24,10 @@ function montar(){
  consultarResultado.textContent='Consultar resultado bancário sem reenviar';
  consultarResultado.style.marginLeft='8px';
  panel.appendChild(consultarResultado);
+ // A tentativa já foi rejeitada com CBTT0797: não expor um botão de reenvio.
  executar.disabled=true;
- executar.title='Verificando se já existe uma tentativa registrada...';
- const verificarTentativa=async()=>{
-  try {
-   if(typeof bradescoReqProducao!=='function')return;
-   const status=await bradescoReqProducao('status-manutencao-56078-wf99571',{});
-   executar.disabled=!!status.bloqueado;
-   executar.title=status.bloqueado
-     ?'Tentativa anterior registrada: '+String(status.estado||'')+' '+String(status.codigo_retorno||'')
-     :'Nenhuma tentativa registrada; operação depende de autorização.';
-  }catch(_){executar.disabled=true;executar.title='Não foi possível confirmar a segurança da operação.';}
- };
-  const result=document.createElement('pre');result.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
+ executar.title='Tentativa CBTT0797 registrada. Necessária confirmação técnica e nova autorização.';
+ const result=document.createElement('pre');result.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
  result.setAttribute('aria-live','polite');panel.appendChild(result);
  b.onclick=async()=>{
   b.disabled=true;result.textContent='Consultando título 56078-02 no Bradesco...';
@@ -103,10 +94,7 @@ function montar(){
      (info.transmitido===false&&!info.sem_reenvio
         ?'\nO banco NÃO recebeu alteração; confira as pendências antes de tentar novamente.'
         :'\nNão repetir o PUT. Consulte o estado bancário antes de qualquer ação.');
-   if(info.transmitido===false&&!info.sem_reenvio) {
-     executar.disabled=false;
-     b.disabled=false;
-   }
+   // Esta versão permanece bloqueada após a rejeição bancária.
   }
   // Nunca reabilitar o botão após qualquer tentativa. O servidor também bloqueia a duplicidade.
  };
@@ -132,7 +120,6 @@ function montar(){
   finally{consultarResultado.disabled=false;}
  };
  base.insertAdjacentElement('afterend',panel);
- verificarTentativa();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',montar);else montar();
 })();
