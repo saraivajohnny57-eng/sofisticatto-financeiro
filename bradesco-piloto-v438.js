@@ -85,8 +85,16 @@ function montar(){
    ].join('\n');
   }catch(e){
    const info=e.bradescoResponse||{};
+   const erros=Array.isArray(info.erros)?info.erros.filter(x=>typeof x==='string').slice(0,20):[];
    result.textContent='Resultado da execução: '+String(info.retorno||info.aviso||info.erro||e.message||e)+
-     '\nNão repetir o PUT. Verifique se existe tentativa registrada e consulte o Bradesco.';
+     (erros.length?'\nValidações não atendidas:\n• '+erros.join('\n• '):'')+
+     (info.transmitido===false&&!info.sem_reenvio
+        ?'\nO banco NÃO recebeu alteração; confira as pendências antes de tentar novamente.'
+        :'\nNão repetir o PUT. Consulte o estado bancário antes de qualquer ação.');
+   if(info.transmitido===false&&!info.sem_reenvio) {
+     executar.disabled=false;
+     b.disabled=false;
+   }
   }
   // Nunca reabilitar o botão após qualquer tentativa. O servidor também bloqueia a duplicidade.
  };
