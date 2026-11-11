@@ -535,6 +535,7 @@ function montarTabela(){
       valorCampo = `<input type="text" id="edit_valor_${item.id}" value="${valorParaInput(item.valor || 0)}" inputmode="decimal" oninput="mascaraValor(this);marcarEdicaoRelatorio()">`;
       botoes += `<button class="btn azul" onclick="editarRelatorio('${item.id}')">Editar</button>`;
       botoes += `<button class="btn azul" type="button" onclick="editarVencimentosRelatorioV375('${item.id}')">📅 Vencimentos</button>`;
+      botoes += `<button class="btn azul" type="button" onclick="editarValoresParcelasRelatorioV428('${item.id}')">💰 Parcelas</button>`;
       if(item.banco){
         if(bancoSuportaCobrancaIntegrada(item.banco)){
           const jaEmitido=relatorioTotalmenteEmitidoV262(item);
@@ -561,6 +562,7 @@ function montarTabela(){
       observacaoCampo = `<input id="obs_${item.id}" value="${item.observacao || ""}" placeholder="Observação" oninput="marcarBancoRelatorioAlterado('${item.id}')">`;
       botoes += `<button class="btn azul" onclick="editarRelatorio('${item.id}')">Editar</button>`;
       botoes += `<button class="btn azul" type="button" onclick="editarVencimentosRelatorioV375('${item.id}')">📅 Vencimentos</button>`;
+      botoes += `<button class="btn azul" type="button" onclick="editarValoresParcelasRelatorioV428('${item.id}')">💰 Parcelas</button>`;
       if(item.banco){
         if(bancoSuportaCobrancaIntegrada(item.banco)){
           const jaEmitido=relatorioTotalmenteEmitidoV262(item);
@@ -1856,24 +1858,107 @@ async function excluir(id){
   carregarRelatorios();
 }
 
+// V428 — Total e parcelas precisam ser alterados juntos. Não modificar
+// cobranças já preparadas nem títulos transmitidos ao BB/Bradesco.
+function centavosRelatorioV428(valor){
+ const n=typeof valor==='number'?valor:valorParaNumero(String(valor??''));
+ if(!Number.isFinite(n)||n<0)return null;
+ const c=Math.round(n*100);
+ return Number.isSafeInteger(c)?c:null;
+}
+function distribuirParcelasRelatorioV428(totalCentavos,quantidade){
+ if(!Number.isSafeInteger(totalCentavos)||totalCentavos<=0||!Number.isInteger(quantidade)||quantidade<1)return [];
+ const base=Math.floor(totalCentavos/quantidade),resto=totalCentavos%quantidade;
+ const valores=Array(quantidade).fill(base);
+ for(let i=0;i<resto;i++)valores[i]++;
+ return valores.map(c=>c/100);
+}
+async function conferirParcelasEditaveisV428(rel){
+ // Conferência atual, não apenas a lista em memória, para evitar colisão
+ // com uma emissão/preparação feita em outra sessão.
+ const [porId,porNf]=await Promise.all([
+   banco.from('cobrancas_bancarias').select('id,status,nosso_numero').eq('relatorio_id',rel.id).neq('status','cancelado').limit(1),
+   rel.numero_nf&&rel.banco
+    ? banco.from('cobrancas_bancarias').select('id,status,nosso_numero').eq('numero_nf',rel.numero_nf).eq('banco',codigoBancoCobranca(rel.banco)).neq('status','cancelado').limit(1)
+    : Promise.resolve({data:[],error:null})
+ ]);
+ if(porId.error||porNf.error)throw new Error('Não foi possível verificar as cobranças bancárias. Nenhuma alteração realizada.');
+ if(porId.data?.length||porNf.data?.length)throw new Error('Já existem parcelas preparadas ou boletos registrados para este relatório. Não é seguro mudar valores apenas na lista; confira a cobrança no banco.');
+}
+async function obterRelatorioAtualV428(id){
+ const r=await banco.from('boletos').select('*').eq('id',id).single();
+ if(r.error||!r.data)throw new Error('Não foi possível reler o relatório.');
+ return r.data;
+}
 async function editarRelatorio(id){
-  const nomeInput = document.getElementById("edit_nome_" + id);
-  const valorInput = document.getElementById("edit_valor_" + id);
-  if(!nomeInput || !valorInput){ alert("Campos não encontrados"); return; }
-
-  let dados = {nome:nomeInput.value,valor:valorParaNumero(valorInput.value)};
-
-  if(usuarioLogado.tipo === "admin"){
-    const bancoInput = document.getElementById("banco_" + id);
-    const obsInput = document.getElementById("obs_" + id);
-    dados.banco = bancoInput ? bancoInput.value : "";
-    dados.observacao = obsInput ? obsInput.value : "";
-  }
-
-  await banco.from("boletos").update(dados).eq("id",id);
-  limparEdicaoRelatorio();
-  alert("Relatório atualizado!");
-  carregarRelatorios();
+ if(!['financeiro','admin'].includes(String(usuarioLogado?.tipo||'')))return;
+ const nomeInput=document.getElementById('edit_nome_'+id),valorInput=document.getElementById('edit_valor_'+id);
+ if(!nomeInput||!valorInput)return alert('Campos não encontrados.');
+ const novoValorCent=centavosRelatorioV428(valorInput.value);
+ if(!novoValorCent||novoValorCent<=0)return alert('Informe um valor total válido, maior que zero.');
+ try{
+   const rel=await obterRelatorioAtualV428(id);
+   const valorAnteriorCent=centavosRelatorioV428(rel.valor);
+   const totalMudou=novoValorCent!==valorAnteriorCent;
+   const dados={nome:nomeInput.value.trim(),valor:novoValorCent/100};
+   if(!dados.nome)return alert('Informe o nome do cliente.');
+   if(usuarioLogado.tipo==='admin'){
+     const bancoInput=document.getElementById('banco_'+id);
+     const obsInput=document.getElementById('obs_'+id);
+     if(bancoInput&&bancoInput.tagName==='SELECT')dados.banco=bancoInput.value;
+     if(obsInput)dados.observacao=obsInput.value;
+   }
+   if(totalMudou){
+     await conferirParcelasEditaveisV428(rel);
+     const ps=Array.isArray(rel.parcelas_json)?rel.parcelas_json:[];
+     if(ps.length){
+       const valores=distribuirParcelasRelatorioV428(novoValorCent,ps.length);
+       if(!valores.length)return alert('Não foi possível recalcular as parcelas.');
+       dados.parcelas_json=ps.map((p,i)=>({...p,valor:valores[i]}));
+     }
+   }else{
+     // Evita perder personalização manual quando o valor total não mudou.
+     const p=Array.isArray(rel.parcelas_json)?rel.parcelas_json:[];
+     const soma=p.reduce((x,y)=>x+(centavosRelatorioV428(y.valor)??0),0);
+     if(p.length&&soma!==novoValorCent)return alert('As parcelas não fecham com o valor total. Utilize o botão 💰 Parcelas antes de salvar.');
+   }
+   const {error}=await banco.from('boletos').update(dados).eq('id',id);
+   if(error)throw error;
+   limparEdicaoRelatorio();
+   alert(totalMudou?'Relatório atualizado e parcelas recalculadas automaticamente. Nenhum boleto bancário alterado.':'Relatório atualizado!');
+   await carregarRelatorios();
+ }catch(e){alert('Não foi possível salvar: '+(e.message||e));}
+}
+async function editarValoresParcelasRelatorioV428(id){
+ if(!['financeiro','admin'].includes(String(usuarioLogado?.tipo||'')))return alert('Sem permissão para editar parcelas.');
+ try{
+   const rel=await obterRelatorioAtualV428(id);
+   await conferirParcelasEditaveisV428(rel);
+   const ps=Array.isArray(rel.parcelas_json)?rel.parcelas_json.map(p=>({...p})):[];
+   if(!ps.length)return alert('Este relatório não possui parcelas definidas. Defina uma condição de pagamento antes.');
+   const totalCent=centavosRelatorioV428(rel.valor);
+   if(!totalCent)return alert('O valor total do relatório é inválido.');
+   const novos=[];
+   for(let i=0;i<ps.length;i++){
+     const entrada=prompt('Valor da parcela '+(i+1)+'/'+ps.length+' (R$):',valorParaInput(ps[i].valor));
+     if(entrada===null)return;
+     const c=centavosRelatorioV428(entrada);
+     if(!c||c<=0)return alert('Valor inválido na parcela '+(i+1)+'. Nenhuma alteração salva.');
+     novos.push(c);
+   }
+   const soma=novos.reduce((a,b)=>a+b,0);
+   if(soma!==totalCent){
+     const diferenca=Math.abs(totalCent-soma)/100;
+     return alert('As parcelas '+(soma<totalCent?'ficaram abaixo':'ultrapassaram')+' do total em '+formatarMoeda(diferenca)+'. Ajuste os valores até somarem '+formatarMoeda(totalCent/100)+'. Nenhuma alteração salva.');
+   }
+   if(!confirm('Salvar os valores de '+ps.length+' parcela(s), totalizando '+formatarMoeda(totalCent/100)+'? Nenhum boleto será emitido ou alterado.'))return;
+   await conferirParcelasEditaveisV428(rel);
+   const novas=ps.map((p,i)=>({...p,valor:novos[i]/100}));
+   const {error}=await banco.from('boletos').update({parcelas_json:novas}).eq('id',id);
+   if(error)throw error;
+   alert('Valores das parcelas atualizados. Total do pedido preservado. Nenhum boleto bancário alterado.');
+   await carregarRelatorios();
+ }catch(e){alert('Não foi possível editar parcelas: '+(e.message||e));}
 }
 
 // V375: edição segura de parcelas ainda não registradas. Boletos emitidos exigem alteração no banco.
