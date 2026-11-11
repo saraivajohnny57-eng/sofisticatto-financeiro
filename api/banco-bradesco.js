@@ -812,6 +812,113 @@ module.exports=async function(req,res){
     // imutáveis/contratuais a partir de dados locais incompletos.
     // V435: piloto 55994 — localização estrita por NF e conferência autenticada,
     // sem qualquer chamada ao endpoint de alteração.
+    if(action==='executar-manutencao-56078-wf99571'){
+      // NÃO executar por GET nem aceitar título/valor/parcela arbitrários.
+      if(req.method!=='POST')return json(res,405,{ok:false,erro:'Somente POST autenticado.'});
+      if(amb!=='producao')return json(res,403,{ok:false,erro:'Piloto limitado ao Bradesco produção.'});
+      if(String(req.body?.autorizacao||'')!=='AUTORIZO-56078-02-JUROS5-MULTA2')
+        return json(res,403,{ok:false,erro:'Falta confirmação explícita do boleto 56078-02.'});
+      const ref='BRADESCO-56078-02', tabela='bradesco_manutencao_controlada';
+      const existentes=await supabaseRest(tabela,{query:'?referencia=eq.'+ref+'&select=status,criado_em,http_status&limit=1'});
+      if(existentes?.length)return json(res,409,{ok:false,sem_reenvio:true,
+        estado:existentes[0].status,
+        erro:'Já existe tentativa reservada, transmitida ou incerta deste título. Consultar e reconciliar; nunca repetir o PUT.'});
+      const rows=await supabaseRest('cobrancas_bancarias',{query:'?referencia=eq.'+ref+'&select=*&limit=2'});
+      if(!Array.isArray(rows)||rows.length!==1)return json(res,409,{ok:false,erro:'Parcela não localizada univocamente.'});
+      const reg=rows[0];
+      if(String(reg.banco||'').toLowerCase()!=='bradesco'||String(reg.numero_nf)!=='56078'||
+        Number(reg.parcela_numero)!==2||nossoNumeroRegistroBradesco(reg)!=='62710000058'||
+        Number(reg.valor)!==527.96||String(reg.vencimento).slice(0,10)!=='2026-11-08')
+        return json(res,409,{ok:false,erro:'Identificadores divergentes do piloto autorizado.'});
+      // Nova consulta autenticada antes da operação; não confiar no diagnóstico do navegador.
+      const primeira=await consultarTituloBradesco(amb,reg);
+      if(primeira.http_status<200||primeira.http_status>=300)
+        return json(res,502,{ok:false,erro:'Não foi possível confirmar a situação bancária antes do PUT.'});
+      const titulo=primeira.data?.titulo||primeira.data?.Titulo||primeira.data?.boleto||{};
+      const sit=interpretarConsultaBradesco(primeira.data,reg);
+      const bancoReg=await obter(idRegistro(amb,'dados-bancarios'));
+      const credReg=await obter(idRegistro(amb,'credenciais'));
+      const mtlsReg=await obter(idRegistro(amb,'mtls'));
+      if(!bancoReg||!credReg||!mtlsReg)return json(res,409,{ok:false,erro:'Credenciais bancárias incompletas.'});
+      const banco=descriptografar(bancoReg)||{};
+      const cred=descriptografar(credReg)||{};
+      const mtls=descriptografar(mtlsReg)||{};
+      validarParMtls(mtls.cert_pem,mtls.key_pem);
+      const consultaIdentificadores=montarConsultaTituloBradesco(banco,reg);
+      const {validarCandidato}=require('../lib/bradesco/wf99571-diagnostico-unico');
+      const d=validarCandidato(titulo,reg,banco,consultaIdentificadores,sit,{incluirPayloadSomenteNoServidor:true});
+      if(d.pendencias.length||!d.validacao_estrutural?.aprovada||
+        d.verificacoes.some(x=>!x.ok)||!d.payload_servidor||!d.hash_payload_candidato)
+        return json(res,409,{ok:false,transmitido:false,
+          erros:d.pendencias,erro:'Pré-condições bancárias ou contratuais não atendidas; não foi feita transmissão.'});
+      // Reserva persistente com UNIQUE(PK): protege contra dois cliques simultâneos e retry de servidor.
+      try{
+        await supabaseRest(tabela,{method:'POST',body:{
+          referencia:ref,nosso_numero:'62710000058',valor_nominal:527.96,
+          status:'em_transmissao',hash_payload:d.hash_payload_candidato,
+          antes:{codigo_status:sit.codStatus,codigo_multa:Number(titulo.codValMul||0),
+            codigo_juros:Number(titulo.codComisPerm||0),valor_nominal:527.96,
+            vencimento_original:'2026-11-08'}
+        }});
+      }catch(_){
+        return json(res,409,{ok:false,sem_reenvio:true,
+          erro:'Uma tentativa já foi reservada, ou o registro não pôde ser confirmado; nenhum reenvio permitido.'});
+      }
+      const atualizar=async(campos)=>{
+        try{
+          await supabaseRest(tabela,{method:'PATCH',query:'?referencia=eq.'+ref,
+            body:{...campos,atualizado_em:new Date().toISOString()}});
+        }catch(_){ /* A reserva permanece impedindo repetição. */ }
+      };
+      let alteracao;
+      try{
+        const token=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
+        alteracao=await requestBradescoJson({
+          url:'https://openapi.bradesco.com.br/boleto/cobranca-altera/v1/alterar',
+          token:token.access_token,mtls,method:'PUT',body:d.payload_servidor
+        });
+      }catch(_){
+        await atualizar({status:'resultado_incerto',detalhes:'Falha de transporte/autenticação. Não repetir PUT antes de conciliar.'});
+        return json(res,202,{ok:false,transmissao_incerta:true,sem_reenvio:true,
+          aviso:'Não é possível comprovar se o Bradesco recebeu a requisição. Tentativa bloqueada; consultar antes de qualquer nova ação.'});
+      }
+      const http=Number(alteracao.http_status);
+      if(http<200||http>=300){
+        await atualizar({status:'rejeitado',http_status:http,
+          detalhes:'Rejeição HTTP do Bradesco. Verificar logs bancários antes de qualquer nova tentativa.',
+          codigo_retorno:String(alteracao.data?.codigo||alteracao.data?.code||'').slice(0,80)});
+        return json(res,200,{ok:false,transmitido:true,aceito:false,sem_reenvio:true,
+          http_status:http,retorno:detalheRespostaBradesco(alteracao.data)});
+      }
+      await atualizar({status:'aceito_pendente_conciliacao',http_status:http,
+        codigo_retorno:String(alteracao.data?.codigo||alteracao.data?.code||'').slice(0,80),
+        detalhes:'Resposta HTTP aceita; aguardando confirmação dos encargos na consulta do título.'});
+      // A consulta é exclusivamente posterior. Falha aqui nunca gera segundo PUT.
+      try{
+        const segunda=await consultarTituloBradesco(amb,reg);
+        if(segunda.http_status<200||segunda.http_status>=300)throw new Error('Consulta posterior indisponível');
+        const tb=segunda.data?.titulo||segunda.data?.Titulo||segunda.data?.boleto||{};
+        const juros=Number(tb.codComisPerm||0),multa=Number(tb.codValMul||0);
+        const nominal=Number(tb.valMoeda);
+        const nominalMantido=Math.abs(nominal-52796)<0.01||Math.abs(nominal-527.96)<0.01;
+        const correto=juros===2&&multa===2&&nominalMantido&&
+          String(tb.snumero||'')==='56078-02'&&dataBradescoIso(tb.dataVencto)==='2026-11-08';
+        await atualizar({status:correto?'confirmado':'aceito_pendente_conciliacao',
+          depois:{codigo_juros:juros,codigo_multa:multa,
+            valor_nominal_preservado:nominalMantido,
+            vencimento_original_preservado:dataBradescoIso(tb.dataVencto)==='2026-11-08'}});
+        return json(res,200,{ok:correto,transmitido:true,http_status:http,
+          estado:correto?'confirmado':'aceito_pendente_conciliacao',
+          codigo_juros:juros,codigo_multa:multa,valor_nominal_preservado:nominalMantido,
+          vencimento_preservado:dataBradescoIso(tb.dataVencto)==='2026-11-08',
+          sem_reenvio:true,
+          aviso:correto?'Códigos dos encargos confirmados na consulta bancária. Verificar valores e condições no título oficial.':
+            'O banco respondeu ao PUT, mas ainda não confirmou ambos os encargos na consulta; não repetir a alteração.'});
+      }catch(_){
+        return json(res,202,{ok:false,transmitido:true,estado:'aceito_pendente_conciliacao',
+          sem_reenvio:true,aviso:'PUT teve retorno HTTP de sucesso, mas a consulta bancária posterior falhou. NÃO reenviar.'});
+      }
+    }
     if(action==='conferir-piloto-56078-v459'){
       if(amb!=='producao')throw new Error('Consulta do piloto somente no ambiente bancário de produção.');
       const rows=await supabaseRest('cobrancas_bancarias',{query:'?referencia=eq.BRADESCO-56078-02&select=*&limit=2'});
