@@ -69,3 +69,19 @@ test('validador integral confirma tipagem do JSON sem liberar o PUT',()=>{
  assert.equal(d.validacao_estrutural.erros.length,0);
  assert.equal(d.liberar_put,false);
 });
+
+test('Bradesco representa pagamento inexistente como texto "0"',()=>{
+ const p=base();p.t.dtPagto='0';p.t.vlrPagto='0';
+ const d=run(p);
+ assert.ok(!d.pendencias.some(x=>x.includes('Pagamento/baixa parcial')));
+});
+test('Bradesco representa avalista ausente como documento "0"',()=>{
+ const p=base();p.t.sacador={cnpj:'0',nome:''};p.t.dtPagto='0';
+ const d=run(p);
+ assert.ok(!d.pendencias.some(x=>x.includes('avalista')));
+ assert.equal(d.validacao_estrutural.aprovada,true);
+});
+test('data de pagamento real ainda bloqueia o PUT',()=>{
+ const p=base();p.t.dtPagto='11/11/2026';
+ assert.ok(run(p).pendencias.some(x=>x.includes('Pagamento/baixa parcial')));
+});
