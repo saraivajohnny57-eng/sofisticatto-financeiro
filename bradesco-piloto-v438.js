@@ -19,6 +19,10 @@ function montar(){
  executar.textContent='Executar UMA alteração real — juros 5% + multa 2%';
  executar.style.cssText='margin-left:8px;background:#8b2543';
  panel.appendChild(executar);
+ const aviso=document.createElement('p');
+ aviso.style.cssText='margin:10px 0;color:#8b2543;font-weight:600';
+ aviso.textContent='PUT bloqueado: tentativa rejeitada (CBTT0797). Consulte o resultado bancário; uma nova transmissão dependerá da validação das instruções de protesto/negativação e de nova autorização.';
+ panel.appendChild(aviso);
  const consultarResultado=document.createElement('button');
  consultarResultado.type='button';consultarResultado.className='btn roxo';
  consultarResultado.textContent='Consultar resultado bancário sem reenviar';
