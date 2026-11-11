@@ -816,6 +816,9 @@ module.exports=async function(req,res){
       // NÃO executar por GET nem aceitar título/valor/parcela arbitrários.
       if(req.method!=='POST')return json(res,405,{ok:false,erro:'Somente POST autenticado.'});
       if(amb!=='producao')return json(res,403,{ok:false,erro:'Piloto limitado ao Bradesco produção.'});
+      if(process.env.VERCEL_ENV!=='preview'||
+         process.env.VERCEL_GIT_COMMIT_REF!=='bradesco-piloto-56078-02-nf-parcela-20261110')
+        return json(res,403,{ok:false,erro:'Execução piloto disponível apenas na branch Preview autorizada.'});
       if(String(req.body?.autorizacao||'')!=='AUTORIZO-56078-02-JUROS5-MULTA2')
         return json(res,403,{ok:false,erro:'Falta confirmação explícita do boleto 56078-02.'});
       const ref='BRADESCO-56078-02', tabela='bradesco_manutencao_controlada';
@@ -899,17 +902,20 @@ module.exports=async function(req,res){
         if(segunda.http_status<200||segunda.http_status>=300)throw new Error('Consulta posterior indisponível');
         const tb=segunda.data?.titulo||segunda.data?.Titulo||segunda.data?.boleto||{};
         const juros=Number(tb.codComisPerm||0),multa=Number(tb.codValMul||0);
+        const taxaJuros=Number(tb.qmoedaComisPerm||0),taxaMulta=Number(tb.valMulta||0);
         const nominal=Number(tb.valMoeda);
         const nominalMantido=Math.abs(nominal-52796)<0.01||Math.abs(nominal-527.96)<0.01;
-        const correto=juros===2&&multa===2&&nominalMantido&&
+        // Código 2 confirma modalidade percentual, mas não a taxa.
+        // Somente considerar confirmado quando a API reportar os dois percentuais exatos.
+        const correto=juros===2&&multa===2&&taxaJuros===50000&&taxaMulta===20000&&nominalMantido&&
           String(tb.snumero||'')==='56078-02'&&dataBradescoIso(tb.dataVencto)==='2026-11-08';
         await atualizar({status:correto?'confirmado':'aceito_pendente_conciliacao',
-          depois:{codigo_juros:juros,codigo_multa:multa,
+          depois:{codigo_juros:juros,codigo_multa:multa,taxa_juros:taxaJuros,taxa_multa:taxaMulta,
             valor_nominal_preservado:nominalMantido,
             vencimento_original_preservado:dataBradescoIso(tb.dataVencto)==='2026-11-08'}});
         return json(res,200,{ok:correto,transmitido:true,http_status:http,
           estado:correto?'confirmado':'aceito_pendente_conciliacao',
-          codigo_juros:juros,codigo_multa:multa,valor_nominal_preservado:nominalMantido,
+          codigo_juros:juros,codigo_multa:multa,taxa_juros:taxaJuros,taxa_multa:taxaMulta,valor_nominal_preservado:nominalMantido,
           vencimento_preservado:dataBradescoIso(tb.dataVencto)==='2026-11-08',
           sem_reenvio:true,
           aviso:correto?'Códigos dos encargos confirmados na consulta bancária. Verificar valores e condições no título oficial.':
