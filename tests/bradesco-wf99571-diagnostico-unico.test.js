@@ -14,7 +14,7 @@ const base=()=>({
 const run=(p)=>validarCandidato(p.t,p.reg,{},p.cp,p.sit);
 test('analisa estrutura candidata em uma unica chamada sem transmitir',()=>{
  const d=run(base());
- assert.equal(d.verificacoes.length,20);
+ assert.equal(d.verificacoes.length,21);
  assert.equal(d.pendencias.length,0);
  assert.equal(d.conclusao,'DADOS_PRONTOS_REQUER_VALIDACAO_FINAL_DO_ENDPOINT');
  assert.equal(d.alteracao_enviada,false);
@@ -61,4 +61,11 @@ test('vencimento nao e enviado como alteracao e zero do protesto segue o exemplo
  assert.equal(p.vencimento_original_preservado,true);
  assert.equal(p.liberar_put,false);
  assert.ok(p.alertas.some(x=>x.includes('codInstrucaoProtesto 0')));
+});
+
+test('validador integral confirma tipagem do JSON sem liberar o PUT',()=>{
+ const d=run(base());
+ assert.equal(d.validacao_estrutural.aprovada,true);
+ assert.equal(d.validacao_estrutural.erros.length,0);
+ assert.equal(d.liberar_put,false);
 });
