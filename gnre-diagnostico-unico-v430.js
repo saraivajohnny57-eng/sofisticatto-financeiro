@@ -81,14 +81,20 @@ function init(){
    const archive=await requisitar('gnre-arquivo-guias',key,'GET');
    const registros=Array.isArray(archive.guias)?archive.guias:[];
    const subset=registros.filter(x=>String(x.numero_nfe)==='51109'&&x.ambiente==='homologacao');
-   const ready=subset.some(x=>x.situacao==='emitida'&&x.numero_guia&&x.linha_digitavel);
-   addStep(result,'Documento oficial arquivado',ready,
-     'Registros de homologação da NF-e 51109: '+subset.length+
-     '. Guia com número e linha digitável: '+(ready?'SIM (apenas homologação)':'NÃO')+
-     '. Nenhum documento de homologação deve ser usado para pagamento.');
+   // O endpoint de listagem não devolve pdf_base64. Número/linha digitável não
+   // provam que o PDF esteja guardado: evitar falso positivo de arquivamento.
+   const possuiReferencia=subset.some(x=>Boolean(x.numero_guia&&x.linha_digitavel));
+   const possuiRegistro=subset.length>0;
+   addStep(result,'Registros de homologação (não comprovam PDF)',possuiRegistro,
+     'Registros da NF-e 51109: '+subset.length+
+     '. Número e linha digitável cadastrados: '+(possuiReferencia?'SIM':'NÃO')+
+     '. O PDF não é verificado pela listagem. Nunca utilizar homologação para pagamento.');
+   addStep(result,'Recuperação do PDF oficial',null,
+     'Use o botão Solicitar PDF oficial (homologação) para consultar a GNRE já processada. '+
+     'A ausência do PDF na listagem não justifica retransmitir a NF-e 51109.');
    addStep(result,'Próxima ação',null,
-     ready?'Conferir documento recuperado; para emissão pagável é necessária nova operação validada em PRODUÇÃO.':
-     'Usar o retorno do lote para corrigir a validação de dados individuais e recuperação do documento; não retransmitir a NF-e 51109.');
+     'Conferir o PDF retornado em homologação e sua associação à guia individual. '+
+     'Somente depois validar emissão separada por tributo e operação real em PRODUÇÃO.');
   }catch(e){
    addStep(result,'Diagnóstico interrompido',false,String(e.message||e)+' Nenhuma GNRE foi transmitida.');
   }finally{ocupado=false;btn.disabled=false;}
