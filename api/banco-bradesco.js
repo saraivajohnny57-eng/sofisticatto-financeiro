@@ -960,15 +960,16 @@ module.exports=async function(req,res){
         codigo_multa_percentual:2,
         codigo_comissao_percentual:2,
         juros_mensal_5_porcento_escala_homologada:false,
-        retroativo_vencido_aceito_confirmado:false,
+        inclusao_em_vencido_confirmada:true,
+        retroatividade_dos_encargos_confirmada:false,
         put_autorizado:false,
-        observacao:'Código 2 indica percentual, mas não comprova unidade, escala e aplicação retroativa; nenhum PUT é enviado.'
+        observacao:'Código 2 indica percentual. O Bradesco confirmou juros mensais e manutenção em vencidos abertos no WF-99571; escala numérica e dias do PUT ainda precisam de prova. Nenhum PUT é enviado.'
       };
       const pendenciasConsolidadas=[...impedimentosContratuais,...ressalvasOrigem,
         ...Object.entries(camposPagadorVerificaveis).filter(([,v])=>!v).map(([k])=>'pagador.'+k),
         ...Object.entries(camposTituloVerificaveis).filter(([,v])=>!v).map(([k])=>'titulo.'+k),
-        'escala e periodicidade de juros/comissao de permanencia nao homologadas no PUT',
-        'aceitacao de encargos retroativos em titulo vencido nao confirmada'
+        'escala numérica e dias de inicio do PUT nao homologados; periodicidade mensal confirmada no WF-99571',
+        'inclusao de juros e multa permitida em titulo vencido aberto no WF-99571; incidência desde o vencimento e escala de entrada do PUT ainda precisam de confirmação'
       ];
       const valor=Number(reg.valor);
       const elegivel=sit.codStatus===1&&!sit.pago&&!sit.baixado&&!sit.descontado&&['aberto','vencido'].includes(sit.statusNovo)&&Number.isFinite(valor)&&valor>0&&sit.valorTitulo!==null&&(Math.abs(sit.valorTitulo-valor)<=0.01||Math.abs(sit.valorTitulo/100-valor)<=0.01);
@@ -1005,7 +1006,15 @@ module.exports=async function(req,res){
       if(Math.abs(sit.valorTitulo-valor)>0.01 && Math.abs(sit.valorTitulo/100-valor)>0.01)throw new Error('Valor nominal divergente entre banco e portal.');
       const venc=String(sit.vencimento||'').slice(0,10);
       if(!/^\d{4}-\d{2}-\d{2}$/.test(venc))throw new Error('Vencimento bancário inválido.');
-      return json(res,200,{ok:true,transmitido:false,operacao:'PREPARACAO_SEM_ALTERACAO',titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Validar representação de juros e obter todos os dados originais exigidos no PUT antes de habilitar transmissão.'});
+      // Diagnóstico de fontes do contrato PUT: não pressupor equivalência entre consulta e alteração.
+      // Apenas nomes e presença; não retornar CPF/CNPJ ou outros dados pessoais ao cliente.
+      const tituloConsulta=q.data?.titulo||q.data?.Titulo||q.data?.boleto||{};
+      // Os nomes abaixo são os campos reais de CONSULTA (CBTTIAGS), não os nomes do PUT.
+      const camposConsulta=['snumero','dataEmis','dataVencto','valMoeda','qtdeCas','especDocto','dataMulta','diasMulta','valMulta','qtdeCasMul','codValMul','dataPerm','diasJuros','valPerm','codComisPerm','qmoedaComisPerm','diasComisPerm'];
+      const camposEncontrados=camposConsulta.filter(c=>tituloConsulta[c]!==undefined&&tituloConsulta[c]!==null&&String(tituloConsulta[c]).trim()!=='');
+      const camposNaoEncontrados=camposConsulta.filter(c=>!camposEncontrados.includes(c));
+      const diagnosticoPut={origem:'consulta bancária autenticada',campos_encontrados:camposEncontrados,campos_sem_correspondencia_direta:camposNaoEncontrados,payload_integral_montado:false,escala_percentual_put_confirmada:false,dias_inicio_confirmados:false,transmissao_autorizada:false};
+      return json(res,200,{ok:true,transmitido:false,operacao:'PREPARACAO_SEM_ALTERACAO',diagnostico_put:diagnosticoPut,titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Bradesco WF-99571 confirmou alteração em títulos vencidos e abertos. Conferir escala e datas específicas do contrato PUT, preencher todos os campos originais e validar retorno bancário antes de transmitir.',orientacao_suporte:{chamado:'WF-99571',permite_vencidos_abertos:true,juros_percentual_mensal:true,calculo_diario_pelo_banco:true,habilitacao_adicional_informada:false},requer_confirmacao_antes_put:true});
     }
     if(action==='consultar-status-titulo'){
       if(amb!=='producao')throw new Error('A consulta de status desta versão está liberada para Produção.');
