@@ -9,7 +9,7 @@ test('GNRE query XML always uses homologation and preserves receipt leading zero
  assert.doesNotMatch(xml,/<ambiente>1<\/ambiente>/);
 });
 test('GNRE query XML refuses malformed receipt and cannot inject XML',()=>{
- for(const x of ['123','00000000000001','0000000000</numeroRecibo><ambiente>1</ambiente>',null,undefined])
+ for(const x of ['123','0000000000</numeroRecibo><ambiente>1</ambiente>',null,undefined])
   assert.throws(()=>montarConsultaRecibo(x));
 });
 
@@ -21,3 +21,5 @@ test('GNRE receipt query composes with SOAP 1.2 without nested XML declarations'
  assert.equal(envelope.split('<?xml').length-1,1);
  assert.ok(envelope.includes('<numeroRecibo>0000001234</numeroRecibo>'));
 });
+
+test('GNRE 2026 consulta aceita recibo de 14 digitos preservando zeros',()=>{const xml=montarConsultaRecibo('00000012345678');assert.match(xml,/<numeroRecibo>00000012345678<\/numeroRecibo>/);});
