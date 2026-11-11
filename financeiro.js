@@ -7955,6 +7955,30 @@ async function salvarPdfPorFiltroV323(){
     if(!confirm(`SALVAR PDF POR FILTRO\n\nBoletos encontrados: ${lista.length}\nArquivos que serão salvos: ${grupos.size}\nPedidos parcelados que serão agrupados: ${parcelados}\n\nAs parcelas do mesmo pedido serão reunidas em um único PDF.\nNenhum boleto será reemitido.\n\nContinuar?`))return;
     const pasta=await window.showDirectoryPicker({mode:'readwrite'});
     let salvos=0,boletos=0;const falhas=[];
+    // Progresso real por arquivo gravado, sem estimar downloads nem simular porcentagens.
+    const progresso=document.createElement('div');
+    progresso.id='cobSalvarPdfFiltroProgressoV429';
+    progresso.setAttribute('role','status');
+    progresso.setAttribute('aria-live','polite');
+    progresso.style.cssText='margin:9px 0;padding:10px 12px;border:1px solid #d8cafa;border-radius:10px;background:#f8f5ff;max-width:450px;font:13px Arial,sans-serif;color:#4a3280';
+    const descricao=document.createElement('div');
+    descricao.style.cssText='margin-bottom:6px;font-weight:600';
+    const barra=document.createElement('progress');
+    barra.max=grupos.size;barra.value=0;
+    barra.style.cssText='width:100%;height:14px;accent-color:#6554ad';
+    const detalhes=document.createElement('div');
+    detalhes.style.cssText='font-size:12px;margin-top:5px;overflow-wrap:anywhere';
+    progresso.append(descricao,barra,detalhes);
+    btn?.insertAdjacentElement('afterend',progresso);
+    let processados=0;
+    const atualizarProgresso=()=>{
+      barra.value=processados;
+      const percentual=Math.round(processados/grupos.size*100);
+      descricao.textContent='Salvando PDFs: '+percentual+'% ('+processados+' de '+grupos.size+' arquivos)';
+      detalhes.textContent=salvos+' salvos • '+falhas.length+' falha(s) • '+boletos+' boleto(s) incluído(s)';
+      if(btn)btn.textContent='Salvando PDFs... '+percentual+'%';
+    };
+    atualizarProgresso();
     for(const regs of grupos.values()){
       const base=regs[0], banco=codigoBancoCobranca(base?.banco_nome||base?.banco||''), blobs=[];
       try{
@@ -7969,7 +7993,14 @@ async function salvarPdfPorFiltroV323(){
         await salvarBlobNaPastaCobrancaMassa(pasta,nome,final);
         salvos++;boletos+=regs.length;
       }catch(e){falhas.push(`${base.cliente_nome||'Cliente'} • ${base.numero_nf||base.referencia||'sem pedido'}: ${e?.message||e}`);}
+      finally{
+        processados++;
+        atualizarProgresso();
+        // Permitir que o navegador pinte a barra antes de processar o próximo arquivo.
+        await new Promise(resolve=>requestAnimationFrame(()=>resolve()));
+      }
     }
+    descricao.textContent=falhas.length?'Salvamento concluído com '+falhas.length+' falha(s)':'Salvamento concluído: 100%';
     alert(`✅ SALVAR PDF POR FILTRO CONCLUÍDO\n\nArquivos salvos: ${salvos}\nBoletos incluídos: ${boletos}\nFalhas: ${falhas.length}${falhas.length?`\n\n${falhas.slice(0,8).join('\n')}`:''}`);
   }catch(e){if(e?.name!=='AbortError')alert('Não foi possível salvar os PDFs filtrados.\n\n'+(e?.message||e));}
   finally{if(btn){btn.disabled=false;btn.textContent=texto;}}
