@@ -8,7 +8,7 @@ const base=()=>({
   dataDesc1:'',valDesc1:0,codValDe1:0,dataDesc2:'',valDesc2:0,codValDe2:0,dataDesc3:'',valDesc3:0,codValDe3:0,
   codInscrProt:0,diasProt:0,qtdDiasDecurPrz:0,valAbat:0,permitePgtoParcial:'N',qtdePgtoParcial:0},
  reg:{referencia:'BRADESCO-56078-02',parcela_numero:2,nosso_numero:'62710000058',vencimento:'2026-11-08',valor:527.96},
- cp:{cpfCnpj:{cpfCnpj:5451985,filial:1,controle:95},negociacao:'12345678901',produto:'09',nossoNumero:'62710000058'},
+ cp:{cpfCnpj:{cpfCnpj:'05451985',filial:'0001',controle:'95'},negociacao:'12345678901',produto:'09',nossoNumero:'62710000058'},
  sit:{codStatus:1,pago:false,baixado:false,descontado:false}
 });
 const run=(p)=>validarCandidato(p.t,p.reg,{},p.cp,p.sit);
@@ -84,4 +84,18 @@ test('Bradesco representa avalista ausente como documento "0"',()=>{
 test('data de pagamento real ainda bloqueia o PUT',()=>{
  const p=base();p.t.dtPagto='11/11/2026';
  assert.ok(run(p).pendencias.some(x=>x.includes('Pagamento/baixa parcial')));
+});
+
+test('beneficiário consulta com zeros à esquerda gera VO numérico para PUT sem alterar consulta',()=>{
+ const p=base();const original=JSON.stringify(p.cp);
+ const d=validarCandidato(p.t,p.reg,{},p.cp,p.sit,{incluirPayloadSomenteNoServidor:true});
+ assert.deepEqual(d.payload_servidor.cpfCnpj,{cpfCnpj:5451985,filial:1,controle:95});
+ assert.equal(d.validacao_estrutural.aprovada,true);
+ assert.equal(JSON.stringify(p.cp),original);
+});
+test('beneficiário malformado bloqueia payload antes do PUT',()=>{
+ const p=base();p.cp.cpfCnpj.filial='ABC';
+ const d=run(p);
+ assert.ok(d.pendencias.some(x=>x.includes('beneficiário')||x.includes('Beneficiário')));
+ assert.equal(d.hash_payload_candidato,null);
 });
