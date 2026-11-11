@@ -638,6 +638,20 @@ module.exports=async function(req,res){
   const action=String(req.query?.action||'status'), amb=ambiente(req.query?.ambiente||req.body?.ambiente);
   try{
     if(action==='status')return json(res,200,{ok:true,...await status(amb)});
+    if(action==='diagnosticar-trava-emissao'){
+      // Consulta somente leitura. Nunca libera trava, não chama o Bradesco e não envia cobrança.
+      if(amb!=='producao')return json(res,400,{ok:false,erro:'Diagnóstico de trava disponível apenas para a produção.'});
+      const seuNumero=String(req.body?.seuNumero||'').trim().toUpperCase();
+      if(!/^[A-Z0-9-]{1,10}$/.test(seuNumero))return json(res,400,{ok:false,erro:'Seu Nº inválido.'});
+      const travaId=idRegistro(amb,'emissao-v248-'+crypto.createHash('sha256').update(seuNumero).digest('hex').slice(0,24));
+      const registro=await obter(travaId);
+      if(!registro)return json(res,200,{ok:true,seuNumero,existe_trava:false,reenviar_permitido_pelo_servidor:true,nenhum_post_executado:true});
+      const tentativa=descriptografar(registro)||{};
+      const http=Number(tentativa.http_status||0);
+      const permitido=tentativa.estado==='RESPOSTA_RECEBIDA'&&http===400;
+      return json(res,200,{ok:true,seuNumero,existe_trava:true,estado:tentativa.estado||'DESCONHECIDO',http_status:http||null,tentativa_numero:Number(tentativa.tentativa_numero||1),iniciada_em:tentativa.iniciada_em||null,finalizada_em:tentativa.finalizada_em||null,reenviar_permitido_pelo_servidor:permitido,motivo:permitido?'Rejeição HTTP 400 registrada; somente correção e nova confirmação manual.':'Bloqueado por segurança até conciliação da tentativa com o banco.',nenhum_post_executado:true});
+    }
+
     if(action==='salvar-credenciais'){
       const atual=await obter(idRegistro(amb,'credenciais'));let anterior={};if(atual)anterior=descriptografar(atual);
       const client_id=String(req.body?.client_id||anterior.client_id||'').trim();
