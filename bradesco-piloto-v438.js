@@ -30,6 +30,7 @@ function montar(){
     'Status bancário: '+j.status_descricao+' (código '+j.status_codigo+')',
     'Verificações contratuais: '+ok+'/'+total,
     'Payload candidato: '+(d.estrutura_candidata_montada?'ESTRUTURA MONTADA':'BLOQUEADO'),
+    'Contrato JSON (tipagem e campos): '+(d.validacao_estrutural?.aprovada?'VALIDADO LOCALMENTE':'NÃO VALIDADO'),
     'Valor original: R$ '+Number(j.valor_nominal||0).toFixed(2).replace('.',',')+
       ' | vencimento original: '+j.vencimento_original,
     'Encargos previstos: 5% ao mês + multa 2% (início: 1 dia)',
