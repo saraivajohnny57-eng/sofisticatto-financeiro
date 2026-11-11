@@ -7686,7 +7686,7 @@ async function verificarConciliarTituloBradescoV271(id){
     seuNumeroBradescoHistoricoV271(x)===seu
   );
   if(!candidatos.length){
-    return alert(`⚠️ O Seu Nº ${seu} não foi encontrado como boleto Bradesco já emitido no Histórico.\n\nPor segurança, esta pendência NÃO será excluída e nenhum novo boleto será emitido.`);
+    return alert(`ℹ️ Seu Nº ${seu}: não há boleto emitido correspondente no Histórico local.\n\nEsta verificação é apenas uma conciliação interna; NÃO consulta o banco Bradesco e NÃO comprova ausência de título no banco.\n\nA pendência será preservada. Para nova emissão, é necessário conferir o banco e a trava de tentativa anterior no servidor.`);
   }
   const emitido=candidatos[0];
   const confirma=confirm(`Boleto já emitido encontrado.\n\nSeu Nº: ${seu}\nCliente: ${emitido.cliente_nome||reg.cliente_nome||'—'}\nNF/Pedido: ${emitido.numero_nf||reg.numero_nf||'—'}\nParcela: ${emitido.parcela_numero||1}/${emitido.parcela_total||reg.parcela_total||1}\nSituação: ${cobStatus(emitido.status)}\nNosso Número: ${emitido.nosso_numero||'—'}\n\nO registro Pendente integração será tratado como duplicado e removido.\nO boleto já emitido será PRESERVADO.\n\nConfirma a conciliação?`);
@@ -8456,7 +8456,7 @@ function renderHistoricoCobrancas(){
     const acoes=bradescoEmitido
       ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar boleto</button> <button class="btn" style="background:#7b3f9e;color:#fff" onclick="abrirSegundaViaBradescoHistoricoV400('${x.id}')">📅 2ª via atualizada</button> <button class="btn verde" onclick="imprimirPedidoBradescoV264('${x.id}')">📄 Imprimir pedido</button> <button class="btn" style="background:#c62828;color:#fff;" data-verifica-bradesco="${x.id}" onclick="verificarStatusBradescoV277('${x.id}')">🔄 Verificar Bradesco</button> <button class="btn" onclick="abrirBaixaSubstituicaoV352('${x.id}')">🔁 Baixar / substituir</button>`
       :(x.banco==='bradesco'&&x.status==='pendente_integracao'
-        ?`<button class="btn vermelho" onclick="verificarConciliarTituloBradescoV271('${x.id}')">🔎 Verificar Bradesco</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
+        ?`<button class="btn vermelho" onclick="verificarConciliarTituloBradescoV271('${x.id}')">🔎 Conciliar histórico local</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
         :(emitido
       ?`<button class="btn azul" onclick="abrirImpressaoNormalBbRegistro('${x.id}')">🖨 Impressão Normal</button> <button class="btn verde" onclick="abrirBoletoOficialBbRegistro('${x.id}')">🏦 2ª via BB</button> <button class="btn" style="background:#1565c0;color:#fff" data-verifica-bb="${x.id}" onclick="verificarStatusBbV380('${x.id}')">🔄 Verificar BB</button> <button class="btn" onclick="abrirBaixaSubstituicaoV352('${x.id}')">🔁 Baixar / substituir</button>`
         :(x.banco==='bb'&&x.status==='pendente_integracao'
