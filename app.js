@@ -2828,32 +2828,62 @@ async function enviarEmailIndividual(indice,botao){
   }
 }
 
+let envioTodosEmailsV460EmCurso=false;
 async function enviarTodosEmails(){
+  if(envioTodosEmailsV460EmCurso)return;
   if(!garantirFinanceiroEmail()) return;
-  const prontos = emailEnviosPreparados.filter(item => item.status === "pronto");
-  if(!prontos.length){ mostrarAvisoEmail("Nenhum envio está pronto."); return; }
-  if(!confirm(`Enviar ${prontos.length} e-mail(s) agora?`)) return;
-
-  let enviados = 0;
-  const erros = [];
-
-  for(const item of prontos){
-    try{
-      await executarEnvioEmail(item);
-      await registrarHistoricoEmail(item,"enviado");
-      item.status = "enviado";
-      enviados++;
-    }catch(erro){
-      await registrarHistoricoEmail(item,"erro",erro.message);
-      erros.push(`${item.clienteNome}: ${erro.message}`);
+  const prontos=emailEnviosPreparados.filter(item=>item.status==="pronto");
+  if(!prontos.length){mostrarAvisoEmail("Nenhum envio está pronto.");return;}
+  const autorizou=typeof window.sofConfirmarLoteV460==='function'
+    ?await window.sofConfirmarLoteV460({
+      titulo:'Confirmar envio de boletos por e-mail',
+      mensagem:'Enviar '+prontos.length+' e-mail(s) agora? Confira destinatários, vendedora e anexos na prévia.',
+      confirmar:'Enviar '+prontos.length+' e-mail(s)'
+     })
+    :confirm('Enviar '+prontos.length+' e-mail(s) agora?');
+  if(!autorizou)return;
+  envioTodosEmailsV460EmCurso=true;
+  const botaoTodos=document.querySelector('[onclick="enviarTodosEmails()"]');
+  if(botaoTodos)botaoTodos.disabled=true;
+  const progresso=typeof window.sofProgressoLoteV460==='function'
+    ?window.sofProgressoLoteV460({titulo:'Enviando boletos por e-mail',total:prontos.length,
+      nota:'Não feche esta página enquanto os envios estiverem em andamento.'}):null;
+  let enviados=0,processados=0;
+  const erros=[];
+  const atualizar=(etapa,finalizado=false)=>{
+    const dados={concluidos:processados,sucessos:enviados,erros:erros.length,etapa,
+      extras:{'Enviados':String(enviados).padStart(2,'0')+'/'+String(prontos.length).padStart(2,'0')}};
+    if(finalizado)progresso?.finalizar(dados);else progresso?.atualizar(dados);
+  };
+  atualizar('Preparando o primeiro envio...');
+  try{
+    for(const item of prontos){
+      atualizar('Enviando para '+String(item.clienteNome||'cliente')+'...');
+      try{
+        await executarEnvioEmail(item);
+        await registrarHistoricoEmail(item,"enviado");
+        item.status="enviado";
+        enviados++;
+      }catch(erro){
+        try{await registrarHistoricoEmail(item,"erro",erro.message);}catch(e){console.warn('Histórico de e-mail:',e);}
+        erros.push(String(item.clienteNome||'Cliente')+': '+String(erro.message||erro));
+      }finally{
+        processados++;
+        atualizar('Processados '+processados+' de '+prontos.length+' e-mail(s).');
+      }
     }
+    prepararEnviosEmail();
+    carregarHistoricoEmail();
+    mostrarAvisoEmail(erros.length
+      ?enviados+' enviado(s). Falhas: '+erros.join(' | ')
+      :enviados+' e-mail(s) enviado(s) com sucesso.',erros.length===0);
+  }catch(erro){
+    mostrarAvisoEmail('A operação foi interrompida: '+String(erro.message||erro));
+  }finally{
+    atualizar('Envio finalizado: '+enviados+' enviado(s), '+erros.length+' erro(s).',true);
+    envioTodosEmailsV460EmCurso=false;
+    if(botaoTodos)botaoTodos.disabled=false;
   }
-
-  prepararEnviosEmail();
-  carregarHistoricoEmail();
-  mostrarAvisoEmail(erros.length
-    ? `${enviados} enviado(s). Falhas: ${erros.join(" | ")}`
-    : `${enviados} e-mail(s) enviado(s) com sucesso.`,erros.length === 0);
 }
 
 async function carregarHistoricoEmail(){
