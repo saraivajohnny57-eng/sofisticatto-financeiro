@@ -721,10 +721,9 @@ function atualizarStatusChaveColeta(texto,ok=false){
 }
 
 async function solicitarChaveColeta(){
-  const digitada=prompt(
-    "Informe a Senha Mestre de Integrações para autorizar este dispositivo:",
-    ""
-  );
+  const digitada=typeof window.solicitarSegredoOcultoSofisticatto==='function'
+    ?await window.solicitarSegredoOcultoSofisticatto('Autorizar Coletas','Informe a Senha Mestre de Integrações para autorizar este dispositivo.')
+    :'';
   const valor=String(digitada||"").trim();
   if(!valor)return "";
   const autorizado=await validarChaveColetaNoServidor(valor);
