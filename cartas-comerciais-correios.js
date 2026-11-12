@@ -33,22 +33,51 @@ async function request(modo,body){
 }
 function destinatario(){return {nome:val('corCliente'),cpfCnpj:val('corDocumento'),endereco:{cep:val('corCep'),logradouro:val('corEndereco'),numero:val('corNumero'),complemento:val('corComplemento'),bairro:val('corBairro'),cidade:val('corCidade'),uf:val('corUf')}};}
 function corpo(){return {cepDestino:val('corCep'),pesoGramas:Number(val('cartaPesoGramas')),codigoServico:val('cartaServico'),tipoConteudo:'DOCUMENTOS',destinatario:destinatario()};}
+function tituloCategoria(categoria){return categoria==='simples'?'Carta Simples':categoria==='registrada_ar'?'Registrada com AR':'Carta Registrada';}
+function modalidadeAtiva(){return servicos.find(s=>s.codigo===val('cartaServico'));}
 window.cartaDiagnosticar=async()=>{
- try{aviso('Consultando contrato...',true);const d=await request('diagnostico');servicos=d.servicos||[];
- const s=el('cartaServico');s.replaceChildren();const p=document.createElement('option');p.value='';p.textContent='Selecione o serviço';s.append(p);
- for(const item of servicos){const o=document.createElement('option');o.value=item.codigo;o.textContent=item.descricao+' ('+item.codigo+')';s.append(o);}
- el('cartaCotacoes').textContent='';aviso(d.observacao,servicos.length>0);
+ try{
+  aviso('Consultando Carta Comercial física no contrato...',true);
+  const d=await request('diagnostico');
+  servicos=d.servicos||[];
+  const s=el('cartaServico'),anterior=s.value;
+  s.replaceChildren();
+  const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Escolha a modalidade';s.append(placeholder);
+  for(const item of servicos){
+   const o=document.createElement('option');o.value=item.codigo;
+   o.textContent=tituloCategoria(item.categoria)+' — '+item.descricao+' ('+item.codigo+')';
+   s.append(o);
+  }
+  // Escolha a Carta Registrada convencional por padrão para documentos importantes.
+  // Mantém a modalidade escolhida pelo usuário quando ele atualiza a lista.
+  const recomendado=servicos.find(x=>x.categoria==='registrada'&&/\bPL3\b/i.test(x.descricao))||
+    servicos.find(x=>x.categoria==='registrada')||servicos.find(x=>x.categoria==='simples');
+  s.value=servicos.some(x=>x.codigo===anterior)?anterior:recomendado?.codigo||'';
+  el('cartaCotacoes').textContent='';
+  aviso(servicos.length?(d.observacao+' Modalidade inicial: '+tituloCategoria(modalidadeAtiva()?.categoria)+'.'):(d.observacao||'Carta indisponível.'),servicos.length>0);
  }catch(e){aviso(e.message,false);}
 };
 window.cartaCotar=async()=>{
- try{aviso('Cotando carta em gramas...',true);const r=await request('cotar',corpo());const box=el('cartaCotacoes');box.replaceChildren();
- for(const x of r.resultados||[]){const p=document.createElement('p');p.textContent=x.descricao+': '+(x.ok?Number(x.valor).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Indisponível — '+x.erro);box.appendChild(p);}
- aviso(r.validos?'Cotação concluída pelo contrato.':'Sem cotação válida: confira serviço autorizado e peso.',r.validos>0);
+ try{
+  if(!val('cartaServico')){aviso('Primeiro clique em "Verificar Carta no contrato" e escolha uma modalidade.',false);return;}
+  aviso('Cotando somente a modalidade selecionada...',true);
+  const r=await request('cotar',corpo()),box=el('cartaCotacoes');
+  box.replaceChildren();
+  for(const x of r.resultados||[]){
+    const p=document.createElement('p');
+    p.textContent=(x.titulo||tituloCategoria(x.categoria))+' — '+x.descricao+': '+
+      (x.ok?Number(x.valor).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Indisponível — '+x.erro);
+    box.append(p);
+  }
+  aviso(r.validos?'Preço confirmado pela API para este serviço e peso. Nenhuma postagem criada.':'Não foi possível cotar este serviço; confira o retorno dos Correios.',r.validos>0);
  }catch(e){aviso(e.message,false);}
 };
 window.cartaPreparar=async()=>{
- try{aviso('Validando carta registrada sem transmitir...',true);const r=await request('preparar',corpo());aviso(r.observacao,true);}
- catch(e){aviso(e.message,false);}
+ try{
+  if(!val('cartaServico')){aviso('Selecione primeiro o serviço de Carta Comercial.',false);return;}
+  aviso('Validando endereço e peso sem transmitir aos Correios...',true);
+  const r=await request('preparar',corpo());aviso(r.observacao,true);
+ }catch(e){aviso(e.message,false);}
 };
 window.cartaEmitir=async()=>{
  try{
