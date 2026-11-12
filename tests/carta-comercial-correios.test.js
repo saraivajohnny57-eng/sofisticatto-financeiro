@@ -1,0 +1,14 @@
+'use strict';
+const test=require('node:test');const assert=require('node:assert/strict');
+const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valorBR}=require('../lib/integracoes/carta-comercial-correios')._teste;
+const c={usuario:'teste',cartao:'000',cnpj:'05451985000195',cepOrigem:'74550470'};
+const destino={nome:'Cliente Teste',endereco:{cep:'74000000',logradouro:'Rua B',numero:'30',bairro:'Centro',cidade:'Goiânia',uf:'GO'}};
+const s={codigo:'12345',descricao:'CARTA REGISTRADA',categoria:'registrada'};
+test('filtra somente códigos de cartas do contrato, não PAC e API',()=>{assert.deepEqual(descobrirCartas({todosServicos:[{codigo:'03298',descricao:'PAC CONTRATO AG'},{codigo:'12345',descricao:'CARTA REGISTRADA'},{codigo:'22222',descricao:'CARTA COMERCIAL'},{codigo:'33333',descricao:'API PRE POSTAGEM CARTA'}]}).map(x=>x.codigo),['12345','22222']);});
+test('cotação em gramas, não quilos e envelope até 500 g',()=>{assert.deepEqual(validarCotacao({cepDestino:'74000-000',pesoGramas:20}),{cep:'74000000',peso:20});assert.throws(()=>validarCotacao({cepDestino:'74000000',pesoGramas:501}));assert.throws(()=>validarCotacao({cepDestino:'74000000',pesoGramas:0}));});
+test('valor retornado pela API aceita vírgula ou ponto decimal',()=>{assert.equal(valorBR('3,85'),3.85);assert.equal(valorBR('15.60'),15.60);assert.equal(valorBR('1.234,56'),1234.56);});
+test('destinatário exige endereço completo',()=>{assert.equal(validarDestinatario(destino).nome,'Cliente Teste');assert.throws(()=>validarDestinatario({nome:'X',endereco:{cep:'123'}}));});
+test('registrada documental não adiciona NF-e nem declaração de cosméticos',()=>{const p=montarPrepostagem({cepDestino:'74000000',pesoGramas:20,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s);assert.equal(p.codigoFormatoObjetoInformado,'1');assert.equal(p.pesoInformado,20);assert.ok(!('tipoDocumento' in p));assert.ok(!('chaveNFe' in p));assert.equal(p.destinatario.nome,'Cliente Teste');});
+test('não tenta criar carta simples pela API individual',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74000000',pesoGramas:20,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,{...s,categoria:'simples'}),/lote/);});
+test('bloqueia envio de produtos como Carta',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74000000',pesoGramas:20,tipoConteudo:'COSMETICOS',destinatario:destino},c,s),/documentos/);});
+test('protege divergência entre CEP usado na cotação e na etiqueta',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74200000',pesoGramas:20,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s),/CEP/);});
