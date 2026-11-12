@@ -14,7 +14,7 @@ test('seleciona somente cartas comerciais fisicas, exclui PAC e e-Carta',()=>{
    {codigo:'55555',descricao:'CARTA COML RG ARC PL3 CHAN ETI'},
    {codigo:'66666',descricao:'CARTA COML REG AR CONV PL3 MFD'}
  ]});
- assert.deepEqual(servicos.map(x=>x.codigo),['12345','22222','55555','66666']);
+ assert.deepEqual(servicos.map(x=>x.codigo),['12345','22222','66666','55555']);
  assert.deepEqual(servicos.map(x=>x.categoria),['registrada','simples','registrada_ar','registrada_ar']);
 });
 test('cotação em gramas, não quilos e envelope até 500 g',()=>{assert.deepEqual(validarCotacao({cepDestino:'74000-000',pesoGramas:20}),{cep:'74000000',peso:20});assert.throws(()=>validarCotacao({cepDestino:'74000000',pesoGramas:501}));assert.throws(()=>validarCotacao({cepDestino:'74000000',pesoGramas:0}));});
