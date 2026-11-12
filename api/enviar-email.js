@@ -95,13 +95,17 @@ module.exports = async function handler(req, res) {
       emailRemetente=padrao;
     }
 
+    // V463: sendMail() já conecta e autentica; verify() abria uma conexão
+    // SMTP adicional a cada e-mail, sem efetuar entrega.
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || "smtp.gmail.com",
       port: porta,
       secure: seguro,
-      auth: {user:smtpUser,pass:smtpPass}
+      auth: {user:smtpUser,pass:smtpPass},
+      connectionTimeout: 20000,
+      greetingTimeout: 20000,
+      socketTimeout: 90000
     });
-    await transporter.verify();
 
     const nomeRemetente = nome_remetente || credencial?.nome_exibicao || process.env.SMTP_FROM_NAME || process.env.SMTP_FROM || "Sofisticatto Cosméticos";
 
