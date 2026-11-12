@@ -6,11 +6,30 @@ const dig=x=>String(x||'').replace(/\D/g,'');
 const escape=x=>String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let servicos=[];
 function aviso(msg,ok){const e=el('cartaStatus');if(e){e.textContent=msg;e.style.color=ok?'#186c42':'#9a361c';}}
-function chave(){return (typeof chaveIntegracoesCotacao==='function'&&chaveIntegracoesCotacao())||sessionStorage.getItem('integrations_admin_key')||localStorage.getItem('integrations_admin_key')||'';}
+async function chave(){
+ // Preview e producao sao origens diferentes; reutiliza a autenticacao protegida
+ // ja empregada pelas cotacoes de frete (valida token ou pede senha mestre).
+ if(typeof obterChaveIntegracoesCotacao==='function'){
+  const autorizado=await obterChaveIntegracoesCotacao();
+  if(!autorizado)throw Error('Autorização cancelada. Utilize o botão "Autorizar neste Preview".');
+  return autorizado;
+ }
+ const token=sessionStorage.getItem('integrations_admin_key')||localStorage.getItem('integrations_admin_key')||'';
+ if(!token)throw Error('Autorização ainda não disponível. Abra a Central de Integrações e valide a Senha Mestre nesta versão Preview.');
+ return token;
+}
+window.cartaAutorizar=async()=>{
+ try{
+  aviso('Validando sua autorização neste endereço de testes...',true);
+  await chave();
+  aviso('Dispositivo autorizado neste Preview. Agora clique em "Verificar Carta no contrato".',true);
+ }catch(e){aviso(e.message,false);}
+};
 async function request(modo,body){
- const key=chave();if(!key)throw Error('Configure a chave na Central de Integrações.');
+ const key=await chave();
  const r=await fetch('/api/integracoes?action=carta-comercial-correios&modo='+modo,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','x-integrations-admin-key':key},body:body?JSON.stringify(body):undefined});
- const j=await r.json().catch(()=>({}));if(!r.ok||!j.ok)throw Error(j.erro||'Correios HTTP '+r.status);return j;
+ const j=await r.json().catch(()=>({}));if(r.status===401)throw Error('Autorização recusada neste Preview. Valide a Senha Mestre deste ambiente e tente novamente.');
+ if(!r.ok||!j.ok)throw Error(j.erro||'Correios HTTP '+r.status);return j;
 }
 function destinatario(){return {nome:val('corCliente'),cpfCnpj:val('corDocumento'),endereco:{cep:val('corCep'),logradouro:val('corEndereco'),numero:val('corNumero'),complemento:val('corComplemento'),bairro:val('corBairro'),cidade:val('corCidade'),uf:val('corUf')}};}
 function corpo(){return {cepDestino:val('corCep'),pesoGramas:Number(val('cartaPesoGramas')),codigoServico:val('cartaServico'),tipoConteudo:'DOCUMENTOS',destinatario:destinatario()};}
@@ -46,7 +65,7 @@ window.cartaEmitir=async()=>{
 window.cartaRotulo=async()=>{
  try{
   const id=val('cartaId');if(!/^PR[A-Za-z0-9]{10,40}$/.test(id))throw Error('Informe o ID oficial da pré-postagem de Carta Registrada.');
-  const key=chave();if(!key)throw Error('Configure a chave de integrações.');
+  const key=await chave();
   aviso('Gerando rótulo oficial em PDF...',true);
   const url='/api/integracoes?action=documentos-correios&modo=rotulo&idPrePostagem='+encodeURIComponent(id)+'&tipoRotulo=P';
   const r=await fetch(url,{headers:{'x-integrations-admin-key':key}});
