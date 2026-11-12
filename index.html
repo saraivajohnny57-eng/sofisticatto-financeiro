@@ -3368,8 +3368,13 @@ SOFISTICATTO COSMÉTICOS</textarea>
       <div style="display:grid;grid-template-columns:1fr 1.4fr .5fr;gap:10px;margin-top:10px;">
         <div>
           <label class="relatorio-label">CEP</label>
-          <input id="novoEtqCep" maxlength="9" placeholder="00000-000"
-            oninput="formatarCepEtiquetaCampo(this)">
+          <input id="novoEtqCep" maxlength="9" placeholder="00000-000" inputmode="numeric" autocomplete="postal-code"
+            oninput="formatarCepEtiquetaCampo(this);agendarBuscaCepNovoEnderecoEtiqueta()"
+            onblur="consultarCepNovoEnderecoEtiqueta()">
+          <div id="novoEtqCepStatus" role="status" aria-live="polite"
+            style="font-size:11px;color:#64558a;margin-top:5px;line-height:1.4;">
+            Informe um CEP para preencher rua, bairro, cidade e UF.
+          </div>
         </div>
         <div>
           <label class="relatorio-label">Cidade</label>
@@ -3425,7 +3430,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 
 <script src="progresso-operacoes-v460.js?v=461-logo-correcao"></script>
-<script src="financeiro.js?v=466-moldura-independente"></script>
+<script src="financeiro.js?v=467-cep-novo-endereco"></script>
 <script src="etiquetas-editor-posicao-v464.js?v=466"></script>
 <script src="etiquetas-editor-grafico-v465.js?v=465"></script>
 <script src="relatorio-parcelas-clientes-v429.js?v=429-producao"></script>

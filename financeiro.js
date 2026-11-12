@@ -5781,18 +5781,109 @@ function cadastroPossuiEnderecoLogistico(cliente){
   return !!(cliente && (cliente.endereco || cliente.bairro || cliente.cep || cliente.cidade || cliente.uf));
 }
 
+// V467 — busca de CEP exclusivamente para "Cadastrar outro endereço".
+// O resultado é uma sugestão editável; número/complemento nunca são preenchidos
+// nem modificados pela consulta. Nenhum dado é gravado sem escolha do usuário.
+let novoEtqCepSequenciaV467=0;
+let novoEtqCepTimerV467=null;
+let novoEtqCepAbortV467=null;
+let novoEtqCepUltimoV467='';
+const novoEtqCepAutoV467={};
+function cancelarConsultaCepNovoEnderecoEtiqueta(){
+  novoEtqCepSequenciaV467++;
+  if(novoEtqCepTimerV467!==null){clearTimeout(novoEtqCepTimerV467);novoEtqCepTimerV467=null;}
+  if(novoEtqCepAbortV467){novoEtqCepAbortV467.abort();novoEtqCepAbortV467=null;}
+}
+function statusCepNovoEnderecoEtiqueta(msg,erro=false){
+  const el=document.getElementById('novoEtqCepStatus');
+  if(!el)return;
+  el.textContent=msg;
+  el.style.color=erro?'#a72236':'#64558a';
+}
 function limparNovoEnderecoEtiqueta(){
+  cancelarConsultaCepNovoEnderecoEtiqueta();
+  novoEtqCepUltimoV467='';
+  Object.keys(novoEtqCepAutoV467).forEach(k=>delete novoEtqCepAutoV467[k]);
   ["novoEtqEndereco","novoEtqNumero","novoEtqComplemento","novoEtqBairro",
    "novoEtqCep","novoEtqCidade","novoEtqUf"].forEach(id=>{
     const campo=document.getElementById(id);
     if(campo) campo.value="";
   });
+  statusCepNovoEnderecoEtiqueta('Informe um CEP para preencher rua, bairro, cidade e UF.');
+}
+function agendarBuscaCepNovoEnderecoEtiqueta(){
+  cancelarConsultaCepNovoEnderecoEtiqueta();
+  const cep=String(document.getElementById('novoEtqCep')?.value||'').replace(/\\D/g,'');
+  if(cep.length!==8){
+    novoEtqCepUltimoV467='';
+    statusCepNovoEnderecoEtiqueta('Informe os 8 dígitos do CEP. Os campos podem ser preenchidos manualmente.');
+    return;
+  }
+  if(cep===novoEtqCepUltimoV467){statusCepNovoEnderecoEtiqueta('Endereço consultado. Você pode editar qualquer campo.');return;}
+  statusCepNovoEnderecoEtiqueta('Consultando CEP...');
+  novoEtqCepTimerV467=setTimeout(()=>{
+    novoEtqCepTimerV467=null;
+    consultarCepNovoEnderecoEtiqueta();
+  },350);
+}
+async function consultarCepNovoEnderecoEtiqueta(){
+  const campoCep=document.getElementById('novoEtqCep');
+  const cep=String(campoCep?.value||'').replace(/\\D/g,'');
+  if(cep.length!==8)return;
+  if(document.querySelector('input[name="enderecoEtiquetaEscolhido"]:checked')?.value!=='novo')return;
+  if(cep===novoEtqCepUltimoV467)return;
+  cancelarConsultaCepNovoEnderecoEtiqueta();
+  const sequencia=novoEtqCepSequenciaV467;
+  const controller=new AbortController();
+  novoEtqCepAbortV467=controller;
+  const ids=['novoEtqEndereco','novoEtqBairro','novoEtqCidade','novoEtqUf'];
+  const antes=Object.fromEntries(ids.map(id=>[id,document.getElementById(id)?.value||'']));
+  statusCepNovoEnderecoEtiqueta('Consultando CEP...');
+  try{
+    const res=await fetch('https://viacep.com.br/ws/'+cep+'/json/',{
+      signal:controller.signal,headers:{Accept:'application/json'}
+    });
+    if(!res.ok)throw Error('Serviço de CEP indisponível');
+    const dados=await res.json();
+    // Não aplicar respostas atrasadas de outro CEP ou de um modal fechado.
+    if(sequencia!==novoEtqCepSequenciaV467 ||
+       String(campoCep?.value||'').replace(/\\D/g,'')!==cep ||
+       document.getElementById('modalEscolherEnderecoEtiqueta')?.style.display==='none' ||
+       document.querySelector('input[name="enderecoEtiquetaEscolhido"]:checked')?.value!=='novo')return;
+    if(dados?.erro===true || dados?.erro==='true'){
+      statusCepNovoEnderecoEtiqueta('CEP não encontrado. Confira os números ou preencha manualmente.',true);
+      return;
+    }
+    const encontrados={
+      novoEtqEndereco:String(dados?.logradouro||'').trim(),
+      novoEtqBairro:String(dados?.bairro||'').trim(),
+      novoEtqCidade:String(dados?.localidade||'').trim(),
+      novoEtqUf:String(dados?.uf||'').trim().toUpperCase()
+    };
+    for(const id of ids){
+      const el=document.getElementById(id),valor=encontrados[id];
+      if(!el || !valor)continue; // CEP geral pode não trazer rua/bairro.
+      const atual=el.value;
+      // Mantém qualquer preenchimento manual, inclusive feito durante o fetch.
+      if(atual!==antes[id] || (atual.trim() && atual!==novoEtqCepAutoV467[id]))continue;
+      el.value=valor;
+      novoEtqCepAutoV467[id]=valor;
+    }
+    novoEtqCepUltimoV467=cep;
+    statusCepNovoEnderecoEtiqueta('CEP localizado. Confira o número e edite o que precisar.');
+  }catch(e){
+    if(e?.name!=='AbortError' && sequencia===novoEtqCepSequenciaV467)
+      statusCepNovoEnderecoEtiqueta('Não foi possível consultar agora. Preencha manualmente ou tente novamente.',true);
+  }finally{
+    if(novoEtqCepAbortV467===controller)novoEtqCepAbortV467=null;
+  }
 }
 
 function alternarNovoEnderecoEtiqueta(){
   const opcao=document.querySelector('input[name="enderecoEtiquetaEscolhido"]:checked')?.value;
   const box=document.getElementById("novoEnderecoEtiquetaBox");
   if(box) box.style.display=opcao==="novo" ? "block" : "none";
+  if(opcao!=="novo")cancelarConsultaCepNovoEnderecoEtiqueta();
 }
 
 function dadosNovoEnderecoEtiqueta(){
@@ -5837,6 +5928,7 @@ function abrirEscolhaEnderecoEtiqueta(cliente,dadosXml){
 }
 
 function cancelarEscolhaEnderecoEtiqueta(){
+  cancelarConsultaCepNovoEnderecoEtiqueta();
   document.getElementById("modalEscolherEnderecoEtiqueta").style.display="none";
   if(resolverEscolhaEnderecoEtiqueta) resolverEscolhaEnderecoEtiqueta(null);
   resolverEscolhaEnderecoEtiqueta=null;
@@ -5902,6 +5994,7 @@ async function confirmarEscolhaEnderecoEtiqueta(substituirCadastro){
     montarTabelaClientesEmail();
   }
 
+  cancelarConsultaCepNovoEnderecoEtiqueta();
   document.getElementById("modalEscolherEnderecoEtiqueta").style.display="none";
 
   if(resolverEscolhaEnderecoEtiqueta){
