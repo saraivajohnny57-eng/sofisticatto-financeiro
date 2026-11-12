@@ -5813,7 +5813,7 @@ function limparNovoEnderecoEtiqueta(){
 }
 function agendarBuscaCepNovoEnderecoEtiqueta(){
   cancelarConsultaCepNovoEnderecoEtiqueta();
-  const cep=String(document.getElementById('novoEtqCep')?.value||'').replace(/\\D/g,'');
+  const cep=String(document.getElementById('novoEtqCep')?.value||'').replace(/\D/g,'');
   if(cep.length!==8){
     novoEtqCepUltimoV467='';
     statusCepNovoEnderecoEtiqueta('Informe os 8 dígitos do CEP. Os campos podem ser preenchidos manualmente.');
@@ -5828,7 +5828,7 @@ function agendarBuscaCepNovoEnderecoEtiqueta(){
 }
 async function consultarCepNovoEnderecoEtiqueta(){
   const campoCep=document.getElementById('novoEtqCep');
-  const cep=String(campoCep?.value||'').replace(/\\D/g,'');
+  const cep=String(campoCep?.value||'').replace(/\D/g,'');
   if(cep.length!==8)return;
   if(document.querySelector('input[name="enderecoEtiquetaEscolhido"]:checked')?.value!=='novo')return;
   if(cep===novoEtqCepUltimoV467)return;
@@ -5847,7 +5847,7 @@ async function consultarCepNovoEnderecoEtiqueta(){
     const dados=await res.json();
     // Não aplicar respostas atrasadas de outro CEP ou de um modal fechado.
     if(sequencia!==novoEtqCepSequenciaV467 ||
-       String(campoCep?.value||'').replace(/\\D/g,'')!==cep ||
+       String(campoCep?.value||'').replace(/\D/g,'')!==cep ||
        document.getElementById('modalEscolherEnderecoEtiqueta')?.style.display==='none' ||
        document.querySelector('input[name="enderecoEtiquetaEscolhido"]:checked')?.value!=='novo')return;
     if(dados?.erro===true || dados?.erro==='true'){
