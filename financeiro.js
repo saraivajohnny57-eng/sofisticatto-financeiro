@@ -4210,7 +4210,14 @@ async function executarEnvioEmail(item,avisarEtapa=()=>{}){
       throw e;
     }
     const dados=await resposta.json().catch(()=>({}));
-    if(!resposta.ok||!dados.ok){if(resposta.status===401)senhaEmailV348='';throw new Error(dados.erro||`Falha no serviço de envio (${resposta.status}).`);}
+    if(!resposta.ok||!dados.ok){
+      if(resposta.status===401)senhaEmailV348='';
+      const erro=new Error(dados.erro||`Falha no serviço de envio (${resposta.status}).`);
+      // Erro 5xx ou resposta 2xx inválida não comprovam rejeição SMTP.
+      // Interromper a fila e exigir conferência da pasta Enviados, sem retry automático.
+      erro.envioIncerto=resposta.status>=500||(resposta.ok&&!dados.ok);
+      throw erro;
+    }
     return dados;
   }catch(erro){
     if(anexos_storage.length && erro?.envioIncerto!==true){
