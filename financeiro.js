@@ -6045,6 +6045,7 @@ function atualizarPreviewEtiqueta(){
 
   aplicarAjustesTamanhoEtiqueta(document.getElementById("etqPreview"));
   ajustarLinhasVisiveisEtiqueta(document.getElementById("etqPreview"),d);
+  window.sofAjustarLayoutEtiqueta?.(document.getElementById("etqPreview"));
   atualizarValoresAjustesEtiqueta();
   atualizarPreviewsFaixasEtiqueta();
 
@@ -6730,6 +6731,8 @@ function criarElementoEtiqueta(d,volumeAtual){
   montarBarcodeEtiqueta(etiqueta.querySelector(".etiqueta-barcode"),d.chave_nfe);
   aplicarAjustesTamanhoEtiqueta(etiqueta);
   ajustarLinhasVisiveisEtiqueta(etiqueta,d);
+  // V464: mesmos deslocamentos/giro usados na prévia e na impressão/PDF.
+  window.sofAjustarLayoutEtiqueta?.(etiqueta);
   return etiqueta;
 }
 
@@ -6808,21 +6811,31 @@ function converterTransportadoraParaCanvas(etiqueta){
   const texto=(elemento.textContent || "").trim();
   if(!texto) return;
 
-  const rect=elemento.getBoundingClientRect();
-  if(!rect.width || !rect.height) return;
+  // offsetWidth/Height não incluem transformações, evitando cortar texto
+  // quando a transportadora for rotacionada no editor visual V464.
+  const width=elemento.offsetWidth || elemento.getBoundingClientRect().width;
+  const height=elemento.offsetHeight || elemento.getBoundingClientRect().height;
+  if(!width || !height) return;
+  const rect={width,height};
 
   const estilo=getComputedStyle(elemento);
   const escala=4;
   const canvas=document.createElement("canvas");
-  canvas.width=Math.max(1,Math.round(rect.width*escala));
-  canvas.height=Math.max(1,Math.round(rect.height*escala));
+  canvas.width=Math.max(1,Math.round(width*escala));
+  canvas.height=Math.max(1,Math.round(height*escala));
   canvas.className="etiqueta-transportadora-canvas";
   canvas.style.position="absolute";
   canvas.style.right=getComputedStyle(elemento).right;
   canvas.style.bottom=getComputedStyle(elemento).bottom;
   canvas.style.width=`${rect.width}px`;
   canvas.style.height=`${rect.height}px`;
-  canvas.style.transform="none";
+  // Texto já foi pintado na orientação vertical original (-90 graus).
+  // Reaplicar somente o giro adicional, não os 180 graus da escrita CSS.
+  const dx=Math.max(-40,Math.min(40,Number(elemento.dataset.etqX)||0));
+  const dy=Math.max(-40,Math.min(40,Number(elemento.dataset.etqY)||0));
+  const giro=Math.max(-180,Math.min(180,Number(elemento.dataset.etqGiro)||0));
+  canvas.style.transform='translate('+dx+'mm, '+dy+'mm) rotate('+giro+'deg)';
+  canvas.style.transformOrigin="center center";
   canvas.style.writingMode="horizontal-tb";
   canvas.style.overflow="visible";
 
