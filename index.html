@@ -989,7 +989,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
             </div>
             <details id="cartaComercialModulo" style="margin:18px 0;padding:16px;border:2px solid #d5caef;border-radius:14px;background:#f9f7ff;">
               <summary style="cursor:pointer;font-size:18px;color:#53439b;font-weight:800;">✉️ Carta Comercial — boletos e documentos</summary>
-              <p style="font-size:13px;color:#625b85;line-height:1.5;">Módulo de testes isolado de PAC/SEDEX. Preencha os dados do destinatário na seção <b>Postagem pelos Correios</b> acima ou pesquise pelo nome, CPF ou CNPJ. Envie somente documentos e correspondências em papel.</p>
+              <p style="font-size:13px;color:#625b85;line-height:1.5;">Em uma versão de testes, utilize <b>Autorizar neste Preview</b> para validar sua Senha Mestre no próprio portal (o campo fica oculto). Não compartilhe a senha no chat. Módulo de testes isolado de PAC/SEDEX. Preencha os dados do destinatário na seção <b>Postagem pelos Correios</b> acima ou pesquise pelo nome, CPF ou CNPJ. Envie somente documentos e correspondências em papel.</p>
               <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:12px 0;">
                 <label>Cliente por nome/CPF/CNPJ<input id="cartaBuscaCliente" list="cartaClientesLista" placeholder="Pesquise cliente cadastrado" oninput="cartaBuscarCliente()" onchange="cartaBuscarCliente()" style="width:100%;"></label>
                 <datalist id="cartaClientesLista"></datalist>
@@ -997,6 +997,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <label>Serviço do contrato<select id="cartaServico" style="width:100%;"><option value="">Consulte o contrato primeiro</option></select></label>
               </div>
               <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                <button class="btn roxo" type="button" onclick="cartaAutorizar()">🔐 Autorizar neste Preview</button>
                 <button class="btn azul" type="button" onclick="cartaDiagnosticar()">1. Verificar Carta no contrato</button>
                 <button class="btn verde" type="button" onclick="cartaCotar()">2. Cotar carta</button>
                 <button class="btn azul" type="button" onclick="cartaPreparar()">3. Validar Carta Registrada (sem envio)</button>
@@ -3483,7 +3484,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="integracoes-seguras.js?v=220-braspress-detalhado"></script>
 <script src="motor-integracoes.js?v=34"></script>
 <script src="coletas.js?v=458-correios-status-seguro"></script>
-<script src="cartas-comerciais-correios.js?v=1-teste-cartas"></script>
+<script src="cartas-comerciais-correios.js?v=2-autorizacao-preview"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">
