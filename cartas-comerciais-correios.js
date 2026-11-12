@@ -43,11 +43,29 @@ window.cartaEmitir=async()=>{
  aviso('Carta registrada criada. ID: '+r.idPrePostagem,true);
  }catch(e){aviso(e.message,false);}
 };
-window.cartaRotulo=()=>{
- const id=val('cartaId');if(!/^PR[A-Za-z0-9]{10,40}$/.test(id))return aviso('Informe o ID oficial da pré-postagem.',false);
- if(el('corIdPrePostagem'))el('corIdPrePostagem').value=id;
- if(typeof abrirDocumentoCorreiosOficial==='function')abrirDocumentoCorreiosOficial('rotulo');
- else aviso('O visualizador oficial não está disponível.',false);
+window.cartaRotulo=async()=>{
+ try{
+  const id=val('cartaId');if(!/^PR[A-Za-z0-9]{10,40}$/.test(id))throw Error('Informe o ID oficial da pré-postagem de Carta Registrada.');
+  const key=chave();if(!key)throw Error('Configure a chave de integrações.');
+  aviso('Gerando rótulo oficial em PDF...',true);
+  const url='/api/integracoes?action=documentos-correios&modo=rotulo&idPrePostagem='+encodeURIComponent(id)+'&tipoRotulo=P';
+  const r=await fetch(url,{headers:{'x-integrations-admin-key':key}});
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw Error(e.erro||'Correios HTTP '+r.status);}
+  const bytes=await r.arrayBuffer();
+  if(new TextDecoder().decode(bytes.slice(0,4))!=='%PDF')throw Error('O serviço não retornou um PDF de rótulo válido.');
+  const src=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+  const modal=document.createElement('div');modal.style.cssText='position:fixed;inset:0;background:#17122ac9;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:10px';
+  const wrap=document.createElement('section');wrap.style.cssText='background:#fff;border-radius:12px;width:min(1120px,100%);height:94vh;display:flex;flex-direction:column;overflow:hidden';
+  const bar=document.createElement('header');bar.style.cssText='padding:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+  const title=document.createElement('strong');title.textContent='Rótulo oficial — Carta Registrada';title.style.flex='1';bar.append(title);
+  const frame=document.createElement('iframe');frame.title='Prévia de rótulo oficial';frame.src=src;frame.style.cssText='border:0;width:100%;flex:1';
+  const button=(label,action)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.className='btn azul';b.onclick=action;bar.append(b);};
+  const fechar=()=>{modal.remove();setTimeout(()=>URL.revokeObjectURL(src),3000);};
+  button('Imprimir',()=>{frame.contentWindow.focus();frame.contentWindow.print();});
+  button('Baixar PDF',()=>{const a=document.createElement('a');a.href=src;a.download='carta-registrada-correios.pdf';document.body.append(a);a.click();a.remove();});
+  button('Fechar',fechar);wrap.append(bar,frame);modal.append(wrap);document.body.append(modal);
+  aviso('Rótulo oficial aberto dentro do portal.',true);
+ }catch(e){aviso(e.message,false);}
 };
 window.cartaImprimirEnderecamento=()=>{
  try{
