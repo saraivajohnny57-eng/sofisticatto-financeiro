@@ -7955,6 +7955,9 @@ async function salvarPdfPorFiltroV323(){
     if(!confirm(`SALVAR PDF POR FILTRO\n\nBoletos encontrados: ${lista.length}\nArquivos que serão salvos: ${grupos.size}\nPedidos parcelados que serão agrupados: ${parcelados}\n\nAs parcelas do mesmo pedido serão reunidas em um único PDF.\nNenhum boleto será reemitido.\n\nContinuar?`))return;
     const pasta=await window.showDirectoryPicker({mode:'readwrite'});
     let salvos=0,boletos=0;const falhas=[];
+    const painelPdf=typeof window.sofProgressoLoteV460==='function'
+      ?window.sofProgressoLoteV460({titulo:'Salvando boletos em PDF',total:grupos.size,
+        nota:'Os valores acompanham arquivos concluídos no seu computador.'}):null;
     // Progresso real por arquivo gravado, sem estimar downloads nem simular porcentagens.
     const progresso=document.createElement('div');
     progresso.id='cobSalvarPdfFiltroProgressoV429';
@@ -7977,6 +7980,9 @@ async function salvarPdfPorFiltroV323(){
       descricao.textContent='Salvando PDFs: '+percentual+'% ('+processados+' de '+grupos.size+' arquivos)';
       detalhes.textContent=salvos+' salvos • '+falhas.length+' falha(s) • '+boletos+' boleto(s) incluído(s)';
       if(btn)btn.textContent='Salvando PDFs... '+percentual+'%';
+      painelPdf?.atualizar({concluidos:processados,sucessos:salvos,erros:falhas.length,
+        etapa:'Processados '+processados+' de '+grupos.size+' arquivo(s).',
+        extras:{'Boletos incluídos':boletos}});
     };
     atualizarProgresso();
     for(const regs of grupos.values()){
@@ -8001,7 +8007,10 @@ async function salvarPdfPorFiltroV323(){
       }
     }
     descricao.textContent=falhas.length?'Salvamento concluído com '+falhas.length+' falha(s)':'Salvamento concluído: 100%';
-    alert(`✅ SALVAR PDF POR FILTRO CONCLUÍDO\n\nArquivos salvos: ${salvos}\nBoletos incluídos: ${boletos}\nFalhas: ${falhas.length}${falhas.length?`\n\n${falhas.slice(0,8).join('\n')}`:''}`);
+    painelPdf?.finalizar({concluidos:processados,sucessos:salvos,erros:falhas.length,
+      etapa:'Salvamento finalizado: '+salvos+' arquivo(s) salvos, '+falhas.length+' falha(s).',
+      extras:{'Boletos incluídos':boletos}});
+    if(!painelPdf)alert(`✅ SALVAR PDF POR FILTRO CONCLUÍDO\n\nArquivos salvos: ${salvos}\nBoletos incluídos: ${boletos}\nFalhas: ${falhas.length}${falhas.length?`\n\n${falhas.slice(0,8).join('\n')}`:''}`);
   }catch(e){if(e?.name!=='AbortError')alert('Não foi possível salvar os PDFs filtrados.\n\n'+(e?.message||e));}
   finally{if(btn){btn.disabled=false;btn.textContent=texto;}}
 }
@@ -10259,6 +10268,16 @@ async function incrementarTentativaLoteV279(p,loteId){
 }
 // V457 — acompanhamento visual local do lote, sem consultas adicionais ao banco.
 function criarProgressoCobrancaMassaV457(total,comPasta){
+  if(typeof window.sofProgressoLoteV460==='function'){
+    const painel=window.sofProgressoLoteV460({titulo:'Emitindo boletos bancários',total,
+      nota:'Não feche esta página durante a emissão. Resultado incerto exige conferência no banco antes de qualquer reenvio.'});
+    const s={emitidos:0,salvos:0,erros:0,concluidos:0};
+    const atualizar=(etapa)=>painel.atualizar({etapa:etapa||'Processando lote bancário...',
+      concluidos:s.concluidos,sucessos:s.emitidos,erros:s.erros,
+      extras:{'Emitidos':s.emitidos+'/'+total,'Salvos na pasta':comPasta?s.salvos+'/'+total:'Desativado'}});
+    atualizar('Preparando lote...');
+    return {s,atualizar,fechar:()=>painel.fechar()};
+  }
   const el=document.createElement('div');el.id='progresso-cobranca-massa-v457';
   el.style.cssText='position:fixed;inset:0;z-index:2147483000;background:#160b2999;display:flex;align-items:center;justify-content:center;padding:18px';
   el.innerHTML='<section role="status" aria-live="polite" style="background:white;color:#241737;border-radius:18px;box-shadow:0 12px 45px #0004;padding:26px;width:min(440px,95vw);font:15px Segoe UI,Arial,sans-serif"><h2 style="margin:0 0 12px;color:#6a1b9a">Emitindo boletos bancários</h2><div id="lote457etapa" style="margin-bottom:12px">Preparando lote...</div><progress id="lote457barra" max="100" value="0" style="width:100%;height:19px;accent-color:#6a1b9a"></progress><div id="lote457contadores" style="margin-top:15px;line-height:2"></div><small>Não feche esta página durante a emissão. Um resultado incerto interrompe o lote para evitar duplicidade.</small></section>';
