@@ -4144,7 +4144,7 @@ async function registrarHistoricoEmail(item,status,erro=""){
 function solicitarSenhaEmailProtegida(){
   return new Promise((resolve)=>{
     const fundo=document.createElement('div');
-    fundo.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.65);z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px';
+    fundo.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.65);z-index:2147483002;display:flex;align-items:center;justify-content:center;padding:20px';
     const painel=document.createElement('div');
     painel.style.cssText='background:#fff;border-radius:14px;padding:24px;width:min(420px,100%);box-shadow:0 20px 60px #0004;color:#202536';
     const titulo=document.createElement('h3');titulo.textContent='Confirmar envio de documentos';titulo.style.margin='0 0 12px';
@@ -4255,6 +4255,29 @@ async function enviarTodosEmails(){
   envioTodosEmailsV460EmCurso=true;
   const botaoTodos=document.querySelector('[onclick="enviarTodosEmails()"]');
   if(botaoTodos)botaoTodos.disabled=true;
+  // V462: a senha precisa ser solicitada ANTES do balão de progresso.
+  // Do contrário, o balão cobre o diálogo da senha e trava o primeiro envio em 0/N.
+  if(!senhaEmailV348){
+    try{
+      const senha=await solicitarSenhaEmailProtegida();
+      if(!senha){
+        mostrarAvisoEmail('Envio cancelado: confirmação de senha não realizada.');
+        return;
+      }
+      senhaEmailV348=senha;
+    }catch(erro){
+      mostrarAvisoEmail('Não foi possível confirmar a autorização para envio.');
+      console.error('Autorização de envio de documentos:',erro);
+      return;
+    }finally{
+      // A liberação ocorre somente se o envio foi cancelado:
+      // enquanto estiver ativo, o bloqueio é restaurado após o prompt.
+      if(!senhaEmailV348){
+        envioTodosEmailsV460EmCurso=false;
+        if(botaoTodos)botaoTodos.disabled=false;
+      }
+    }
+  }
   const progresso=typeof window.sofProgressoLoteV460==='function'
     ?window.sofProgressoLoteV460({titulo:'Enviando boletos por e-mail',total:prontos.length,
       nota:'Não feche esta página enquanto os envios estiverem em andamento.'}):null;
@@ -4277,6 +4300,12 @@ async function enviarTodosEmails(){
       }catch(erro){
         try{await registrarHistoricoEmail(item,"erro",erro.message);}catch(e){console.warn('Histórico de e-mail:',e);}
         erros.push(String(item.clienteNome||'Cliente')+': '+String(erro.message||erro));
+        // Quando o backend invalida a sessão, não ficar tentando os outros e-mails
+        // sem credenciais; o usuário deve verificar o primeiro resultado e reautorizar.
+        if(!senhaEmailV348){
+          atualizar('Autorização expirada. Envios restantes não foram iniciados.');
+          break;
+        }
       }finally{
         processados++;
         atualizar('Processados '+processados+' de '+prontos.length+' e-mail(s).');
