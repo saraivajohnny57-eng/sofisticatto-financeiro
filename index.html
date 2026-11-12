@@ -987,6 +987,32 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <button class="btn verde" onclick="imprimirPacoteCorreios()">Imprimir tudo</button>
               <button class="btn vermelho" onclick="limparCorreios()">Limpar</button>
             </div>
+            <details id="cartaComercialModulo" style="margin:18px 0;padding:16px;border:2px solid #d5caef;border-radius:14px;background:#f9f7ff;">
+              <summary style="cursor:pointer;font-size:18px;color:#53439b;font-weight:800;">✉️ Carta Comercial — boletos e documentos</summary>
+              <p style="font-size:13px;color:#625b85;line-height:1.5;">Módulo de testes isolado de PAC/SEDEX. Preencha os dados do destinatário na seção <b>Postagem pelos Correios</b> acima ou pesquise pelo nome, CPF ou CNPJ. Envie somente documentos e correspondências em papel.</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:12px 0;">
+                <label>Cliente por nome/CPF/CNPJ<input id="cartaBuscaCliente" list="cartaClientesLista" placeholder="Pesquise cliente cadastrado" oninput="cartaBuscarCliente()" onchange="cartaBuscarCliente()" style="width:100%;"></label>
+                <datalist id="cartaClientesLista"></datalist>
+                <label>Peso do envelope (gramas)<input id="cartaPesoGramas" type="number" min="1" max="500" step="1" value="20" style="width:100%;"></label>
+                <label>Serviço do contrato<select id="cartaServico" style="width:100%;"><option value="">Consulte o contrato primeiro</option></select></label>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                <button class="btn azul" type="button" onclick="cartaDiagnosticar()">1. Verificar Carta no contrato</button>
+                <button class="btn verde" type="button" onclick="cartaCotar()">2. Cotar carta</button>
+                <button class="btn azul" type="button" onclick="cartaPreparar()">3. Validar Carta Registrada (sem envio)</button>
+                <button class="btn roxo" type="button" onclick="cartaImprimirEnderecamento()">Imprimir endereço (não oficial)</button>
+              </div>
+              <div id="cartaCotacoes" style="margin:10px 0;font-size:13px;"></div>
+              <details style="margin-top:10px;">
+                <summary style="cursor:pointer;font-size:13px;">Pré-postagem oficial de Carta Registrada — recurso experimental protegido</summary>
+                <p style="font-size:12px;">A emissão real fica bloqueada até que o contrato e a rotina sejam validados em Preview. Carta Simples exige o fluxo de lote oficial e não será transmitida por esta opção.</p>
+                <button class="btn vermelho" type="button" onclick="cartaEmitir()">Criar pré-postagem real (exige habilitação)</button>
+                <div style="margin-top:8px;"><label>ID oficial <input id="cartaId" placeholder="ID retornado pelos Correios" style="max-width:350px"></label>
+                  <button class="btn azul" type="button" onclick="cartaRotulo()">Imprimir rótulo oficial por ID</button>
+                </div>
+              </details>
+              <div id="cartaStatus" role="status" aria-live="polite" style="font-size:13px;margin-top:10px;color:#5d5593;font-weight:700;">Comece verificando os serviços do contrato.</div>
+            </details>
           </div>
         </div>
 
@@ -3457,6 +3483,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="integracoes-seguras.js?v=220-braspress-detalhado"></script>
 <script src="motor-integracoes.js?v=34"></script>
 <script src="coletas.js?v=458-correios-status-seguro"></script>
+<script src="cartas-comerciais-correios.js?v=1-teste-cartas"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">
