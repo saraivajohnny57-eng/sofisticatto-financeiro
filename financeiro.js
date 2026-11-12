@@ -4199,12 +4199,21 @@ async function executarEnvioEmail(item,avisarEtapa=()=>{}){
     }
     avisarEtapa('Anexos preparados. Aguardando confirmação do servidor de e-mail...');
     const payload={...credenciais,remetente:emailRemetenteUsuario(),nome_remetente:nomeRemetenteUsuario(),para:item.para,cc:item.cc,assunto:item.assunto,texto:item.corpo,html:montarHtmlCompletoEmail(item.corpo),cliente_id:item.cliente?.id||null,enviado_por:usuarioLogado.login,tipo_envio:emailModoAtual,anexos_storage};
-    const resposta=await fetch('/api/enviar-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    // Quando o HTTP perde a resposta depois do POST, o provedor pode ter
+    // aceitado o e-mail. Marcar resultado incerto e bloquear o restante da fila.
+    let resposta;
+    try{
+      resposta=await fetch('/api/enviar-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    }catch(erro){
+      const e=new Error('Resposta do servidor indisponível; não reenviar sem conferir a pasta Enviados.');
+      e.envioIncerto=true;
+      throw e;
+    }
     const dados=await resposta.json().catch(()=>({}));
     if(!resposta.ok||!dados.ok){if(resposta.status===401)senhaEmailV348='';throw new Error(dados.erro||`Falha no serviço de envio (${resposta.status}).`);}
     return dados;
   }catch(erro){
-    if(anexos_storage.length){
+    if(anexos_storage.length && erro?.envioIncerto!==true){
       try{await fetch('/api/email-anexo-limpar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...credenciais,caminhos:anexos_storage.flatMap(a=>a.caminhos||[a.caminho])})});}catch(_e){}
     }
     throw erro;
@@ -4243,6 +4252,21 @@ async function enviarEmailIndividual(indice,botao){
   }
 }
 
+// V463: limite estrito de 2 trabalhadores; cada item é retirado da fila uma única vez.
+// Não faz novas tentativas, nem inicia itens pendentes após falha de autenticação.
+async function processarFilaEmailsLimitadaV463(itens,processar,deveParar=()=>false){
+  const lista=Array.isArray(itens)?itens:[];
+  let proximo=0;
+  const totalTrabalhadores=Math.min(2,lista.length);
+  const trabalhadores=Array.from({length:totalTrabalhadores},async()=>{
+    while(!deveParar()){
+      const indice=proximo++;
+      if(indice>=lista.length)return;
+      await processar(lista[indice],indice);
+    }
+  });
+  await Promise.all(trabalhadores);
+}
 let envioTodosEmailsV460EmCurso=false;
 async function enviarTodosEmails(){
   if(envioTodosEmailsV460EmCurso)return;
@@ -4294,37 +4318,47 @@ async function enviarTodosEmails(){
     if(finalizado)progresso?.finalizar(dados);else progresso?.atualizar(dados);
   };
   atualizar('Preparando o primeiro envio...');
+  let interrompido=false;
   try{
-    for(const item of prontos){
-      atualizar('Enviando para '+String(item.clienteNome||'cliente')+'...');
+    // Cada trabalhador envia, confirma e registra um cliente por vez.
+    // Não abre 22 sessões SMTP de uma vez e não reenvia títulos automaticamente.
+    await processarFilaEmailsLimitadaV463(prontos,async(item)=>{
+      const nome=String(item.clienteNome||'cliente');
+      atualizar('Enviando para '+nome+' (até 2 envios simultâneos)...');
       try{
-        await executarEnvioEmail(item,atualizar);
-        // Registrar o aceite do servidor de e-mail ANTES de esperar o banco
-        // para não confundir uma eventual lentidão do histórico com falha SMTP.
+        await executarEnvioEmail(item,(etapa)=>atualizar(nome+': '+etapa));
         item.status="enviado";
         enviados++;
-        atualizar('Servidor confirmou o envio a '+String(item.clienteNome||'cliente')+'.');
+        atualizar('Servidor confirmou o envio a '+nome+'.');
         try{await registrarHistoricoEmail(item,"enviado");}
         catch(e){console.warn('Envio confirmado, mas histórico não pôde ser gravado:',e);}
       }catch(erro){
-        try{await registrarHistoricoEmail(item,"erro",erro.message);}catch(e){console.warn('Histórico de e-mail:',e);}
-        erros.push(String(item.clienteNome||'Cliente')+': '+String(erro.message||erro));
-        // Quando o backend invalida a sessão, não ficar tentando os outros e-mails
-        // sem credenciais; o usuário deve verificar o primeiro resultado e reautorizar.
-        if(!senhaEmailV348){
-          atualizar('Autorização expirada. Envios restantes não foram iniciados.');
-          break;
+        const incerto=erro?.envioIncerto===true;
+        const mensagem=String(erro?.message||erro);
+        erros.push(nome+': '+mensagem);
+        if(incerto){
+          item.status='resultado_incerto';
+          interrompido=true;
+          atualizar('Resultado de envio incerto. Confira o Gmail antes de tentar novamente.');
+        }else{
+          try{await registrarHistoricoEmail(item,"erro",mensagem);}
+          catch(e){console.warn('Histórico de e-mail:',e);}
         }
+        if(!senhaEmailV348)interrompido=true;
       }finally{
         processados++;
         atualizar('Processados '+processados+' de '+prontos.length+' e-mail(s).');
       }
-    }
+    },()=>interrompido||!senhaEmailV348);
     prepararEnviosEmail();
     carregarHistoricoEmail();
-    mostrarAvisoEmail(erros.length
-      ?enviados+' enviado(s). Falhas: '+erros.join(' | ')
-      :enviados+' e-mail(s) enviado(s) com sucesso.',erros.length===0);
+    mostrarAvisoEmail(interrompido
+      ?'Envio interrompido para conferência. '+enviados+' confirmado(s), '+erros.length+
+        ' erro(s) ou resultado(s) incerto(s), '+(prontos.length-processados)+
+        ' não iniciado(s). Confira o Gmail antes de novo envio. '+erros.join(' | ')
+      :erros.length
+        ?enviados+' enviado(s). Falhas: '+erros.join(' | ')
+        :enviados+' e-mail(s) enviado(s) com sucesso.',!interrompido&&erros.length===0);
   }catch(erro){
     mostrarAvisoEmail('A operação foi interrompida: '+String(erro.message||erro));
   }finally{
