@@ -8,6 +8,13 @@
   const fundo=node('div','position:fixed;inset:0;z-index:2147483001;background:rgba(23,12,42,.64);display:flex;align-items:center;justify-content:center;padding:16px');
   const painel=node('section','background:#fff;color:#29213b;border:1px solid #e4d8f5;border-radius:20px;box-shadow:0 18px 64px #1d103a44;padding:24px;width:min(460px,95vw);font:14px Segoe UI,Arial,sans-serif;max-height:90vh;overflow:auto');
   painel.setAttribute('role','dialog');painel.setAttribute('aria-modal','true');painel.setAttribute('aria-label',titulo);
+  // Identidade visual oficial usada também nas etiquetas. Não depende de dados de usuário.
+  const marca=node('div','display:flex;align-items:center;justify-content:center;padding:2px 0 12px;margin-bottom:14px;border-bottom:1px solid #f0e9f9');
+  const logo=node('img','display:block;width:min(215px,65%);height:66px;object-fit:contain');
+  logo.src='/assets/sofisticatto-logo.jpeg';
+  logo.alt='Sofisticatto Cosméticos';
+  logo.onerror=()=>{logo.remove();marca.textContent='Sofisticatto Cosméticos';marca.style.font='italic 600 21px Georgia,serif';marca.style.color='#5a4fa3';};
+  marca.append(logo);
   const heading=node('h2','font-size:19px;font-weight:750;color:#5a319b;margin:0 0 8px',titulo);
   const descricao=node('div','font-size:13px;color:#615877;line-height:1.5;margin-bottom:14px');
   const barra=node('progress','width:100%;height:17px;accent-color:#6a1b9a;display:block;margin:10px 0 5px');
@@ -18,7 +25,7 @@
   detalhe.setAttribute('role','status');detalhe.setAttribute('aria-live','polite');
   const aviso=node('div','font-size:12px;color:#6b6280;margin-top:8px','Não feche esta página enquanto o processamento estiver em andamento.');
   const rodape=node('div','display:flex;gap:9px;justify-content:flex-end;margin-top:18px');
-  painel.append(heading,descricao,barra,porcentagem,numeros,detalhe,aviso,rodape);fundo.append(painel);document.body.append(fundo);
+  painel.append(marca,heading,descricao,barra,porcentagem,numeros,detalhe,aviso,rodape);fundo.append(painel);document.body.append(fundo);
   const cards=new Map();
   function indicador(rotulo,valor){
     let item=cards.get(rotulo);
@@ -29,7 +36,7 @@
      wrap.append(label,num);numeros.append(wrap);cards.set(rotulo,num);item=num;
     }item.textContent=String(valor);
   }
-  return {fundo,descricao,barra,porcentagem,detalhe,aviso,rodape,indicador,fechar:()=>fundo.remove()};
+  return {fundo,descricao,barra,porcentagem,numeros,detalhe,aviso,rodape,indicador,fechar:()=>fundo.remove()};
  }
  window.sofConfirmarLoteV460=function({titulo='Confirmar operação',mensagem='',confirmar='Continuar'}={}){
   return new Promise(resolve=>{
