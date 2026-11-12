@@ -5917,9 +5917,37 @@ async function confirmarEscolhaEnderecoEtiqueta(substituirCadastro){
 }
 
 
+// V465 — remove duplicação de número já incorporado ao xLgr na NF-e.
+// Conserva outros números existentes (ex.: N701 = edifício) e não altera a NF.
+function normalizarNumeroEtiquetaV465(valor){
+  const bruto=String(valor??'').trim();
+  if(!bruto)return '';
+  const uniforme=bruto.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toUpperCase().replace(/\s+/g,' ').trim();
+  if(/^(?:S\s*\/\s*N|SN|SEM\s+NUMERO|NAO\s+INFORMADO)$/.test(uniforme))return 'S/N';
+  return bruto.replace(/^(?:N\s*[º°.]?|NRO?\.?|NUM(?:ERO)?\.?|N[ÚU]MERO)\s*[:#.-]?\s*/i,'').trim();
+}
+function montarEnderecoEtiquetaSemDuplicarV465(logradouro,numero,complemento){
+  let rua=String(logradouro??'').trim().replace(/\s+/g,' ');
+  const nr=normalizarNumeroEtiquetaV465(numero);
+  // Apenas números explicitamente indicados como número de imóvel no fim do
+  // logradouro; "RUA 04" é nome da via, e não implica imóvel número 04.
+  const declarado=rua.match(/(?:^|[\s,])(?:N\s*[º°.]?|NR\.?|NRO\.?|NUMERO|NÚMERO)\s*[:#.-]?\s*(\d+[A-Z]?)\s*$/i)
+    ||rua.match(/,\s*(\d+[A-Z]?)\s*$/i);
+  if(nr && nr!=='S/N' && !declarado)rua+=', Nr. '+nr;
+  if(nr==='S/N'&&!/(?:^|\W)S\s*\/\s*N(?:\W|$)/i.test(rua))rua+=', S/N';
+  const comp=String(complemento??'').trim().replace(/\s+/g,' ');
+  if(comp){
+    const norm=v=>String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .toUpperCase().replace(/\s+/g,' ').trim();
+    if(!norm(rua).includes(norm(comp)))rua+=' - '+comp;
+  }
+  return rua;
+}
+window.montarEnderecoEtiquetaSemDuplicarV465=montarEnderecoEtiquetaSemDuplicarV465;
+
 function preencherEnderecoEtiquetaComCadastro(cliente){
-  const enderecoNumero=[cliente.endereco,cliente.numero].filter(Boolean).join(", ");
-  const enderecoCompleto=[enderecoNumero,cliente.complemento].filter(Boolean).join(" - ");
+  const enderecoCompleto=montarEnderecoEtiquetaSemDuplicarV465(cliente.endereco,cliente.numero,cliente.complemento);
 
   document.getElementById("etqEndereco").value=enderecoCompleto || "";
   document.getElementById("etqBairro").value=cliente.bairro || "";
@@ -5929,8 +5957,7 @@ function preencherEnderecoEtiquetaComCadastro(cliente){
 }
 
 function preencherEnderecoEtiquetaComXml(dadosXml){
-  const enderecoNumero=[dadosXml.endereco,dadosXml.numero].filter(Boolean).join(", ");
-  const enderecoCompleto=[enderecoNumero,dadosXml.complemento].filter(Boolean).join(" - ");
+  const enderecoCompleto=montarEnderecoEtiquetaSemDuplicarV465(dadosXml.endereco,dadosXml.numero,dadosXml.complemento);
 
   document.getElementById("etqEndereco").value=enderecoCompleto || "";
   document.getElementById("etqBairro").value=dadosXml.bairro || "";
@@ -6733,6 +6760,8 @@ function criarElementoEtiqueta(d,volumeAtual){
   ajustarLinhasVisiveisEtiqueta(etiqueta,d);
   // V464: mesmos deslocamentos/giro usados na prévia e na impressão/PDF.
   window.sofAjustarLayoutEtiqueta?.(etiqueta);
+  // Arte gráfica compartilhada pela prévia, impressão térmica e PDF.
+  window.sofAplicarArteEtiquetaV465?.(etiqueta);
   return etiqueta;
 }
 
