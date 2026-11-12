@@ -1943,16 +1943,16 @@ function atualizarCamposUsuarioComercial(){
   if(sel)sel.disabled=tipo!=="vendedora_rastreio";
 }
 
-function obterChaveAdminSmtp(){
+async function obterChaveAdminSmtp(){
   let chave=sessionStorage.getItem("integrations_admin_key")||localStorage.getItem("integrations_admin_key")||"";
-  if(chave) return chave;
-  chave=prompt("Informe a chave administrativa INTEGRATIONS_ADMIN_KEY para configurar o remetente:")||"";
-  chave=chave.trim();
-  if(chave) sessionStorage.setItem("integrations_admin_key",chave);
+  if(chave)return chave;
+  if(typeof window.solicitarSegredoOcultoSofisticatto!=="function")throw Error("O diálogo protegido de autenticação ainda não foi carregado.");
+  chave=String(await window.solicitarSegredoOcultoSofisticatto("Autorização SMTP","Informe a chave de Integrações para configurar o remetente." )||"").trim();
+  if(chave)sessionStorage.setItem("integrations_admin_key",chave);
   return chave;
 }
 async function apiSmtpUsuario(acao,{login="",email="",nome="",senha_app=""}={}){
-  const chave=obterChaveAdminSmtp();
+  const chave=await obterChaveAdminSmtp();
   if(!chave) throw new Error("Chave administrativa não informada.");
   const r=await fetch('/api/remetentes-smtp',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-key':chave},body:JSON.stringify({acao,login,email,nome,senha_app})});
   const d=await r.json().catch(()=>({}));
@@ -1962,7 +1962,7 @@ async function apiSmtpUsuario(acao,{login="",email="",nome="",senha_app=""}={}){
 }
 async function configurarSmtpUsuario(login,email,nome){
   if(!email){alert('Cadastre primeiro o e-mail remetente deste usuário.');return;}
-  const senha=prompt('Cole a senha de aplicativo do Google para '+email+' (os espaços podem ser mantidos):')||'';
+  const senha=typeof window.solicitarSegredoOcultoSofisticatto==='function'?await window.solicitarSegredoOcultoSofisticatto('Senha de aplicativo Gmail','Senha de aplicativo de '+email+' (os espaços podem ser mantidos):'):'';
   if(!senha.trim()) return;
   try{const d=await apiSmtpUsuario('salvar',{login,email,nome,senha_app:senha});alert(d.mensagem+'\n\nAgora clique em Testar.');carregarUsuarios();}
   catch(e){alert('SMTP: '+e.message);}
@@ -10697,15 +10697,13 @@ function bbAdminKey(){return sessionStorage.getItem('integrations_admin_key')||l
 async function garantirAutorizacaoIntegracoesV315(forcar=false){
   if(!forcar&&bbAdminKey())return bbAdminKey();
   if(forcar){sessionStorage.removeItem('integrations_admin_key');localStorage.removeItem('integrations_admin_key');}
-  const senha=String(prompt('Acesso aos relatórios bancários\n\nDigite a Senha Mestre de Integrações. Neste computador ela será solicitada somente nesta autorização:')||'').trim();
-  if(!senha)throw new Error('Autorização bancária cancelada.');
-  const r=await fetch('/api/integracoes?action=validar-chave',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':senha,'x-device-name':'Sofisticatto Financeiro - '+(navigator.userAgentData?.platform||navigator.platform||'computador')},body:JSON.stringify({device_name:'Sofisticatto Financeiro - '+(navigator.userAgentData?.platform||navigator.platform||'computador')})});
-  const j=await r.json().catch(()=>({}));
-  if(!r.ok||j.ok===false)throw new Error(j.erro||'Senha Mestre inválida.');
-  const token=String(j.device_token||'').trim();
-  if(!token)throw new Error('O servidor não retornou a autorização deste computador.');
-  sessionStorage.setItem('integrations_admin_key',token);localStorage.setItem('integrations_admin_key',token);
-  return token;
+  // O prompt nativo mostra senha em texto aberto. Reutiliza o modal protegido
+  // já utilizado na área de cotação, que valida e converte a senha em token.
+  if(typeof obterChaveIntegracoesCotacao!=='function')
+    throw new Error('Autorização segura indisponível. Recarregue a página.');
+  const autorizado=await obterChaveIntegracoesCotacao();
+  if(!autorizado)throw new Error('Autorização de integrações cancelada.');
+  return autorizado;
 }
 function bbSetAdminStatus(texto,tipo='pendente'){
   const e=document.getElementById('bbAdminKeyStatus');if(!e)return;
