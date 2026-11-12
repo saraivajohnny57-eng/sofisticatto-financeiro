@@ -12,3 +12,46 @@ test('registrada documental não adiciona NF-e nem declaração de cosméticos',
 test('não tenta criar carta simples pela API individual',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74000000',pesoGramas:20,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,{...s,categoria:'simples'}),/lote/);});
 test('bloqueia envio de produtos como Carta',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74000000',pesoGramas:20,tipoConteudo:'COSMETICOS',destinatario:destino},c,s),/documentos/);});
 test('protege divergência entre CEP usado na cotação e na etiqueta',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74200000',pesoGramas:20,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s),/CEP/);});
+
+const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
+const telaCarta=fs.readFileSync(path.join(__dirname,'../cartas-comerciais-correios.js'),'utf8');
+function prepararTelaCarta(autorizacao,retorno){
+  const elementos=new Map();
+  const campo=id=>{
+    if(!elementos.has(id))elementos.set(id,{value:'',textContent:'',style:{},children:[],replaceChildren(){this.children=[]},append(item){this.children.push(item)},appendChild(item){this.children.push(item)}});
+    return elementos.get(id);
+  };
+  const chamadas=[];
+  const contexto={
+    window:{},
+    document:{getElementById:campo,createElement:()=>({value:'',textContent:'',label:''})},
+    obterChaveIntegracoesCotacao:async()=>autorizacao,
+    sessionStorage:{getItem:()=>''},localStorage:{getItem:()=>''},
+    fetch:async (url,opts)=>{
+      chamadas.push({url,opts});
+      return {ok:retorno?.status!==401,status:retorno?.status||200,json:async()=>retorno?.body||{ok:true,servicos:[{codigo:'12345',descricao:'CARTA REGISTRADA'}],observacao:'Serviço disponível'}};
+    }
+  };
+  vm.runInNewContext(telaCarta,contexto,{timeout:1000});
+  return {contexto,campo,chamadas};
+}
+test('diagnóstico usa autorização do portal em vez de exigir chave manual',async()=>{
+  const a=prepararTelaCarta('sdv1.token_teste');
+  await a.contexto.window.cartaDiagnosticar();
+  assert.equal(a.chamadas.length,1);
+  assert.equal(a.chamadas[0].opts.headers['x-integrations-admin-key'],'sdv1.token_teste');
+  assert.match(a.campo('cartaStatus').textContent,/Serviço disponível/);
+  assert.equal(a.campo('cartaServico').children.length,2);
+});
+test('cancelar autorização não consulta serviço privado dos Correios',async()=>{
+  const a=prepararTelaCarta('');
+  await a.contexto.window.cartaDiagnosticar();
+  assert.equal(a.chamadas.length,0);
+  assert.match(a.campo('cartaStatus').textContent,/Autorização cancelada/);
+});
+test('401 orienta revalidar acesso no ambiente Preview',async()=>{
+  const a=prepararTelaCarta('sdv1.token_invalido',{status:401,body:{ok:false,erro:'Invalida'}});
+  await a.contexto.window.cartaDiagnosticar();
+  assert.equal(a.chamadas.length,1);
+  assert.match(a.campo('cartaStatus').textContent,/Autorização recusada neste Preview/);
+});
