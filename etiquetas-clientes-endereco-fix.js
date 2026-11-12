@@ -20,16 +20,15 @@ function buscarCliente(nome,documento){
   return lista.find(c=>norm(c.nome)===termo)||null;
 }
 function limparEndereco(logradouro,numero,complemento){
-  let rua=String(logradouro||"").trim().replace(/\s+/g," ");
-  const num=String(numero||"").trim();
-  const match=rua.match(/(?:[, ]+\s*(?:N[º°.]?|NRO|NUMERO|NÚMERO|NR)\.?\s*[:\-]?\s*|,\s*|,\s*N[º°]?\s*)(\d+[A-Z]?)\s*$/i);
-  const jaTem=match?match[1]:"";
-  if(num&&(!jaTem||jaTem.toUpperCase()!==num.toUpperCase())){
-    // Um numero diferente ja escrito no endereco nao deve ser substituido automaticamente.
-    if(!jaTem)rua+=", Nr. "+num;
-  }
-  return [rua,String(complemento||"").trim()].filter(Boolean).join(" - ");
+  // Utilizar a mesma regra da montagem principal para XML e cadastro.
+  if(typeof window.montarEnderecoEtiquetaSemDuplicarV465==='function')
+    return window.montarEnderecoEtiquetaSemDuplicarV465(logradouro,numero,complemento);
+  // Recurso de segurança caso o script principal não esteja carregado.
+  const rua=String(logradouro||'').trim();
+  const num=String(numero||'').replace(/^(?:Nr\.?|N[º°.]?|Numero)\s*/i,'').trim();
+  return [rua,num&&!rua.includes(num)?'Nr. '+num:'',complemento].filter(Boolean).join(' - ');
 }
+
 function preencherEndereco(d){
   const campo=document.getElementById("etqEndereco");
   if(campo)campo.value=limparEndereco(d.endereco,d.numero,d.complemento);
