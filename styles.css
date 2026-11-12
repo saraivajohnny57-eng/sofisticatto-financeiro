@@ -2389,3 +2389,49 @@ body.sof-menu-fechado .sidebar .menu button:hover{background:#ddd5f7}
   overflow-wrap:normal;
   line-height:1;
 }
+
+
+/* V464 — ajustes arrastáveis para etiqueta 150 × 100 mm. Apenas editor web. */
+.etq-movel-editor{
+  padding:14px 15px;margin:0 0 16px;border:1px solid #d8cbee;border-radius:14px;
+  background:#faf8ff;color:#463879;box-shadow:0 2px 9px rgba(90,79,163,.07);
+}
+.etq-movel-editor h3{font-size:16px;font-weight:750;color:#5a4fa3;margin:0 0 5px}
+.etq-movel-editor p{font-size:12px;color:#655e80;margin:0 0 12px;line-height:1.5}
+.etq-movel-linha{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:12px}
+.etq-movel-linha label{min-width:200px;flex:1;font-size:12px;font-weight:650}
+.etq-movel-linha select{width:100%;height:37px;border:1px solid #cec6e8;background:#fff;color:#35296a;border-radius:9px;margin-top:5px;padding:4px 8px}
+.etq-movel-editor button{border:0;border-radius:9px;padding:9px 12px;background:#5a4fa3;color:#fff;cursor:pointer;font-weight:650;font-size:12px}
+.etq-movel-editor button:hover{filter:brightness(.95)}
+.etq-movel-ranges{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.etq-movel-campo{display:grid;grid-template-columns:1fr auto;gap:4px 8px;font-size:12px;color:#514977;min-width:0}
+.etq-movel-campo strong{color:#5540a4;white-space:nowrap;font-size:12px}
+.etq-movel-campo input[type="range"]{grid-column:1/-1;width:100%;accent-color:#6a1b9a;cursor:pointer}
+.etq-movel-botoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.etq-movel-botoes button:nth-child(2){background:#ede8f8;color:#493981}
+.etq-movel-botoes button:nth-child(3){background:#fff;color:#ac2d44;border:1px solid #e3b3be}
+.etq-movel-status{min-height:17px;font-size:11px;color:#70638c;margin-top:10px}
+#etqPreview.etq-movel-ativa{outline:2px dashed #8571cd;outline-offset:3px}
+#etqPreview.etq-movel-ativa .etiqueta-transportadora,
+#etqPreview.etq-movel-ativa .etiqueta-pedido-tag,
+#etqPreview.etq-movel-ativa .etiqueta-logo,
+#etqPreview.etq-movel-ativa .etiqueta-qr,
+#etqPreview.etq-movel-ativa .etiqueta-qr-texto,
+#etqPreview.etq-movel-ativa .etiqueta-destino,
+#etqPreview.etq-movel-ativa .etiqueta-endereco,
+#etqPreview.etq-movel-ativa .etiqueta-bairro,
+#etqPreview.etq-movel-ativa .etiqueta-cep,
+#etqPreview.etq-movel-ativa .etiqueta-cidade,
+#etqPreview.etq-movel-ativa .etiqueta-nf,
+#etqPreview.etq-movel-ativa .etiqueta-volume,
+#etqPreview.etq-movel-ativa .etiqueta-barcode,
+#etqPreview.etq-movel-ativa .etiqueta-chave{
+  cursor:grab;touch-action:none;
+}
+#etqPreview.etq-movel-ativa .etiqueta-qr-texto{pointer-events:auto!important}
+#etqPreview.etq-movel-ativa .etq-edicao-selecionada{outline:2px dashed #7a38bc;outline-offset:2px}
+@media(max-width:600px){
+  .etq-movel-ranges{grid-template-columns:1fr}
+  .etq-movel-linha{flex-direction:column;align-items:stretch}
+}
+@media print{.etq-movel-editor{display:none!important}}
