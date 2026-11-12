@@ -86,3 +86,25 @@ test('nenhum caminho de pre-producao executa SOAP ou permite emissao',()=>{
  assert.match(ui,/async function verificarGnrePreProducaoMg/);
  assert.match(ui,/Nenhuma GNRE de produção foi emitida/);
 });
+
+test('resultado GNRE de producao exige ambiente 1 explicito, nao confunde com homologacao',()=>{
+ const {interpretarRetorno}=require('../lib/integracoes/gnre-interpretar-resultado');
+ const recibo='0000001234';
+ const xml=(ambiente)=>'<soap:Envelope><soap:Body><TResultLote_GNRE>'+
+  '<ambiente>'+ambiente+'</ambiente><numeroRecibo>'+recibo+'</numeroRecibo>'+
+  '<situacaoProcess><codigo>402</codigo><descricao>Processado</descricao></situacaoProcess>'+
+  '<resultado></resultado></TResultLote_GNRE></soap:Body></soap:Envelope>';
+ const hom=interpretarRetorno(xml('2'),recibo);
+ assert.equal(hom.ok,true);
+ assert.equal(hom.ambiente_confirmado,'homologacao');
+ const prod=interpretarRetorno(xml('1'),recibo,{ambienteEsperado:'1'});
+ assert.equal(prod.ok,true);
+ assert.equal(prod.ambiente_confirmado,'producao');
+ assert.equal(prod.guia_confirmada,false); // Lote processado nao e guia pagavel
+ assert.equal(prod.estado,'lote_processado_sem_guias_identificadas');
+ const trocado=interpretarRetorno(xml('2'),recibo,{ambienteEsperado:'1'});
+ assert.equal(trocado.ok,false);
+ assert.equal(trocado.estado,'ambiente_producao_nao_confirmado');
+ assert.equal(interpretarRetorno(xml('1'),recibo).ok,false);
+ assert.throws(()=>interpretarRetorno(xml('1'),recibo,{ambienteEsperado:'0'}),/Ambiente GNRE invalido/);
+});
