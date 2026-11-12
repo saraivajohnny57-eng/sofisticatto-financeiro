@@ -398,7 +398,6 @@ function abrirModalChaveIntegracoesCotacao(){
         <label>Senha mestre
           <div class="modal-chave-integracoes-campo">
             <input id="campoChaveIntegracoesCotacao" type="password" autocomplete="off" placeholder="Digite a senha mestre">
-            <button type="button" id="verChaveIntegracoesCotacao">👁</button>
           </div>
         </label>
         <div id="erroChaveIntegracoesCotacao" class="modal-chave-integracoes-erro"></div>
@@ -414,9 +413,6 @@ function abrirModalChaveIntegracoesCotacao(){
     const btn=fundo.querySelector("#validarChaveIntegracoesCotacao");
     input.focus();
 
-    fundo.querySelector("#verChaveIntegracoesCotacao").onclick=()=>{
-      input.type=input.type==="password"?"text":"password";
-    };
     fundo.querySelector("#cancelarChaveIntegracoesCotacao").onclick=()=>{
       fundo.remove();resolve("");
     };
@@ -440,6 +436,36 @@ function abrirModalChaveIntegracoesCotacao(){
     input.addEventListener("keydown",e=>{if(e.key==="Enter")btn.click()});
   });
 }
+
+// Toda entrada de senha/chave deve usar input type=password; NUNCA prompt nativo.
+// Utilizada por Banco, Coletas e SMTP sem mostrar o segredo enquanto digita.
+window.solicitarSegredoOcultoSofisticatto=function(titulo='Autorização segura',descricao='Digite sua senha:'){
+  return new Promise(resolve=>{
+    const fundo=document.createElement('div');
+    fundo.className='modal-chave-integracoes-fundo';
+    const caixa=document.createElement('div');caixa.className='modal-chave-integracoes-card';
+    const heading=document.createElement('h3');heading.textContent='🔐 '+String(titulo).slice(0,100);
+    const msg=document.createElement('p');msg.textContent=String(descricao).slice(0,250);
+    const label=document.createElement('label');label.textContent='Senha ou chave (oculta)';
+    const campo=document.createElement('input');campo.type='password';campo.autocomplete='new-password';
+    campo.spellcheck=false;campo.setAttribute('autocapitalize','off');campo.placeholder='Digite sem exibir caracteres';
+    campo.style.width='100%';campo.style.boxSizing='border-box';
+    label.append(campo);
+    const acoes=document.createElement('div');acoes.className='modal-chave-integracoes-acoes';
+    const cancelar=document.createElement('button');cancelar.type='button';cancelar.className='btn roxo';cancelar.textContent='Cancelar';
+    const continuar=document.createElement('button');continuar.type='button';continuar.className='btn verde';continuar.textContent='Continuar';
+    acoes.append(cancelar,continuar);caixa.append(heading,msg,label,acoes);fundo.append(caixa);document.body.append(fundo);
+    let concluido=false;
+    function concluir(valor){if(concluido)return;concluido=true;campo.value='';fundo.remove();resolve(valor);}
+    cancelar.onclick=()=>concluir('');
+    continuar.onclick=()=>concluir(campo.value);
+    fundo.addEventListener('keydown',e=>{
+      if(e.key==='Escape'){e.preventDefault();concluir('');}
+      if(e.key==='Enter'){e.preventDefault();continuar.click();}
+    });
+    campo.focus();
+  });
+};
 
 async function obterChaveIntegracoesCotacao(){
   let chave=(localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key"))||"";
