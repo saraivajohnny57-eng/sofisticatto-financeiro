@@ -149,7 +149,7 @@
     if(!interacao||e.pointerId!==interacao.pointer)return;
     const item=itens.find(x=>x.id===interacao.id);
     // Um clique sem deslocamento não gera linha ou traço invisível.
-    if(item && (item.tipo==='linha'||item.tipo==='traco')
+    if(item && (item.tipo==='linha'||item.tipo==='traco') && item.pontos.length<=2
       && Math.hypot(item.pontos.at(-1)[0]-item.pontos[0][0],item.pontos.at(-1)[1]-item.pontos[0][1])<0.25){
       itens=itens.filter(x=>x.id!==item.id);
       selecao=null;
@@ -193,7 +193,9 @@
       const width=25,height=round(max(width*h/w,3,50));
       const item={id:genId(),tipo:'imagem',src,x:round(max(112,0,150-width)),
         y:round(max(60,0,100-height)),w:width,h:height};
-      itens.push(item);selecao=item.id;salvar();setModo('selecionar');mostrarSelecao();
+      itens.push(item);selecao=item.id;salvar();
+      if(modo!=='selecionar')setModo('selecionar');
+      mostrarSelecao();
       aviso('Imagem adicionada. Arraste para mover e use o controle de tamanho.');
     }catch(err){aviso(err.message||String(err));}
     finally{URL.revokeObjectURL(url);}
@@ -230,7 +232,7 @@
         if(!itens.length)return;
         itens.pop();selecao=null;salvar();mostrarSelecao();aviso('Último elemento removido.');
       }),
-      button('✓ Finalizar edição',()=>{modo='ativo';setModo('desligado');}),
+      button('✓ Finalizar edição',()=>setModo('desligado')),
       fileInput
     );
     const label=document.createElement('label');label.className='etq-arte-tamanho';
@@ -248,9 +250,6 @@
     status=document.createElement('p');status.className='etq-arte-status';status.setAttribute('role','status');
     painel.append(title,help,row,label,status);
     area.parentNode.insertBefore(painel,area);
-    area.addEventListener('click',e=>{
-      if(e.target.closest?.('#etqEditorPosicaoV464'))return;
-    });
     const pos=document.getElementById('etqEditorPosicaoV464');
     pos?.addEventListener('click',()=>{
       if(previa.classList.contains('etq-movel-ativa')&&modo!=='desligado')setModo('desligado');
