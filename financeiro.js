@@ -5925,7 +5925,7 @@ function normalizarNumeroEtiquetaV465(valor){
   const uniforme=bruto.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .toUpperCase().replace(/\s+/g,' ').trim();
   if(/^(?:S\s*\/\s*N|SN|SEM\s+NUMERO|NAO\s+INFORMADO)$/.test(uniforme))return 'S/N';
-  return bruto.replace(/^(?:N\s*[º°.]?|NRO?\.?|NUM(?:ERO)?\.?|N[ÚU]MERO)\s*[:#.-]?\s*/i,'').trim();
+  return bruto.replace(/^(?:(?:N(?:R(?:O)?|O)?|NUM(?:ERO)?|N[ÚU]MERO|N[º°])\.?)\s*[:#.-]?\s*(?=\d))/i,'').trim();
 }
 function montarEnderecoEtiquetaSemDuplicarV465(logradouro,numero,complemento){
   let rua=String(logradouro??'').trim().replace(/\s+/g,' ');
