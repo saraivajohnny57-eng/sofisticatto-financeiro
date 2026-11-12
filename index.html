@@ -994,19 +994,19 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <label>Cliente por nome/CPF/CNPJ<input id="cartaBuscaCliente" list="cartaClientesLista" placeholder="Pesquise cliente cadastrado" oninput="cartaBuscarCliente()" onchange="cartaBuscarCliente()" style="width:100%;"></label>
                 <datalist id="cartaClientesLista"></datalist>
                 <label>Peso do envelope (gramas)<input id="cartaPesoGramas" type="number" min="1" max="500" step="1" value="20" style="width:100%;"></label>
-                <label>Serviço do contrato<select id="cartaServico" style="width:100%;"><option value="">Consulte o contrato primeiro</option></select></label>
+                <label>Carta Comercial — modalidade<select id="cartaServico" style="width:100%;"><option value="">Consulte o contrato primeiro</option></select></label>
               </div>
               <div style="display:flex;flex-wrap:wrap;gap:8px;">
                 <button class="btn roxo" type="button" onclick="cartaAutorizar()">🔐 Autorizar neste Preview</button>
                 <button class="btn azul" type="button" onclick="cartaDiagnosticar()">1. Verificar Carta no contrato</button>
                 <button class="btn verde" type="button" onclick="cartaCotar()">2. Cotar carta</button>
-                <button class="btn azul" type="button" onclick="cartaPreparar()">3. Validar Carta Registrada (sem envio)</button>
+                <button class="btn azul" type="button" onclick="cartaPreparar()">3. Validar dados da carta (sem envio)</button>
                 <button class="btn roxo" type="button" onclick="cartaImprimirEnderecamento()">Imprimir endereço (não oficial)</button>
               </div>
               <div id="cartaCotacoes" style="margin:10px 0;font-size:13px;"></div>
               <details style="margin-top:10px;">
                 <summary style="cursor:pointer;font-size:13px;">Pré-postagem oficial de Carta Registrada — recurso experimental protegido</summary>
-                <p style="font-size:12px;">A emissão real fica bloqueada até que o contrato e a rotina sejam validados em Preview. Carta Simples exige o fluxo de lote oficial e não será transmitida por esta opção.</p>
+                <p style="font-size:12px;">A cotação e a validação são seguras e não postam cartas. Carta Simples exige pré-postagem em lote; Carta Registrada com AR necessita validação dos adicionais. A emissão real continua bloqueada nesta Preview.</p>
                 <button class="btn vermelho" type="button" onclick="cartaEmitir()">Criar pré-postagem real (exige habilitação)</button>
                 <div style="margin-top:8px;"><label>ID oficial <input id="cartaId" placeholder="ID retornado pelos Correios" style="max-width:350px"></label>
                   <button class="btn azul" type="button" onclick="cartaRotulo()">Imprimir rótulo oficial por ID</button>
@@ -3457,7 +3457,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 
 <script src="progresso-operacoes-v460.js?v=461-logo-correcao"></script>
-<script src="financeiro.js?v=467-cep-novo-endereco"></script>
+<script src="financeiro.js?v=468-senhas-ocultas"></script>
 <script src="etiquetas-editor-posicao-v464.js?v=466"></script>
 <script src="etiquetas-editor-grafico-v465.js?v=465"></script>
 <script src="relatorio-parcelas-clientes-v429.js?v=429-producao"></script>
@@ -3475,7 +3475,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="clientes.js?v=13.4"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="transportadoras.js?v=245-cobertura-unica-cache"></script>
-<script src="cotacoes.js?v=393-braspress-auto"></script>
+<script src="cotacoes.js?v=394-mascara-senhas"></script>
 <script src="whatsapp.js?v=11"></script>
 <script src="dashboard.js?v=11"></script>
 <script src="notificacoes.js?v=11"></script>
@@ -3483,8 +3483,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=220-braspress-detalhado"></script>
 <script src="motor-integracoes.js?v=34"></script>
-<script src="coletas.js?v=458-correios-status-seguro"></script>
-<script src="cartas-comerciais-correios.js?v=2-autorizacao-preview"></script>
+<script src="coletas.js?v=459-senhas-ocultas"></script>
+<script src="cartas-comerciais-correios.js?v=3-cartas-fisicas-preselecao"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">
