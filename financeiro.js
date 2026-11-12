@@ -6715,6 +6715,10 @@ function criarElementoEtiqueta(d,volumeAtual){
                 <div class="gram-horizontal">G&nbsp;R&nbsp;A&nbsp;M</div>
               </div>
     <div class="etiqueta-qr"></div>
+    <span class="etq-moldura-linha etq-moldura-topo" aria-hidden="true"></span>
+    <span class="etq-moldura-linha etq-moldura-esquerda" aria-hidden="true"></span>
+    <span class="etq-moldura-linha etq-moldura-direita" aria-hidden="true"></span>
+    <span class="etq-moldura-linha etq-moldura-base" aria-hidden="true"></span>
     <div class="etiqueta-destino">DESTINO: <b>${escaparHtmlEmail((d.cliente || "CLIENTE").toUpperCase())}</b></div>
     <div class="etiqueta-endereco">ENDEREÇO: <b>${escaparHtmlEmail(d.endereco || "ENDEREÇO")}</b></div>
     <div class="etiqueta-bairro">BAIRRO: <b>${escaparHtmlEmail(d.bairro || "BAIRRO")}</b></div>

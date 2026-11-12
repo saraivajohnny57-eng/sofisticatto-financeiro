@@ -9,6 +9,10 @@
     ['logo','.etiqueta-logo','Logo'],
     ['qr','.etiqueta-qr','QR Code'],
     ['textoqr','.etiqueta-qr-texto','Texto Instagram'],
+    ['linha_topo','.etq-moldura-topo','Linha superior da moldura'],
+    ['linha_esquerda','.etq-moldura-esquerda','Linha esquerda da moldura'],
+    ['linha_direita','.etq-moldura-direita','Linha direita da moldura'],
+    ['linha_base','.etq-moldura-base','Linha inferior da moldura'],
     ['destino','.etiqueta-destino','Destinatário'],
     ['endereco','.etiqueta-endereco','Endereço'],
     ['bairro','.etiqueta-bairro','Bairro'],
@@ -19,6 +23,12 @@
     ['barcode','.etiqueta-barcode','Código de barras'],
     ['chave','.etiqueta-chave','Chave da NF-e']
   ];
+  const LINHAS={
+    linha_topo:{eixo:'width',base:34},
+    linha_esquerda:{eixo:'height',base:17.8},
+    linha_direita:{eixo:'height',base:23},
+    linha_base:{eixo:'width',base:13}
+  };
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number.isFinite(Number(v))?Number(v):0));
   const round=v=>Math.round(v*10)/10;
   const estado={};
@@ -32,12 +42,13 @@
       estado[id]={
         x:round(clamp(p.x,-40,40)),
         y:round(clamp(p.y,-40,40)),
-        giro:round(clamp(p.giro,-180,180))
+        giro:round(clamp(p.giro,-180,180)),
+        ...(LINHAS[id]?{comprimento:round(clamp(p.comprimento,-12,30))}:{})
       };
     }
   }
   try{normalizar(JSON.parse(localStorage.getItem(CHAVE)||'{}'));}catch(_){}
-  function get(id){return estado[id]||{x:0,y:0,giro:0};}
+  function get(id){return estado[id]||{x:0,y:0,giro:0,comprimento:0};}
   function salvar(mensagem){
     try{
       localStorage.setItem(CHAVE,JSON.stringify(estado));
@@ -54,6 +65,10 @@
       // translate() antecede rotate(): deslocamento continua nos eixos da etiqueta.
       el.style.transform='translate('+p.x+'mm, '+p.y+'mm) rotate('+(base+p.giro)+'deg)';
       el.style.transformOrigin='center center';
+      if(LINHAS[id]){
+        const config=LINHAS[id];
+        el.style[config.eixo]=Math.max(2,round(config.base+(Number(p.comprimento)||0)))+'mm';
+      }
       // Usado pela rotina de captura que substitui o texto vertical por canvas.
       el.dataset.etqX=String(p.x);
       el.dataset.etqY=String(p.y);
@@ -73,7 +88,7 @@
   }
   function atualizarControles(){
     const p=get(selecionado);
-    for(const [campo,valor] of [['x',p.x],['y',p.y],['giro',p.giro]]){
+    for(const [campo,valor] of [['x',p.x],['y',p.y],['giro',p.giro],['comprimento',p.comprimento||0]]){
       const inp=inputs[campo];
       if(!inp)continue;
       inp.value=String(valor);
@@ -81,11 +96,15 @@
       if(saida)saida.textContent=(campo==='giro'?valor+'°':valor+' mm');
     }
     if(seletor)seletor.value=selecionado;
+    if(inputs.comprimento?.parentElement){
+      inputs.comprimento.parentElement.style.display=LINHAS[selecionado]?'grid':'none';
+    }
     redesenhar();
   }
   function mudar(chave,valor,persistir){
     const p={...get(selecionado)};
-    p[chave]=round(clamp(valor,chave==='giro'?-180:-40,chave==='giro'?180:40));
+    p[chave]=round(clamp(valor,chave==='comprimento'?-12:chave==='giro'?-180:-40,
+      chave==='comprimento'?30:chave==='giro'?180:40));
     estado[selecionado]=p;
     atualizarControles();
     if(persistir)salvar('Ajustes salvos neste navegador.');
@@ -119,7 +138,7 @@
     controle=document.createElement('section');
     controle.id='etqEditorPosicaoV464';controle.className='etq-movel-editor';
     const titulo=document.createElement('h3');titulo.textContent='Ajuste de posição e ângulo';
-    const desc=document.createElement('p');desc.textContent='Ative o arraste, selecione um campo e mova com o mouse ou toque. O ajuste aparece também na impressão e no PDF.';
+    const desc=document.createElement('p');desc.textContent='As quatro linhas são independentes do QR Code. Selecione uma linha, arraste e ajuste X, Y, ângulo e comprimento. A impressão e o PDF usam o mesmo layout.';
     const linha=document.createElement('div');linha.className='etq-movel-linha';
     const campoSel=document.createElement('label');
     campoSel.textContent='Campo a ajustar';
@@ -140,7 +159,8 @@
     controles.append(
       controleRange('x','Mover horizontalmente (X)',-40,40,0.5),
       controleRange('y','Mover verticalmente (Y)',-40,40,0.5),
-      controleRange('giro','Ângulo (ajuste do original)',-180,180,1)
+      controleRange('giro','Ângulo (ajuste do original)',-180,180,1),
+      controleRange('comprimento','Alongar / encurtar a linha',-12,30,0.5)
     );
     const botoes=document.createElement('div');botoes.className='etq-movel-botoes';
     botoes.append(
