@@ -4,7 +4,19 @@ const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valo
 const c={usuario:'teste',cartao:'000',cnpj:'05451985000195',cepOrigem:'74550470'};
 const destino={nome:'Cliente Teste',endereco:{cep:'74000000',logradouro:'Rua B',numero:'30',bairro:'Centro',cidade:'Goiânia',uf:'GO'}};
 const s={codigo:'12345',descricao:'CARTA REGISTRADA',categoria:'registrada'};
-test('filtra somente códigos de cartas do contrato, não PAC e API',()=>{assert.deepEqual(descobrirCartas({todosServicos:[{codigo:'03298',descricao:'PAC CONTRATO AG'},{codigo:'12345',descricao:'CARTA REGISTRADA'},{codigo:'22222',descricao:'CARTA COMERCIAL'},{codigo:'33333',descricao:'API PRE POSTAGEM CARTA'}]}).map(x=>x.codigo),['12345','22222']);});
+test('seleciona somente cartas comerciais fisicas, exclui PAC e e-Carta',()=>{
+ const servicos=descobrirCartas({todosServicos:[
+   {codigo:'03298',descricao:'PAC CONTRATO AG'},
+   {codigo:'12345',descricao:'CARTA COML REG PL3 MFD'},
+   {codigo:'22222',descricao:'CARTA COML SIMPLES CHANCELA'},
+   {codigo:'33333',descricao:'E CARTA REG INTEGRACAO'},
+   {codigo:'44444',descricao:'CARTA RESP NAC CONVENCIONAL'},
+   {codigo:'55555',descricao:'CARTA COML RG ARC PL3 CHAN ETI'},
+   {codigo:'66666',descricao:'CARTA COML REG AR CONV PL3 MFD'}
+ ]});
+ assert.deepEqual(servicos.map(x=>x.codigo),['12345','22222','55555','66666']);
+ assert.deepEqual(servicos.map(x=>x.categoria),['registrada','simples','registrada_ar','registrada_ar']);
+});
 test('cotação em gramas, não quilos e envelope até 500 g',()=>{assert.deepEqual(validarCotacao({cepDestino:'74000-000',pesoGramas:20}),{cep:'74000000',peso:20});assert.throws(()=>validarCotacao({cepDestino:'74000000',pesoGramas:501}));assert.throws(()=>validarCotacao({cepDestino:'74000000',pesoGramas:0}));});
 test('valor retornado pela API aceita vírgula ou ponto decimal',()=>{assert.equal(valorBR('3,85'),3.85);assert.equal(valorBR('15.60'),15.60);assert.equal(valorBR('1.234,56'),1234.56);});
 test('destinatário exige endereço completo',()=>{assert.equal(validarDestinatario(destino).nome,'Cliente Teste');assert.throws(()=>validarDestinatario({nome:'X',endereco:{cep:'123'}}));});
@@ -29,7 +41,7 @@ function prepararTelaCarta(autorizacao,retorno){
     sessionStorage:{getItem:()=>''},localStorage:{getItem:()=>''},
     fetch:async (url,opts)=>{
       chamadas.push({url,opts});
-      return {ok:retorno?.status!==401,status:retorno?.status||200,json:async()=>retorno?.body||{ok:true,servicos:[{codigo:'12345',descricao:'CARTA REGISTRADA'}],observacao:'Serviço disponível'}};
+      return {ok:retorno?.status!==401,status:retorno?.status||200,json:async()=>retorno?.body||{ok:true,servicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD',categoria:'registrada'}],observacao:'Serviço disponível'}};
     }
   };
   vm.runInNewContext(telaCarta,contexto,{timeout:1000});
@@ -38,6 +50,7 @@ function prepararTelaCarta(autorizacao,retorno){
 test('diagnóstico usa autorização do portal em vez de exigir chave manual',async()=>{
   const a=prepararTelaCarta('sdv1.token_teste');
   await a.contexto.window.cartaDiagnosticar();
+  assert.equal(a.campo('cartaServico').value,'12345','Registrada deve ficar selecionada para validacao');
   assert.equal(a.chamadas.length,1);
   assert.equal(a.chamadas[0].opts.headers['x-integrations-admin-key'],'sdv1.token_teste');
   assert.match(a.campo('cartaStatus').textContent,/Serviço disponível/);
@@ -54,4 +67,28 @@ test('401 orienta revalidar acesso no ambiente Preview',async()=>{
   await a.contexto.window.cartaDiagnosticar();
   assert.equal(a.chamadas.length,1);
   assert.match(a.campo('cartaStatus').textContent,/Autorização recusada neste Preview/);
+});
+
+test('cotacao usa um unico codigo selecionado, evitando consulta massiva e HTTP 429',async()=>{
+ const a=prepararTelaCarta('sdv1.token_teste');
+ await a.contexto.window.cartaDiagnosticar();
+ a.campo('corCep').value='74000000';
+ a.campo('cartaPesoGramas').value='20';
+ await a.contexto.window.cartaCotar();
+ assert.equal(a.chamadas.length,2);
+ assert.match(a.chamadas[1].url,/modo=cotar/);
+ const payload=JSON.parse(a.chamadas[1].opts.body);
+ assert.equal(payload.codigoServico,'12345');
+ assert.equal(payload.pesoGramas,20);
+});
+test('senha mestre e senha SMTP nao sao solicitadas por prompt nativo visivel',()=>{
+ const financeiro=fs.readFileSync(path.join(__dirname,'../financeiro.js'),'utf8');
+ const coletas=fs.readFileSync(path.join(__dirname,'../coletas.js'),'utf8');
+ const cotacoes=fs.readFileSync(path.join(__dirname,'../cotacoes.js'),'utf8');
+ assert.ok(!/const senha=String\(prompt\('Acesso aos relatórios bancários/.test(financeiro));
+ assert.ok(!/const senha=prompt\('Cole a senha de aplicativo/.test(financeiro));
+ assert.ok(!/digitada=prompt\(/.test(coletas));
+ assert.ok(cotacoes.includes("campo.type='password'"));
+ assert.ok(cotacoes.includes('type="password"'));
+ assert.ok(!cotacoes.includes('input.type=input.type==="password"?"text":"password"'));
 });
