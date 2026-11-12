@@ -4164,7 +4164,7 @@ function solicitarSenhaEmailProtegida(){
 }
 // V348: o login legado usa usuarios, não Supabase Auth. Revalidação restrita ao envio.
 let senhaEmailV348='';
-async function executarEnvioEmail(item){
+async function executarEnvioEmail(item,avisarEtapa=()=>{}){
   if(!senhaEmailV348){
     const senha=await solicitarSenhaEmailProtegida();
     if(!senha) throw new Error('Envio cancelado: confirmação de senha necessária.');
@@ -4179,11 +4179,15 @@ async function executarEnvioEmail(item){
   try{
     // Dividir arquivos grandes em blocos abaixo do limite HTTP da Vercel.
     const BLOCO_EMAIL=2*1024*1024;
+    let arquivoAtual=0;
     for(const arquivo of item.arquivos){
+      arquivoAtual++;
+      avisarEtapa('Preparando anexo '+arquivoAtual+' de '+item.arquivos.length+'...');
       const partes=[];
       const quantidade=Math.ceil(arquivo.size/BLOCO_EMAIL);
       if(!quantidade) throw new Error(`O arquivo ${arquivo.name} está vazio.`);
       for(let parte=0;parte<quantidade;parte++){
+        avisarEtapa('Carregando anexo '+arquivoAtual+'/'+item.arquivos.length+' (parte '+(parte+1)+'/'+quantidade+')...');
         const pedaco=arquivo.slice(parte*BLOCO_EMAIL,Math.min((parte+1)*BLOCO_EMAIL,arquivo.size));
         const conteudo_base64=await arquivoParaBase64Email(pedaco);
         const resp=await fetch('/api/email-anexo-upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...credenciais,lote:identificador,indice:indice++,nome:arquivo.name,tipo:'application/octet-stream',conteudo_base64})});
@@ -4193,6 +4197,7 @@ async function executarEnvioEmail(item){
       }
       anexos_storage.push({caminhos:partes,nome:arquivo.name,tipo:arquivo.type||'application/octet-stream'});
     }
+    avisarEtapa('Anexos preparados. Aguardando confirmação do servidor de e-mail...');
     const payload={...credenciais,remetente:emailRemetenteUsuario(),nome_remetente:nomeRemetenteUsuario(),para:item.para,cc:item.cc,assunto:item.assunto,texto:item.corpo,html:montarHtmlCompletoEmail(item.corpo),cliente_id:item.cliente?.id||null,enviado_por:usuarioLogado.login,tipo_envio:emailModoAtual,anexos_storage};
     const resposta=await fetch('/api/enviar-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const dados=await resposta.json().catch(()=>({}));
@@ -4293,10 +4298,14 @@ async function enviarTodosEmails(){
     for(const item of prontos){
       atualizar('Enviando para '+String(item.clienteNome||'cliente')+'...');
       try{
-        await executarEnvioEmail(item);
-        await registrarHistoricoEmail(item,"enviado");
+        await executarEnvioEmail(item,atualizar);
+        // Registrar o aceite do servidor de e-mail ANTES de esperar o banco
+        // para não confundir uma eventual lentidão do histórico com falha SMTP.
         item.status="enviado";
         enviados++;
+        atualizar('Servidor confirmou o envio a '+String(item.clienteNome||'cliente')+'.');
+        try{await registrarHistoricoEmail(item,"enviado");}
+        catch(e){console.warn('Envio confirmado, mas histórico não pôde ser gravado:',e);}
       }catch(erro){
         try{await registrarHistoricoEmail(item,"erro",erro.message);}catch(e){console.warn('Histórico de e-mail:',e);}
         erros.push(String(item.clienteNome||'Cliente')+': '+String(erro.message||erro));
