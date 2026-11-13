@@ -155,7 +155,7 @@ window.cartaExportarRegistrada=async()=>{
   const d=await request('arquivo-registrado',corpo());
   const items=d.arquivo;
   if(!d.somenteArquivo||!Array.isArray(items)||items.length!==1||
-     items[0]?.codigoServico!=='80799'||!Array.isArray(items[0]?.listaServicoAdicional)||
+     items[0]?.codigoServico!=='80799'||items[0]?.codigoFormatoObjetoInformado!=='1'||!Array.isArray(items[0]?.listaServicoAdicional)||
      !items[0].listaServicoAdicional.some(x=>x.codigoServicoAdicional==='025'))
     throw Error('O arquivo JSON retornado não corresponde ao modelo de uma Carta Registrada 80799.');
   const bytes=new Blob([JSON.stringify(items,null,2)+'\n'],{type:'application/json;charset=utf-8'});
