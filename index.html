@@ -1011,7 +1011,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <summary style="cursor:pointer;font-size:13px;">Pré-postagem oficial de Carta Registrada — recurso experimental protegido</summary>
                 <p style="font-size:12px;">A cotação e as consultas não geram postagens. Carta Simples exige lote e Carta com AR precisa de validação adicional. Apenas Carta Registrada sem AR pode ser emitida no piloto, após confirmar todos os dados pelo botão 3.</p>
                 <button id="cartaEmitirPiloto" class="btn vermelho" type="button" onclick="cartaEmitir()" disabled title="Primeiro valide endereço, modalidade e preço pelo botão 3">Emitir primeira Carta Registrada REAL (piloto)</button>
-                <p style="font-size:12px;color:#ae3d28;font-weight:650;">Apenas uma carta piloto, com confirmação dos dados e do valor. Pode gerar cobrança no contrato. A emissão é restrita à versão de testes autorizada, nunca à produção.</p>
+                <p style="font-size:12px;color:#ae3d28;font-weight:650;">Piloto de Carta Registrada: após o botão 3, confirme o destinatário e o preço antes do envio. Pode gerar cobrança no contrato. Se houver erro de rede, NÃO repita automaticamente; consulte o Correios pelo ID. Disponível apenas nesta Preview autorizada.</p>
                 <div style="margin-top:8px;"><label>ID oficial <input id="cartaId" placeholder="ID retornado pelos Correios" style="max-width:350px"></label>
                   <button class="btn azul" type="button" onclick="cartaRotulo()">Imprimir rótulo oficial por ID</button>
                 </div>
@@ -3488,7 +3488,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="integracoes-seguras.js?v=220-braspress-detalhado"></script>
 <script src="motor-integracoes.js?v=34"></script>
 <script src="coletas.js?v=459-senhas-ocultas"></script>
-<script src="cartas-comerciais-correios.js?v=7-primeira-carta-piloto"></script>
+<script src="cartas-comerciais-correios.js?v=8-piloto-branch-habilitado"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">
