@@ -197,7 +197,8 @@ window.cartaApiDiagnostico=async()=>{
   const r=await cartaApiRequest('diagnostico');
   cartaApiAviso('Serviço 80799 no contrato: '+(r.servico80799NoContrato?'identificado':'não confirmado')+
    '. Piloto Preview: '+(r.pilotoPreview?'habilitado':'não habilitado')+
-   '. O esquema oficial será verificado no passo seguinte. Nenhum objeto criado.',r.servico80799NoContrato&&r.pilotoPreview);
+   '. Esquema da API: '+(r.esquemaOficialConfirmado?'confirmado':'pendente')+
+   '. '+(r.motivoEsquema||'')+' Nenhum objeto criado.',r.servico80799NoContrato&&r.pilotoPreview&&r.esquemaOficialConfirmado);
  }catch(e){cartaApiAviso(e.message,false);}
 };
 window.cartaApiPreparar=async()=>{
@@ -208,7 +209,9 @@ window.cartaApiPreparar=async()=>{
   const r=await cartaApiRequest('preparar',corpo());
   if(!r.confirmacaoPiloto||!r.rotaConfirmada)throw Error('A confirmação de emissão não foi fornecida pelo servidor.');
   cartaApiConfirmacao=r.confirmacaoPiloto;cartaApiResumo=r.resumo;
-  cartaApiAviso('Validação aprovada para '+r.resumo.destinatario+' / '+r.resumo.cep+'. Nenhuma carta emitida. Confira e confirme pelo botão EMITIR REAL.',true);
+  cartaApiAviso('Validação aprovada para '+r.resumo.destinatario+' / '+r.resumo.cep+'. Preço confirmado: '+
+    Number(r.resumo.valorCotado).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+
+    '. Nenhuma carta emitida. Confira e confirme pelo botão EMITIR REAL.',true);
   cartaApiBotao();
  }catch(e){cartaApiAviso('Emissão ainda não liberada: '+e.message,false);}
 };
@@ -219,6 +222,7 @@ window.cartaApiEmitir=async()=>{
  if(!window.confirm('EMISSÃO REAL DA CARTA REGISTRADA 80799\\n\\nDestinatário: '+r.destinatario+
   '\\nCEP: '+r.cep+' — '+r.cidade+'/'+r.uf+'\\nPeso: '+r.pesoGramas+' g'+
   '\\nData prevista: '+r.dataPrevistaPostagem+
+  '\\nValor cotado: '+Number(r.valorCotado).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+
   '\\n\\nSerá realizado UM POST aos Correios e poderá haver cobrança.\\nConfirma a criação real desta carta?'))return;
  cartaApiOcupado=true;
  localStorage.setItem(CARTA_API_TENTATIVA,JSON.stringify({quando:new Date().toISOString(),situacao:'requer_conferencia'}));
@@ -231,7 +235,8 @@ window.cartaApiEmitir=async()=>{
    localStorage.setItem('sofisticatto_carta_piloto_real_id',retorno.idPrePostagem);
    const input=el('cartaId');if(input)input.value=retorno.idPrePostagem;
    cartaApiAviso('Carta registrada! ID oficial: '+retorno.idPrePostagem+
-     (retorno.codigoObjeto?' | Rastreio: '+retorno.codigoObjeto:'')+'. Use o botão de rótulo oficial por ID.',true);
+     (retorno.codigoObjeto?' | Rastreio: '+retorno.codigoObjeto:'')+'. Abrindo o rótulo oficial no visualizador interno.',true);
+   if(typeof window.cartaRotulo==='function')await window.cartaRotulo();
   }else cartaApiAviso('Solicitação aceita, porém sem ID confirmado. Consulte o painel PPN antes de tentar novamente. Nenhum reenvio automático.',false);
  }catch(e){cartaApiAviso('Não foi possível confirmar a emissão: '+e.message+' Consulte a PPN antes de repetir. Tentativa bloqueada.',false);}
  finally{cartaApiOcupado=false;cartaApiBotao();}
