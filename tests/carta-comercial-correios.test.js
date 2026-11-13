@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test');const assert=require('node:assert/strict');
-const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valorBR}=require('../lib/integracoes/carta-comercial-correios')._teste;
+const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valorBR,separarNumeroEnderecoCarta}=require('../lib/integracoes/carta-comercial-correios')._teste;
 const c={usuario:'teste',cartao:'000',cnpj:'05451985000195',cepOrigem:'74550470'};
 const destino={nome:'Cliente Teste',endereco:{cep:'74000000',logradouro:'Rua B',numero:'30',bairro:'Centro',cidade:'Goiânia',uf:'GO'}};
 const s={codigo:'12345',descricao:'CARTA REGISTRADA',categoria:'registrada'};
@@ -34,9 +34,10 @@ function prepararTelaCarta(autorizacao,retorno){
     return elementos.get(id);
   };
   const chamadas=[];
+  const anexos=[];
   const contexto={
     window:{},
-    document:{getElementById:campo,createElement:()=>({value:'',textContent:'',label:''})},
+    document:{getElementById:campo,createElement:()=>({value:'',textContent:'',label:'',style:{},remove(){}}),body:{appendChild:obj=>anexos.push(obj)}},
     obterChaveIntegracoesCotacao:async()=>autorizacao,
     sessionStorage:{getItem:()=>''},localStorage:{getItem:()=>''},
     fetch:async (url,opts)=>{
@@ -45,7 +46,7 @@ function prepararTelaCarta(autorizacao,retorno){
     }
   };
   vm.runInNewContext(telaCarta,contexto,{timeout:1000});
-  return {contexto,campo,chamadas};
+  return {contexto,campo,chamadas,anexos};
 }
 test('diagnóstico usa autorização do portal em vez de exigir chave manual',async()=>{
   const a=prepararTelaCarta('sdv1.token_teste');
@@ -91,4 +92,48 @@ test('senha mestre e senha SMTP nao sao solicitadas por prompt nativo visivel',(
  assert.ok(cotacoes.includes("campo.type='password'"));
  assert.ok(cotacoes.includes('type="password"'));
  assert.ok(!cotacoes.includes('input.type=input.type==="password"?"text":"password"'));
+});
+
+test('normaliza numero duplicado: rua com 106 + campo 106',()=>{
+ const a=separarNumeroEnderecoCarta('Rua Exemplo, 106','106');
+ assert.equal(a.logradouro,'Rua Exemplo');
+ assert.equal(a.numero,'106');
+ const b=validarDestinatario({...destino,endereco:{...destino.endereco,logradouro:'Rua Exemplo, 106',numero:'106'}});
+ assert.equal(b.endereco.logradouro,'Rua Exemplo');
+ assert.equal(b.endereco.numero,'106');
+});
+test('nao apaga numero da rua: Rua 4, predio 217 e campos divergentes',()=>{
+ const a=separarNumeroEnderecoCarta('Rua 4, 217','217');
+ assert.equal(a.logradouro,'Rua 4');
+ assert.equal(a.numero,'217');
+ assert.throws(()=>separarNumeroEnderecoCarta('Rua Exemplo, 106','107'),/diverge/);
+ assert.throws(()=>separarNumeroEnderecoCarta('Rua Exemplo, 106, 107',''),/diferentes/);
+});
+test('endereco impresso em A4 nao repete numero e avisa que nao e oficial',()=>{
+ const a=prepararTelaCarta('sdv1.teste');
+ a.campo('corCliente').value='Cliente Exemplo';
+ a.campo('corCep').value='74000000';
+ a.campo('corEndereco').value='Rua Exemplo, 106';
+ a.campo('corNumero').value='106';
+ a.campo('corBairro').value='Centro';
+ a.campo('corCidade').value='Goiânia';
+ a.campo('corUf').value='GO';
+ a.contexto.window.cartaImprimirEnderecamento();
+ assert.equal(a.anexos.length,1);
+ assert.match(a.anexos[0].srcdoc,/Rua Exemplo, 106/);
+ assert.ok(!a.anexos[0].srcdoc.includes('106, 106'));
+ assert.match(a.anexos[0].srcdoc,/NÃO é rótulo postal oficial/);
+ assert.match(a.anexos[0].srcdoc,/115mm/);
+});
+test('verificacao de API Pre-Postagem usa apenas GET, nunca cria carta',async()=>{
+ const a=prepararTelaCarta('sdv1.teste');
+ await a.contexto.window.cartaVerificarPrepostagem();
+ assert.equal(a.chamadas.length,1);
+ assert.match(a.chamadas[0].url,/modo=verificar-prepostagem/);
+ assert.equal(a.chamadas[0].opts.method,'GET');
+});
+test('botao real segue bloqueado no ambiente de testes',()=>{
+ const pagina=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+ assert.ok(pagina.includes('Emissão real bloqueada até validação oficial'));
+ assert.ok(pagina.includes('disabled title="Emissão real somente após o teste oficial'));
 });
