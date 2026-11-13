@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test');const assert=require('node:assert/strict');
-const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valorBR,separarNumeroEnderecoCarta,pilotoHabilitado,assinaturaPiloto,validarAssinaturaPiloto}=require('../lib/integracoes/carta-comercial-correios')._teste;
+const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valorBR,separarNumeroEnderecoCarta,pilotoHabilitado,assinaturaPiloto,validarAssinaturaPiloto,telefoneRemetenteCarta,mensagensValidacaoCorreios}=require('../lib/integracoes/carta-comercial-correios')._teste;
 const c={usuario:'teste',cartao:'000',cnpj:'05451985000195',cepOrigem:'74550470'};
 const destino={nome:'Cliente Teste',endereco:{cep:'74000000',logradouro:'Rua B',numero:'30',bairro:'Centro',cidade:'Goiânia',uf:'GO'}};
 const s={codigo:'12345',descricao:'CARTA REGISTRADA',categoria:'registrada'};
@@ -328,4 +328,93 @@ test('preflight continua bloqueando quando consulta especifica devolve outro cod
  },{status(n){status=n;return this},json(x){retorno=x;return this}});
  assert.equal(status,422);
  assert.match(retorno.erro,/não confirmou o código 86720/);
+});
+
+test('erros oficiais msgs[] sao lidos sem expor CPF, token, senha, email ou stackTrace',()=>{
+ const d=mensagensValidacaoCorreios({
+  msgs:['PPN-123: Telefone do remetente inválido','RTL-036: Falta número do destinatário','CPF 12345678901 / usuario@exemplo.com'],
+  causa:'java.sql.SQLException: java.stack.Segredo',stackTrace:'interno com token',
+  token:'super-secreto'
+ });
+ assert.equal(d.length,3);
+ assert.match(d[0],/PPN-123/);
+ assert.match(d[1],/RTL-036/);
+ assert.ok(!d.join(' ').includes('12345678901'));
+ assert.ok(!d.join(' ').includes('usuario@exemplo.com'));
+ assert.ok(!d.join(' ').includes('java.stack'));
+ assert.ok(!d.join(' ').includes('super-secreto'));
+});
+test('telefone do remetente igual ao usado pelo PAC tem DDD e numero validos',()=>{
+ assert.deepEqual(telefoneRemetenteCarta('(62) 3293-0035'),{dddTelefone:'62',telefone:'32930035'});
+ assert.throws(()=>telefoneRemetenteCarta('123'),/Telefone do remetente/);
+ const payload=montarPrepostagem({cepDestino:'74000000',pesoGramas:20,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s);
+ assert.equal(payload.remetente.dddTelefone,'62');
+ assert.equal(payload.remetente.telefone,'32930035');
+});
+test('HTTP 400 real com msgs preserva codigo e nao tenta repetir POST',async()=>{
+ const fonte=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ const mod={exports:{}},chamadas=[];
+ const env={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',INTEGRATIONS_ENCRYPTION_KEY:'segredo-dos-testes-de-cartas-2026-abcdef'};
+ const mockRequire=n=>n==='node:crypto'?require('node:crypto'):n==='./_utils'?{exigirAdmin:()=>true}:{
+  cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'}]}),
+  configuracaoEfetiva:async()=>({...c,contrato:'12345',dr:'01'}),
+  apiComToken:async url=>url.includes('/preco/')?{pcFinal:'15,60'}:{codigo:'86720'},
+  gerarToken:async()=> 'token-ficticio'
+ };
+ const mockFetch=async(url,options)=>{
+  chamadas.push({url,options});
+  return {ok:false,status:400,async text(){return JSON.stringify({msgs:['PPN-123: Campo invalido para a carta','RTL-036: Falta documento'],stackTrace:'nao mostrar'});}};
+ };
+ new Function('require','module','process','fetch',fonte)(mockRequire,mod,{env},mockFetch);
+ const reqBase={cepDestino:'74000000',pesoGramas:20,codigoServico:'12345',tipoConteudo:'DOCUMENTOS',destinatario:destino};
+ async function chamar(modo,body){let status=0,retorno;await mod.exports({method:'POST',query:{modo},body},{status(n){status=n;return this},json(x){retorno=x;return this}});return {status,retorno};}
+ const previa=await chamar('preparar',reqBase);
+ assert.equal(previa.status,200);
+ const resultado=await chamar('emitir',{...reqBase,confirmarEmissaoReal:true,confirmacaoPiloto:previa.retorno.confirmacaoPiloto});
+ assert.equal(resultado.status,400);
+ assert.equal(resultado.retorno.codigo,'CORREIOS_PREPOSTAGEM_RECUSADA');
+ assert.equal(resultado.retorno.codigoCorreios,'PPN-123');
+ assert.match(resultado.retorno.erro,/Campo invalido/);
+ assert.ok(!JSON.stringify(resultado.retorno).includes('stackTrace'));
+ assert.equal(chamadas.length,1);
+});
+test('navegador bloqueia segundo POST apos erro 400 ate reconciliacao manual',async()=>{
+ const campos=new Map(),memoria=new Map(),chamadas=[];
+ const el=id=>{
+  if(!campos.has(id))campos.set(id,{value:'',textContent:'',style:{},children:[],replaceChildren(){this.children=[]},append(o){this.children.push(o)}});
+  return campos.get(id);
+ };
+ let confirmacoes=0;
+ const contexto={
+  window:{confirm(){confirmacoes++;return true;}},
+  document:{getElementById:el,createElement:()=>({value:'',textContent:'',style:{}})},
+  sessionStorage:{getItem:()=>null},
+  localStorage:{getItem:key=>memoria.get(key)||null,setItem:(key,value)=>memoria.set(key,value),removeItem:key=>memoria.delete(key)},
+  obterChaveIntegracoesCotacao:async()=> 'token-ficticio',
+  fetch:async(url,options)=>{
+   chamadas.push({url,options});
+   const modo=String(url).split('modo=')[1];
+   if(modo==='diagnostico')return {ok:true,status:200,json:async()=>({ok:true,servicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD',categoria:'registrada'}],emissaoDeTesteHabilitada:true,observacao:'Disponivel'})};
+   if(modo==='preparar')return {ok:true,status:200,json:async()=>({ok:true,confirmacaoPiloto:'cp1.fake',resumo:{destinatario:'Cliente Teste',cepDestino:'74000000',endereco:'Rua B, 30',cidade:'Goiânia',uf:'GO',pesoGramas:20,modalidade:'CARTA REGISTRADA'},valorCotado:15.60})};
+   if(modo==='emitir')return {ok:false,status:400,json:async()=>({ok:false,codigoCorreios:'PPN-123',erro:'Correios HTTP 400: PPN-123: Campo invalido'})};
+   throw Error('Modo inesperado '+modo);
+  }
+ };
+ vm.runInNewContext(telaCarta,contexto);
+ await contexto.window.cartaDiagnosticar();
+ for(const [id,value] of Object.entries({corCliente:'Cliente Teste',corCep:'74000000',corEndereco:'Rua B',corNumero:'30',corBairro:'Centro',corCidade:'Goiânia',corUf:'GO',cartaPesoGramas:'20'}))el(id).value=value;
+ await contexto.window.cartaPreparar();
+ await contexto.window.cartaEmitir();
+ const postagens=()=>chamadas.filter(x=>String(x.url).includes('modo=emitir')).length;
+ assert.equal(postagens(),1);
+ assert.equal(memoria.has('sofisticatto_carta_piloto_tentativa_pendente'),true);
+ assert.match(el('cartaStatus').textContent,/PPN-123/);
+ await contexto.window.cartaEmitir();
+ assert.equal(postagens(),1);
+ assert.match(el('cartaStatus').textContent,/tentativa anterior/);
+ assert.equal(confirmacoes,1);
+ contexto.window.cartaConferiTentativaAnterior();
+ assert.equal(memoria.has('sofisticatto_carta_piloto_tentativa_pendente'),false);
+ assert.match(el('cartaStatus').textContent,/valide os dados|botão 3|botão 3/i);
+ assert.equal(postagens(),1);
 });
