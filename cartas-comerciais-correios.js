@@ -173,6 +173,24 @@ const CARTA_API_TENTATIVA='sofisticatto_carta_api80799_tentativa_pendente_v1';
 function cartaApiAviso(mensagem,positivo){
  const e=el('cartaApiStatus');if(e){e.textContent=mensagem;e.style.color=positivo?'#17603b':'#a83325';}
 }
+function cartaApiExibirEsquema(info){
+ const area=el('cartaApiEsquemaDetalhes');if(!area)return;
+ if(!info||typeof info!=='object'){area.textContent='';return;}
+ // Somente estrutura do OpenAPI: nomes de propriedades, nunca dados de clientes,
+ // cabeçalhos, JWT, credenciais ou o conteúdo das cartas.
+ const textoSeguro=[
+  'Formato da requisição: '+(info.tipoRaiz||'não identificado'),
+  'Content-Types: '+(info.tiposConteudo||[]).join(', '),
+  'Campos raiz: '+(info.propriedadesRaiz||[]).join(', '),
+  'Campos array: '+(info.camposArray||[]).join(', '),
+  'Formato do item: '+(info.tipoItem||'não identificado'),
+  'Campos item: '+(info.propriedadesItem||[]).join(', '),
+  'Obrigatórios raiz: '+(info.camposObrigatoriosRaiz||[]).join(', '),
+  'Obrigatórios item: '+(info.camposObrigatoriosItem||[]).join(', '),
+  'Operação: '+(info.nomeOperacao||'não informada')
+ ].join('\\n');
+ area.textContent=textoSeguro;
+}
 function cartaApiBotao(){
  const b=el('cartaApiEmitir');
  if(!b)return;
@@ -187,19 +205,24 @@ async function cartaApiRequest(modo,payload){
   body:payload?JSON.stringify(payload):undefined
  });
  const body=await resposta.json().catch(()=>({}));
- if(!resposta.ok||!body.ok)throw Error(body.erro||'Não foi possível validar a API de Carta Registrada (HTTP '+resposta.status+').');
+ if(!resposta.ok||!body.ok){
+  const erro=new Error(body.erro||'Não foi possível validar a API de Carta Registrada (HTTP '+resposta.status+').');
+  erro.diagnosticoEsquema=body.diagnosticoEsquema||null;
+  throw erro;
+ }
  return body;
 }
 window.cartaApiDiagnostico=async()=>{
- cartaApiConfirmacao=null;cartaApiResumo=null;cartaApiBotao();
+ cartaApiConfirmacao=null;cartaApiResumo=null;cartaApiBotao();cartaApiExibirEsquema(null);
  try{
   cartaApiAviso('Conferindo a rota candidata de objetos registrados, sem gerar carta...',true);
   const r=await cartaApiRequest('diagnostico');
+  cartaApiExibirEsquema(r.diagnosticoEsquema);
   cartaApiAviso('Serviço 80799 no contrato: '+(r.servico80799NoContrato?'identificado':'não confirmado')+
    '. Piloto Preview: '+(r.pilotoPreview?'habilitado':'não habilitado')+
    '. Esquema da API: '+(r.esquemaOficialConfirmado?'confirmado':'pendente')+
    '. '+(r.motivoEsquema||'')+' Nenhum objeto criado.',r.servico80799NoContrato&&r.pilotoPreview&&r.esquemaOficialConfirmado);
- }catch(e){cartaApiAviso(e.message,false);}
+ }catch(e){cartaApiExibirEsquema(e.diagnosticoEsquema);cartaApiAviso(e.message,false);}
 };
 window.cartaApiPreparar=async()=>{
  cartaApiConfirmacao=null;cartaApiResumo=null;cartaApiBotao();
@@ -213,7 +236,7 @@ window.cartaApiPreparar=async()=>{
     Number(r.resumo.valorCotado).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+
     '. Nenhuma carta emitida. Confira e confirme pelo botão EMITIR REAL.',true);
   cartaApiBotao();
- }catch(e){cartaApiAviso('Emissão ainda não liberada: '+e.message,false);}
+ }catch(e){cartaApiExibirEsquema(e.diagnosticoEsquema);cartaApiAviso('Emissão ainda não liberada: '+e.message,false);}
 };
 window.cartaApiEmitir=async()=>{
  if(cartaApiOcupado||!cartaApiConfirmacao||!cartaApiResumo)return;
