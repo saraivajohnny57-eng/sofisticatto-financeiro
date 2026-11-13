@@ -1012,6 +1012,17 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <div id="cartaDiagnosticoRotulo" role="status" aria-live="polite" style="font-size:13px;margin:10px 0;"></div>
               <p style="font-size:12px;color:#625b85;">Arquivo para <b>Correios → Pré-postagem a faturar de objetos registrados → Importar arquivo</b>. Ao importar, o Correios poderá criar a pré-postagem real e cobrar no contrato. Apenas baixar o arquivo não cria postagem.</p>
               <p style="font-size:12px;color:#625b85;">Impressão de Carta Registrada: carregue o PDF oficial já emitido pelos Correios, escolha Envelope (230 × 115 mm), Etiqueta 1, Etiqueta 2 ou A4. O formato Envelope fica salvo neste navegador. Brother DCP-L2540DW: configure origem Manual e mídia Envelope no driver do Windows. Abrir e imprimir o PDF não faz uma nova postagem.</p>
+              <details style="margin:10px 0;border:1px solid #d1c6e8;border-radius:10px;padding:10px;">
+                <summary style="cursor:pointer;font-size:14px;font-weight:700;color:#5b327e;">Carta Registrada 80799 — integração direta por API (piloto protegido)</summary>
+                <p style="font-size:12px;color:#67577e;">Nova rota de objetos registrados, independente do PAC/SEDEX e da importação manual. O envio real só é habilitado depois da confirmação do OpenAPI oficial, das permissões do cartão e da conferência de duplicidade.</p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button class="btn azul" type="button" onclick="cartaApiDiagnostico()">7. Diagnosticar API de registrados (sem envio)</button>
+                  <button class="btn verde" type="button" onclick="cartaApiPreparar()">8. Validar rota e dados para emissão (sem envio)</button>
+                  <button id="cartaApiEmitir" class="btn vermelho" type="button" onclick="cartaApiEmitir()" disabled>9. EMITIR Carta Registrada REAL pela API</button>
+                  <button class="btn roxo" type="button" onclick="cartaApiConferiTentativa()">Conferi tentativa anterior no PPN</button>
+                </div>
+                <p id="cartaApiStatus" role="status" aria-live="polite" style="font-size:12px;margin:9px 0;color:#756188">A emissão permanece bloqueada até validar o contrato e o esquema oficial de objetos registrados.</p>
+              </details>
               <details style="margin-top:10px;">
                 <summary style="cursor:pointer;font-size:13px;">Pré-postagem oficial de Carta Registrada — recurso experimental protegido</summary>
                 <p style="font-size:12px;">Serviço oficial 80799 (Carta Registrada sem AR): identificado na PPN Web. Confira pelo botão 1 a autorização no cartão. Cotação e validação não criam postagens. Após PPN-213, a emissão permanece bloqueada até homologar a rota e o layout de objetos registrados no CWS.</p>
@@ -3494,7 +3505,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="integracoes-seguras.js?v=220-braspress-detalhado"></script>
 <script src="motor-integracoes.js?v=34"></script>
 <script src="coletas.js?v=459-senhas-ocultas"></script>
-<script src="cartas-comerciais-correios.js?v=14-exportar-registrada-80799"></script>
+<script src="cartas-comerciais-correios.js?v=15-api-registro-80799"></script>
 <script src="cartas-impressao-registrada.js?v=1-envelope-brother-manual"></script>
 
 
