@@ -79,6 +79,7 @@ test('fluxo confirmado: prepara sem POST, cobra valor consultado, emite uma úni
  assert.equal(post.length,1);
  assert.match(post[0].url,/\/lista\/objetosregistrados$/);
  assert.equal(JSON.parse(post[0].body)[0].codigoServico,'80799');
+ assert.equal(post[0].body instanceof FormData,false,'requisição JSON não pode ser FormData');
 });
 test('sem OpenAPI oficial validado: bloqueia sem qualquer POST',async()=>{
  for(const docs of [null,{paths:{}},{paths:{'/v1/prepostagens/lista/objetosregistrados':{post:{requestBody:{content:{'application/json':{schema:{type:'object'}}}}}}}}]){
@@ -174,4 +175,61 @@ test('diagnóstico do CWS não publica dados de cliente nem faz POST',async()=>{
  assert.ok(!JSON.stringify(r.body).includes('39963241115'));
  assert.ok(!JSON.stringify(r.body).includes('token-ficticio'));
  assert.equal(x.calls.filter(c=>c.method==='POST').length,0);
+});
+
+test('multipart real com schema explícito gera arquivo JSON, um único POST e boundary automático',async()=>{
+ const docs=schemaValido(),operacao=docs.paths['/v1/prepostagens/lista/objetosregistrados'].post;
+ operacao.requestBody.content={'multipart/form-data;charset=UTF-8':{schema:{
+  type:'object',required:['arquivo'],
+  properties:{arquivo:{type:'string',format:'binary'}}
+ }}};
+ const x=setup({docs});
+ const diag=await x.invoke('diagnostico');
+ assert.equal(diag.code,200);
+ assert.equal(diag.body.formatoApiReconhecido,'multipart_json_file');
+ assert.equal(diag.body.diagnosticoEsquema.multipartCampos[0].nome,'arquivo');
+ assert.equal(x.calls.filter(c=>c.method==='POST').length,0);
+ const prep=await x.invoke('preparar',x.p);
+ assert.equal(prep.code,200);
+ assert.equal(prep.body.resumo.valorCotado,15.6);
+ const em=await x.invoke('emitir',{...x.p,confirmarEmissaoReal:true,confirmacaoPiloto:prep.body.confirmacaoPiloto});
+ assert.equal(em.code,200);
+ const posts=x.calls.filter(c=>c.method==='POST');
+ assert.equal(posts.length,1);
+ assert.equal(posts[0].body instanceof FormData,true);
+ assert.equal(posts[0].body.get('arquivo').name,'carta-registrada-80799.json');
+ const arquivo=posts[0].body.get('arquivo');
+ assert.equal(arquivo.type,'application/json');
+ const conteudo=JSON.parse(await arquivo.text());
+ assert.equal(conteudo.length,1);
+ assert.equal(conteudo[0].codigoServico,'80799');
+ assert.equal(conteudo[0].codigoFormatoObjetoInformado,'1');
+});
+test('OpenAPI multipart sem schema de arquivo documentado bloqueia envio',async()=>{
+ const docs=schemaValido();
+ docs.paths['/v1/prepostagens/lista/objetosregistrados'].post.requestBody.content={
+  'multipart/form-data;charset=UTF-8':{}
+ };
+ const x=setup({docs});
+ const diag=await x.invoke('diagnostico');
+ assert.equal(diag.body.esquemaOficialConfirmado,false);
+ assert.equal(diag.body.diagnosticoEsquema.possuiSchemaMultipart,false);
+ assert.equal(diag.body.diagnosticoEsquema.tiposConteudo[0],'multipart/form-data;charset=UTF-8');
+ const prep=await x.invoke('preparar',x.p);
+ assert.equal(prep.code,423);
+ assert.equal(x.calls.filter(c=>c.method==='POST').length,0);
+});
+test('multipart com campo binário duplo, campo não binário ou obrigação adicional bloqueia emissão',async()=>{
+ const variantes=[
+  {type:'object',properties:{arquivo:{type:'string',format:'binary'},outro:{type:'string',format:'binary'}}},
+  {type:'object',properties:{arquivo:{type:'string'}}},
+  {type:'object',required:['arquivo','contratoExtra'],properties:{arquivo:{type:'string',format:'binary'},contratoExtra:{type:'string'}}}
+ ];
+ for(const schema of variantes){
+  const docs=schemaValido();
+  docs.paths['/v1/prepostagens/lista/objetosregistrados'].post.requestBody.content={'multipart/form-data':{schema}};
+  const x=setup({docs}),ret=await x.invoke('preparar',x.p);
+  assert.equal(ret.code,423);
+  assert.equal(x.calls.filter(c=>c.method==='POST').length,0);
+ }
 });
