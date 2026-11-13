@@ -64,7 +64,7 @@ async function transformar(blob,formato){
 }
 function guia(formato){
  if(formato==='envelope')
-  return 'Brother DCP-L2540DW: envelope 230 × 115 mm; inserir com 115 mm de largura na entrada manual frontal. No driver: Origem = Manual; Tipo de mídia = Envelope; duplex desligado. Abra a tampa traseira e abaixe as duas alavancas verdes antes de imprimir.';
+  return 'Brother DCP-L2540DW: envelope 230 × 115 mm; inserir com 115 mm de largura na entrada manual frontal. No driver: Tamanho personalizado = 115 × 230 mm; Origem = Manual; Tipo de mídia = Envelope; duplex desligado. Abra a tampa traseira e abaixe as duas alavancas verdes antes de imprimir.';
  if(formato==='a4')return 'A4: folhas convencionais; selecione a origem de papel apropriada no driver. Para vários rótulos, o PDF pode organizar até dois por página.';
  return 'Atenção: o PDF original de envelope será reduzido neste formato. Confira nitidez, dimensão do código de barras e aceitação pelos Correios antes de usar.';
 }
