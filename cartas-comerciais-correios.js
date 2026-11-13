@@ -243,6 +243,13 @@ window.cartaRotulo=async()=>{
   if(!r.ok){const e=await r.json().catch(()=>({}));throw Error(e.erro||'Correios HTTP '+r.status);}
   const bytes=await r.arrayBuffer();
   if(new TextDecoder().decode(bytes.slice(0,4))!=='%PDF')throw Error('O serviço não retornou um PDF de rótulo válido.');
+  // Usar o modal com as quatro opções e preservar o PDF oficial.
+  // Importar/formatar rótulo NÃO cria uma nova pré-postagem.
+  if(typeof window.cartaAbrirPdfOficialCarta==='function'){
+   await window.cartaAbrirPdfOficialCarta(new Blob([bytes],{type:'application/pdf'}),'Rótulo oficial — Carta Registrada');
+   aviso('PDF oficial carregado no modal com quatro formatos, sem criar outra carta.',true);
+   return;
+  }
   const src=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
   const modal=document.createElement('div');modal.style.cssText='position:fixed;inset:0;background:#17122ac9;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:10px';
   const wrap=document.createElement('section');wrap.style.cssText='background:#fff;border-radius:12px;width:min(1120px,100%);height:94vh;display:flex;flex-direction:column;overflow:hidden';
