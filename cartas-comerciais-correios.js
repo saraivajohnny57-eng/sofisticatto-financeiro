@@ -84,11 +84,19 @@ window.cartaDiagnosticar=async()=>{
   }
   // Escolha a Carta Registrada convencional por padrão para documentos importantes.
   // Mantém a modalidade escolhida pelo usuário quando ele atualiza a lista.
-  const recomendado=servicos.find(x=>x.categoria==='registrada'&&/\bPL3\b/i.test(x.descricao))||
+  const recomendado=servicos.find(x=>x.codigo==='80799'&&x.categoria==='registrada')||
+    servicos.find(x=>x.categoria==='registrada'&&/\bPL3\b/i.test(x.descricao))||
     servicos.find(x=>x.categoria==='registrada')||servicos.find(x=>x.categoria==='simples');
   s.value=servicos.some(x=>x.codigo===anterior)?anterior:recomendado?.codigo||'';
   el('cartaCotacoes').textContent='';
-  aviso(servicos.length?(d.observacao+' Modalidade inicial: '+tituloCategoria(modalidadeAtiva()?.categoria)+'. '+(d.motivoBloqueioEmissao||'')):(d.observacao||'Carta indisponível.'),servicos.length>0&&!d.motivoBloqueioEmissao);
+  const verificada=d.registrada80799;
+  const marca80799=verificada?.consultaDireta==='confirmado'?
+    ' Serviço 80799: confirmado diretamente no cartão (consulta somente leitura).':
+    verificada?.presenteNoContrato?
+      ' Serviço 80799 aparece no contrato; consulta direta '+(verificada.consultaDireta==='consulta_falhou'?'não concluída':'inconclusiva')+'.':
+      ' Código 80799 ainda não identificado nesta listagem do contrato.';
+  aviso(servicos.length?(d.observacao+' Modalidade inicial: '+tituloCategoria(modalidadeAtiva()?.categoria)+'.'+marca80799+' '+(d.motivoBloqueioEmissao||'')):(d.observacao||'Carta indisponível.'),
+    servicos.length>0&&!d.motivoBloqueioEmissao);
  }catch(e){aviso(e.message,false);}
 };
 window.cartaVerificarPrepostagem=async()=>{
