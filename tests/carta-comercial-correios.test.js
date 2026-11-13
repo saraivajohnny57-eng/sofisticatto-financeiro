@@ -237,7 +237,7 @@ test('diagnostico de carta nao acessa a listagem v2 que retornou 404 em filtro s
 });
 
 test('piloto so habilita com flag, branch exata e ambiente Preview',()=>{
- const env=process.env,base={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112'};
+ const env={...process.env},base={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112'};
  try{
    for(const [k,v] of Object.entries(base))process.env[k]=v;
    assert.equal(pilotoHabilitado(),true);
