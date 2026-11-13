@@ -4,6 +4,20 @@
 const el=id=>document.getElementById(id),val=id=>String(el(id)?.value||'').trim();
 const dig=x=>String(x||'').replace(/\D/g,'');
 const escape=x=>String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Corrige enderecos em que o numero ja faz parte do logradouro.
+function cartaSepararNumero(logradouro,numero){
+ let rua=String(logradouro||'').trim().replace(/\s+/g,' ');
+ let n=String(numero||'').trim().toUpperCase().replace(/\s+/g,'');
+ const encontrados=[];
+ for(let i=0;i<3;i++){
+  const m=rua.match(/^(.*),\s*(?:N[º°.]*\s*)?(\d+[A-Z]?)$/i);
+  if(!m)break;
+  rua=m[1].trim();encontrados.unshift(m[2].toUpperCase());
+ }
+ if(encontrados.some(x=>x!==encontrados[0]))throw Error('Há números divergentes no endereço. Confira o cadastro do cliente.');
+ if(n&&encontrados.length&&n!==encontrados[0])throw Error('Número da rua e campo Número não coincidem; confira antes de imprimir ou postar.');
+ return {logradouro:rua,numero:n||encontrados[0]||'S/N'};
+}
 let servicos=[];
 function aviso(msg,ok){const e=el('cartaStatus');if(e){e.textContent=msg;e.style.color=ok?'#186c42':'#9a361c';}}
 async function chave(){
@@ -31,7 +45,7 @@ async function request(modo,body){
  const j=await r.json().catch(()=>({}));if(r.status===401)throw Error('Autorização recusada neste Preview. Valide a Senha Mestre deste ambiente e tente novamente.');
  if(!r.ok||!j.ok)throw Error(j.erro||'Correios HTTP '+r.status);return j;
 }
-function destinatario(){return {nome:val('corCliente'),cpfCnpj:val('corDocumento'),endereco:{cep:val('corCep'),logradouro:val('corEndereco'),numero:val('corNumero'),complemento:val('corComplemento'),bairro:val('corBairro'),cidade:val('corCidade'),uf:val('corUf')}};}
+function destinatario(){const e=cartaSepararNumero(val('corEndereco'),val('corNumero'));return {nome:val('corCliente'),cpfCnpj:val('corDocumento'),endereco:{cep:val('corCep'),logradouro:e.logradouro,numero:e.numero,complemento:val('corComplemento'),bairro:val('corBairro'),cidade:val('corCidade'),uf:val('corUf')}};}
 function corpo(){return {cepDestino:val('corCep'),pesoGramas:Number(val('cartaPesoGramas')),codigoServico:val('cartaServico'),tipoConteudo:'DOCUMENTOS',destinatario:destinatario()};}
 function tituloCategoria(categoria){return categoria==='simples'?'Carta Simples':categoria==='registrada_ar'?'Registrada com AR':'Carta Registrada';}
 function modalidadeAtiva(){return servicos.find(s=>s.codigo===val('cartaServico'));}
@@ -117,11 +131,34 @@ window.cartaRotulo=async()=>{
 };
 window.cartaImprimirEnderecamento=()=>{
  try{
- const d=destinatario(),e=d.endereco;if(!d.nome||dig(e.cep).length!==8||!e.logradouro||!e.cidade||!e.uf)throw Error('Preencha nome e endereço acima.');
- const html='<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><style>@page{size:A4;margin:20mm}body{font:16px Arial}.box{border:1px dashed #aaa;max-width:155mm;padding:20px;min-height:70mm}small{color:#555}h2{font-size:20px}</style></head><body><div class="box"><small>DESTINATÁRIO — ENDEREÇAMENTO</small><h2>'+escape(d.nome)+'</h2><p>'+escape(e.logradouro)+', '+escape(e.numero||'S/N')+' '+escape(e.complemento)+'<br>'+escape(e.bairro)+'<br>'+escape(e.cidade)+' / '+escape(e.uf)+'<br><b>CEP '+escape(e.cep)+'</b></p></div><p><small>Impressão interna de endereço; NÃO é rótulo oficial, franquia nem comprovante de postagem.</small></p></body></html>';
- const f=document.createElement('iframe');f.style.cssText='position:absolute;left:-20000px;width:1px;height:1px;border:0';document.body.appendChild(f);
- f.onload=()=>{try{f.contentWindow.focus();f.contentWindow.print();}finally{setTimeout(()=>f.remove(),3000);}};f.srcdoc=html;
- aviso('Endereçamento pronto para imprimir. Não substitui a etiqueta oficial.',true);
+  const d=destinatario(),e=d.endereco;
+  if(!d.nome||dig(e.cep).length!==8||!e.logradouro||!e.cidade||!e.bairro||!e.uf)throw Error('Complete nome, rua, bairro, CEP, cidade e UF do destinatário.');
+  const cep=dig(e.cep).replace(/^(\d{5})(\d{3})$/,'$1-$2');
+  const rua=[e.logradouro,e.numero].filter(Boolean).join(', ');
+  const remetenteNome=val('corRemNome');
+  const remetenteEndereco=val('corRemEndereco');
+  const remetenteLocal=[val('corRemCidade'),val('corRemUf')].filter(Boolean).join(' / ');
+  // Enderecamento de apoio para colar sobre envelope. Nao gera codigo de postagem.
+  const html='<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8">'
+   +'<style>@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font:12pt Arial,sans-serif;color:#111;margin:0}'
+   +'.etiqueta{width:115mm;min-height:63mm;border:1px dashed #aaa;padding:7mm;break-inside:avoid}'
+   +'.chapeu{font-size:8pt;color:#555;letter-spacing:.4px;margin-bottom:4mm}'
+   +'.destinatario{font-size:13pt;font-weight:750;margin-bottom:3mm;overflow-wrap:anywhere}'
+   +'.endereco{font-size:11pt;line-height:1.3;overflow-wrap:anywhere}'
+   +'.cep{font-weight:750;letter-spacing:.3px;margin-top:1.5mm}'
+   +'.remetente{font-size:8.5pt;color:#444;max-width:115mm;padding:3mm 2mm;border-bottom:1px solid #e4e4e4}'
+   +'.observacao{margin-top:3mm;color:#555;font-size:8pt;max-width:115mm}</style></head><body>'
+   +'<section class="remetente"><b>Remetente:</b> '+escape(remetenteNome)+' '+escape(remetenteEndereco)+' '+escape(remetenteLocal)+'</section>'
+   +'<section class="etiqueta"><div class="chapeu">DESTINATÁRIO • CORRESPONDÊNCIA</div><div class="destinatario">'+escape(d.nome)+'</div>'
+   +'<div class="endereco">'+escape(rua)+(e.complemento?' — '+escape(e.complemento):'')+'<br>'+escape(e.bairro)+'<br>'+escape(e.cidade)+' / '+escape(e.uf)+'</div>'
+   +'<div class="cep">CEP '+escape(cep)+'</div></section>'
+   +'<p class="observacao">Endereçamento interno para envelope. NÃO é rótulo postal oficial, postagem paga ou comprovante de envio.</p></body></html>';
+  const f=document.createElement('iframe');
+  f.style.cssText='position:fixed;left:-20000px;top:0;width:1px;height:1px;border:0';
+  document.body.appendChild(f);
+  f.onload=()=>{try{f.contentWindow.focus();f.contentWindow.print();}finally{setTimeout(()=>f.remove(),5000);}};
+  f.srcdoc=html;
+  aviso('Endereçamento A4 pronto, com o número correto uma única vez. Não substitui o rótulo oficial.',true);
  }catch(e){aviso(e.message,false);}
 };
 window.cartaBuscarCliente=()=>{
