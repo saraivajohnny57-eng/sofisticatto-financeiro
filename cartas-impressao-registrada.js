@@ -5,7 +5,7 @@ const formatos=Object.freeze([
  {id:'etiqueta1',nome:'Etiqueta 1',tam:'100 × 80 mm'},
  {id:'etiqueta2',nome:'Etiqueta 2',tam:'100 × 150 mm'},
  {id:'a4',nome:'Folha A4',tam:'210 × 297 mm'},
- {id:'envelope',nome:'Envelope',tam:'230 × 115 mm'}
+ {id:'envelope',nome:'Envelope',tam:'230 × 115 mm (papel 115 × 230 mm, Retrato)'}
 ]);
 const chaveFormato='sofisticatto_carta_rotulo_formato_v1';
 let ativo=null;
@@ -64,7 +64,7 @@ async function transformar(blob,formato){
 }
 function guia(formato){
  if(formato==='envelope')
-  return 'Brother DCP-L2540DW: envelope 230 × 115 mm; inserir com 115 mm de largura na entrada manual frontal. No driver: Tamanho personalizado = 115 × 230 mm; Origem = Manual; Tipo de mídia = Envelope; duplex desligado. Abra a tampa traseira e abaixe as duas alavancas verdes antes de imprimir.';
+  return 'Brother DCP-L2540DW: envelope 230 × 115 mm; inserir com 115 mm de largura na entrada manual frontal. No driver: Tamanho personalizado = 115 × 230 mm; Orientação = Retrato; Origem = Manual; Tipo de mídia = Envelope; duplex desligado. Abra a tampa traseira e abaixe as duas alavancas verdes antes de imprimir.';
  if(formato==='a4')return 'A4: folhas convencionais; selecione a origem de papel apropriada no driver. Para vários rótulos, o PDF pode organizar até dois por página.';
  return 'Atenção: o PDF original de envelope será reduzido neste formato. Confira nitidez, dimensão do código de barras e aceitação pelos Correios antes de usar.';
 }
