@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test');const assert=require('node:assert/strict');
-const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valorBR,separarNumeroEnderecoCarta,pilotoHabilitado,assinaturaPiloto,validarAssinaturaPiloto,telefoneRemetenteCarta,mensagensValidacaoCorreios,hojeBrasil,validarDataPrevistaCarta,layoutRegistradaConfirmado,dataPrevistaFormatoApiCorreios}=require('../lib/integracoes/carta-comercial-correios')._teste;
+const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valorBR,separarNumeroEnderecoCarta,pilotoHabilitado,assinaturaPiloto,validarAssinaturaPiloto,telefoneRemetenteCarta,mensagensValidacaoCorreios,hojeBrasil,validarDataPrevistaCarta,layoutRegistradaConfirmado,dataPrevistaFormatoApiCorreios,arquivoImportacaoRegistrada,documentoValidoCarta}=require('../lib/integracoes/carta-comercial-correios')._teste;
 const dataTeste=hojeBrasil();
 const c={usuario:'teste',cartao:'000',cnpj:'05451985000195',cepOrigem:'74550470'};
 const destino={nome:'Cliente Teste',endereco:{cep:'74000000',logradouro:'Rua B',numero:'30',bairro:'Centro',cidade:'Goiânia',uf:'GO'}};
@@ -525,4 +525,87 @@ test('interface prioriza 80799 sem permitir emissão enquanto o layout PPN-213 n
  const back=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
  assert.ok(back.includes('PPN213_LAYOUT_REGISTRADO_PENDENTE'));
  assert.ok(back.includes('if(!layoutRegistradaConfirmado())return responder(res,423'));
+});
+
+test('arquivo PPN de registrada 80799 segue a tabela oficial: array, registro 025, formato 001, data DD/MM/AAAA',()=>{
+ const real={...destino,cpfCnpj:'39963241115'};
+ const servico={codigo:'80799',descricao:'CARTA COML REG PL3 CHANC ETIQ',categoria:'registrada'};
+ const arquivo=arquivoImportacaoRegistrada({
+  cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',
+  destinatario:real
+ },c,servico);
+ assert.equal(arquivo.length,1);
+ const item=arquivo[0];
+ assert.equal(item.codigoServico,'80799');
+ assert.equal(item.pesoInformado,'20');
+ assert.equal(item.codigoFormatoObjetoInformado,'001');
+ assert.equal(item.cienteObjetoNaoProibido,1);
+ assert.deepEqual(item.listaServicoAdicional,[{codigoServicoAdicional:'025'}]);
+ assert.equal(item.sequencial,'1');
+ assert.equal(item.dataPrevistaPostagem,dataTeste.slice(8)+'/'+dataTeste.slice(5,7)+'/'+dataTeste.slice(0,4));
+ assert.equal(item.destinatario.cpfCnpj,'39963241115');
+ assert.equal(item.remetente.cpfCnpj,'05451985000195');
+ assert.ok(!('numeroCartaoPostagem' in item));
+ assert.ok(!('idCorreios' in item));
+ assert.ok(!('chaveNFe' in item));
+ assert.ok(!('itensDeclaracaoConteudo' in item));
+ assert.ok(!('precoPostagem' in item));
+ assert.ok(!('pesoCubico' in item));
+});
+test('documento da carta brasileira deve existir e ter dígitos verificadores válidos',()=>{
+ assert.equal(documentoValidoCarta('05451985000195'),true);
+ assert.equal(documentoValidoCarta('39963241115'),true);
+ assert.equal(documentoValidoCarta('39963241116'),false);
+ assert.equal(documentoValidoCarta('00000000000'),false);
+ assert.equal(documentoValidoCarta('05451985000196'),false);
+ const dados={cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',destinatario:destino};
+ assert.throws(()=>arquivoImportacaoRegistrada(dados,c,{codigo:'80799',categoria:'registrada'}),/CPF\/CNPJ válido/);
+});
+test('arquivo não permite serviço de AR nem PAC nem endereço fora dos limites da tabela PDF',()=>{
+ const p={cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',
+  destinatario:{...destino,cpfCnpj:'39963241115'}};
+ assert.throws(()=>arquivoImportacaoRegistrada(p,c,{codigo:'03298',categoria:'registrada'}),/somente para Carta Registrada 80799/);
+ assert.throws(()=>arquivoImportacaoRegistrada(p,c,{codigo:'80810',categoria:'registrada_ar'}),/somente para Carta Registrada 80799/);
+ const grande={...p,destinatario:{...p.destinatario,endereco:{...p.destinatario.endereco,numero:'1234567'}}};
+ assert.throws(()=>arquivoImportacaoRegistrada(grande,c,{codigo:'80799',categoria:'registrada'}),/numero/);
+});
+test('endpoint exportar JSON 80799 é read-only perante Correios mesmo quando POST real está bloqueado',async()=>{
+ const fonte=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ const mod={exports:{}},transmissoes=[];
+ const deps=n=>n==='node:crypto'?require('node:crypto'):n==='./_utils'?{exigirAdmin:()=>true}:{
+  cfg:()=>({}),
+  descobrirContrato:async()=>({todosServicos:[{codigo:'80799',descricao:'CARTA COML REG PL3 CHANC ETIQ'}]}),
+  configuracaoEfetiva:async()=>({...c,contrato:'123456',cartao:'0079210350',dr:'01'}),
+  apiComToken:async()=>{throw Error('Consulta inesperada no modo exportar')},
+  gerarToken:async()=>{throw Error('Token não pode ser solicitado')}
+ };
+ new Function('require','module','process','fetch',fonte)(deps,mod,{env:{
+  CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',
+  VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112'
+ }},async()=>{transmissoes.push('POST');throw Error('Transmissão não permitida')});
+ let status,body;
+ await mod.exports({method:'POST',query:{modo:'arquivo-registrado'},body:{
+  cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,
+  tipoConteudo:'DOCUMENTOS',codigoServico:'80799',
+  destinatario:{...destino,cpfCnpj:'39963241115'}
+ }},{status(n){status=n;return this},json(x){body=x;return this}});
+ assert.equal(status,200);
+ assert.equal(body.ok,true);
+ assert.equal(body.somenteArquivo,true);
+ assert.equal(body.requerImportacaoManual,true);
+ assert.equal(body.postagensCriadas,0);
+ assert.equal(body.arquivo.length,1);
+ assert.equal(body.arquivo[0].codigoServico,'80799');
+ assert.equal(transmissoes.length,0);
+});
+test('download JSON é inserido na mesma tela sem liberar emissão real',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+ assert.ok(html.includes('onclick="cartaExportarRegistrada()"'));
+ assert.ok(html.includes('sem envio'));
+ const front=fs.readFileSync(path.join(__dirname,'../cartas-comerciais-correios.js'),'utf8');
+ assert.ok(front.includes("request('arquivo-registrado',corpo())"));
+ assert.ok(front.includes("JSON.stringify(items,null,2)"));
+ const back=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ assert.ok(back.includes("if(!layoutRegistradaConfirmado())return responder(res,423"));
+ assert.ok(!back.slice(back.indexOf("if(acao==='arquivo-registrado')"),back.indexOf("if(acao==='cotar')")).includes("gerarToken("));
 });
