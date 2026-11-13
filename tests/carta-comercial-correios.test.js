@@ -1,6 +1,7 @@
 'use strict';
 const test=require('node:test');const assert=require('node:assert/strict');
-const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valorBR,separarNumeroEnderecoCarta,pilotoHabilitado,assinaturaPiloto,validarAssinaturaPiloto,telefoneRemetenteCarta,mensagensValidacaoCorreios}=require('../lib/integracoes/carta-comercial-correios')._teste;
+const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valorBR,separarNumeroEnderecoCarta,pilotoHabilitado,assinaturaPiloto,validarAssinaturaPiloto,telefoneRemetenteCarta,mensagensValidacaoCorreios,hojeBrasil,validarDataPrevistaCarta,layoutRegistradaConfirmado}=require('../lib/integracoes/carta-comercial-correios')._teste;
+const dataTeste=hojeBrasil();
 const c={usuario:'teste',cartao:'000',cnpj:'05451985000195',cepOrigem:'74550470'};
 const destino={nome:'Cliente Teste',endereco:{cep:'74000000',logradouro:'Rua B',numero:'30',bairro:'Centro',cidade:'Goiânia',uf:'GO'}};
 const s={codigo:'12345',descricao:'CARTA REGISTRADA',categoria:'registrada'};
@@ -17,13 +18,13 @@ test('seleciona somente cartas comerciais fisicas, exclui PAC e e-Carta',()=>{
  assert.deepEqual(servicos.map(x=>x.codigo),['12345','22222','66666','55555']);
  assert.deepEqual(servicos.map(x=>x.categoria),['registrada','simples','registrada_ar','registrada_ar']);
 });
-test('cotação em gramas, não quilos e envelope até 500 g',()=>{assert.deepEqual(validarCotacao({cepDestino:'74000-000',pesoGramas:20}),{cep:'74000000',peso:20});assert.throws(()=>validarCotacao({cepDestino:'74000000',pesoGramas:501}));assert.throws(()=>validarCotacao({cepDestino:'74000000',pesoGramas:0}));});
+test('cotação em gramas, não quilos e envelope até 500 g',()=>{assert.deepEqual(validarCotacao({cepDestino:'74000-000',pesoGramas:20,dataPrevistaPostagem:dataTeste}),{cep:'74000000',peso:20});assert.throws(()=>validarCotacao({cepDestino:'74000000',pesoGramas:501}));assert.throws(()=>validarCotacao({cepDestino:'74000000',pesoGramas:0}));});
 test('valor retornado pela API aceita vírgula ou ponto decimal',()=>{assert.equal(valorBR('3,85'),3.85);assert.equal(valorBR('15.60'),15.60);assert.equal(valorBR('1.234,56'),1234.56);});
 test('destinatário exige endereço completo',()=>{assert.equal(validarDestinatario(destino).nome,'Cliente Teste');assert.throws(()=>validarDestinatario({nome:'X',endereco:{cep:'123'}}));});
-test('registrada documental não adiciona NF-e nem declaração de cosméticos',()=>{const p=montarPrepostagem({cepDestino:'74000000',pesoGramas:20,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s);assert.equal(p.codigoFormatoObjetoInformado,'1');assert.equal(p.pesoInformado,20);assert.ok(!('tipoDocumento' in p));assert.ok(!('chaveNFe' in p));assert.equal(p.destinatario.nome,'Cliente Teste');});
-test('não tenta criar carta simples pela API individual',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74000000',pesoGramas:20,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,{...s,categoria:'simples'}),/lote/);});
-test('bloqueia envio de produtos como Carta',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74000000',pesoGramas:20,tipoConteudo:'COSMETICOS',destinatario:destino},c,s),/documentos/);});
-test('protege divergência entre CEP usado na cotação e na etiqueta',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74200000',pesoGramas:20,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s),/CEP/);});
+test('registrada documental não adiciona NF-e nem declaração de cosméticos',()=>{const p=montarPrepostagem({cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s);assert.equal(p.codigoFormatoObjetoInformado,'1');assert.equal(p.pesoInformado,20);assert.ok(!('tipoDocumento' in p));assert.ok(!('chaveNFe' in p));assert.equal(p.destinatario.nome,'Cliente Teste');});
+test('não tenta criar carta simples pela API individual',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,{...s,categoria:'simples'}),/lote/);});
+test('bloqueia envio de produtos como Carta',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'COSMETICOS',destinatario:destino},c,s),/documentos/);});
+test('protege divergência entre CEP usado na cotação e na etiqueta',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74200000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s),/CEP/);});
 
 const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const telaCarta=fs.readFileSync(path.join(__dirname,'../cartas-comerciais-correios.js'),'utf8');
@@ -250,7 +251,7 @@ test('confirmacao HMAC expira em 10 minutos e impede troca de destinatario',()=>
  const old=process.env.INTEGRATIONS_ENCRYPTION_KEY;
  process.env.INTEGRATIONS_ENCRYPTION_KEY='chave-de-teste-exclusiva-nao-real-12345678901234';
  try{
-   const payload=montarPrepostagem({cepDestino:'74000000',pesoGramas:20,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s);
+   const payload=montarPrepostagem({cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s);
    const assinatura=assinaturaPiloto(payload);
    assert.equal(validarAssinaturaPiloto(assinatura,payload),true);
    const outro={...payload,destinatario:{...payload.destinatario,nome:'Outro destinatario'}};
@@ -261,7 +262,7 @@ test('confirmacao HMAC expira em 10 minutos e impede troca de destinatario',()=>
 test('sem confirmacao valida backend nao faz POST de primeira carta',async()=>{
  const src=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
  const mod={exports:{}},chamadas=[];
- const env={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',INTEGRATIONS_ENCRYPTION_KEY:'segredo-de-testes-suficientemente-longo-1234'};
+ const env={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',CORREIOS_CARTA_REGISTRADA_LAYOUT_VALIDADO:'1',INTEGRATIONS_ENCRYPTION_KEY:'segredo-de-testes-suficientemente-longo-1234'};
  const req=n=>n==='node:crypto'?require('node:crypto'):n==='./_utils'?{exigirAdmin:()=>true}:{
    cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'}]}),
    configuracaoEfetiva:async()=>({...c,contrato:'12345',dr:'01'}),
@@ -271,7 +272,7 @@ test('sem confirmacao valida backend nao faz POST de primeira carta',async()=>{
  new Function('require','module','process','fetch',src)(req,mod,{env},async()=>{chamadas.push('POST');throw Error('POST proibido')});
  let body,status;
  const resp={status(n){status=n;return this},json(j){body=j;return this}};
- await mod.exports({method:'POST',query:{modo:'emitir'},body:{cepDestino:'74000000',pesoGramas:20,codigoServico:'12345',tipoConteudo:'DOCUMENTOS',destinatario:destino,confirmarEmissaoReal:true}},resp);
+ await mod.exports({method:'POST',query:{modo:'emitir'},body:{cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,codigoServico:'12345',tipoConteudo:'DOCUMENTOS',destinatario:destino,confirmarEmissaoReal:true}},resp);
  assert.equal(status,403);
  assert.equal(body.codigo,'CONFIRMACAO_PILOTO_INVALIDA');
  assert.equal(chamadas.length,0);
@@ -279,7 +280,7 @@ test('sem confirmacao valida backend nao faz POST de primeira carta',async()=>{
 test('piloto exige preflight 86720 + cotacao; primeiro POST unico e ID retornado',async()=>{
  const src=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
  const mod={exports:{}},chamadas=[];
- const env={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',INTEGRATIONS_ENCRYPTION_KEY:'segredo-de-testes-suficientemente-longo-1234'};
+ const env={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',CORREIOS_CARTA_REGISTRADA_LAYOUT_VALIDADO:'1',INTEGRATIONS_ENCRYPTION_KEY:'segredo-de-testes-suficientemente-longo-1234'};
  const requireMock=n=>n==='node:crypto'?require('node:crypto'):n==='./_utils'?{exigirAdmin:()=>true}:{
    cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'}]}),
    configuracaoEfetiva:async()=>({...c,contrato:'12345',dr:'01'}),
@@ -293,7 +294,7 @@ test('piloto exige preflight 86720 + cotacao; primeiro POST unico e ID retornado
    await mod.exports({method:'POST',query:{modo},body},{status(n){status=n;return this},json(x){result=x;return this}});
    return {status,result};
  }
- const p={cepDestino:'74000000',pesoGramas:20,codigoServico:'12345',tipoConteudo:'DOCUMENTOS',destinatario:destino};
+ const p={cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,codigoServico:'12345',tipoConteudo:'DOCUMENTOS',destinatario:destino};
  const antes=await invoke('preparar',p);
  assert.equal(antes.status,200);assert.ok(antes.result.confirmacaoPiloto);assert.equal(antes.result.valorCotado,15.60);
  const emitido=await invoke('emitir',{...p,confirmarEmissaoReal:true,confirmacaoPiloto:antes.result.confirmacaoPiloto});
@@ -324,7 +325,7 @@ test('preflight continua bloqueando quando consulta especifica devolve outro cod
  new Function('require','module','process',arquivo)(deps,mod,{env});
  let status,retorno;await mod.exports({
   method:'POST',query:{modo:'preparar'},body:{
-   cepDestino:'74000000',pesoGramas:20,codigoServico:'12345',tipoConteudo:'DOCUMENTOS',destinatario:destino}
+   cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,codigoServico:'12345',tipoConteudo:'DOCUMENTOS',destinatario:destino}
  },{status(n){status=n;return this},json(x){retorno=x;return this}});
  assert.equal(status,422);
  assert.match(retorno.erro,/não confirmou o código 86720/);
@@ -347,14 +348,14 @@ test('erros oficiais msgs[] sao lidos sem expor CPF, token, senha, email ou stac
 test('telefone do remetente igual ao usado pelo PAC tem DDD e numero validos',()=>{
  assert.deepEqual(telefoneRemetenteCarta('(62) 3293-0035'),{dddTelefone:'62',telefone:'32930035'});
  assert.throws(()=>telefoneRemetenteCarta('123'),/Telefone do remetente/);
- const payload=montarPrepostagem({cepDestino:'74000000',pesoGramas:20,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s);
+ const payload=montarPrepostagem({cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s);
  assert.equal(payload.remetente.dddTelefone,'62');
  assert.equal(payload.remetente.telefone,'32930035');
 });
 test('HTTP 400 real com msgs preserva codigo e nao tenta repetir POST',async()=>{
  const fonte=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
  const mod={exports:{}},chamadas=[];
- const env={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',INTEGRATIONS_ENCRYPTION_KEY:'segredo-dos-testes-de-cartas-2026-abcdef'};
+ const env={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',CORREIOS_CARTA_REGISTRADA_LAYOUT_VALIDADO:'1',INTEGRATIONS_ENCRYPTION_KEY:'segredo-dos-testes-de-cartas-2026-abcdef'};
  const mockRequire=n=>n==='node:crypto'?require('node:crypto'):n==='./_utils'?{exigirAdmin:()=>true}:{
   cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'}]}),
   configuracaoEfetiva:async()=>({...c,contrato:'12345',dr:'01'}),
@@ -366,7 +367,7 @@ test('HTTP 400 real com msgs preserva codigo e nao tenta repetir POST',async()=>
   return {ok:false,status:400,async text(){return JSON.stringify({msgs:['PPN-123: Campo invalido para a carta','RTL-036: Falta documento'],stackTrace:'nao mostrar'});}};
  };
  new Function('require','module','process','fetch',fonte)(mockRequire,mod,{env},mockFetch);
- const reqBase={cepDestino:'74000000',pesoGramas:20,codigoServico:'12345',tipoConteudo:'DOCUMENTOS',destinatario:destino};
+ const reqBase={cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,codigoServico:'12345',tipoConteudo:'DOCUMENTOS',destinatario:destino};
  async function chamar(modo,body){let status=0,retorno;await mod.exports({method:'POST',query:{modo},body},{status(n){status=n;return this},json(x){retorno=x;return this}});return {status,retorno};}
  const previa=await chamar('preparar',reqBase);
  assert.equal(previa.status,200);
@@ -395,7 +396,7 @@ test('navegador bloqueia segundo POST apos erro 400 ate reconciliacao manual',as
    chamadas.push({url,options});
    const modo=String(url).split('modo=')[1];
    if(modo==='diagnostico')return {ok:true,status:200,json:async()=>({ok:true,servicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD',categoria:'registrada'}],emissaoDeTesteHabilitada:true,observacao:'Disponivel'})};
-   if(modo==='preparar')return {ok:true,status:200,json:async()=>({ok:true,confirmacaoPiloto:'cp1.fake',resumo:{destinatario:'Cliente Teste',cepDestino:'74000000',endereco:'Rua B, 30',cidade:'Goiânia',uf:'GO',pesoGramas:20,modalidade:'CARTA REGISTRADA'},valorCotado:15.60})};
+   if(modo==='preparar')return {ok:true,status:200,json:async()=>({ok:true,confirmacaoPiloto:'cp1.fake',resumo:{destinatario:'Cliente Teste',cepDestino:'74000000',endereco:'Rua B, 30',cidade:'Goiânia',uf:'GO',pesoGramas:20,dataPrevistaPostagem:dataTeste,modalidade:'CARTA REGISTRADA'},valorCotado:15.60})};
    if(modo==='emitir')return {ok:false,status:400,json:async()=>({ok:false,codigoCorreios:'PPN-123',erro:'Correios HTTP 400: PPN-123: Campo invalido'})};
    throw Error('Modo inesperado '+modo);
   }
@@ -425,4 +426,43 @@ test('atualizacao exige verificar tentativa real de 13/11 antes de outra postage
  assert.ok(tela.includes('CHAVE_400_ANTERIOR_CONFERIDO'));
  assert.ok(tela.includes('const pendente=Boolean(localStorage.getItem(CHAVE_TENTATIVA_CARTA))'));
  assert.ok(tela.includes('botao.disabled=!(pilotoDisponivel&&tokenPiloto&&!emitida&&!pendente&&!pilotando)'));
+});
+
+test('data prevista de postagem no Brasil é ISO e obrigatória no payload',()=>{
+ assert.match(dataTeste,/^\d{4}-\d{2}-\d{2}$/);
+ assert.equal(validarDataPrevistaCarta(dataTeste),dataTeste);
+ const p=montarPrepostagem({cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s);
+ assert.equal(p.dataPrevistaPostagem,dataTeste);
+ assert.equal(p.codigoFormatoObjetoInformado,'1');
+});
+test('data prevista passada, inválida, ausente ou muito distante é bloqueada',()=>{
+ assert.throws(()=>validarDataPrevistaCarta(''),/Informe a data prevista/);
+ assert.throws(()=>validarDataPrevistaCarta('2026-02-31'),/inválida/);
+ assert.throws(()=>validarDataPrevistaCarta('2020-01-01'),/passado/);
+ const futura=new Date(Date.parse(dataTeste+'T00:00:00Z')+15*86400000).toISOString().slice(0,10);
+ assert.throws(()=>validarDataPrevistaCarta(futura),/14 dias/);
+});
+test('PPN-213 bloqueia novo envio real sem o layout registrado homologado',async()=>{
+ const arquivo=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ const mod={exports:{}},calls=[];
+ const env={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',INTEGRATIONS_ENCRYPTION_KEY:'segredo-de-testes-suficientemente-longo-1234'};
+ const deps=n=>n==='node:crypto'?require('node:crypto'):n==='./_utils'?{exigirAdmin:()=>true}:{
+  cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'}]}),
+  configuracaoEfetiva:async()=>({...c,contrato:'12345',dr:'01'}),
+  apiComToken:async url=>url.includes('/preco/')?{pcFinal:'15,60'}:{codigo:'86720'},
+  gerarToken:async()=> 'token-mock'
+ };
+ const mockFetch=async()=>{calls.push('POST');throw Error('POST inesperado')};
+ new Function('require','module','process','fetch',arquivo)(deps,mod,{env},mockFetch);
+ let code,body;
+ const reply={status(n){code=n;return this;},json(x){body=x;return this;}};
+ const p={cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,codigoServico:'12345',tipoConteudo:'DOCUMENTOS',destinatario:destino};
+ await mod.exports({method:'POST',query:{modo:'preparar'},body:p},reply);
+ assert.equal(code,200);
+ assert.equal(body.emissaoDeTesteHabilitada,false);
+ const sig=body.confirmacaoPiloto;
+ await mod.exports({method:'POST',query:{modo:'emitir'},body:{...p,confirmarEmissaoReal:true,confirmacaoPiloto:sig}},reply);
+ assert.equal(code,423);
+ assert.equal(body.codigo,'PPN213_LAYOUT_REGISTRADO_PENDENTE');
+ assert.equal(calls.length,0);
 });
