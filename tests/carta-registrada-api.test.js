@@ -117,3 +117,61 @@ test('interface retém confirmação e mantém emissão bloqueada após tentativ
  assert.ok(index.includes('onclick="cartaApiEmitir()" disabled'));
  assert.ok(index.includes('cartaApiPreparar()'));
 });
+
+test('schema objeto com lista nomeada é reconhecido sem supor array na raiz',async()=>{
+ const docs=schemaValido();
+ const operacao=docs.paths['/v1/prepostagens/lista/objetosregistrados'].post;
+ operacao.requestBody.content['application/json'].schema={
+  type:'object',required:['objetosRegistrados'],
+  properties:{objetosRegistrados:{type:'array',items:{$ref:'#/components/schemas/Registrado'}}}
+ };
+ const x=setup({docs});
+ const diagnostico=await x.invoke('diagnostico');
+ assert.equal(diagnostico.code,200);
+ assert.equal(diagnostico.body.esquemaOficialConfirmado,true);
+ assert.equal(diagnostico.body.formatoApiReconhecido,'objeto_lista_json');
+ assert.equal(diagnostico.body.diagnosticoEsquema.campoLista,'objetosRegistrados');
+ const prep=await x.invoke('preparar',x.p);
+ assert.equal(prep.code,200);
+ assert.equal(x.calls.filter(c=>c.method==='POST').length,0);
+ const emit=await x.invoke('emitir',{...x.p,confirmacaoPiloto:prep.body.confirmacaoPiloto,confirmarEmissaoReal:true});
+ assert.equal(emit.code,200);
+ const post=x.calls.filter(c=>c.method==='POST');
+ assert.equal(post.length,1);
+ const dados=JSON.parse(post[0].body);
+ assert.equal(dados.objetosRegistrados[0].codigoServico,'80799');
+});
+test('multipart ou arquivo binário mostra diagnóstico mas impede POST de emissão',async()=>{
+ const docs=schemaValido();
+ const operacao=docs.paths['/v1/prepostagens/lista/objetosregistrados'].post;
+ operacao.requestBody.content={'multipart/form-data':{schema:{
+  type:'object',required:['arquivo'],
+  properties:{arquivo:{type:'string',format:'binary'}}
+ }}};
+ const x=setup({docs}),r=await x.invoke('preparar',x.p);
+ assert.equal(r.code,423);
+ assert.ok(r.body.diagnosticoEsquema);
+ assert.equal(r.body.diagnosticoEsquema.tipoRaiz,'não identificado');
+ assert.equal(x.calls.filter(c=>c.method==='POST').length,0);
+});
+test('objeto com campos adicionais obrigatórios não transmite carta',async()=>{
+ const docs=schemaValido();
+ docs.paths['/v1/prepostagens/lista/objetosregistrados'].post.requestBody.content['application/json'].schema={
+  type:'object',required:['objetosRegistrados','assinaturaOperacao'],
+  properties:{objetosRegistrados:{type:'array',items:{$ref:'#/components/schemas/Registrado'}},
+   assinaturaOperacao:{type:'string'}}
+ };
+ const x=setup({docs}),r=await x.invoke('preparar',x.p);
+ assert.equal(r.code,423);
+ assert.ok(r.body.diagnosticoEsquema.camposObrigatoriosRaiz.includes('assinaturaOperacao'));
+ assert.equal(x.calls.filter(c=>c.method==='POST').length,0);
+});
+test('diagnóstico do CWS não publica dados de cliente nem faz POST',async()=>{
+ const x=setup({docs:schemaValido()}),r=await x.invoke('diagnostico');
+ assert.equal(r.code,200);
+ assert.equal(r.body.postagensCriadas,0);
+ assert.equal(r.body.diagnosticoEsquema.tipoRaiz,'array');
+ assert.ok(!JSON.stringify(r.body).includes('39963241115'));
+ assert.ok(!JSON.stringify(r.body).includes('token-ficticio'));
+ assert.equal(x.calls.filter(c=>c.method==='POST').length,0);
+});
