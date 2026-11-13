@@ -598,6 +598,7 @@ test('endpoint exportar JSON 80799 é read-only perante Correios mesmo quando PO
  assert.equal(body.arquivo.length,1);
  assert.equal(body.arquivo[0].codigoServico,'80799');
  assert.equal(body.arquivo[0].codigoFormatoObjetoInformado,'1','endpoint deve exportar envelope aceito na importação');
+ assert.match(body.nomeArquivo,/ENVELOPE_FORMATO_1_/,'download identificado para evitar seleção de arquivo antigo');
  assert.equal(transmissoes.length,0);
 });
 test('download JSON é inserido na mesma tela sem liberar emissão real',()=>{
@@ -608,6 +609,7 @@ test('download JSON é inserido na mesma tela sem liberar emissão real',()=>{
  assert.ok(front.includes("request('arquivo-registrado',corpo())"));
  assert.ok(front.includes("JSON.stringify(items,null,2)"));
  assert.ok(front.includes("items[0]?.codigoFormatoObjetoInformado!=='1'"),'impede novo download com formato 001 rejeitado');
+ assert.ok(front.includes('Escolha exatamente este arquivo no PPN Web'),'exibe instrução de selecionar arquivo recém-gerado');
  const back=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
  assert.ok(back.includes("if(!layoutRegistradaConfirmado())return responder(res,423"));
  assert.ok(!back.slice(back.indexOf("if(acao==='arquivo-registrado')"),back.indexOf("if(acao==='cotar')")).includes("gerarToken("));
