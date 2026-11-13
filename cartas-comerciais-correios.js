@@ -144,6 +144,28 @@ window.cartaCotar=async()=>{
   aviso(r.validos?'Preço confirmado pela API para este serviço e peso. Nenhuma postagem criada.':'Não foi possível cotar este serviço; confira o retorno dos Correios.',r.validos>0);
  }catch(e){aviso(e.message,false);}
 };
+// Baixa somente o arquivo oficial de IMPORTAÇÃO de objetos registrados.
+// O servidor não faz POST aos Correios; a criação ocorre apenas se o operador
+// carregar o arquivo manualmente na PPN Web > objetos registrados.
+window.cartaExportarRegistrada=async()=>{
+ try{
+  if(val('cartaServico')!=='80799')
+   return aviso('Selecione Carta Registrada 80799 para exportar o JSON oficial.',false);
+  aviso('Validando os dados e montando JSON de objeto registrado, SEM enviar aos Correios...',true);
+  const d=await request('arquivo-registrado',corpo());
+  const items=d.arquivo;
+  if(!d.somenteArquivo||!Array.isArray(items)||items.length!==1||
+     items[0]?.codigoServico!=='80799'||!Array.isArray(items[0]?.listaServicoAdicional)||
+     !items[0].listaServicoAdicional.some(x=>x.codigoServicoAdicional==='025'))
+    throw Error('O arquivo JSON retornado não corresponde ao modelo de uma Carta Registrada 80799.');
+  const bytes=new Blob([JSON.stringify(items,null,2)+'\n'],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(bytes),a=document.createElement('a');
+  a.href=url;a.download=d.nomeArquivo||'carta-registrada-80799.json';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+  aviso('Arquivo JSON pronto com 1 Carta Registrada (80799 e adicional 025). Nenhuma postagem foi criada pelo portal Sofisticatto. Importe manualmente em Correios → Pré-postagem a faturar de objetos registrados → Importar arquivo; confira o processamento antes de imprimir o rótulo.',true);
+ }catch(e){aviso('Arquivo não gerado: '+e.message,false)}
+};
 window.cartaPreparar=async()=>{
  tokenPiloto=null;resumoPiloto=null;valorPiloto=null;bloqueioEmissao();
  try{
