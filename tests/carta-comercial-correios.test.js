@@ -468,3 +468,61 @@ test('PPN-213 bloqueia novo envio real sem o layout registrado homologado',async
  assert.equal(body.codigo,'PPN213_LAYOUT_REGISTRADO_PENDENTE');
  assert.equal(calls.length,0);
 });
+
+test('diagnostico de registrada usa GET especifico do 80799 sem qualquer POST',async()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ const mod={exports:{}},consultas=[],requisicoesCriacao=[];
+ const deps=n=>n==='node:crypto'?require('node:crypto'):n==='./_utils'?{exigirAdmin:()=>true}:{
+   cfg:()=>({}),
+   descobrirContrato:async()=>({todosServicos:[
+     {codigo:'80799',descricao:'CARTA COML REG PL3 CHANC ETIQ'},
+     {codigo:'80810',descricao:'CARTA COML RG ARC PL3 CHAN ETI'}]}),
+   configuracaoEfetiva:async()=>({...c,contrato:'123456',cartao:'0079210350',dr:'01'}),
+   apiComToken:async(url,options,escopo)=>{consultas.push({url,options,escopo});return {codigo:'80799'};},
+   gerarToken:async()=>{throw Error('Token de criação não deve ser obtido')}
+ };
+ new Function('require','module','process','fetch',src)(deps,mod,{env:{
+   VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',
+   CORREIOS_CARTAS_EMISSAO_HABILITADA:'1'
+ }},async()=>{requisicoesCriacao.push('POST');throw Error('POST inesperado')});
+ let resultado,status;await mod.exports({method:'GET',query:{modo:'diagnostico'}},
+   {status(n){status=n;return this},json(j){resultado=j;return this}});
+ assert.equal(status,200);
+ assert.equal(resultado.registrada80799.codigo,'80799');
+ assert.equal(resultado.registrada80799.presenteNoContrato,true);
+ assert.equal(resultado.registrada80799.consultaDireta,'confirmado');
+ assert.equal(resultado.emissaoDeTesteHabilitada,false);
+ assert.equal(consultas.length,1);
+ assert.match(consultas[0].url,/\/servicos\/80799$/);
+ assert.equal(consultas[0].escopo,'contrato');
+ assert.equal(consultas[0].options.method,undefined);
+ assert.equal(requisicoesCriacao.length,0);
+});
+test('falha na consulta 80799 é inconclusiva, não confirma emissão real',async()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ const mod={exports:{}};
+ const deps=n=>n==='node:crypto'?require('node:crypto'):n==='./_utils'?{exigirAdmin:()=>true}:{
+   cfg:()=>({}),
+   descobrirContrato:async()=>({todosServicos:[{codigo:'80799',descricao:'CARTA COML REG PL3 CHANC ETIQ'}]}),
+   configuracaoEfetiva:async()=>({...c,contrato:'123456',cartao:'0079210350',dr:'01'}),
+   apiComToken:async()=>{const erro=Error('Sem acesso');erro.httpStatus=403;throw erro;},
+   gerarToken:async()=>{throw Error('Token de criação não deve ser obtido')}
+ };
+ new Function('require','module','process',src)(deps,mod,{env:{
+  VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',
+  CORREIOS_CARTAS_EMISSAO_HABILITADA:'1'
+ }});
+ let resposta;await mod.exports({method:'GET',query:{modo:'diagnostico'}},
+  {status(){return this},json(x){resposta=x;return this}});
+ assert.equal(resposta.registrada80799.consultaDireta,'consulta_falhou');
+ assert.equal(resposta.registrada80799.httpStatus,403);
+ assert.equal(resposta.emissaoDeTesteHabilitada,false);
+});
+test('interface prioriza 80799 sem permitir emissão enquanto o layout PPN-213 não foi homologado',()=>{
+ const front=fs.readFileSync(path.join(__dirname,'../cartas-comerciais-correios.js'),'utf8');
+ assert.ok(front.includes("servicos.find(x=>x.codigo==='80799'&&x.categoria==='registrada')"));
+ assert.ok(front.includes("verificada?.consultaDireta==='confirmado'"));
+ const back=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ assert.ok(back.includes('PPN213_LAYOUT_REGISTRADO_PENDENTE'));
+ assert.ok(back.includes('if(!layoutRegistradaConfirmado())return responder(res,423'));
+});
