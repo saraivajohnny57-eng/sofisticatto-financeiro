@@ -160,10 +160,10 @@ window.cartaExportarRegistrada=async()=>{
     throw Error('O arquivo JSON retornado não corresponde ao modelo de uma Carta Registrada 80799.');
   const bytes=new Blob([JSON.stringify(items,null,2)+'\n'],{type:'application/json;charset=utf-8'});
   const url=URL.createObjectURL(bytes),a=document.createElement('a');
-  a.href=url;a.download=d.nomeArquivo||'carta-registrada-80799.json';
+  a.href=url;a.download=d.nomeArquivo||'CARTA_REGISTRADA_80799_ENVELOPE_FORMATO_1.json';
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),30000);
-  aviso('Arquivo JSON pronto com 1 Carta Registrada (80799 e adicional 025). Nenhuma postagem foi criada pelo portal Sofisticatto. Importe manualmente em Correios → Pré-postagem a faturar de objetos registrados → Importar arquivo; confira o processamento antes de imprimir o rótulo.',true);
+  aviso('Arquivo NOVO: '+a.download+'. Verifique neste arquivo o campo codigoFormatoObjetoInformado = "1". Escolha exatamente este arquivo no PPN Web (não reutilize JSON anterior). Se a inconsistência continuar mostrando 001, confira o lote novo antes de tentar novamente. Nenhuma postagem foi criada pelo portal Sofisticatto.',true);
  }catch(e){aviso('Arquivo não gerado: '+e.message,false)}
 };
 window.cartaPreparar=async()=>{
