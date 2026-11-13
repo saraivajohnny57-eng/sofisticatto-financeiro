@@ -527,7 +527,7 @@ test('interface prioriza 80799 sem permitir emissão enquanto o layout PPN-213 n
  assert.ok(back.includes('if(!layoutRegistradaConfirmado())return responder(res,423'));
 });
 
-test('arquivo PPN de registrada 80799 segue a tabela oficial: array, registro 025, formato 001, data DD/MM/AAAA',()=>{
+test('arquivo PPN de registrada 80799 segue a tabela oficial: array, registro 025, formato 1 (sem zeros), data DD/MM/AAAA',()=>{
  const real={...destino,cpfCnpj:'39963241115'};
  const servico={codigo:'80799',descricao:'CARTA COML REG PL3 CHANC ETIQ',categoria:'registrada'};
  const arquivo=arquivoImportacaoRegistrada({
@@ -538,7 +538,8 @@ test('arquivo PPN de registrada 80799 segue a tabela oficial: array, registro 02
  const item=arquivo[0];
  assert.equal(item.codigoServico,'80799');
  assert.equal(item.pesoInformado,'20');
- assert.equal(item.codigoFormatoObjetoInformado,'001');
+ assert.equal(item.codigoFormatoObjetoInformado,'1');
+ assert.notEqual(item.codigoFormatoObjetoInformado,'001','regressão do arquivo rejeitado em 13/11/2026');
  assert.equal(item.cienteObjetoNaoProibido,1);
  assert.deepEqual(item.listaServicoAdicional,[{codigoServicoAdicional:'025'}]);
  assert.equal(item.sequencial,'1');
@@ -596,6 +597,7 @@ test('endpoint exportar JSON 80799 é read-only perante Correios mesmo quando PO
  assert.equal(body.postagensCriadas,0);
  assert.equal(body.arquivo.length,1);
  assert.equal(body.arquivo[0].codigoServico,'80799');
+ assert.equal(body.arquivo[0].codigoFormatoObjetoInformado,'1','endpoint deve exportar envelope aceito na importação');
  assert.equal(transmissoes.length,0);
 });
 test('download JSON é inserido na mesma tela sem liberar emissão real',()=>{
@@ -605,6 +607,7 @@ test('download JSON é inserido na mesma tela sem liberar emissão real',()=>{
  const front=fs.readFileSync(path.join(__dirname,'../cartas-comerciais-correios.js'),'utf8');
  assert.ok(front.includes("request('arquivo-registrado',corpo())"));
  assert.ok(front.includes("JSON.stringify(items,null,2)"));
+ assert.ok(front.includes("items[0]?.codigoFormatoObjetoInformado!=='1'"),'impede novo download com formato 001 rejeitado');
  const back=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
  assert.ok(back.includes("if(!layoutRegistradaConfirmado())return responder(res,423"));
  assert.ok(!back.slice(back.indexOf("if(acao==='arquivo-registrado')"),back.indexOf("if(acao==='cotar')")).includes("gerarToken("));
