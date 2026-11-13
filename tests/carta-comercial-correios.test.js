@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test');const assert=require('node:assert/strict');
-const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valorBR,separarNumeroEnderecoCarta,pilotoHabilitado,assinaturaPiloto,validarAssinaturaPiloto,telefoneRemetenteCarta,mensagensValidacaoCorreios,hojeBrasil,validarDataPrevistaCarta,layoutRegistradaConfirmado}=require('../lib/integracoes/carta-comercial-correios')._teste;
+const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valorBR,separarNumeroEnderecoCarta,pilotoHabilitado,assinaturaPiloto,validarAssinaturaPiloto,telefoneRemetenteCarta,mensagensValidacaoCorreios,hojeBrasil,validarDataPrevistaCarta,layoutRegistradaConfirmado,dataPrevistaFormatoApiCorreios}=require('../lib/integracoes/carta-comercial-correios')._teste;
 const dataTeste=hojeBrasil();
 const c={usuario:'teste',cartao:'000',cnpj:'05451985000195',cepOrigem:'74550470'};
 const destino={nome:'Cliente Teste',endereco:{cep:'74000000',logradouro:'Rua B',numero:'30',bairro:'Centro',cidade:'Goiânia',uf:'GO'}};
@@ -302,6 +302,7 @@ test('piloto exige preflight 86720 + cotacao; primeiro POST unico e ID retornado
  assert.equal(chamadas.length,1);assert.equal(chamadas[0].opts.method,'POST');
  const enviado=JSON.parse(chamadas[0].opts.body);
  assert.equal(enviado.codigoFormatoObjetoInformado,'1');assert.equal(enviado.pesoInformado,20);
+ assert.match(enviado.dataPrevistaPostagem,/^\d{2}\/\d{2}\/\d{4}$/);
  assert.equal(enviado.precoPostagem,0);assert.ok(!('chaveNFe' in enviado));
 });
 
@@ -432,7 +433,8 @@ test('data prevista de postagem no Brasil é ISO e obrigatória no payload',()=>
  assert.match(dataTeste,/^\d{4}-\d{2}-\d{2}$/);
  assert.equal(validarDataPrevistaCarta(dataTeste),dataTeste);
  const p=montarPrepostagem({cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s);
- assert.equal(p.dataPrevistaPostagem,dataTeste);
+ assert.equal(dataPrevistaFormatoApiCorreios(dataTeste),dataTeste.slice(8,10)+'/'+dataTeste.slice(5,7)+'/'+dataTeste.slice(0,4));
+ assert.equal(p.dataPrevistaPostagem,dataTeste.slice(8,10)+'/'+dataTeste.slice(5,7)+'/'+dataTeste.slice(0,4));
  assert.equal(p.codigoFormatoObjetoInformado,'1');
 });
 test('data prevista passada, inválida, ausente ou muito distante é bloqueada',()=>{
