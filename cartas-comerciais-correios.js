@@ -181,6 +181,10 @@ function cartaApiExibirEsquema(info){
  const textoSeguro=[
   'Formato da requisição: '+(info.tipoRaiz||'não identificado'),
   'Content-Types: '+(info.tiposConteudo||[]).join(', '),
+  'Existe schema multipart: '+(info.possuiSchemaMultipart?'sim':'não'),
+  'Campos multipart (nome / tipo / formato): '+(info.multipartCampos||[]).map(c=>c.nome+' / '+c.tipo+' / '+c.formato).join(', '),
+  'Campos multipart obrigatórios: '+(info.multipartCampos||[]).filter(c=>c.obrigatorio).map(c=>c.nome).join(', '),
+  'Parâmetros formData: '+(info.parametrosFormData||[]).map(c=>c.nome+' / '+c.tipo+' / '+c.formato).join(', '),
   'Campos raiz: '+(info.propriedadesRaiz||[]).join(', '),
   'Campos array: '+(info.camposArray||[]).join(', '),
   'Formato do item: '+(info.tipoItem||'não identificado'),
@@ -188,7 +192,7 @@ function cartaApiExibirEsquema(info){
   'Obrigatórios raiz: '+(info.camposObrigatoriosRaiz||[]).join(', '),
   'Obrigatórios item: '+(info.camposObrigatoriosItem||[]).join(', '),
   'Operação: '+(info.nomeOperacao||'não informada')
- ].join('\\n');
+ ].join('\n');
  area.textContent=textoSeguro;
 }
 function cartaApiBotao(){
