@@ -21,7 +21,7 @@ test('seleciona somente cartas comerciais fisicas, exclui PAC e e-Carta',()=>{
 test('cotação em gramas, não quilos e envelope até 500 g',()=>{assert.deepEqual(validarCotacao({cepDestino:'74000-000',pesoGramas:20,dataPrevistaPostagem:dataTeste}),{cep:'74000000',peso:20});assert.throws(()=>validarCotacao({cepDestino:'74000000',pesoGramas:501}));assert.throws(()=>validarCotacao({cepDestino:'74000000',pesoGramas:0}));});
 test('valor retornado pela API aceita vírgula ou ponto decimal',()=>{assert.equal(valorBR('3,85'),3.85);assert.equal(valorBR('15.60'),15.60);assert.equal(valorBR('1.234,56'),1234.56);});
 test('destinatário exige endereço completo',()=>{assert.equal(validarDestinatario(destino).nome,'Cliente Teste');assert.throws(()=>validarDestinatario({nome:'X',endereco:{cep:'123'}}));});
-test('registrada documental não adiciona NF-e nem declaração de cosméticos',()=>{const p=montarPrepostagem({cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s);assert.equal(p.codigoFormatoObjetoInformado,'1');assert.equal(p.pesoInformado,20);assert.ok(!('tipoDocumento' in p));assert.ok(!('chaveNFe' in p));assert.equal(p.destinatario.nome,'Cliente Teste');});
+test('registrada documental não adiciona NF-e nem declaração de cosméticos',()=>{const p=montarPrepostagem({cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s);assert.equal(p.codigoFormatoObjetoInformado,'1');assert.equal(p.pesoInformado,'20');assert.equal(p.cienteObjetoNaoProibido,1);assert.deepEqual(p.listaServicoAdicional,[{codigoServicoAdicional:'025'}]);assert.ok(!('tipoDocumento' in p));assert.ok(!('chaveNFe' in p));assert.equal(p.destinatario.nome,'Cliente Teste');});
 test('não tenta criar carta simples pela API individual',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,{...s,categoria:'simples'}),/lote/);});
 test('bloqueia envio de produtos como Carta',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74000000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'COSMETICOS',destinatario:destino},c,s),/documentos/);});
 test('protege divergência entre CEP usado na cotação e na etiqueta',()=>{assert.throws(()=>montarPrepostagem({cepDestino:'74200000',pesoGramas:20,dataPrevistaPostagem:dataTeste,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s),/CEP/);});
@@ -301,7 +301,7 @@ test('piloto exige preflight 86720 + cotacao; primeiro POST unico e ID retornado
  assert.equal(emitido.status,200);assert.equal(emitido.result.idPrePostagem,'PRabcdefghij1234567890AB');
  assert.equal(chamadas.length,1);assert.equal(chamadas[0].opts.method,'POST');
  const enviado=JSON.parse(chamadas[0].opts.body);
- assert.equal(enviado.codigoFormatoObjetoInformado,'1');assert.equal(enviado.pesoInformado,20);
+ assert.equal(enviado.codigoFormatoObjetoInformado,'1');assert.equal(enviado.pesoInformado,'20');assert.equal(enviado.cienteObjetoNaoProibido,1);assert.deepEqual(enviado.listaServicoAdicional,[{codigoServicoAdicional:'025'}]);
  assert.match(enviado.dataPrevistaPostagem,/^\d{2}\/\d{2}\/\d{4}$/);
  assert.equal(enviado.precoPostagem,0);assert.ok(!('chaveNFe' in enviado));
 });
