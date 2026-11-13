@@ -27,6 +27,7 @@ const consultarRastreioCorreios = require("../lib/integracoes/consultar-rastreio
 const testarCorreios = require("../lib/integracoes/testar-correios");
 const configuracaoCorreios = require("../lib/integracoes/configuracao-correios");
 const cartaComercialCorreios = require("../lib/integracoes/carta-comercial-correios");
+const cartaRegistradaApi = require("../lib/integracoes/carta-registrada-api");
 const faturasCorreios = require("../lib/integracoes/faturas-correios");
 const consultarRastreioSSW = require("../lib/integracoes/consultar-rastreio-ssw");
 const descobrirXmlSSW = require("../lib/integracoes/descobrir-xml-ssw");
@@ -73,6 +74,7 @@ const ROTAS = Object.freeze({
   "testar-correios": testarCorreios,
   "configuracao-correios": configuracaoCorreios,
   "carta-comercial-correios": cartaComercialCorreios,
+  "carta-registrada-api": cartaRegistradaApi,
   "faturas-correios": faturasCorreios,
   "consultar-rastreio-ssw": consultarRastreioSSW,
   "descobrir-xml-ssw": descobrirXmlSSW,
