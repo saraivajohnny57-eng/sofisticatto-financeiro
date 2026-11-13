@@ -142,12 +142,12 @@ test('schema objeto com lista nomeada é reconhecido sem supor array na raiz',as
  const dados=JSON.parse(post[0].body);
  assert.equal(dados.objetosRegistrados[0].codigoServico,'80799');
 });
-test('multipart ou arquivo binário mostra diagnóstico mas impede POST de emissão',async()=>{
+test('multipart com campo não binário mostra diagnóstico e impede POST de emissão',async()=>{
  const docs=schemaValido();
  const operacao=docs.paths['/v1/prepostagens/lista/objetosregistrados'].post;
  operacao.requestBody.content={'multipart/form-data':{schema:{
   type:'object',required:['arquivo'],
-  properties:{arquivo:{type:'string',format:'binary'}}
+  properties:{arquivo:{type:'string',format:'byte'}}
  }}};
  const x=setup({docs}),r=await x.invoke('preparar',x.p);
  assert.equal(r.code,423);
