@@ -23,7 +23,7 @@ let tokenPiloto=null, resumoPiloto=null, valorPiloto=null, pilotando=false, pilo
 function bloqueioEmissao(){
  const botao=el('cartaEmitirPiloto');
  if(!botao)return;
- const emitida=Boolean(sessionStorage.getItem('sofisticatto_carta_piloto_real_id'));
+ const emitida=Boolean(localStorage.getItem('sofisticatto_carta_piloto_real_id'));
  botao.disabled=!(pilotoDisponivel&&tokenPiloto&&!emitida&&!pilotando);
  botao.title=emitida?'Já há carta criada nesta sessão. Reimprima a etiqueta pelo ID.':'Exige prévia confirmada e autorização da primeira postagem real.';
 }
@@ -141,7 +141,7 @@ window.cartaPreparar=async()=>{
 };
 window.cartaEmitir=async()=>{
  if(pilotando)return;
- const idExistente=sessionStorage.getItem('sofisticatto_carta_piloto_real_id');
+ const idExistente=localStorage.getItem('sofisticatto_carta_piloto_real_id');
  if(idExistente){
   el('cartaId').value=idExistente;
   return aviso('Uma carta já foi registrada nesta sessão. Não envie novamente: use o ID salvo para obter o PDF oficial.',false);
@@ -166,7 +166,7 @@ window.cartaEmitir=async()=>{
  try{
   const r=await request('emitir',{...d,confirmacaoPiloto:tokenPiloto,confirmarEmissaoReal:true});
   if(!/^PR[A-Za-z0-9]{10,40}$/.test(String(r.idPrePostagem||'')))throw Error('Resposta sem ID oficial. Confira o painel dos Correios ANTES de repetir.');
-  sessionStorage.setItem('sofisticatto_carta_piloto_real_id',r.idPrePostagem);
+  localStorage.setItem('sofisticatto_carta_piloto_real_id',r.idPrePostagem);
   el('cartaId').value=r.idPrePostagem;
   tokenPiloto=null;resumoPiloto=null;
   aviso('PRÉ-POSTAGEM REAL REGISTRADA! ID '+r.idPrePostagem+'. Solicitando PDF oficial; se ainda estiver processando, clique somente em Imprimir rótulo oficial por ID.',true);
@@ -247,6 +247,6 @@ window.cartaBuscarCliente=()=>{
  }
 };
 // Ao recarregar o navegador, conservar o ID para emitir o PDF sem nova postagem.
-try{const salvo=sessionStorage.getItem('sofisticatto_carta_piloto_real_id');if(salvo&&el('cartaId'))el('cartaId').value=salvo;}catch{}
+try{const salvo=localStorage.getItem('sofisticatto_carta_piloto_real_id');if(salvo&&el('cartaId'))el('cartaId').value=salvo;}catch{}
 bloqueioEmissao();
 })();
