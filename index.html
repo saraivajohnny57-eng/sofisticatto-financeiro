@@ -1003,8 +1003,10 @@ SOFISTICATTO COSMÉTICOS</textarea>
                 <button class="btn azul" type="button" onclick="cartaPreparar()">3. Validar dados da carta (sem envio)</button>
                 <button class="btn roxo" type="button" onclick="cartaImprimirEnderecamento()">Imprimir endereçamento A4 (não oficial)</button>
                 <button class="btn azul" type="button" onclick="cartaVerificarPrepostagem()">4. Verificar acesso à Pré-Postagem (sem envio)</button>
+                <button class="btn azul" type="button" onclick="cartaDiagnosticarRotulo()">5. Conferir consultas de rótulo (sem emissão)</button>
               </div>
               <div id="cartaCotacoes" style="margin:10px 0;font-size:13px;"></div>
+              <div id="cartaDiagnosticoRotulo" role="status" aria-live="polite" style="font-size:13px;margin:10px 0;"></div>
               <details style="margin-top:10px;">
                 <summary style="cursor:pointer;font-size:13px;">Pré-postagem oficial de Carta Registrada — recurso experimental protegido</summary>
                 <p style="font-size:12px;">A cotação e a validação são seguras e não postam cartas. Carta Simples exige pré-postagem em lote; Carta Registrada com AR necessita validação dos adicionais. A emissão real continua bloqueada nesta Preview.</p>
@@ -3485,7 +3487,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="integracoes-seguras.js?v=220-braspress-detalhado"></script>
 <script src="motor-integracoes.js?v=34"></script>
 <script src="coletas.js?v=459-senhas-ocultas"></script>
-<script src="cartas-comerciais-correios.js?v=4-ender-numero-prepostagem"></script>
+<script src="cartas-comerciais-correios.js?v=5-readonly-rotulo"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">
