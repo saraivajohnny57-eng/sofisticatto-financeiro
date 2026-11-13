@@ -84,8 +84,8 @@ window.cartaDiagnosticarRotulo=async()=>{
   aviso('Consultando permissões de Pré-Postagem e rótulos (somente leitura)...',true);
   const d=await request('diagnostico-rotulo');
   const lista=Array.isArray(d.diagnosticos)?d.diagnosticos:[];
-  const nome={consulta_registradas:'Consulta de cartas registradas',saldo_de_rotulos:'Consulta do saldo de rótulos'};
-  const nomeEstado={acessivel:'OK',sem_permissao:'sem permissão',limite_temporario:'limite temporário',nao_encontrado:'rota indisponível',falha_na_consulta:'falha na consulta',contrato_nao_configurado:'contrato não configurado'};
+  const nome={faixas_solicitadas:'Faixas de etiquetas já solicitadas',saldo_de_rotulos:'Saldo de etiquetas do contrato'};
+  const nomeEstado={acessivel:'acesso confirmado',sem_permissao:'sem permissão',limite_temporario:'limite temporário',nao_encontrado:'sem resultado ou recurso não localizado',falha_na_consulta:'falha na consulta',contrato_nao_configurado:'contrato não configurado'};
   const box=el('cartaDiagnosticoRotulo');if(box){
     box.replaceChildren();
     for(const passo of lista){
@@ -96,7 +96,9 @@ window.cartaDiagnosticarRotulo=async()=>{
     }
   }
   const acessiveis=lista.filter(x=>x.estado==='acessivel').length;
-  aviso('Diagnóstico de leitura concluído ('+acessiveis+'/'+lista.length+' consultas acessíveis). Nenhum rótulo ou postagem criado. A etiqueta oficial ainda depende de um ID real.',acessiveis===lista.length);
+  const saldoOK=d.saldoAcessivel===true||lista.some(x=>x.etapa==='saldo_de_rotulos'&&x.estado==='acessivel');
+  const resumo=saldoOK?'Saldo de rótulos: acesso confirmado. ':'Acesso ao saldo de rótulos não confirmado. ';
+  aviso(resumo+'Consultas de leitura: '+acessiveis+'/'+lista.length+'. Nenhuma postagem criada. O PDF oficial só poderá ser validado com uma pré-postagem real autorizada.',saldoOK);
  }catch(e){aviso(e.message,false);}
 };
 window.cartaCotar=async()=>{
