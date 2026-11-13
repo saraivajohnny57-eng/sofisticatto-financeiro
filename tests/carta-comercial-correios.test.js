@@ -170,6 +170,10 @@ test('diagnostico backend de rotulo usa apenas GET e devolve somente status sem 
  assert.equal(body.rotulosSolicitados,0);
  assert.equal(chamadas.length,2);
  assert.ok(chamadas.every(x=>!x.opts?.method || x.opts.method==='GET'));
+ assert.deepEqual(chamadas.map(x=>x.url),[
+   'https://api.correios.com.br/prepostagem/v1/prepostagens/rotulo/123456/solicitadas',
+   'https://api.correios.com.br/prepostagem/v1/prepostagens/rotulo/123456/saldo'
+ ]);
  assert.ok(chamadas.every(x=>x.url.startsWith('https://api.correios.com.br/prepostagem/')));
  assert.ok(!JSON.stringify(body).includes('1234567890'));
  assert.ok(!JSON.stringify(body).includes('Cliente Teste'));
@@ -191,4 +195,39 @@ test('diagnostico do rotulo nao confunde HTTP 403 com autorizacao comprovada',as
  assert.equal(body.diagnosticos.length,2);
  assert.ok(body.diagnosticos.every(x=>x.estado==='sem_permissao'));
  assert.equal(body.postagensCriadas,0);
+});
+
+test('retorno 404 das faixas nao compromete saldo e nao cria rotulos',async()=>{
+ const arquivo=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ const mod={exports:{}},chamadas=[];
+ const requireMock=nome=>{
+   if(nome==='./_utils')return {exigirAdmin:()=>true};
+   return {cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[]}),
+     configuracaoEfetiva:async()=>({contrato:'ABC123'}),
+     apiComToken:async(url,opts)=>{
+       chamadas.push({url,opts});
+       if(url.endsWith('/solicitadas')){const e=Error('Nao encontrado');e.httpStatus=404;throw e}
+       return {saldo:12};
+     },
+     gerarToken:async()=>{throw Error('Criacao de objeto nao permitida')}
+   };
+ };
+ new Function('require','module','process',arquivo)(requireMock,mod,{env:{}});
+ let result;
+ await mod.exports({method:'GET',query:{modo:'diagnostico-rotulo'}},{status(){return this;},json(body){result=body;return this;}});
+ assert.equal(result.ok,true);
+ assert.equal(result.saldoAcessivel,true);
+ assert.equal(result.diagnosticos[0].estado,'nao_encontrado');
+ assert.equal(result.diagnosticos[1].estado,'acessivel');
+ assert.equal(result.postagensCriadas,0);
+ assert.equal(result.rotulosSolicitados,0);
+ assert.equal(chamadas.length,2);
+});
+test('diagnostico de carta nao acessa a listagem v2 que retornou 404 em filtro sem objetos',()=>{
+ const arquivo=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ const diagnostic=arquivo.slice(arquivo.indexOf("if(acao==='diagnostico-rotulo')"),arquivo.indexOf('const p=req.body||{};',arquivo.indexOf("if(acao==='diagnostico-rotulo')")));
+ assert.ok(!diagnostic.includes("await verificar('consulta_registradas'"));
+ assert.ok(!diagnostic.includes("v2/prepostagens?status="));
+ assert.ok(diagnostic.includes("/solicitadas"));
+ assert.ok(diagnostic.includes("/saldo"));
 });
