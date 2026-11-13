@@ -137,3 +137,58 @@ test('botao real segue bloqueado no ambiente de testes',()=>{
  assert.ok(pagina.includes('Emissão real bloqueada até validação oficial'));
  assert.ok(pagina.includes('disabled title="Emissão real somente após o teste oficial'));
 });
+
+test('passo 5 no navegador consulta somente GET com token sem divulgar credenciais',async()=>{
+ const a=prepararTelaCarta('sdv1.teste');
+ await a.contexto.window.cartaDiagnosticarRotulo();
+ assert.equal(a.chamadas.length,1);
+ assert.match(a.chamadas[0].url,/modo=diagnostico-rotulo/);
+ assert.equal(a.chamadas[0].opts.method,'GET');
+ assert.equal(a.chamadas[0].opts.headers['x-integrations-admin-key'],'sdv1.teste');
+});
+test('diagnostico backend de rotulo usa apenas GET e devolve somente status sem dados pessoais',async()=>{
+ const arquivo=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ const chamadas=[];const mockModule={exports:{}};
+ const fakeReq=nome=>{
+   if(nome==='./_utils')return {exigirAdmin:()=>true};
+   if(nome==='./_correios')return {
+     cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'}]}),
+     configuracaoEfetiva:async()=>({contrato:'123456',cartao:'1234567890'}),
+     gerarToken:async()=>{throw Error('Token direto não deve ser solicitado');},
+     apiComToken:async(url,opts)=>{chamadas.push({url,opts});return {ok:true};}
+   };
+   throw Error('Dependencia inesperada '+nome);
+ };
+ new Function('require','module','process',arquivo)(fakeReq,mockModule,{env:{VERCEL_ENV:'preview'}});
+ let status=0,body;
+ const res={status(s){status=s;return this;},json(x){body=x;return this;}};
+ await mockModule.exports({method:'GET',query:{modo:'diagnostico-rotulo'}},res);
+ assert.equal(status,200);
+ assert.equal(body.ok,true);
+ assert.equal(body.somenteLeitura,true);
+ assert.equal(body.postagensCriadas,0);
+ assert.equal(body.rotulosSolicitados,0);
+ assert.equal(chamadas.length,2);
+ assert.ok(chamadas.every(x=>!x.opts?.method || x.opts.method==='GET'));
+ assert.ok(chamadas.every(x=>x.url.startsWith('https://api.correios.com.br/prepostagem/')));
+ assert.ok(!JSON.stringify(body).includes('1234567890'));
+ assert.ok(!JSON.stringify(body).includes('Cliente Teste'));
+});
+test('diagnostico do rotulo nao confunde HTTP 403 com autorizacao comprovada',async()=>{
+ const arquivo=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ const mod={exports:{}};
+ const rf=nome=>{
+   if(nome==='./_utils')return {exigirAdmin:()=>true};
+   return {cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[]}),
+     configuracaoEfetiva:async()=>({contrato:'123'}),
+     apiComToken:async()=>{const e=Error('Forbidden');e.httpStatus=403;throw e;},
+     gerarToken:async()=>''};
+ };
+ new Function('require','module','process',arquivo)(rf,mod,{env:{}});
+ let body;
+ await mod.exports({method:'GET',query:{modo:'diagnostico-rotulo'}},{status(){return this},json(j){body=j;return this}});
+ assert.equal(body.ok,true);
+ assert.equal(body.diagnosticos.length,2);
+ assert.ok(body.diagnosticos.every(x=>x.estado==='sem_permissao'));
+ assert.equal(body.postagensCriadas,0);
+});
