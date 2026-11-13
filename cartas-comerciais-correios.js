@@ -166,6 +166,86 @@ window.cartaExportarRegistrada=async()=>{
   aviso('Arquivo NOVO: '+a.download+'. Verifique neste arquivo o campo codigoFormatoObjetoInformado = "1". Escolha exatamente este arquivo no PPN Web (não reutilize JSON anterior). Se a inconsistência continuar mostrando 001, confira o lote novo antes de tentar novamente. Nenhuma postagem foi criada pelo portal Sofisticatto.',true);
  }catch(e){aviso('Arquivo não gerado: '+e.message,false)}
 };
+
+/* Piloto API 80799: rota de objetos registrados distinta da emissão de encomendas. */
+let cartaApiConfirmacao=null,cartaApiResumo=null,cartaApiOcupado=false;
+const CARTA_API_TENTATIVA='sofisticatto_carta_api80799_tentativa_pendente_v1';
+function cartaApiAviso(mensagem,positivo){
+ const e=el('cartaApiStatus');if(e){e.textContent=mensagem;e.style.color=positivo?'#17603b':'#a83325';}
+}
+function cartaApiBotao(){
+ const b=el('cartaApiEmitir');
+ if(!b)return;
+ let bloqueado=true;try{bloqueado=Boolean(localStorage.getItem(CARTA_API_TENTATIVA));}catch{}
+ b.disabled=!(cartaApiConfirmacao&&!cartaApiOcupado&&!bloqueado);
+}
+async function cartaApiRequest(modo,payload){
+ const key=await chave();
+ const resposta=await fetch('/api/integracoes?action=carta-registrada-api&modo='+modo,{
+  method:payload?'POST':'GET',
+  headers:{'x-integrations-admin-key':key,...(payload?{'Content-Type':'application/json'}:{})},
+  body:payload?JSON.stringify(payload):undefined
+ });
+ const body=await resposta.json().catch(()=>({}));
+ if(!resposta.ok||!body.ok)throw Error(body.erro||'Não foi possível validar a API de Carta Registrada (HTTP '+resposta.status+').');
+ return body;
+}
+window.cartaApiDiagnostico=async()=>{
+ cartaApiConfirmacao=null;cartaApiResumo=null;cartaApiBotao();
+ try{
+  cartaApiAviso('Conferindo a rota candidata de objetos registrados, sem gerar carta...',true);
+  const r=await cartaApiRequest('diagnostico');
+  cartaApiAviso('Serviço 80799 no contrato: '+(r.servico80799NoContrato?'identificado':'não confirmado')+
+   '. Piloto Preview: '+(r.pilotoPreview?'habilitado':'não habilitado')+
+   '. O esquema oficial será verificado no passo seguinte. Nenhum objeto criado.',r.servico80799NoContrato&&r.pilotoPreview);
+ }catch(e){cartaApiAviso(e.message,false);}
+};
+window.cartaApiPreparar=async()=>{
+ cartaApiConfirmacao=null;cartaApiResumo=null;cartaApiBotao();
+ try{
+  if(localStorage.getItem(CARTA_API_TENTATIVA))throw Error('Existe tentativa anterior nesta sessão. Verifique o painel PPN antes de liberar nova validação.');
+  cartaApiAviso('Verificando cartão 86720 e 80799, OpenAPI oficial e outras cartas ativas. Nenhum POST de emissão...',true);
+  const r=await cartaApiRequest('preparar',corpo());
+  if(!r.confirmacaoPiloto||!r.rotaConfirmada)throw Error('A confirmação de emissão não foi fornecida pelo servidor.');
+  cartaApiConfirmacao=r.confirmacaoPiloto;cartaApiResumo=r.resumo;
+  cartaApiAviso('Validação aprovada para '+r.resumo.destinatario+' / '+r.resumo.cep+'. Nenhuma carta emitida. Confira e confirme pelo botão EMITIR REAL.',true);
+  cartaApiBotao();
+ }catch(e){cartaApiAviso('Emissão ainda não liberada: '+e.message,false);}
+};
+window.cartaApiEmitir=async()=>{
+ if(cartaApiOcupado||!cartaApiConfirmacao||!cartaApiResumo)return;
+ if(localStorage.getItem(CARTA_API_TENTATIVA))return cartaApiAviso('Uma tentativa anterior precisa ser conferida no PPN antes de qualquer novo envio.',false);
+ const r=cartaApiResumo;
+ if(!window.confirm('EMISSÃO REAL DA CARTA REGISTRADA 80799\\n\\nDestinatário: '+r.destinatario+
+  '\\nCEP: '+r.cep+' — '+r.cidade+'/'+r.uf+'\\nPeso: '+r.pesoGramas+' g'+
+  '\\nData prevista: '+r.dataPrevistaPostagem+
+  '\\n\\nSerá realizado UM POST aos Correios e poderá haver cobrança.\\nConfirma a criação real desta carta?'))return;
+ cartaApiOcupado=true;
+ localStorage.setItem(CARTA_API_TENTATIVA,JSON.stringify({quando:new Date().toISOString(),situacao:'requer_conferencia'}));
+ cartaApiBotao();
+ cartaApiAviso('Enviando uma única Carta Registrada pela API. Não atualize a página...',true);
+ try{
+  const p=corpo(),retorno=await cartaApiRequest('emitir',{...p,confirmarEmissaoReal:true,confirmacaoPiloto:cartaApiConfirmacao});
+  cartaApiConfirmacao=null;cartaApiResumo=null;
+  if(retorno.emitida===true&&/^PR[A-Za-z0-9]{10,40}$/.test(String(retorno.idPrePostagem||''))){
+   localStorage.setItem('sofisticatto_carta_piloto_real_id',retorno.idPrePostagem);
+   const input=el('cartaId');if(input)input.value=retorno.idPrePostagem;
+   cartaApiAviso('Carta registrada! ID oficial: '+retorno.idPrePostagem+
+     (retorno.codigoObjeto?' | Rastreio: '+retorno.codigoObjeto:'')+'. Use o botão de rótulo oficial por ID.',true);
+  }else cartaApiAviso('Solicitação aceita, porém sem ID confirmado. Consulte o painel PPN antes de tentar novamente. Nenhum reenvio automático.',false);
+ }catch(e){cartaApiAviso('Não foi possível confirmar a emissão: '+e.message+' Consulte a PPN antes de repetir. Tentativa bloqueada.',false);}
+ finally{cartaApiOcupado=false;cartaApiBotao();}
+};
+window.cartaApiConferiTentativa=()=>{
+ if(!localStorage.getItem(CARTA_API_TENTATIVA))return cartaApiAviso('Nenhuma tentativa anterior foi registrada neste navegador.',false);
+ if(localStorage.getItem('sofisticatto_carta_piloto_real_id'))
+  return cartaApiAviso('Há carta já emitida e identificada. Use o rótulo oficial; não gere outra.',false);
+ if(!window.confirm('Você conferiu no PPN Web que não existe carta ativa para este mesmo destinatário, CEP e serviço, e que as anteriores estão canceladas?\\n\\nEsta confirmação libera APENAS nova validação, não envia carta.'))return;
+ localStorage.removeItem(CARTA_API_TENTATIVA);
+ cartaApiConfirmacao=null;cartaApiResumo=null;cartaApiBotao();
+ cartaApiAviso('Tentativa anterior conferida. Volte ao botão 8 para preparar uma nova validação.',true);
+};
+
 window.cartaPreparar=async()=>{
  tokenPiloto=null;resumoPiloto=null;valorPiloto=null;bloqueioEmissao();
  try{
@@ -321,4 +401,5 @@ try{
 }catch{}
 iniciarDataCarta();
 bloqueioEmissao();
+cartaApiBotao();
 })();
