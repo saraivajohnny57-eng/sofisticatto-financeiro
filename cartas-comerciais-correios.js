@@ -79,6 +79,26 @@ window.cartaVerificarPrepostagem=async()=>{
   aviso((confirmado?'API Pré-Postagem autorizada no cartão. ':'Acesso à API Pré-Postagem ainda não confirmado. ')+(r.observacao||''),confirmado);
  }catch(e){aviso(e.message,false);}
 };
+window.cartaDiagnosticarRotulo=async()=>{
+ try{
+  aviso('Consultando permissões de Pré-Postagem e rótulos (somente leitura)...',true);
+  const d=await request('diagnostico-rotulo');
+  const lista=Array.isArray(d.diagnosticos)?d.diagnosticos:[];
+  const nome={consulta_registradas:'Consulta de cartas registradas',saldo_de_rotulos:'Consulta do saldo de rótulos'};
+  const nomeEstado={acessivel:'OK',sem_permissao:'sem permissão',limite_temporario:'limite temporário',nao_encontrado:'rota indisponível',falha_na_consulta:'falha na consulta',contrato_nao_configurado:'contrato não configurado'};
+  const box=el('cartaDiagnosticoRotulo');if(box){
+    box.replaceChildren();
+    for(const passo of lista){
+      const linha=document.createElement('p');
+      linha.textContent=(nome[passo.etapa]||passo.etapa)+': '+(nomeEstado[passo.estado]||passo.estado)+(passo.httpStatus?' (HTTP '+passo.httpStatus+')':'');
+      linha.style.color=passo.estado==='acessivel'?'#186c42':'#9a361c';
+      box.append(linha);
+    }
+  }
+  const acessiveis=lista.filter(x=>x.estado==='acessivel').length;
+  aviso('Diagnóstico de leitura concluído ('+acessiveis+'/'+lista.length+' consultas acessíveis). Nenhum rótulo ou postagem criado. A etiqueta oficial ainda depende de um ID real.',acessiveis===lista.length);
+ }catch(e){aviso(e.message,false);}
+};
 window.cartaCotar=async()=>{
  try{
   if(!val('cartaServico')){aviso('Primeiro clique em "Verificar Carta no contrato" e escolha uma modalidade.',false);return;}
