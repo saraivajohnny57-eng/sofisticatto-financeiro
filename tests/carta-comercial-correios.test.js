@@ -379,7 +379,7 @@ test('HTTP 400 real com msgs preserva codigo e nao tenta repetir POST',async()=>
  assert.equal(chamadas.length,1);
 });
 test('navegador bloqueia segundo POST apos erro 400 ate reconciliacao manual',async()=>{
- const campos=new Map(),memoria=new Map(),chamadas=[];
+ const campos=new Map(),memoria=new Map([['sofisticatto_carta_erro400_20261113_conferido','1']]),chamadas=[];
  const el=id=>{
   if(!campos.has(id))campos.set(id,{value:'',textContent:'',style:{},children:[],replaceChildren(){this.children=[]},append(o){this.children.push(o)}});
   return campos.get(id);
@@ -417,4 +417,12 @@ test('navegador bloqueia segundo POST apos erro 400 ate reconciliacao manual',as
  assert.equal(memoria.has('sofisticatto_carta_piloto_tentativa_pendente'),false);
  assert.match(el('cartaStatus').textContent,/valide os dados|botão 3|botão 3/i);
  assert.equal(postagens(),1);
+});
+
+test('atualizacao exige verificar tentativa real de 13/11 antes de outra postagem',()=>{
+ const tela=fs.readFileSync(path.join(__dirname,'../cartas-comerciais-correios.js'),'utf8');
+ assert.ok(tela.includes("situacao:'reconciliar_envio_anterior_400'"));
+ assert.ok(tela.includes('CHAVE_400_ANTERIOR_CONFERIDO'));
+ assert.ok(tela.includes('const pendente=Boolean(localStorage.getItem(CHAVE_TENTATIVA_CARTA))'));
+ assert.ok(tela.includes('botao.disabled=!(pilotoDisponivel&&tokenPiloto&&!emitida&&!pendente&&!pilotando)'));
 });
