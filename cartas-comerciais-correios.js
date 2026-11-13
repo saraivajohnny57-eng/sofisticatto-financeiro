@@ -71,6 +71,14 @@ window.cartaDiagnosticar=async()=>{
   aviso(servicos.length?(d.observacao+' Modalidade inicial: '+tituloCategoria(modalidadeAtiva()?.categoria)+'.'):(d.observacao||'Carta indisponível.'),servicos.length>0);
  }catch(e){aviso(e.message,false);}
 };
+window.cartaVerificarPrepostagem=async()=>{
+ try{
+  aviso('Verificando a habilitação da API Pré-Postagem no cartão, sem registrar objeto...',true);
+  const r=await request('verificar-prepostagem');
+  const confirmado=r.habilitacaoApiPrepostagem==='confirmado';
+  aviso((confirmado?'API Pré-Postagem autorizada no cartão. ':'Acesso à API Pré-Postagem ainda não confirmado. ')+(r.observacao||''),confirmado);
+ }catch(e){aviso(e.message,false);}
+};
 window.cartaCotar=async()=>{
  try{
   if(!val('cartaServico')){aviso('Primeiro clique em "Verificar Carta no contrato" e escolha uma modalidade.',false);return;}
