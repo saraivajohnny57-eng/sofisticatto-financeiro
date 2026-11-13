@@ -263,7 +263,7 @@ test('sem confirmacao valida backend nao faz POST de primeira carta',async()=>{
  const mod={exports:{}},chamadas=[];
  const env={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',INTEGRATIONS_ENCRYPTION_KEY:'segredo-de-testes-suficientemente-longo-1234'};
  const req=n=>n==='node:crypto'?require('node:crypto'):n==='./_utils'?{exigirAdmin:()=>true}:{
-   cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'},{codigo:'86720',descricao:'API PRE POSTAGEM'}]}),
+   cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'}]}),
    configuracaoEfetiva:async()=>({...c,contrato:'12345',dr:'01'}),
    apiComToken:async()=>({codigo:'86720',pcFinal:'15,60'}),
    gerarToken:async()=>{throw Error('Nao deve ser chamado')}
@@ -281,7 +281,7 @@ test('piloto exige preflight 86720 + cotacao; primeiro POST unico e ID retornado
  const mod={exports:{}},chamadas=[];
  const env={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',INTEGRATIONS_ENCRYPTION_KEY:'segredo-de-testes-suficientemente-longo-1234'};
  const requireMock=n=>n==='node:crypto'?require('node:crypto'):n==='./_utils'?{exigirAdmin:()=>true}:{
-   cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'},{codigo:'86720',descricao:'API PRE POSTAGEM'}]}),
+   cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'}]}),
    configuracaoEfetiva:async()=>({...c,contrato:'12345',dr:'01'}),
    apiComToken:async url=>url.includes('/preco/')?{pcFinal:'15,60'}:{codigo:'86720'},
    gerarToken:async()=> 'token-mock'
@@ -302,4 +302,30 @@ test('piloto exige preflight 86720 + cotacao; primeiro POST unico e ID retornado
  const enviado=JSON.parse(chamadas[0].opts.body);
  assert.equal(enviado.codigoFormatoObjetoInformado,'1');assert.equal(enviado.pesoInformado,20);
  assert.equal(enviado.precoPostagem,0);assert.ok(!('chaveNFe' in enviado));
+});
+
+test('preflight permite 86720 ausente da listagem geral quando GET especifico do cartao confirma',async()=>{
+ const arquivo=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ assert.ok(!arquivo.includes("if(!autorizado)throw Object.assign(Error('O serviço 86720"));
+ assert.ok(arquivo.includes("apiComToken(u,{},'contrato')"));
+});
+test('preflight continua bloqueando quando consulta especifica devolve outro codigo',async()=>{
+ const arquivo=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ const mod={exports:{}},env={
+  VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',
+  CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',INTEGRATIONS_ENCRYPTION_KEY:'teste-seguro-com-mais-de-32-caracteres-123'
+ };
+ const deps=n=>n==='node:crypto'?require('node:crypto'):n==='./_utils'?{exigirAdmin:()=>true}:{
+  cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'}]}),
+  configuracaoEfetiva:async()=>({...c,contrato:'12345',dr:'01'}),
+  apiComToken:async()=>({codigo:'00999'}),
+  gerarToken:async()=>{throw Error('POST não permitido')}
+ };
+ new Function('require','module','process',arquivo)(deps,mod,{env});
+ let status,retorno;await mod.exports({
+  method:'POST',query:{modo:'preparar'},body:{
+   cepDestino:'74000000',pesoGramas:20,codigoServico:'12345',tipoConteudo:'DOCUMENTOS',destinatario:destino}
+ },{status(n){status=n;return this},json(x){retorno=x;return this}});
+ assert.equal(status,422);
+ assert.match(retorno.erro,/não confirmou o código 86720/);
 });
