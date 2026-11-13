@@ -19,6 +19,15 @@ function cartaSepararNumero(logradouro,numero){
  return {logradouro:rua,numero:n||encontrados[0]||'S/N'};
 }
 let servicos=[];
+let tokenPiloto=null, resumoPiloto=null, valorPiloto=null, pilotando=false, pilotoDisponivel=false;
+function bloqueioEmissao(){
+ const botao=el('cartaEmitirPiloto');
+ if(!botao)return;
+ const emitida=Boolean(sessionStorage.getItem('sofisticatto_carta_piloto_real_id'));
+ botao.disabled=!(pilotoDisponivel&&tokenPiloto&&!emitida&&!pilotando);
+ botao.title=emitida?'Já há carta criada nesta sessão. Reimprima a etiqueta pelo ID.':'Exige prévia confirmada e autorização da primeira postagem real.';
+}
+
 function aviso(msg,ok){const e=el('cartaStatus');if(e){e.textContent=msg;e.style.color=ok?'#186c42':'#9a361c';}}
 async function chave(){
  // Preview e producao sao origens diferentes; reutiliza a autenticacao protegida
@@ -54,6 +63,7 @@ window.cartaDiagnosticar=async()=>{
   aviso('Consultando Carta Comercial física no contrato...',true);
   const d=await request('diagnostico');
   servicos=d.servicos||[];
+  pilotoDisponivel=d.emissaoDeTesteHabilitada===true;tokenPiloto=null;resumoPiloto=null;valorPiloto=null;bloqueioEmissao();
   const s=el('cartaServico'),anterior=s.value;
   s.replaceChildren();
   const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Escolha a modalidade';s.append(placeholder);
@@ -117,23 +127,53 @@ window.cartaCotar=async()=>{
  }catch(e){aviso(e.message,false);}
 };
 window.cartaPreparar=async()=>{
+ tokenPiloto=null;resumoPiloto=null;valorPiloto=null;bloqueioEmissao();
  try{
   if(!val('cartaServico')){aviso('Selecione primeiro o serviço de Carta Comercial.',false);return;}
   aviso('Validando endereço e peso sem transmitir aos Correios...',true);
-  const r=await request('preparar',corpo());aviso(r.observacao,true);
+  const r=await request('preparar',corpo());
+  if(r.confirmacaoPiloto&&r.resumo){
+   tokenPiloto=r.confirmacaoPiloto;resumoPiloto=r.resumo;valorPiloto=r.valorCotado??null;
+   aviso('Validação concluída. Confira nome, endereço e valor. Se tudo estiver correto, o botão de EMISSÃO REAL está liberado somente para uma Carta Registrada piloto.',true);
+  }else aviso(r.observacao,true);
+  bloqueioEmissao();
  }catch(e){aviso(e.message,false);}
 };
 window.cartaEmitir=async()=>{
- try{
+ if(pilotando)return;
+ const idExistente=sessionStorage.getItem('sofisticatto_carta_piloto_real_id');
+ if(idExistente){
+  el('cartaId').value=idExistente;
+  return aviso('Uma carta já foi registrada nesta sessão. Não envie novamente: use o ID salvo para obter o PDF oficial.',false);
+ }
+ if(!pilotoDisponivel||!tokenPiloto||!resumoPiloto)return aviso('Primeiro valide os dados da Carta Registrada pelo botão 3. O piloto só funciona na Preview autorizada.',false);
  const d=corpo(),s=servicos.find(x=>x.codigo===d.codigoServico);
- if(s?.categoria!=='registrada')throw Error('Carta Simples utiliza lote e não pode ser enviada pelo fluxo de Carta Registrada.');
- if(!confirm('Confirmar PRÉ-POSTAGEM REAL de Carta Registrada nos Correios? Poderá gerar cobrança no contrato.'))return;
- aviso('Enviando pré-postagem...',true);
- const r=await request('emitir',{...d,confirmarEmissaoReal:true});
- el('cartaId').value=r.idPrePostagem||'';
- if(el('corIdPrePostagem'))el('corIdPrePostagem').value=r.idPrePostagem||'';
- aviso('Carta registrada criada. ID: '+r.idPrePostagem,true);
- }catch(e){aviso(e.message,false);}
+ if(s?.categoria!=='registrada')return aviso('Selecione Carta Registrada sem AR para o primeiro piloto.',false);
+ const resumo=[
+  'PRÉ-POSTAGEM REAL DOS CORREIOS',
+  'Destinatário: '+resumoPiloto.destinatario,
+  'Endereço: '+resumoPiloto.endereco,
+  'CEP/cidade: '+resumoPiloto.cepDestino+' — '+resumoPiloto.cidade+'/'+resumoPiloto.uf,
+  'Modalidade: '+resumoPiloto.modalidade,
+  'Peso: '+resumoPiloto.pesoGramas+' g',
+  valorPiloto!=null?'Valor cotado: '+Number(valorPiloto).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Valor: confira a cotação anterior',
+  '',
+  'Esta operação cria uma carta REAL e poderá gerar cobrança. Nenhum reenvio será automático.',
+  'CONFIRMA os dados e autoriza a criação desta primeira carta?'
+ ].join('\n');
+ if(!window.confirm(resumo))return aviso('Emissão cancelada. Nenhum objeto criado.',false);
+ pilotando=true;bloqueioEmissao();aviso('Enviando uma única pré-postagem real. Não atualize a página...',true);
+ try{
+  const r=await request('emitir',{...d,confirmacaoPiloto:tokenPiloto,confirmarEmissaoReal:true});
+  if(!/^PR[A-Za-z0-9]{10,40}$/.test(String(r.idPrePostagem||'')))throw Error('Resposta sem ID oficial. Confira o painel dos Correios ANTES de repetir.');
+  sessionStorage.setItem('sofisticatto_carta_piloto_real_id',r.idPrePostagem);
+  el('cartaId').value=r.idPrePostagem;
+  tokenPiloto=null;resumoPiloto=null;
+  aviso('PRÉ-POSTAGEM REAL REGISTRADA! ID '+r.idPrePostagem+'. Solicitando PDF oficial; se ainda estiver processando, clique somente em Imprimir rótulo oficial por ID.',true);
+  await window.cartaRotulo();
+ }catch(e){
+  aviso('A operação não foi confirmada: '+e.message+'. Em caso de erro de rede ou resposta sem ID, confira em prepostagem.correios.com.br antes de tentar novamente para evitar duplicidade.',false);
+ }finally{pilotando=false;bloqueioEmissao();}
 };
 window.cartaRotulo=async()=>{
  try{
@@ -206,4 +246,7 @@ window.cartaBuscarCliente=()=>{
   const o=document.createElement('option');o.value=c.nome;o.label=(c.cpf_cnpj||'')+' — '+(c.cidade||'');dl.append(o);
  }
 };
+// Ao recarregar o navegador, conservar o ID para emitir o PDF sem nova postagem.
+try{const salvo=sessionStorage.getItem('sofisticatto_carta_piloto_real_id');if(salvo&&el('cartaId'))el('cartaId').value=salvo;}catch{}
+bloqueioEmissao();
 })();
