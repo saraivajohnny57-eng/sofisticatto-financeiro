@@ -12,9 +12,10 @@ async function pdfFixture(quantidade){
  for(let n=0;n<quantidade;n++)pdf.addPage([220*mm,110*mm]);
  return Buffer.from(await pdf.save());
 }
-test('quatro tamanhos de folha e Envelope padrão 230x115 mm',async()=>{
+test('quatro tamanhos de folha e Envelope em folha Retrato 115x230 mm',async()=>{
  assert.deepEqual(Object.keys(FORMATOS_CARTA),['etiqueta1','etiqueta2','a4','envelope']);
  const fonte=await pdfFixture(1);
+ assert.deepEqual(FORMATOS_CARTA.envelope,[115,230],'driver Brother usa Retrato com lado curto na entrada manual');
  for(const [formato,[w,h]]of Object.entries(FORMATOS_CARTA)){
   const bytes=await ajustarRotuloCartaPdf(fonte,formato);
   const pdf=await PDFDocument.load(bytes);
@@ -44,6 +45,8 @@ test('tela mostra 4 formatos, salva Envelope e usa modal original de Carta',()=>
  assert.ok(page.includes('cartas-impressao-registrada.js?v=1-envelope-brother-manual'));
  assert.ok(carta.includes('window.cartaAbrirPdfOficialCarta'));
  assert.ok(js.includes('Origem = Manual'));
+ assert.ok(js.includes('Orientação = Retrato'));
+ assert.ok(js.includes('115 × 230 mm'));
  assert.ok(js.includes("modo=ajustar-rotulo-carta"));
 });
 test('roteamento de ajuste exige POST e credencial administrativa; não cria postagem',async()=>{
@@ -64,8 +67,20 @@ test('roteamento de ajuste exige POST e credencial administrativa; não cria pos
   assert.equal(ok.code,200);
   assert.equal(ok.headers['Content-Type'],'application/pdf');
   const r=await PDFDocument.load(ok.body);
-  assert.ok(Math.abs(r.getPage(0).getSize().width-230*mm)<0.1);
+  assert.ok(Math.abs(r.getPage(0).getSize().width-115*mm)<0.1);
+  assert.ok(Math.abs(r.getPage(0).getSize().height-230*mm)<0.1);
  }finally{
   if(envAnterior===undefined)delete process.env.INTEGRATIONS_ADMIN_KEY;else process.env.INTEGRATIONS_ADMIN_KEY=envAnterior;
  }
+});
+
+test('envelope gira vetor 90° para coincidir com entrada manual em Retrato',async()=>{
+ const original=await pdfFixture(1);
+ const saida=await ajustarRotuloCartaPdf(original,'envelope');
+ const documento=await PDFDocument.load(saida),pg=documento.getPage(0);
+ const dimensao=pg.getSize();
+ assert.ok(dimensao.width<dimensao.height);
+ const stream=pg.node.Contents();
+ assert.ok(stream,'conteúdo gráfico deve existir no PDF');
+ assert.ok(saida.length>100,'não pode rasterizar ou descartar o rótulo');
 });
