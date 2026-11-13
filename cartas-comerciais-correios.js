@@ -21,6 +21,7 @@ function cartaSepararNumero(logradouro,numero){
 let servicos=[];
 let tokenPiloto=null, resumoPiloto=null, valorPiloto=null, pilotando=false, pilotoDisponivel=false;
 const CHAVE_TENTATIVA_CARTA='sofisticatto_carta_piloto_tentativa_pendente';
+const CHAVE_400_ANTERIOR_CONFERIDO='sofisticatto_carta_erro400_20261113_conferido';
 function bloqueioEmissao(){
  const botao=el('cartaEmitirPiloto');
  if(!botao)return;
@@ -150,6 +151,7 @@ window.cartaConferiTentativaAnterior=()=>{
  const confirmou=window.confirm('Você consultou o portal de Pré-Postagem dos Correios e confirmou que NÃO existe carta registrada para este destinatário, serviço e horário?\n\nConfirme somente após verificar. Esta ação não envia carta, apenas libera uma nova validação.');
  if(!confirmou)return aviso('A tentativa anterior permanece bloqueada. Nenhuma carta foi enviada.',false);
  localStorage.removeItem(CHAVE_TENTATIVA_CARTA);
+ localStorage.setItem(CHAVE_400_ANTERIOR_CONFERIDO,'1');
  tokenPiloto=null;resumoPiloto=null;valorPiloto=null;
  bloqueioEmissao();
  aviso('Verificação registrada. Clique novamente no botão 3 para validar dados e preço. Nenhuma carta foi enviada por esta ação.',true);
@@ -265,7 +267,13 @@ window.cartaBuscarCliente=()=>{
   const o=document.createElement('option');o.value=c.nome;o.label=(c.cpf_cnpj||'')+' — '+(c.cidade||'');dl.append(o);
  }
 };
-// Ao recarregar o navegador, conservar o ID para emitir o PDF sem nova postagem.
-try{const salvo=localStorage.getItem('sofisticatto_carta_piloto_real_id');if(salvo&&el('cartaId'))el('cartaId').value=salvo;}catch{}
+// Primeiro uso da correção: a tentativa com HTTP 400 de 13/11 foi feita antes
+// do registro local de tentativas. Exigir conferência no Correios uma única vez.
+try{
+ const salvo=localStorage.getItem('sofisticatto_carta_piloto_real_id');
+ if(salvo&&el('cartaId'))el('cartaId').value=salvo;
+ if(!salvo&&!localStorage.getItem(CHAVE_400_ANTERIOR_CONFERIDO)&&!localStorage.getItem(CHAVE_TENTATIVA_CARTA))
+  localStorage.setItem(CHAVE_TENTATIVA_CARTA,JSON.stringify({situacao:'reconciliar_envio_anterior_400',data:'2026-11-13'}));
+}catch{}
 bloqueioEmissao();
 })();
