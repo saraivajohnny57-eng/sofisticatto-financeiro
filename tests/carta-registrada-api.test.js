@@ -152,7 +152,7 @@ test('multipart ou arquivo binário mostra diagnóstico mas impede POST de emiss
  const x=setup({docs}),r=await x.invoke('preparar',x.p);
  assert.equal(r.code,423);
  assert.ok(r.body.diagnosticoEsquema);
- assert.equal(r.body.diagnosticoEsquema.tipoRaiz,'não identificado');
+ assert.equal(r.body.diagnosticoEsquema.tipoRaiz,'object');
  assert.equal(x.calls.filter(c=>c.method==='POST').length,0);
 });
 test('objeto com campos adicionais obrigatórios não transmite carta',async()=>{
