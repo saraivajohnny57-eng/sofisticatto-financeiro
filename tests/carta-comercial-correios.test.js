@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test');const assert=require('node:assert/strict');
-const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valorBR,separarNumeroEnderecoCarta}=require('../lib/integracoes/carta-comercial-correios')._teste;
+const {descobrirCartas,validarCotacao,validarDestinatario,montarPrepostagem,valorBR,separarNumeroEnderecoCarta,pilotoHabilitado,assinaturaPiloto,validarAssinaturaPiloto}=require('../lib/integracoes/carta-comercial-correios')._teste;
 const c={usuario:'teste',cartao:'000',cnpj:'05451985000195',cepOrigem:'74550470'};
 const destino={nome:'Cliente Teste',endereco:{cep:'74000000',logradouro:'Rua B',numero:'30',bairro:'Centro',cidade:'Goiânia',uf:'GO'}};
 const s={codigo:'12345',descricao:'CARTA REGISTRADA',categoria:'registrada'};
@@ -134,8 +134,9 @@ test('verificacao de API Pre-Postagem usa apenas GET, nunca cria carta',async()=
 });
 test('botao real segue bloqueado no ambiente de testes',()=>{
  const pagina=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
- assert.ok(pagina.includes('Emissão real bloqueada até validação oficial'));
- assert.ok(pagina.includes('disabled title="Emissão real somente após o teste oficial'));
+ assert.ok(pagina.includes('cartaEmitirPiloto'));
+ assert.ok(pagina.includes('onclick="cartaEmitir()" disabled'));
+ assert.ok(pagina.includes('primeira Carta Registrada REAL'));
 });
 
 test('passo 5 no navegador consulta somente GET com token sem divulgar credenciais',async()=>{
@@ -151,6 +152,7 @@ test('diagnostico backend de rotulo usa apenas GET e devolve somente status sem 
  const chamadas=[];const mockModule={exports:{}};
  const fakeReq=nome=>{
    if(nome==='./_utils')return {exigirAdmin:()=>true};
+   if(nome==='node:crypto')return require('node:crypto');
    if(nome==='./_correios')return {
      cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'}]}),
      configuracaoEfetiva:async()=>({contrato:'123456',cartao:'1234567890'}),
@@ -183,6 +185,7 @@ test('diagnostico do rotulo nao confunde HTTP 403 com autorizacao comprovada',as
  const mod={exports:{}};
  const rf=nome=>{
    if(nome==='./_utils')return {exigirAdmin:()=>true};
+   if(nome==='node:crypto')return require('node:crypto');
    return {cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[]}),
      configuracaoEfetiva:async()=>({contrato:'123'}),
      apiComToken:async()=>{const e=Error('Forbidden');e.httpStatus=403;throw e;},
@@ -202,6 +205,7 @@ test('retorno 404 das faixas nao compromete saldo e nao cria rotulos',async()=>{
  const mod={exports:{}},chamadas=[];
  const requireMock=nome=>{
    if(nome==='./_utils')return {exigirAdmin:()=>true};
+   if(nome==='node:crypto')return require('node:crypto');
    return {cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[]}),
      configuracaoEfetiva:async()=>({contrato:'ABC123'}),
      apiComToken:async(url,opts)=>{
@@ -230,4 +234,72 @@ test('diagnostico de carta nao acessa a listagem v2 que retornou 404 em filtro s
  assert.ok(!diagnostic.includes("v2/prepostagens?status="));
  assert.ok(diagnostic.includes("/solicitadas"));
  assert.ok(diagnostic.includes("/saldo"));
+});
+
+test('piloto so habilita com flag, branch exata e ambiente Preview',()=>{
+ const env=process.env,base={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112'};
+ try{
+   for(const [k,v] of Object.entries(base))process.env[k]=v;
+   assert.equal(pilotoHabilitado(),true);
+   process.env.VERCEL_ENV='production';assert.equal(pilotoHabilitado(),false);
+   process.env.VERCEL_ENV='preview';process.env.VERCEL_GIT_COMMIT_REF='main';assert.equal(pilotoHabilitado(),false);
+   process.env.VERCEL_GIT_COMMIT_REF=base.VERCEL_GIT_COMMIT_REF;process.env.CORREIOS_CARTAS_EMISSAO_HABILITADA='0';assert.equal(pilotoHabilitado(),false);
+ }finally{for(const k of Object.keys(base)){if(env[k]===undefined)delete process.env[k];else process.env[k]=env[k];}}
+});
+test('confirmacao HMAC expira em 10 minutos e impede troca de destinatario',()=>{
+ const old=process.env.INTEGRATIONS_ENCRYPTION_KEY;
+ process.env.INTEGRATIONS_ENCRYPTION_KEY='chave-de-teste-exclusiva-nao-real-12345678901234';
+ try{
+   const payload=montarPrepostagem({cepDestino:'74000000',pesoGramas:20,tipoConteudo:'DOCUMENTOS',destinatario:destino},c,s);
+   const assinatura=assinaturaPiloto(payload);
+   assert.equal(validarAssinaturaPiloto(assinatura,payload),true);
+   const outro={...payload,destinatario:{...payload.destinatario,nome:'Outro destinatario'}};
+   assert.equal(validarAssinaturaPiloto(assinatura,outro),false);
+   assert.equal(validarAssinaturaPiloto(assinaturaPiloto(payload,Date.now()-11*60000),payload),false);
+ }finally{if(old===undefined)delete process.env.INTEGRATIONS_ENCRYPTION_KEY;else process.env.INTEGRATIONS_ENCRYPTION_KEY=old}
+});
+test('sem confirmacao valida backend nao faz POST de primeira carta',async()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ const mod={exports:{}},chamadas=[];
+ const env={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',INTEGRATIONS_ENCRYPTION_KEY:'segredo-de-testes-suficientemente-longo-1234'};
+ const req=n=>n==='node:crypto'?require('node:crypto'):n==='./_utils'?{exigirAdmin:()=>true}:{
+   cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'},{codigo:'86720',descricao:'API PRE POSTAGEM'}]}),
+   configuracaoEfetiva:async()=>({...c,contrato:'12345',dr:'01'}),
+   apiComToken:async()=>({codigo:'86720',pcFinal:'15,60'}),
+   gerarToken:async()=>{throw Error('Nao deve ser chamado')}
+ };
+ new Function('require','module','process','fetch',src)(req,mod,{env},async()=>{chamadas.push('POST');throw Error('POST proibido')});
+ let body,status;
+ const resp={status(n){status=n;return this},json(j){body=j;return this}};
+ await mod.exports({method:'POST',query:{modo:'emitir'},body:{cepDestino:'74000000',pesoGramas:20,codigoServico:'12345',tipoConteudo:'DOCUMENTOS',destinatario:destino,confirmarEmissaoReal:true}},resp);
+ assert.equal(status,403);
+ assert.equal(body.codigo,'CONFIRMACAO_PILOTO_INVALIDA');
+ assert.equal(chamadas.length,0);
+});
+test('piloto exige preflight 86720 + cotacao; primeiro POST unico e ID retornado',async()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../lib/integracoes/carta-comercial-correios.js'),'utf8');
+ const mod={exports:{}},chamadas=[];
+ const env={CORREIOS_CARTAS_EMISSAO_HABILITADA:'1',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'teste-carta-comercial-20261112',INTEGRATIONS_ENCRYPTION_KEY:'segredo-de-testes-suficientemente-longo-1234'};
+ const requireMock=n=>n==='node:crypto'?require('node:crypto'):n==='./_utils'?{exigirAdmin:()=>true}:{
+   cfg:()=>({}),descobrirContrato:async()=>({todosServicos:[{codigo:'12345',descricao:'CARTA COML REG PL3 MFD'},{codigo:'86720',descricao:'API PRE POSTAGEM'}]}),
+   configuracaoEfetiva:async()=>({...c,contrato:'12345',dr:'01'}),
+   apiComToken:async url=>url.includes('/preco/')?{pcFinal:'15,60'}:{codigo:'86720'},
+   gerarToken:async()=> 'token-mock'
+ };
+ const mockFetch=async(url,opts)=>{chamadas.push({url,opts});return {ok:true,status:200,async text(){return JSON.stringify({id:'PRabcdefghij1234567890AB'})}}};
+ new Function('require','module','process','fetch',src)(requireMock,mod,{env},mockFetch);
+ async function invoke(modo,body){
+   let status=0,result;
+   await mod.exports({method:'POST',query:{modo},body},{status(n){status=n;return this},json(x){result=x;return this}});
+   return {status,result};
+ }
+ const p={cepDestino:'74000000',pesoGramas:20,codigoServico:'12345',tipoConteudo:'DOCUMENTOS',destinatario:destino};
+ const antes=await invoke('preparar',p);
+ assert.equal(antes.status,200);assert.ok(antes.result.confirmacaoPiloto);assert.equal(antes.result.valorCotado,15.60);
+ const emitido=await invoke('emitir',{...p,confirmarEmissaoReal:true,confirmacaoPiloto:antes.result.confirmacaoPiloto});
+ assert.equal(emitido.status,200);assert.equal(emitido.result.idPrePostagem,'PRabcdefghij1234567890AB');
+ assert.equal(chamadas.length,1);assert.equal(chamadas[0].opts.method,'POST');
+ const enviado=JSON.parse(chamadas[0].opts.body);
+ assert.equal(enviado.codigoFormatoObjetoInformado,'1');assert.equal(enviado.pesoInformado,20);
+ assert.equal(enviado.precoPostagem,0);assert.ok(!('chaveNFe' in enviado));
 });
