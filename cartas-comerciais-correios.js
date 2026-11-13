@@ -59,7 +59,13 @@ async function request(modo,body){
  return j;
 }
 function destinatario(){const e=cartaSepararNumero(val('corEndereco'),val('corNumero'));return {nome:val('corCliente'),cpfCnpj:val('corDocumento'),endereco:{cep:val('corCep'),logradouro:e.logradouro,numero:e.numero,complemento:val('corComplemento'),bairro:val('corBairro'),cidade:val('corCidade'),uf:val('corUf')}};}
-function corpo(){return {cepDestino:val('corCep'),pesoGramas:Number(val('cartaPesoGramas')),codigoServico:val('cartaServico'),tipoConteudo:'DOCUMENTOS',destinatario:destinatario()};}
+function hojeBrasilCarta(){
+ const partes=new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+ const v=Object.fromEntries(partes.filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));
+ return v.year+'-'+v.month+'-'+v.day;
+}
+function iniciarDataCarta(){const e=el('cartaDataPrevista');if(e&&!e.value)e.value=hojeBrasilCarta();}
+function corpo(){iniciarDataCarta();return {cepDestino:val('corCep'),pesoGramas:Number(val('cartaPesoGramas')),dataPrevistaPostagem:val('cartaDataPrevista'),codigoServico:val('cartaServico'),tipoConteudo:'DOCUMENTOS',destinatario:destinatario()};}
 function tituloCategoria(categoria){return categoria==='simples'?'Carta Simples':categoria==='registrada_ar'?'Registrada com AR':'Carta Registrada';}
 function modalidadeAtiva(){return servicos.find(s=>s.codigo===val('cartaServico'));}
 window.cartaDiagnosticar=async()=>{
@@ -82,7 +88,7 @@ window.cartaDiagnosticar=async()=>{
     servicos.find(x=>x.categoria==='registrada')||servicos.find(x=>x.categoria==='simples');
   s.value=servicos.some(x=>x.codigo===anterior)?anterior:recomendado?.codigo||'';
   el('cartaCotacoes').textContent='';
-  aviso(servicos.length?(d.observacao+' Modalidade inicial: '+tituloCategoria(modalidadeAtiva()?.categoria)+'.'):(d.observacao||'Carta indisponível.'),servicos.length>0);
+  aviso(servicos.length?(d.observacao+' Modalidade inicial: '+tituloCategoria(modalidadeAtiva()?.categoria)+'. '+(d.motivoBloqueioEmissao||'')):(d.observacao||'Carta indisponível.'),servicos.length>0&&!d.motivoBloqueioEmissao);
  }catch(e){aviso(e.message,false);}
 };
 window.cartaVerificarPrepostagem=async()=>{
@@ -138,7 +144,7 @@ window.cartaPreparar=async()=>{
   const r=await request('preparar',corpo());
   if(r.confirmacaoPiloto&&r.resumo){
    tokenPiloto=r.confirmacaoPiloto;resumoPiloto=r.resumo;valorPiloto=r.valorCotado??null;
-   aviso('Validação concluída. Confira nome, endereço e valor. Se tudo estiver correto, o botão de EMISSÃO REAL está liberado somente para uma Carta Registrada piloto.',true);
+   aviso(r.emissaoDeTesteHabilitada===true?'Validação concluída. Confira destinatário, data e valor antes de autorizar uma carta.':'Dados, data e tarifa validados SEM ENVIO. A emissão real está bloqueada devido ao PPN-213 (objetos registrados versus objetos simples); o layout oficial ainda precisa ser confirmado.',r.emissaoDeTesteHabilitada===true);
   }else aviso(r.observacao,true);
   bloqueioEmissao();
  }catch(e){aviso(e.message,false);}
@@ -174,6 +180,7 @@ window.cartaEmitir=async()=>{
   'CEP/cidade: '+resumoPiloto.cepDestino+' — '+resumoPiloto.cidade+'/'+resumoPiloto.uf,
   'Modalidade: '+resumoPiloto.modalidade,
   'Peso: '+resumoPiloto.pesoGramas+' g',
+  'Data prevista de postagem: '+resumoPiloto.dataPrevistaPostagem,
   valorPiloto!=null?'Valor cotado: '+Number(valorPiloto).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Valor: confira a cotação anterior',
   '',
   'Esta operação cria uma carta REAL e poderá gerar cobrança. Nenhum reenvio será automático.',
@@ -275,5 +282,6 @@ try{
  if(!salvo&&!localStorage.getItem(CHAVE_400_ANTERIOR_CONFERIDO)&&!localStorage.getItem(CHAVE_TENTATIVA_CARTA))
   localStorage.setItem(CHAVE_TENTATIVA_CARTA,JSON.stringify({situacao:'reconciliar_envio_anterior_400',data:'2026-11-13'}));
 }catch{}
+iniciarDataCarta();
 bloqueioEmissao();
 })();
