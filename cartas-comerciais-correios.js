@@ -20,12 +20,14 @@ function cartaSepararNumero(logradouro,numero){
 }
 let servicos=[];
 let tokenPiloto=null, resumoPiloto=null, valorPiloto=null, pilotando=false, pilotoDisponivel=false;
+const CHAVE_TENTATIVA_CARTA='sofisticatto_carta_piloto_tentativa_pendente';
 function bloqueioEmissao(){
  const botao=el('cartaEmitirPiloto');
  if(!botao)return;
  const emitida=Boolean(localStorage.getItem('sofisticatto_carta_piloto_real_id'));
- botao.disabled=!(pilotoDisponivel&&tokenPiloto&&!emitida&&!pilotando);
- botao.title=emitida?'Já há carta criada nesta sessão. Reimprima a etiqueta pelo ID.':'Exige prévia confirmada e autorização da primeira postagem real.';
+ const pendente=Boolean(localStorage.getItem(CHAVE_TENTATIVA_CARTA));
+ botao.disabled=!(pilotoDisponivel&&tokenPiloto&&!emitida&&!pendente&&!pilotando);
+ botao.title=emitida?'Já existe uma carta com ID salvo: reimprima o PDF.':pendente?'Existe tentativa anterior. Confira no painel oficial antes de outra emissão.':'Exige prévia confirmada e autorização da primeira postagem real.';
 }
 
 function aviso(msg,ok){const e=el('cartaStatus');if(e){e.textContent=msg;e.style.color=ok?'#186c42':'#9a361c';}}
@@ -52,7 +54,8 @@ async function request(modo,body){
  const key=await chave();
  const r=await fetch('/api/integracoes?action=carta-comercial-correios&modo='+modo,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','x-integrations-admin-key':key},body:body?JSON.stringify(body):undefined});
  const j=await r.json().catch(()=>({}));if(r.status===401)throw Error('Autorização recusada neste Preview. Valide a Senha Mestre deste ambiente e tente novamente.');
- if(!r.ok||!j.ok)throw Error(j.erro||'Correios HTTP '+r.status);return j;
+ if(!r.ok||!j.ok){const erro=new Error(j.erro||'Correios HTTP '+r.status);erro.codigo=j.codigo||null;erro.codigoCorreios=j.codigoCorreios||null;erro.detalhes=Array.isArray(j.detalhes)?j.detalhes:[];throw erro;}
+ return j;
 }
 function destinatario(){const e=cartaSepararNumero(val('corEndereco'),val('corNumero'));return {nome:val('corCliente'),cpfCnpj:val('corDocumento'),endereco:{cep:val('corCep'),logradouro:e.logradouro,numero:e.numero,complemento:val('corComplemento'),bairro:val('corBairro'),cidade:val('corCidade'),uf:val('corUf')}};}
 function corpo(){return {cepDestino:val('corCep'),pesoGramas:Number(val('cartaPesoGramas')),codigoServico:val('cartaServico'),tipoConteudo:'DOCUMENTOS',destinatario:destinatario()};}
@@ -139,8 +142,21 @@ window.cartaPreparar=async()=>{
   bloqueioEmissao();
  }catch(e){aviso(e.message,false);}
 };
+window.cartaConferiTentativaAnterior=()=>{
+ if(!localStorage.getItem(CHAVE_TENTATIVA_CARTA))
+  return aviso('Não há tentativa pendente registrada neste navegador. Se tentou enviar em outra versão, confira diretamente no portal oficial.',false);
+ if(localStorage.getItem('sofisticatto_carta_piloto_real_id'))
+  return aviso('Uma carta já possui ID registrado. Não crie outra: recupere a etiqueta oficial pelo ID.',false);
+ const confirmou=window.confirm('Você consultou o portal de Pré-Postagem dos Correios e confirmou que NÃO existe carta registrada para este destinatário, serviço e horário?\n\nConfirme somente após verificar. Esta ação não envia carta, apenas libera uma nova validação.');
+ if(!confirmou)return aviso('A tentativa anterior permanece bloqueada. Nenhuma carta foi enviada.',false);
+ localStorage.removeItem(CHAVE_TENTATIVA_CARTA);
+ tokenPiloto=null;resumoPiloto=null;valorPiloto=null;
+ bloqueioEmissao();
+ aviso('Verificação registrada. Clique novamente no botão 3 para validar dados e preço. Nenhuma carta foi enviada por esta ação.',true);
+};
 window.cartaEmitir=async()=>{
  if(pilotando)return;
+ if(localStorage.getItem(CHAVE_TENTATIVA_CARTA))return aviso('Existe tentativa anterior: confira no portal oficial se houve registro antes de tentar novamente.',false);
  const idExistente=localStorage.getItem('sofisticatto_carta_piloto_real_id');
  if(idExistente){
   el('cartaId').value=idExistente;
@@ -162,17 +178,20 @@ window.cartaEmitir=async()=>{
   'CONFIRMA os dados e autoriza a criação desta primeira carta?'
  ].join('\n');
  if(!window.confirm(resumo))return aviso('Emissão cancelada. Nenhum objeto criado.',false);
+ localStorage.setItem(CHAVE_TENTATIVA_CARTA,JSON.stringify({data:new Date().toISOString(),situacao:'aguardando_reconciliacao'}));
  pilotando=true;bloqueioEmissao();aviso('Enviando uma única pré-postagem real. Não atualize a página...',true);
  try{
   const r=await request('emitir',{...d,confirmacaoPiloto:tokenPiloto,confirmarEmissaoReal:true});
   if(!/^PR[A-Za-z0-9]{10,40}$/.test(String(r.idPrePostagem||'')))throw Error('Resposta sem ID oficial. Confira o painel dos Correios ANTES de repetir.');
   localStorage.setItem('sofisticatto_carta_piloto_real_id',r.idPrePostagem);
+  localStorage.setItem(CHAVE_TENTATIVA_CARTA,JSON.stringify({data:new Date().toISOString(),situacao:'id_recebido'}));
   el('cartaId').value=r.idPrePostagem;
   tokenPiloto=null;resumoPiloto=null;
   aviso('PRÉ-POSTAGEM REAL REGISTRADA! ID '+r.idPrePostagem+'. Solicitando PDF oficial; se ainda estiver processando, clique somente em Imprimir rótulo oficial por ID.',true);
   await window.cartaRotulo();
  }catch(e){
-  aviso('A operação não foi confirmada: '+e.message+'. Em caso de erro de rede ou resposta sem ID, confira em prepostagem.correios.com.br antes de tentar novamente para evitar duplicidade.',false);
+  const codigo=e.codigoCorreios?' Código Correios: '+e.codigoCorreios+'.':'';
+  aviso('Pré-postagem não confirmada: '+e.message+codigo+' Confira no portal oficial se existe registro. Nova tentativa bloqueada até sua conferência.',false);
  }finally{pilotando=false;bloqueioEmissao();}
 };
 window.cartaRotulo=async()=>{
