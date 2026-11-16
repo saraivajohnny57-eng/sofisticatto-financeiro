@@ -9,8 +9,8 @@ function adminAutorizado(req){
   return !!esperado && recebido===esperado;
 }
 function supabaseConfig(){
-  const url=norm(process.env.SUPABASE_URL||process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const key=norm(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const url=norm(process.env.FINANCEIRO02_SUPABASE_URL || process.env.SUPABASE_URL||process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const key=norm(process.env.FINANCEIRO02_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
   if(!url||!key) throw new Error('SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY precisam estar configuradas na Vercel.');
   return {url:url.replace(/\/$/,''),key};
 }
