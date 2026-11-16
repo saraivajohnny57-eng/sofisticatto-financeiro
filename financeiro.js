@@ -5445,7 +5445,9 @@ function formatarVolumeEtiqueta(atual,total){
 }
 
 function logoEtiquetaUrl(){
-  return emailAssinaturaAtiva?.logo_url || "";
+  // Etiquetas da Sofisticatto utilizam a marca local oficial.
+  // A antiga assinatura de e-mail pode apontar para Storage de um Supabase já desativado.
+  return "/assets/sofisticatto-logo.jpeg";
 }
 
 function montarQrEtiqueta(elemento){
@@ -9672,6 +9674,12 @@ async function gerarPdfBoletoBb(d,opt={}){
   async function drawLogoSofisticatto(x,y,w,h){
     if(logoData){
       try{const bytes=Uint8Array.from(atob(logoData.split(',')[1]),c=>c.charCodeAt(0));const im=logoData.startsWith('data:image/png')?await pdf.embedPng(bytes):await pdf.embedJpg(bytes);const sc=Math.min(w/im.width,h/im.height);pg.drawImage(im,{x:x+(w-im.width*sc)/2,y:y+(h-im.height*sc)/2,width:im.width*sc,height:im.height*sc});return true;}catch(e){console.warn('Logo boleto:',e)}
+    }
+    // Fallback confiável quando a assinatura aponta para Storage antigo.
+    if(sofisticattoLogoAsset){
+      const im=sofisticattoLogoAsset,sc=Math.min(w/im.width,h/im.height);
+      pg.drawImage(im,{x:x+(w-im.width*sc)/2,y:y+(h-im.height*sc)/2,width:im.width*sc,height:im.height*sc});
+      return true;
     }
     drawTextFit('Sofisticatto',x,y+h/2-4,w,15,bold,'center');drawTextFit('COSMÉTICOS',x,y+3,w,5,font,'center');return false;
   }
