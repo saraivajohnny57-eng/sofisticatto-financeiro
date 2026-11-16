@@ -4,8 +4,8 @@ const {credencialAdmin}=require('../lib/integracoes/_utils');
 module.exports=async function(req,res){
  res.setHeader('Cache-Control','no-store');
  if(!credencialAdmin(req))return res.status(401).json({ok:false,erro:'Autorize este computador com a senha mestre para usar etiquetas.'});
- const url=String(process.env.SUPABASE_URL||'').replace(/\/$/,'');
- const key=String(process.env.SUPABASE_SERVICE_ROLE_KEY||'');
+ const url=String(process.env.FINANCEIRO02_SUPABASE_URL || process.env.SUPABASE_URL||'').replace(/\/$/,'');
+ const key=String(process.env.FINANCEIRO02_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY||'');
  if(!url||!key)return res.status(503).json({ok:false,erro:'Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY na Vercel.'});
  const body=req.body||{},acao=String(req.query?.acao||body.acao||'');
  const codigo=String(body.codigo||req.query?.codigo||'').trim();
