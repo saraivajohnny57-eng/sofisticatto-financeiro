@@ -3447,15 +3447,17 @@ async function sincronizarColetasAutomaticamente(forcar=false){
     const chave=await chaveAdminColeta();
     if(!chave)throw new Error("Chave administrativa não informada.");
 
-    const resposta=await fetch("/api/integracoes?action=atualizar-status",{
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json",
-        "x-integrations-admin-key":chave
-      }
-    });
-    const dados=await resposta.json().catch(()=>({}));
-    if(!resposta.ok)throw new Error([dados.erro,dados.diagnostico?.mensagem,dados.detalhe].filter(Boolean).join(" — ")||`HTTP ${resposta.status}`);
+    let dados={};let falhaColetas=null;
+    try{
+      const resposta=await fetch("/api/integracoes?action=atualizar-status",{
+        method:"POST",headers:{"Content-Type":"application/json","x-integrations-admin-key":chave}
+      });
+      dados=await resposta.json().catch(()=>({}));
+      if(!resposta.ok)throw new Error([dados.erro,dados.diagnostico?.mensagem,dados.detalhe].filter(Boolean).join(" — ")||`HTTP ${resposta.status}`);
+    }catch(e){
+      // A consulta Rodonaves não pode impedir o rastreio de outras transportadoras.
+      falhaColetas=e;console.warn("Coletas Rodonaves indisponíveis; consultando SSW/Accert:",e.message);
+    }
 
     // V84: além do endpoint de coletas (Rodonaves), consulta também Correios,
     // SSW/Accert/TG, Alfa e demais integrações. Isso permite que uma ocorrência
@@ -3470,14 +3472,16 @@ async function sincronizarColetasAutomaticamente(forcar=false){
         }
       });
       rastreiosGerais=await rr.json().catch(()=>({}));
+      if(!rr.ok)throw new Error(rastreiosGerais.erro||`HTTP ${rr.status}`);
     }catch(e){
+      rastreiosGerais={...rastreiosGerais,erros:Math.max(1,Number(rastreiosGerais.erros||0))};
       console.warn("V84: falha na sincronização geral de rastreios:",e);
     }
 
     ultimaSincronizacaoColetas=Date.now();
     const hora=new Date().toLocaleTimeString("pt-BR");
     atualizarIndicadorSincronizacao(
-      (dados.erros||rastreiosGerais.erros)?"aviso":"sucesso",
+      (falhaColetas||dados.erros||rastreiosGerais.erros)?"aviso":"sucesso",
       `Última sincronização: ${hora} — coletas: ${dados.consultadas||0} consultada(s), ${dados.alteradas||0} alterada(s); rastreios: ${(rastreiosGerais.consultados??dados.rastreios?.consultados)||0} consultado(s), ${(rastreiosGerais.atualizados??dados.rastreios?.alterados)||0} atualizado(s)${dados.ignoradas?`; ${dados.ignoradas} coleta(s) aguardando código`:""}${(dados.erros||rastreiosGerais.erros)?`; ${(dados.erros||0)+(rastreiosGerais.erros||0)} erro(s)`:""}`
     );
     await carregarPainelRodonaves();
