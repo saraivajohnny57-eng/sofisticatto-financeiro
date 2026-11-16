@@ -1,12 +1,29 @@
-const SUPABASE_URL = "https://drtgtwwsbxrmqcaabzcs.supabase.co";
-const SUPABASE_KEY = "sb_publishable_h0Ep974nBED88dimAY0BGQ_KLqoQ7po";
+const SUPABASE_URL = "https://xrtpidsqbfdlgjefuobs.supabase.co";
+const SUPABASE_KEY = "sb_publishable_TuEwsTMsGX2mXkRGxzTrcw_WXWooOxj";
 let banco = null;
 let realtimeIniciado = false;
+
+/* Somente o Portal envia consultas de dados ao gateway autenticado.
+   A chave de servidor nunca é exposta no cliente. */
+async function financeiro02Fetch(input, init) {
+  const request = new Request(input, init);
+  const target = new URL(request.url);
+  const fromNewDatabase = target.origin === SUPABASE_URL;
+  const proxied = /^\/rest\/v1\/|^\/storage\/v1\/object\//.test(target.pathname);
+  if (!fromNewDatabase || !proxied) return fetch(request);
+  const headers = new Headers(request.headers);
+  ["apikey","authorization","x-client-info"].forEach(name => headers.delete(name));
+  const body = /^(GET|HEAD)$/i.test(request.method) ? undefined : await request.arrayBuffer();
+  return fetch("/api/portal-data?path=" + encodeURIComponent(target.pathname + target.search), {
+    method: request.method,
+    headers, body, credentials: "same-origin", cache: "no-store"
+  });
+}
 
 function carregarSupabase(){
   return new Promise((resolve, reject) => {
     if(window.supabase){
-      banco = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      banco = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {global:{fetch:financeiro02Fetch}});
       resolve();
       return;
     }
@@ -16,7 +33,7 @@ function carregarSupabase(){
     script.async = true;
     script.onload = () => {
       if(window.supabase){
-        banco = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        banco = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {global:{fetch:financeiro02Fetch}});
         resolve();
       }else{
         reject(new Error("Supabase não carregou"));
@@ -69,19 +86,28 @@ let atualizacaoPendenteEnquantoEdita = false;
 let formularioRelatorioAlterado = false;
 
 async function entrar(){
-  if(!bancoPronto()) return;
   const login = document.getElementById("login").value.trim();
-  const senha = document.getElementById("senha").value.trim();
-  const resposta = await banco.from("usuarios").select("*").eq("login", login).eq("senha", senha).single();
-
-  if(resposta.error || !resposta.data){
-    alert("Login ou senha inválidos");
-    return;
+  const senha = document.getElementById("senha").value;
+  if (!login || !senha) {alert("Informe seu login e senha."); return;}
+  try {
+    const resposta = await fetch("/api/portal-auth", {
+      method:"POST",credentials:"same-origin",cache:"no-store",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({login,senha})
+    });
+    const dados = await resposta.json();
+    if(!resposta.ok || !dados.ok || !dados.usuario) {
+      alert(dados.erro || "Não foi possível entrar. Verifique seu login e senha.");
+      return;
+    }
+    usuarioLogado = dados.usuario;
+    localStorage.setItem("usuarioLogado",JSON.stringify(usuarioLogado));
+    document.getElementById("senha").value = "";
+    iniciarSistema();
+  }catch(e){
+    console.error("Erro de login Financeiro02:", e.message);
+    alert("Não foi possível conectar ao servidor do Financeiro02.");
   }
-
-  usuarioLogado = resposta.data;
-  localStorage.setItem("usuarioLogado", JSON.stringify(usuarioLogado));
-  iniciarSistema();
 }
 
 function iniciarSistema(){
@@ -119,7 +145,7 @@ function mostrarSecao(secao){
   if(secao === "envioDocumentos") carregarModuloEmail();
 }
 
-function sair(){ localStorage.removeItem("usuarioLogado"); location.reload(); }
+function sair(){ localStorage.removeItem("usuarioLogado"); fetch("/api/portal-auth",{method:"DELETE",credentials:"same-origin"}).finally(()=>location.reload()); }
 
 async function carregarBancos(){
   const resposta = await banco.from("bancos").select("*").order("nome",{ascending:true});
@@ -1175,15 +1201,10 @@ function iniciarSincronizacaoAutomatica(){
 
 
 function iniciarRealtime(){
-  if(realtimeIniciado || !banco) return;
-  realtimeIniciado = true;
-
-  banco
-  .channel("tempo-real")
-  .on("postgres_changes",{event:"*",schema:"public",table:"boletos"},(payload) => {
-    atualizarTempoRealComDebounce(payload);
-  })
-  .subscribe();
+  // Temporariamente desativado: o banco novo não possui JWT de Auth para Realtime.
+  // Evita reconexões em ciclo e consumo de tráfego; atualização manual permanece disponível.
+  if(realtimeIniciado || !banco)return;
+  realtimeIniciado=true;
 }
 
 
@@ -5351,11 +5372,23 @@ document.addEventListener("DOMContentLoaded", async function(){
     iniciarRealtime();
     esconderCarregando();
 
-    const salvo = localStorage.getItem("usuarioLogado");
-    if(salvo){
-      usuarioLogado = JSON.parse(salvo);
-      iniciarSistema();
+    // Revalida a sessão HttpOnly, sem confiar no login salvo no navegador.
+    const anterior = localStorage.getItem("usuarioLogado");
+    const sessao = await fetch("/api/portal-auth",{method:"GET",credentials:"same-origin",cache:"no-store"});
+    if(sessao.ok && anterior){
+      const atual = await sessao.json();
+      const salvo = JSON.parse(anterior);
+      if(atual.usuario && salvo.id === atual.usuario.id){
+        usuarioLogado = {...salvo,...atual.usuario};
+        delete usuarioLogado.senha;
+        localStorage.setItem("usuarioLogado",JSON.stringify(usuarioLogado));
+        iniciarSistema();
+      }else{
+        localStorage.removeItem("usuarioLogado");
+        atualizarBotaoNotificacao();
+      }
     }else{
+      localStorage.removeItem("usuarioLogado");
       atualizarBotaoNotificacao();
     }
   }catch(erro){
