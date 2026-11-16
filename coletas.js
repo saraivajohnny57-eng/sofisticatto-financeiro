@@ -2635,13 +2635,19 @@ async function consultarRastreioCorreiosRegistro(id,{chave=null}={}){
 }
 
 function normalizarStatusOcorrenciaSSWCliente(desc,codigo){
-  const s=`${desc||""} ${codigo||""}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
-  if(/entreg|baixa realizada|ctrc entregue|entrega realizada/.test(s))return "entregue";
-  if(/saiu.*entrega|em rota|rota de entrega|veiculo em entrega/.test(s))return "saiu_entrega";
-  if(/filial|unidade|chegada|recebida.*unidade/.test(s))return "na_filial";
-  if(/cancel|devol/.test(s))return "cancelado";
-  if(/ocorr|insucesso|recusa|ausente|endereco/.test(s))return "ocorrencia";
-  return "em_transito";
+  const t=String(desc||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  const d=String(codigo||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  const all=(t+" "+d);
+  // Evita interpretar "previsão de entrega" ou "saiu para entrega" como entregue.
+  if(/nao entregue|entrega nao realizada|tentativa de entrega|insucesso|recusa|devolu/.test(all))return "ocorrencia";
+  if(/saiu.*entrega|saida.*entrega|em rota|rota de entrega/.test(all))return "saiu_entrega";
+  if(/\bentregue\b|\bentregues\b|entrega realizada|mercadoria entregue|baixa realizada|recebido pelo destinatario/.test(all)&&!/previsao.*entrega/.test(all))return "entregue";
+  // SAÍDA DE UNIDADE é transferência, não permanência em filial.
+  if(/saida de unidade|saida da unidade|transferencia|em transito|em viagem|carregada no veiculo|coleta realizada/.test(all))return "em_transito";
+  if(/chegada.*unidade|entrada.*unidade|na filial|centro de distribuicao/.test(all))return "na_filial";
+  if(/cancelado/.test(all))return "cancelado";
+  if(/ocorrencia|avaria|extravio/.test(all))return "ocorrencia";
+  return "aguardando_coleta";
 }
 async function consultarRastreioSSWDiretoRegistro(id,{chave=null}={}){
   const rastro=await obterRastreamentoPorId(id);
@@ -2693,7 +2699,8 @@ async function consultarRastreioSSWRegistro(id){
   const ocorrencia=ocorrenciasValidas.sort((a,b)=>timestampOcorrencia(b)-timestampOcorrencia(a))[0]||null;
   const ultimaAnterior=Date.parse(rastro.ultima_ocorrencia_em||"");
   const dataNova=ocorrencia?timestampOcorrencia(ocorrencia):0;
-  const statusFinalizado=['entregue','recebido','cancelado'].includes(String(rastro.status||'').toLowerCase());
+  const statusFinalizado=(['recebido','cancelado'].includes(String(rastro.status||'').toLowerCase())||
+    (String(rastro.status||'').toLowerCase()==='entregue'&&Boolean(rastro.finalizado_em)));
   const ocorrenciaNova=!!ocorrencia && !statusFinalizado && dataNova>0 &&
     (!Number.isFinite(ultimaAnterior) || dataNova>ultimaAnterior);
 
@@ -4045,7 +4052,7 @@ async function selecionarClienteTimelineV432(clientes, nomeRastro){
     acoes.append(cancelar,confirmar);caixa.append(titulo,ajuda,busca,select,acoes);fundo.append(caixa);document.body.append(fundo);busca.focus();
   });
 }
-function previsaoRastreioV415(rastro,vivo){
+function previsaoRastreioV415(rastro,vivo,eventos=[]){
   const candidatos=[{valor:vivo?.previsaoEntrega||vivo?.previsao_entrega||vivo?.dataPrevisaoEntrega,origem:'Transportadora'},
     ...((vivo?.conhecimentos||[]).map(c=>({valor:c.previsaoEntrega,origem:'Transportadora'}))),
     {valor:rastro.previsao_entrega,origem:'Cadastro do rastreio'}];
@@ -4053,6 +4060,17 @@ function previsaoRastreioV415(rastro,vivo){
     if(/^\d{4}-\d{2}-\d{2}/.test(texto))data=new Date(texto.slice(0,10)+'T12:00:00');
     else if(/^\d{2}\/\d{2}\/\d{4}/.test(texto)){const [d,m,a]=texto.slice(0,10).split('/');data=new Date(`${a}-${m}-${d}T12:00:00`);}
     if(data&&!isNaN(data.getTime()))return {texto:data.toLocaleDateString('pt-BR'),origem:c.origem};
+  }
+  // SSW costuma informar a previsão dentro da descrição do CT-e, não em um campo dedicado.
+  // Previsão não é prova de entrega e não altera a etapa de rastreamento.
+  for(const e of eventos){
+    const resumo=String(e.descricao||"")+" "+String(e.titulo||"");
+    const m=resumo.match(/previs[aã]o de entrega\s*[:\-]?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
+    if(!m)continue;
+    const partes=m[1].split("/");
+    const ano=partes[2].length===2?"20"+partes[2]:partes[2];
+    const dt=new Date(ano+"-"+partes[1].padStart(2,"0")+"-"+partes[0].padStart(2,"0")+"T12:00:00");
+    if(!Number.isNaN(dt.getTime()))return {texto:dt.toLocaleDateString("pt-BR"),origem:'Ocorrência da transportadora'};
   }
   return {texto:'Não informada pela transportadora',origem:''};
 }
@@ -4145,7 +4163,7 @@ async function abrirLinhaTempoRastreio(id){
       if(rastro.chave_nfe)q=q.eq("chave_nfe",String(rastro.chave_nfe).replace(/\D/g,""));else if(rastro.numero_nfe)q=q.eq("numero_nfe",String(rastro.numero_nfe));
       const rr=await q;if(!rr.error)for(const o of (rr.data||[]))eventos.push({titulo:o.descricao||o.codigo_ocorrencia?String(o.descricao||`Ocorrência ${o.codigo_ocorrencia}`):"Ocorrência SSW",descricao:[o.descricao,o.complemento].filter(Boolean).join(" — "),data:o.data_hora_evento||o.processado_em||o.created_at,local:o.cidade||o.filial||null,fonte:"SSW — ocorrência recebida"});
     }
-    if(rastro.ultima_ocorrencia && !(/correios|coreios/i.test(nome)&&eventos.some(e=>e.oficial)))eventos.push({titulo:statusLabelRastreamento(rastro.status)||"Última ocorrência",descricao:rastro.ultima_ocorrencia,data:rastro.ultima_ocorrencia_em||rastro.atualizado_em,local:null,fonte:rastro.metodo_consulta||"Portal Sofisticatto"});
+    if(rastro.ultima_ocorrencia && !(/correios|coreios/i.test(nome)&&eventos.some(e=>e.oficial)))eventos.push({titulo:"Última ocorrência registrada",descricao:rastro.ultima_ocorrencia,data:rastro.ultima_ocorrencia_em||rastro.atualizado_em,local:null,fonte:rastro.metodo_consulta||"Portal Sofisticatto"});
     const map=new Map();
     for(const e of eventos){
       const dt=dataEventoTimeline(e.data);
@@ -4174,7 +4192,7 @@ async function abrirLinhaTempoRastreio(id){
     if(dias>=3&&atual<5)alertas+=`<div class="rast-timeline-aviso rast-timeline-alerta-parado"><b>⏱ Sem nova movimentação há ${dias} dia(s).</b><br>Vale acompanhar a próxima atualização da transportadora.</div>`;
     if(rastro.sincronizacao_erro&&!incidente)alertas+=`<div class="rast-timeline-aviso">⚠ ${escaparHtmlEmail(rastro.sincronizacao_erro)}</div>`;
     if(avisoAoVivo&&!eventos.length)alertas+=`<div class="rast-timeline-aviso">⚠ Consulta ao vivo: ${escaparHtmlEmail(avisoAoVivo)}</div>`;
-    const prevV415=previsaoRastreioV415(rastro,vivo);
+    const prevV415=previsaoRastreioV415(rastro,vivo,eventos);
     const previsaoHtmlV415=`<div class="rast-resumo-api" style="margin:10px 0"><span>📅 <b>Previsão de entrega:</b> ${escaparHtmlEmail(prevV415.texto)} ${prevV415.origem?`<small>(${escaparHtmlEmail(prevV415.origem)})</small>`:""}</span></div>`;
     const etapasHtml=`<div class="rast-etapas-box"><div class="rast-etapas-titulo">Etapas da entrega <small style="font-weight:500;color:#77718d">(progressão estimada com base nas ocorrências reais)</small></div><div class="rast-etapas">${etapas.map((x,i)=>`<div class="rast-etapa ${i<atual?'concluida':i===atual?'atual':''}"><div class="rast-etapa-dot">${i<atual?'✓':i===atual?'●':i+1}</div><div>${x}</div></div>`).join("")}</div>${locais.length?`<div class="rast-rota-locais"><b style="font-size:11px;color:#655f77">Locais registrados:</b>${locais.map(l=>`<span class="rast-rota-chip">📍 ${escaparHtmlEmail(l)}</span>`).join("")}</div>`:""}</div>`;
     if(!eventos.length){body.innerHTML=alertas+previsaoHtmlV415+etapasHtml+'<div class="rast-timeline-vazio">Ainda não há ocorrências detalhadas disponíveis para este pedido.</div>';return;}
