@@ -1,5 +1,6 @@
 const crypto=require('crypto');
 const {supabaseRest}=require('../lib/integracoes/_utils');
+const {statusSSW,confirmaColetaSSW}=require('../lib/integracoes/_ssw-validacao');
 
 function json(res,status,data){return res.status(status).json(data)}
 // Token configured between the authorized sender/proxy and this endpoint.
@@ -16,20 +17,8 @@ function tokenValido(req){
 function dig(v){return String(v??'').replace(/\D/g,'')}
 function texto(v){return String(v??'').trim()}
 function primeiro(...vals){return vals.find(v=>v!==undefined&&v!==null&&String(v).trim()!=='')||''}
-function normalizarStatus(desc,codigo){
-  const s=`${desc} ${codigo||''}`.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  if(/entreg|baixa realizada|ctrc entregue|entrega realizada/.test(s))return 'entregue';
-  if(/saiu.*entrega|em rota|rota de entrega|veiculo em entrega/.test(s))return 'saiu_entrega';
-  if(/filial|unidade|chegada|recebida.*unidade/.test(s))return 'na_filial';
-  if(/transito|em viagem|transferencia|coleta realizada|coletada|coletado|mercadoria colet/.test(s))return 'em_transito';
-  if(/cancel|devol/.test(s))return 'cancelado';
-  if(/ocorr|insucesso|recusa|ausente|endereco/.test(s))return 'ocorrencia';
-  return 'em_transito';
-}
-function eventoColeta(desc,codigo){
-  const s=`${desc} ${codigo||''}`.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  return /coleta realizada|coletada|coletado|mercadoria colet/.test(s);
-}
+function normalizarStatus(desc,codigo){return statusSSW(desc,codigo);}
+function eventoColeta(desc,codigo){return confirmaColetaSSW(desc,codigo);}
 
 module.exports=async function(req,res){
   if(req.method!=='POST')return json(res,405,{ok:false,erro:'Método não permitido.'});
@@ -82,23 +71,31 @@ module.exports=async function(req,res){
       const agora=new Date().toISOString();
       let rast=[];
       if(chaveNfe) rast=await supabaseRest('logistica_rastreamentos',{query:`?chave_nfe=eq.${chaveNfe}&transportadora_id=eq.${encodeURIComponent(transportadoraId||'00000000-0000-0000-0000-000000000000')}&limit=1`});
-      if(!rast?.length && numeroNfe) rast=await supabaseRest('logistica_rastreamentos',{query:`?numero_nfe=eq.${encodeURIComponent(numeroNfe)}&transportadora_id=eq.${encodeURIComponent(transportadoraId||'00000000-0000-0000-0000-000000000000')}&limit=1`});
+      if(!rast?.length && numeroNfe && !chaveNfe) rast=await supabaseRest('logistica_rastreamentos',{query:`?numero_nfe=eq.${encodeURIComponent(numeroNfe)}&transportadora_id=eq.${encodeURIComponent(transportadoraId||'00000000-0000-0000-0000-000000000000')}&limit=1`});
 
-      const patch={status,status_api:descricao,numero_cte:numeroCte||null,ultima_ocorrencia:complemento?`${descricao} — ${complemento}`:descricao,ultima_ocorrencia_em:new Date(dataEvento).toString()!=='Invalid Date'?new Date(dataEvento).toISOString():agora,consulta_api:{origem:'ssw_webservice_ocorrencias',codigo,descricao,complemento,dataHoraEvento:dataEvento,nf,cte,ocorrencia:oc},metodo_consulta:'push_ssw2181',consultado_api_em:agora,sincronizacao_erro:null,atualizado_em:agora,atualizado_por:'ssw_webservice_ocorrencias'};
-      if(status==='entregue')patch.finalizado_em=agora;
+      const patch={...(status?{status}:{}),status_api:descricao,numero_cte:numeroCte||null,ultima_ocorrencia:complemento?`${descricao} — ${complemento}`:descricao,ultima_ocorrencia_em:new Date(dataEvento).toString()!=='Invalid Date'?new Date(dataEvento).toISOString():agora,consulta_api:{origem:'ssw_webservice_ocorrencias',codigo,descricao,complemento,dataHoraEvento:dataEvento,nf,cte,ocorrencia:oc},metodo_consulta:'push_ssw2181',consultado_api_em:agora,sincronizacao_erro:null,atualizado_em:agora,atualizado_por:'ssw_webservice_ocorrencias'};
+      if(status==='entregue')patch.finalizado_em=patch.ultima_ocorrencia_em;
 
-      if(rast?.[0]?.id){
-        await supabaseRest('logistica_rastreamentos',{method:'PATCH',query:`?id=eq.${encodeURIComponent(rast[0].id)}`,body:patch});
-      }else if(numeroNfe||chaveNfe){
+      if(rast?.[0]?.id && status){
+        const antigo=rast[0];
+        const refAntiga=Date.parse(antigo.ultima_ocorrencia_em||'');
+        const refNova=Date.parse(patch.ultima_ocorrencia_em);
+        // Eventos antigos ou de remessas efetivamente encerradas não retrocedem o estado.
+        if(!((antigo.status==='entregue'&&antigo.finalizado_em)||
+          (Number.isFinite(refAntiga)&&refNova<refAntiga))){
+        await supabaseRest('logistica_rastreamentos',{method:'PATCH',query:`?id=eq.${encodeURIComponent(rast[0].id)}`,body:{...patch,finalizado_em:status==='entregue'?patch.ultima_ocorrencia_em:null}});
+        }
+      }else if(!rast?.[0]?.id && status && (numeroNfe||chaveNfe)){
         const novo={sentido:'saida',parceiro_nome:nomeTransportadora,transportadora_id:transportadoraId,numero_nfe:numeroNfe||null,chave_nfe:chaveNfe||null,numero_cte:numeroCte||null,protocolo_rastreio:protocolo||null,volumes:null,status,observacao:complemento||descricao,finalizado_em:status==='entregue'?agora:null,atualizado_em:agora,atualizado_por:'ssw_webservice_ocorrencias'};
         await supabaseRest('logistica_rastreamentos',{method:'POST',body:novo});
       }
 
       let coletas=[];
       if(numeroNfe)coletas=await supabaseRest('coleta_agendamentos',{query:`?numero_nf=eq.${encodeURIComponent(numeroNfe)}&transportadora_id=eq.${encodeURIComponent(transportadoraId||'00000000-0000-0000-0000-000000000000')}&limit=10`});
-      if(eventoColeta(descricao,codigo)){
+      if(eventoColeta(descricao,complemento||codigo)){
         for(const c of (coletas||[])){
-          const patchColeta={status_api:status==='entregue'?'coletado':'coletado',status:'coletado',coletado_em:agora,sincronizado_em:agora,sincronizacao_erro:null,atualizado_em:agora};
+          if(c.status==='coletado'||c.coletado_em)continue;
+          const patchColeta={status_api:descricao,status:'coletado',coletado_em:patch.ultima_ocorrencia_em,sincronizado_em:agora,sincronizacao_erro:null,atualizado_em:agora};
           await supabaseRest('coleta_agendamentos',{method:'PATCH',query:`?id=eq.${encodeURIComponent(c.id)}`,body:patchColeta});
           await supabaseRest('coleta_status_eventos',{method:'POST',body:{agendamento_id:c.id,status_anterior:c.status,status_novo:'coletado',origem:'ssw_webservice_ocorrencias',detalhes:{codigo,descricao,numeroNfe,chaveNfe},usuario:'sistema'}}).catch(()=>{});
         }
