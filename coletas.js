@@ -667,8 +667,10 @@ function protocoloAtualParaColeta(){
 }
 function extrairHorarioLimiteColeta(texto){
   const valor=String(texto||"").trim();
-  // Aceita 17:30, 17h30, 17 h, 17 horas, "Hoje até as 17:30 h" etc.
-  const m=valor.match(/(?:até\s*(?:as)?\s*)?([01]?\d|2[0-3])(?:\s*[:hH]\s*([0-5]\d))?(?:\s*(?:h|horas?))?/i);
+  // Começar pela expressão "até as": uma data anterior ("Dia 17/11")
+  // não pode ser confundida com um horário 17:00.
+  const m=valor.match(/at[eé]\s*(?:[aà]s?)?\s*([01]?\d|2[0-3])(?:\s*[:hH]\s*([0-5]\d))?/i)
+    ||valor.match(/\b([01]?\d|2[0-3])\s*[:hH]\s*([0-5]\d)\b/i);
   if(!m)return "";
   const h=String(Number(m[1])).padStart(2,"0");
   const min=String(m[2]||"00").padStart(2,"0");
@@ -2261,10 +2263,8 @@ async function reconciliarRastreiosDasColetasConfiguradas(){
 }
 
 async function carregarRastreamentosLogistica(sentido){
-  // A tela usa imediatamente o histórico salvo. A reconciliação pesada ocorre
-  // apenas em segundo plano e com intervalo de proteção.
-  if(sentido==="saida"&&!reconciliacaoRastreiosUltimaV465)
-    setTimeout(()=>reconciliarRastreiosDasColetasConfiguradas().catch(console.warn),1800);
+  // Exibe o histórico imediatamente, sem reconciliar até 1000 coletas na
+  // abertura da aba. O botão "Verificar APIs" executa a conciliação quando solicitado.
   try{
     if(sentido==="saida")await carregarTransportadorasRastreamentoIntegrado();
   }catch(e){
@@ -2979,6 +2979,10 @@ async function atualizarTodosRastreiosSaida(silencioso=false){
       return;
     }
 
+    // Somente na atualização solicitada pela pessoa, e no máximo uma
+    // vez por 15 minutos, reconciliar cadastros ainda não vinculados.
+    if(!silencioso)await reconciliarRastreiosDasColetasConfiguradas();
+
     // Primeiro reaplica ocorrências SSW já recebidas. Depois o backend faz a
     // descoberta geral: importa objetos dos Correios, consulta APIs diretas e SSW.
     const sswAtualizados=await sincronizarRastreiosSSWLocais().catch(()=>0);
@@ -3345,8 +3349,9 @@ async function abrirConsultaOficialRastreioV465(id){
     "NF: "+(nf||"não informada"),
     "Destinatário: "+(r.parceiro_nome||"não informado")
   ].join("\n");
-  const janela=window.open(site.url,"_blank","noopener,noreferrer");
-  if(!janela)alert("O navegador bloqueou a abertura do site da transportadora. Autorize pop-ups para este Portal.");
+  const link=document.createElement("a");
+  link.href=site.url;link.target="_blank";link.rel="noopener noreferrer";
+  document.body.append(link);link.click();link.remove();
   // Não automatizar o login nem tentar reutilizar a sessão privada em outro domínio.
   // O usuário escolhe se deseja copiar os identificadores para a consulta oficial.
   if(nf&&confirm("Área do Cliente Alfa aberta em nova aba.\n\n"+linha+"\n\nCopiar o número da NF para consultar?")){
@@ -4077,6 +4082,9 @@ function indiceEtapaBraspressReal(eventos,statusAtual){
 async function atualizarTimelineAoAbrir(rastro,nome){
   const chave=localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key")||"";
   if(!chave)return null;
+  // Ocorrências já consultadas há poucos minutos são exibidas direto do banco.
+  const ultimaConsulta=Date.parse(rastro.consultado_api_em||"");
+  if(Number.isFinite(ultimaConsulta)&&Date.now()-ultimaConsulta<5*60*1000)return null;
   try{
     if(/braspress/i.test(nome))return await consultarRastreioBraspressTimeline(rastro,chave);
     if(/rodonaves/i.test(nome))return (await consultarRastreioRodonavesRegistro(rastro.id,{chave})).dados;
