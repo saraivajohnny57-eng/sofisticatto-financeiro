@@ -14,7 +14,7 @@ async function financeiro02Fetch(input, init) {
   const headers = new Headers(request.headers);
   ["apikey","authorization","x-client-info"].forEach(name => headers.delete(name));
   const body = /^(GET|HEAD)$/i.test(request.method) ? undefined : await request.arrayBuffer();
-  return fetch("/api/portal-data?path=" + encodeURIComponent(target.pathname + target.search), {
+  return fetch("/api/integracoes?action=portal-data&path=" + encodeURIComponent(target.pathname + target.search), {
     method: request.method,
     headers, body, credentials: "same-origin", cache: "no-store"
   });
@@ -90,7 +90,7 @@ async function entrar(){
   const senha = document.getElementById("senha").value;
   if (!login || !senha) {alert("Informe seu login e senha."); return;}
   try {
-    const resposta = await fetch("/api/portal-auth", {
+    const resposta = await fetch("/api/integracoes?action=portal-auth", {
       method:"POST",credentials:"same-origin",cache:"no-store",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({login,senha})
@@ -145,7 +145,7 @@ function mostrarSecao(secao){
   if(secao === "envioDocumentos") carregarModuloEmail();
 }
 
-function sair(){ localStorage.removeItem("usuarioLogado"); fetch("/api/portal-auth",{method:"DELETE",credentials:"same-origin"}).finally(()=>location.reload()); }
+function sair(){ localStorage.removeItem("usuarioLogado"); fetch("/api/integracoes?action=portal-auth",{method:"DELETE",credentials:"same-origin"}).finally(()=>location.reload()); }
 
 async function carregarBancos(){
   const resposta = await banco.from("bancos").select("*").order("nome",{ascending:true});
@@ -5374,7 +5374,7 @@ document.addEventListener("DOMContentLoaded", async function(){
 
     // Revalida a sessão HttpOnly, sem confiar no login salvo no navegador.
     const anterior = localStorage.getItem("usuarioLogado");
-    const sessao = await fetch("/api/portal-auth",{method:"GET",credentials:"same-origin",cache:"no-store"});
+    const sessao = await fetch("/api/integracoes?action=portal-auth",{method:"GET",credentials:"same-origin",cache:"no-store"});
     if(sessao.ok && anterior){
       const atual = await sessao.json();
       const salvo = JSON.parse(anterior);
