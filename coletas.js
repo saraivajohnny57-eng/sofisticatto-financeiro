@@ -2391,6 +2391,8 @@ async function carregarRastreamentosLogistica(sentido){
       ${x.ultima_ocorrencia?`<div class="rastreio-ultima-ocorrencia">${escaparHtmlEmail(x.ultima_ocorrencia)}</div>`:""}
       ${x.sincronizacao_erro?`<div class="rastreio-ultima-ocorrencia" style="color:#a33;">⚠ ${escaparHtmlEmail(x.sincronizacao_erro)}</div>`:""}
       ${x.metodo_consulta?`<div class="rastreio-metodo">Localizado por: ${escaparHtmlEmail(x.metodo_consulta)}</div>`:""}
+      ${!x.ultima_ocorrencia&&!x.status_api?`<div class="rastreio-metodo" style="color:#956700">Sem ocorrência confirmada pela transportadora.</div>`:""}
+      ${x.consultado_api_em?`<div class="rastreio-metodo" title="Consulta realizada ao servidor da transportadora">Consulta: ${new Date(x.consultado_api_em).toLocaleString("pt-BR")}</div>`:""}
     </td>
     <td>
     ${rastreioPodeAtualizarV440(x)&&(!siteV464||integradoV464)?`<button class="btn azul" onclick="atualizarRastreioIntegrado('${x.id}',this)">Atualizar rastreio</button>`:""}
@@ -3338,9 +3340,12 @@ function rastreioSiteOficialV464(nome){
   return null;
 }
 
-async function abrirConsultaOficialRastreioV465(id){
-  const r=await obterRastreamentoPorId(id);
-  if(!r)return alert("Remessa não encontrada.");
+function abrirConsultaOficialRastreioV465(id){
+  // Usa a remessa já renderizada: a abertura da página precisa ocorrer no mesmo
+  // clique para não cair no bloqueador de pop-ups e não consultar o Supabase.
+  const r=[...(rastreamentosLogistica||[]),...(rastreamentosEntregues||[])]
+    .find(x=>String(x.id)===String(id));
+  if(!r)return alert("Remessa não encontrada. Atualize o painel e tente novamente.");
   const site=rastreioSiteOficialV464(r.frete_transportadoras?.nome||"");
   if(!site)return;
   const nf=String(r.numero_nfe||"").replace(/\D/g,"");
@@ -3355,8 +3360,9 @@ async function abrirConsultaOficialRastreioV465(id){
   // Não automatizar o login nem tentar reutilizar a sessão privada em outro domínio.
   // O usuário escolhe se deseja copiar os identificadores para a consulta oficial.
   if(nf&&confirm("Área do Cliente Alfa aberta em nova aba.\n\n"+linha+"\n\nCopiar o número da NF para consultar?")){
-    try{await navigator.clipboard.writeText(nf);}
-    catch(e){prompt("Copie o número da NF para a consulta:",nf);}
+    if(navigator.clipboard?.writeText)navigator.clipboard.writeText(nf)
+      .catch(()=>prompt("Copie a NF para a consulta:",nf));
+    else prompt("Copie a NF para a consulta:",nf);
   }
 }
 
