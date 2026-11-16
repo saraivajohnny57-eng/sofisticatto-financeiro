@@ -117,8 +117,8 @@ module.exports = async function handler(req, res) {
       variaveis: {
         integrations_admin_key: Boolean(process.env.INTEGRATIONS_ADMIN_KEY),
         integrations_encryption_key: Boolean(process.env.INTEGRATIONS_ENCRYPTION_KEY),
-        supabase_url: Boolean(process.env.SUPABASE_URL),
-        supabase_service_role_key: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+        supabase_url: Boolean(process.env.FINANCEIRO02_SUPABASE_URL || process.env.SUPABASE_URL),
+        supabase_service_role_key: Boolean(process.env.FINANCEIRO02_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY),
         cron_secret: Boolean(process.env.CRON_SECRET),
         alfa_api_key: Boolean(process.env.ALFA_API_KEY),
         accert_ssw: Boolean(
