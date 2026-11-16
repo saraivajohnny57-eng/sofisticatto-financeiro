@@ -3,9 +3,9 @@ const crypto = require("crypto");
 const {validar:validarUsuarioEmail}=require("./_email-auth");
 
 function supabaseConfig(){
-  let url=String(process.env.SUPABASE_URL||process.env.NEXT_PUBLIC_SUPABASE_URL||"").trim();
+  let url=String(process.env.FINANCEIRO02_SUPABASE_URL || process.env.SUPABASE_URL||process.env.NEXT_PUBLIC_SUPABASE_URL||"").trim();
   if(url.endsWith("/")) url=url.slice(0,-1);
-  const key=String(process.env.SUPABASE_SERVICE_ROLE_KEY||"").trim();
+  const key=String(process.env.FINANCEIRO02_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY||"").trim();
   return {url,key};
 }
 async function buscarCredencialRemetente(email){
