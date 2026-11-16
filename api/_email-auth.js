@@ -1,5 +1,5 @@
 const crypto=require('crypto');
-function config(){return {url:String(process.env.SUPABASE_URL||process.env.NEXT_PUBLIC_SUPABASE_URL||'').replace(/\/$/,''),key:String(process.env.SUPABASE_SERVICE_ROLE_KEY||'')};}
+function config(){return {url:String(process.env.FINANCEIRO02_SUPABASE_URL || process.env.SUPABASE_URL||process.env.NEXT_PUBLIC_SUPABASE_URL||'').replace(/\/$/,''),key:String(process.env.FINANCEIRO02_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY||'')};}
 async function validar(req){
  const {url,key}=config(); if(!url||!key)throw Object.assign(new Error('Supabase não configurado.'),{status:503});
  const login=String(req.body?.login||'').trim(),senha=String(req.body?.senha||'');
