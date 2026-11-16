@@ -1459,6 +1459,8 @@ async function verificarColetaDuplicadaAntesDeSalvar(){
 let rastreamentosLogistica=[];
 let transportadorasRastreamentoIntegrado=[];
 let transportadorasRastreamentoEstadoV464=[];
+let ultimaConsultaTransportadorasV465=0;
+let promessaTransportadorasV465=null;
 let pedidosVinculadosColeta=[];
 
 
@@ -2213,7 +2215,10 @@ async function salvarRastreamentoLogistica(sentido){
   await carregarRastreamentosLogistica(sentido);
 }
 let reconciliacaoRastreiosColetasEmAndamento=false;
+let reconciliacaoRastreiosUltimaV465=0;
 async function reconciliarRastreiosDasColetasConfiguradas(){
+  if(Date.now()-reconciliacaoRastreiosUltimaV465<15*60*1000)return;
+  reconciliacaoRastreiosUltimaV465=Date.now();
   if(reconciliacaoRastreiosColetasEmAndamento)return;
   reconciliacaoRastreiosColetasEmAndamento=true;
   try{
@@ -2256,7 +2261,10 @@ async function reconciliarRastreiosDasColetasConfiguradas(){
 }
 
 async function carregarRastreamentosLogistica(sentido){
-  if(sentido==="saida")await reconciliarRastreiosDasColetasConfiguradas();
+  // A tela usa imediatamente o histórico salvo. A reconciliação pesada ocorre
+  // apenas em segundo plano e com intervalo de proteção.
+  if(sentido==="saida"&&!reconciliacaoRastreiosUltimaV465)
+    setTimeout(()=>reconciliarRastreiosDasColetasConfiguradas().catch(console.warn),1800);
   try{
     if(sentido==="saida")await carregarTransportadorasRastreamentoIntegrado();
   }catch(e){
@@ -2386,7 +2394,7 @@ async function carregarRastreamentosLogistica(sentido){
     </td>
     <td>
     ${rastreioPodeAtualizarV440(x)&&(!siteV464||integradoV464)?`<button class="btn azul" onclick="atualizarRastreioIntegrado('${x.id}',this)">Atualizar rastreio</button>`:""}
-    ${siteV464?`<a class="btn azul" href="${siteV464.url}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${siteV464.label}</a>`:""}
+    ${siteV464?`<button class="btn azul" onclick="event.stopPropagation();abrirConsultaOficialRastreioV465(\'${x.id}\')">${siteV464.label}</button>`:""}
     ${sentido==="entrada"?`<button class="btn azul" onclick="abrirLinhaTempoRastreio('${x.id}')">Linha do tempo</button>`:""}
     <button class="btn azul" onclick="abrirFormularioRastreamento('${sentido}','${x.id}')">Editar</button>
     ${!["entregue","recebido"].includes(x.status)?`<button class="btn verde" onclick="finalizarRastreamentoLogistica('${x.id}','${sentido}')">${sentido==="entrada"?"Marcar recebido":"Marcar entregue"}</button>`:""}
@@ -3014,9 +3022,13 @@ async function atualizarTodosRastreiosSaida(silencioso=false){
 
 function iniciarAtualizacaoAutomaticaRastreios(){
   if(timerAtualizacaoAutomaticaRastreios)return;
-  // Faz uma sincronização leve ao entrar na tela e repete a cada 2 minutos.
-  setTimeout(()=>atualizarTodosRastreiosSaida(true),1500);
-  timerAtualizacaoAutomaticaRastreios=setInterval(()=>atualizarTodosRastreiosSaida(true),120000);
+  // Exibe imediatamente o último rastreio salvo. Ações manuais sempre
+  // consultam as APIs; a sincronização automática só opera com a aba visível.
+  timerAtualizacaoAutomaticaRastreios=setInterval(()=>{
+    if(!document.hidden&&(ce("coletaPainelSaidas")?.classList.contains("ativo")||
+       ce("coletaPainelEntregues")?.classList.contains("ativo")))
+      atualizarTodosRastreiosSaida(true);
+  },15*60*1000);
 }
 function pararAtualizacaoAutomaticaRastreios(){
   if(timerAtualizacaoAutomaticaRastreios){clearInterval(timerAtualizacaoAutomaticaRastreios);timerAtualizacaoAutomaticaRastreios=null;}
@@ -3286,21 +3298,25 @@ async function confirmarAjusteCargaColeta(agendamentoId){
   await carregarPainelRodonaves();
 }
 
-async function carregarTransportadorasRastreamentoIntegrado(){
-  try{
-    const r=await banco.from("transportadora_integracoes")
-      .select("transportadora_nome,status_tecnico,rastreamento_ativo,coleta_ativa,integracao_tipo,api_versao,convite_id")
-      .limit(200);
-    if(r.error)throw r.error;
-    transportadorasRastreamentoEstadoV464=r.data||[];
-    transportadorasRastreamentoIntegrado=transportadorasRastreamentoEstadoV464.filter(
-      x=>x.rastreamento_ativo===true && String(x.status_tecnico||"").toLowerCase()!=="suspensa"
-    );
-  }catch(e){
-    console.warn("Não foi possível carregar transportadoras integradas:",e.message);
-    transportadorasRastreamentoIntegrado=[];
-    transportadorasRastreamentoEstadoV464=[];
-  }
+async function carregarTransportadorasRastreamentoIntegrado(forcar=false){
+  if(!forcar&&Date.now()-ultimaConsultaTransportadorasV465<3*60*1000)return;
+  if(promessaTransportadorasV465)return promessaTransportadorasV465;
+  promessaTransportadorasV465=(async()=>{
+    try{
+      const r=await banco.from("transportadora_integracoes")
+        .select("transportadora_nome,status_tecnico,rastreamento_ativo,coleta_ativa,integracao_tipo,api_versao,convite_id")
+        .limit(200);
+      if(r.error)throw r.error;
+      transportadorasRastreamentoEstadoV464=r.data||[];
+      transportadorasRastreamentoIntegrado=transportadorasRastreamentoEstadoV464.filter(
+        x=>x.rastreamento_ativo===true && String(x.status_tecnico||"").toLowerCase()!=="suspensa"
+      );
+      ultimaConsultaTransportadorasV465=Date.now();
+    }catch(e){
+      console.warn("Integrações indisponíveis; mantendo último estado válido:",e.message);
+    }
+  })();
+  try{await promessaTransportadorasV465;}finally{promessaTransportadorasV465=null;}
 }
 function nomeNormalizadoTransportadora(v){
   return String(v||"")
@@ -3312,11 +3328,33 @@ function nomeNormalizadoTransportadora(v){
 function rastreioSiteOficialV464(nome){
   const n=nomeNormalizadoTransportadora(nome);
   if(/(^| )alfa( |$)/.test(n))
-    return {url:"https://alfatransportes.com.br/",label:"Rastrear na Alfa"};
+    return {url:"https://areadocliente.alfatransportes.com.br/rastreio/",label:"Consultar Alfa (minha conta)"};
   if(/(^| )uniao( |$)/.test(n))
     return {url:"https://www.uniaorf.com.br/consulta-de-cargas-online/",label:"Rastrear na União"};
   return null;
 }
+
+async function abrirConsultaOficialRastreioV465(id){
+  const r=await obterRastreamentoPorId(id);
+  if(!r)return alert("Remessa não encontrada.");
+  const site=rastreioSiteOficialV464(r.frete_transportadoras?.nome||"");
+  if(!site)return;
+  const nf=String(r.numero_nfe||"").replace(/\D/g,"");
+  const linha=[
+    "Transportadora: "+(r.frete_transportadoras?.nome||""),
+    "NF: "+(nf||"não informada"),
+    "Destinatário: "+(r.parceiro_nome||"não informado")
+  ].join("\n");
+  const janela=window.open(site.url,"_blank","noopener,noreferrer");
+  if(!janela)alert("O navegador bloqueou a abertura do site da transportadora. Autorize pop-ups para este Portal.");
+  // Não automatizar o login nem tentar reutilizar a sessão privada em outro domínio.
+  // O usuário escolhe se deseja copiar os identificadores para a consulta oficial.
+  if(nf&&confirm("Área do Cliente Alfa aberta em nova aba.\n\n"+linha+"\n\nCopiar o número da NF para consultar?")){
+    try{await navigator.clipboard.writeText(nf);}
+    catch(e){prompt("Copie o número da NF para a consulta:",nf);}
+  }
+}
+
 function rastreioAlfaAutorizadaV464(){
   return transportadorasRastreamentoIntegrado.some(i=>/(^| )alfa( |$)/.test(nomeNormalizadoTransportadora(i.transportadora_nome)));
 }
@@ -3452,7 +3490,7 @@ function limparBuscaRastreamento(sentido){const suf=sentido==="entrada"?"Entrada
 let intervaloSincronizacaoColetas=null;
 let sincronizacaoColetasEmAndamento=false;
 let ultimaSincronizacaoColetas=0;
-const INTERVALO_SINCRONIZACAO_COLETAS=2*60*1000;
+const INTERVALO_SINCRONIZACAO_COLETAS=15*60*1000;
 
 function painelColetasVisivel(){
   return ce("coletaPainelRodonaves")?.classList.contains("ativo");
@@ -3466,7 +3504,7 @@ function atualizarIndicadorSincronizacao(tipo,texto){
 }
 async function sincronizarColetasAutomaticamente(forcar=false){
   if(sincronizacaoColetasEmAndamento)return;
-  if(!forcar&&Date.now()-ultimaSincronizacaoColetas<60000)return;
+  if(!forcar&&Date.now()-ultimaSincronizacaoColetas<15*60*1000)return;
 
   sincronizacaoColetasEmAndamento=true;
   atualizarIndicadorSincronizacao("processando","Consultando as coletas abertas na Rodonaves...");
@@ -3522,7 +3560,7 @@ async function sincronizarColetasAutomaticamente(forcar=false){
 }
 function iniciarSincronizacaoAutomaticaColetas(){
   pararSincronizacaoAutomaticaColetas();
-  setTimeout(()=>sincronizarColetasAutomaticamente(false),700);
+  // Não executar verificação externa pesada ao entrar na tela.
   intervaloSincronizacaoColetas=setInterval(()=>{
     if(!document.hidden&&painelColetasVisivel()){
       sincronizarColetasAutomaticamente(false);
@@ -3775,11 +3813,89 @@ function abrirVinculoCodigoColeta(id){
   },50);
 }
 
+
+function horarioColetaSSWValidoV465(data,hora,agora=Date.now()){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(data)||!/^\d{2}:\d{2}$/.test(hora))return false;
+  const dt=new Date(data+"T"+hora+":00");
+  return Number.isFinite(dt.getTime())&&dt.toISOString()&&dt.getTime()>agora+60000;
+}
+function aplicarHorarioSSWV465(data,hora){
+  if(ce("coletaDataApi"))ce("coletaDataApi").value=data;
+  if(ce("coletaHoraApi"))ce("coletaHoraApi").value=hora;
+  const [ano,mes,dia]=data.split("-");
+  const texto=data===dataHojeColeta()?"Hoje até as "+hora+" h":
+    "Dia "+dia+"/"+mes+"/"+ano+" até as "+hora+" h";
+  if(ce("coletaHorarioLimite"))ce("coletaHorarioLimite").value=texto;
+  if(typeof atualizarPreviaColeta==="function")atualizarPreviaColeta();
+}
+function abrirBalaoHorarioColetaSSW(){
+  return new Promise(resolve=>{
+    let janela=document.getElementById("balaoHorarioColetaSSWV465");
+    if(!janela){
+      janela=document.createElement("dialog");
+      janela.id="balaoHorarioColetaSSWV465";
+      janela.setAttribute("aria-label","Escolher data e horário limite da coleta");
+      janela.style.cssText="width:min(440px,calc(100vw - 32px));border:0;border-radius:18px;padding:23px 26px;box-shadow:0 20px 90px #24203e55;color:#2f2852;font-family:Segoe UI,Arial,sans-serif";
+      janela.innerHTML='<form method="dialog" style="display:flex;flex-direction:column;gap:13px">'+
+        '<h3 style="margin:0;color:#5a4fa3">📅 Escolher data e horário da coleta</h3>'+
+        '<p style="margin:0;font-size:13px;color:#625c75">O horário informado anteriormente já passou ou precisa ser alterado. Escolha um limite futuro aceito pela transportadora.</p>'+
+        '<label style="font-size:13px;font-weight:700">Data da coleta<input id="sswBalaoDataV465" type="date" required style="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid #cdc6e7;border-radius:9px"></label>'+
+        '<label style="font-size:13px;font-weight:700">Horário limite<input id="sswBalaoHoraV465" type="time" required style="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid #cdc6e7;border-radius:9px"></label>'+
+        '<p id="sswBalaoErroV465" role="alert" style="display:none;color:#b42318;font-size:13px;margin:0"></p>'+
+        '<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">'+
+        '<button type="button" data-cancelar style="border:0;border-radius:10px;padding:10px 14px;background:#eeeaf9;color:#52489a;font-weight:700">Cancelar</button>'+
+        '<button type="submit" style="border:0;border-radius:10px;padding:10px 14px;background:#5a4fa3;color:#fff;font-weight:700">Aplicar horário</button></div></form>';
+      document.body.append(janela);
+    }
+    const hoje=dataHojeColeta(),hojeHora=cv("coletaHoraApi")||"17:30";
+    let dia=cv("coletaDataApi")||hoje;
+    if(!horarioColetaSSWValidoV465(dia,hojeHora)){
+      const d=new Date();d.setDate(d.getDate()+1);
+      dia=[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+    }
+    const inputData=janela.querySelector("#sswBalaoDataV465");
+    const inputHora=janela.querySelector("#sswBalaoHoraV465");
+    const erro=janela.querySelector("#sswBalaoErroV465");
+    inputData.min=hoje;inputData.value=dia;inputHora.value=hojeHora;
+    erro.style.display="none";erro.textContent="";
+    let encerrado=false;
+    const concluir=valor=>{
+      if(encerrado)return;encerrado=true;
+      janela.removeEventListener("close",onClose);
+      janela.querySelector("form").removeEventListener("submit",onSubmit);
+      janela.querySelector("[data-cancelar]").removeEventListener("click",onCancel);
+      if(janela.open)janela.close();
+      resolve(valor);
+    };
+    const onClose=()=>concluir(null);
+    const onCancel=()=>concluir(null);
+    const onSubmit=event=>{
+      event.preventDefault();
+      const data=inputData.value,hora=inputHora.value;
+      if(!horarioColetaSSWValidoV465(data,hora)){
+        erro.textContent="Escolha uma data e hora futuras (pelo menos um minuto à frente).";
+        erro.style.display="block";return;
+      }
+      aplicarHorarioSSWV465(data,hora);
+      concluir({data,hora});
+    };
+    janela.addEventListener("close",onClose);
+    janela.querySelector("form").addEventListener("submit",onSubmit);
+    janela.querySelector("[data-cancelar]").addEventListener("click",onCancel);
+    janela.showModal();
+  });
+}
+
 async function agendarColetaAccertSSW(){
   if(!coletaEhSSW())return alert("Selecione uma transportadora com integração SSW ativa.");
-  const dataHora=formatarDataHoraApiColeta();
-  if(!dataHora)return alert("Informe a data e o horário limite da coleta.");
-  if(new Date(dataHora).getTime()<=Date.now())return alert("O horário limite da coleta já passou. Para solicitar coleta hoje, informe um horário futuro aceito pela transportadora; caso contrário escolha outra data.");
+  let dataHora=formatarDataHoraApiColeta();
+  if(!dataHora||new Date(dataHora).getTime()<=Date.now()+60000){
+    const horario=await abrirBalaoHorarioColetaSSW();
+    if(!horario)return;
+    dataHora=formatarDataHoraApiColeta();
+  }
+  if(!horarioColetaSSWValidoV465(dataHora.slice(0,10),dataHora.slice(11,16)))
+    return alert("Informe uma data e hora futuras para a coleta.");
   if(!cv("coletaCepDestino"))return alert("Informe o CEP do destino.");
   if(!(numeroColetaApi(cv("coletaVolumes"))>0))return alert("Informe a quantidade de volumes.");
   if(!(numeroColetaApi(cv("coletaPeso"))>0))return alert("Informe o peso total.");
@@ -3973,6 +4089,8 @@ async function atualizarTimelineAoAbrir(rastro,nome){
 }
 // V415 — associação segura por documento antes do nome (hífens e pontuação não importam).
 let rastClientesV415=[];
+let rastClientesAtualizadosV465=0;
+let rastClientesEmConsultaV465=null;
 const rastDigitosV415=v=>String(v||'').replace(/\D/g,'');
 const rastNomeV415=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 async function carregarClientesRastreioV415(){
@@ -3980,8 +4098,14 @@ async function carregarClientesRastreioV415(){
     rastClientesV415=(typeof emailClientes!=='undefined'?emailClientes:[])||[];
     return;
   }
-  const r=await banco.from('email_clientes').select('id,nome,cpf_cnpj,vendedora_id').range(0,9999);
-  rastClientesV415=r.error?((typeof emailClientes!=='undefined'?emailClientes:[])||[]):(r.data||[]);
+  if(rastClientesV415.length&&Date.now()-rastClientesAtualizadosV465<3*60*1000)return;
+  if(rastClientesEmConsultaV465)return rastClientesEmConsultaV465;
+  rastClientesEmConsultaV465=(async()=>{
+    const r=await banco.from('email_clientes').select('id,nome,cpf_cnpj,vendedora_id').range(0,9999);
+    if(!r.error){rastClientesV415=r.data||[];rastClientesAtualizadosV465=Date.now();}
+    else if(!rastClientesV415.length)rastClientesV415=(typeof emailClientes!=='undefined'?emailClientes:[])||[];
+  })();
+  try{await rastClientesEmConsultaV465;}finally{rastClientesEmConsultaV465=null;}
 }
 function documentosRastreioV449(rastro){
   const agenda=(coletaAgendamentos||[]).find(a=>String(a.id)===String(rastro.coleta_agendamento_id||'')) ||
