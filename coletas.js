@@ -1458,6 +1458,7 @@ async function verificarColetaDuplicadaAntesDeSalvar(){
    ========================================================= */
 let rastreamentosLogistica=[];
 let transportadorasRastreamentoIntegrado=[];
+let transportadorasRastreamentoEstadoV464=[];
 let pedidosVinculadosColeta=[];
 
 
@@ -2367,11 +2368,13 @@ async function carregarRastreamentosLogistica(sentido){
   }
   const tb=ce(sentido==="entrada"?"rastreamentoTabelaEntradas":"rastreamentoTabelaSaidas");
   tb.innerHTML=rastreamentosLogistica.length?rastreamentosLogistica.map(x=>{
+    const siteV464=rastreioSiteOficialV464(x.frete_transportadoras?.nome||"");
+    const integradoV464=transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)||rastreioDanfeV440(x);
     const textoBusca=[x.parceiro_nome,x.frete_transportadoras?.nome,x.numero_nfe,x.chave_nfe,x.numero_cte,x.protocolo_rastreio,statusLabelRastreamento(x.status),x.status,x.observacao].filter(Boolean).join(" ").toLowerCase();
-    return `<tr class="linha-rastreamento-logistica" style="cursor:pointer" title="Clique para ver a linha do tempo do rastreio" onclick="if(event.target.closest(\'button\'))return;abrirLinhaTempoRastreio(\'${x.id}\')" data-status="${escaparHtmlEmail(x.status||"")}" data-busca="${escaparHtmlEmail(textoBusca)}">
+    return `<tr class="linha-rastreamento-logistica" style="cursor:pointer" title="Clique para ver a linha do tempo do rastreio" onclick="if(event.target.closest(\'button,a\'))return;abrirLinhaTempoRastreio(\'${x.id}\')" data-status="${escaparHtmlEmail(x.status||"")}" data-busca="${escaparHtmlEmail(textoBusca)}">
     <td>${x.created_at?new Date(x.created_at).toLocaleDateString("pt-BR"):"—"}</td>
     <td><button type="button" class="btn" style="background:none;color:inherit;text-align:left;padding:0;font:inherit" onclick="event.stopPropagation();abrirLinhaTempoRastreio('${x.id}')">${escaparHtmlEmail(x.parceiro_nome||"—")}</button><div class="rastreio-metodo">👩‍💼 ${escaparHtmlEmail(nomeVendedoraRastreioV415(x))}</div></td>
-    <td>${escaparHtmlEmail(x.frete_transportadoras?.nome||"Não informada")}${transportadoraTemRastreamentoIntegrado(x.frete_transportadoras?.nome)?`<div class="rastreio-metodo">● Rastreio automático</div>`:""}</td>
+    <td>${escaparHtmlEmail(x.frete_transportadoras?.nome||"Não informada")}${integradoV464?`<div class="rastreio-metodo">● Rastreio automático</div>`:(siteV464?`<div class="rastreio-metodo">Consulta no site oficial</div>`:"")}</td>
     <td>${escaparHtmlEmail(x.numero_nfe||"—")}</td>
     <td>${escaparHtmlEmail((/correios|coreios/i.test(x.frete_transportadoras?.nome||"")&&x.protocolo_rastreio)?x.protocolo_rastreio:(x.numero_cte||x.protocolo_rastreio||"—"))}</td>
     <td>${x.previsao_entrega?new Date(x.previsao_entrega+"T12:00:00").toLocaleDateString("pt-BR"):"Não informada"}</td>
@@ -2382,7 +2385,8 @@ async function carregarRastreamentosLogistica(sentido){
       ${x.metodo_consulta?`<div class="rastreio-metodo">Localizado por: ${escaparHtmlEmail(x.metodo_consulta)}</div>`:""}
     </td>
     <td>
-    ${rastreioPodeAtualizarV440(x)?`<button class="btn azul" onclick="atualizarRastreioIntegrado('${x.id}',this)">Atualizar rastreio</button>`:""}
+    ${rastreioPodeAtualizarV440(x)&&(!siteV464||integradoV464)?`<button class="btn azul" onclick="atualizarRastreioIntegrado('${x.id}',this)">Atualizar rastreio</button>`:""}
+    ${siteV464?`<a class="btn azul" href="${siteV464.url}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${siteV464.label}</a>`:""}
     ${sentido==="entrada"?`<button class="btn azul" onclick="abrirLinhaTempoRastreio('${x.id}')">Linha do tempo</button>`:""}
     <button class="btn azul" onclick="abrirFormularioRastreamento('${sentido}','${x.id}')">Editar</button>
     ${!["entregue","recebido"].includes(x.status)?`<button class="btn verde" onclick="finalizarRastreamentoLogistica('${x.id}','${sentido}')">${sentido==="entrada"?"Marcar recebido":"Marcar entregue"}</button>`:""}
@@ -2808,8 +2812,31 @@ async function atualizarRastreioDanfeV440(rastro,botao){
 
 async function atualizarRastreioIntegrado(id,botao=null){
   const rastro=await obterRastreamentoPorId(id); if(!rastro)return alert("Rastreio não encontrado.");
-  if(rastreioDanfeV440(rastro))return atualizarRastreioDanfeV440(rastro,botao);
   const nome=rastro.frete_transportadoras?.nome||"";
+  const nomeTipoV464=nomeNormalizadoTransportadora(nome);
+  // Nunca direcionar uma API própria ou privada para o SSW por ter chave NF-e.
+  if(/(^| )uniao( |$)/.test(nomeTipoV464)){
+    alert("A União Transportes ainda não possui uma API autorizada configurada no Sofisticatto. Use Rastrear na União para acompanhar pelo site oficial.");
+    return;
+  }
+  if(/(^| )alfa( |$)/.test(nomeTipoV464)){
+    await carregarTransportadorasRastreamentoIntegrado();
+    if(!rastreioAlfaAutorizadaV464()){
+      alert("A API da Alfa está suspensa no Financeiro02 após respostas HTTP 403. Solicite à Alfa liberar a chave idr e utilize Rastrear na Alfa no site oficial. Não será feita tentativa indevida pelo SSW.");
+      return;
+    }
+    const rotulo=botao?.textContent||"Atualizar rastreio";
+    if(botao){botao.disabled=true;botao.textContent="Consultando Alfa...";}
+    try{
+      const {dados}=await consultarRastreioAlfaRegistro(id,{silencioso:true});
+      await carregarRastreamentosLogistica(rastro.sentido||"saida");
+      if(typeof carregarRastreamentosEntregues==="function")await carregarRastreamentosEntregues();
+      alert("Rastreio Alfa atualizado. Status: "+(dados.statusBruto||statusLabelRastreamento(dados.status)));
+    }catch(e){alert("Consulta Alfa indisponível: "+e.message);}
+    finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=rotulo;}}
+    return;
+  }
+  if(rastreioDanfeV440(rastro))return atualizarRastreioDanfeV440(rastro,botao);
   const nf=String(rastro.numero_nfe||'').replace(/\D/g,'');
   const chaveNfe=String(rastro.chave_nfe||'').replace(/\D/g,'');
   const protocolo=String(rastro.protocolo_rastreio||'').trim();
@@ -2846,10 +2873,6 @@ async function atualizarRastreioIntegrado(id,botao=null){
     return;
   }
   if(/rodonaves/i.test(nome))return atualizarRastreioRodonaves(id,botao);
-  if(/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome) && chaveNfe.length!==44){
-    await completarIdentificadoresRastreioV433(rastro,'A API Alfa está indisponível. Informe a chave NF-e de 44 dígitos para tentar consulta SSW, quando autorizada.');
-    return;
-  }
   if(/correios|coreios/i.test(nome)){
     const original=botao?.textContent||"Atualizar rastreio";if(botao){botao.disabled=true;botao.textContent="Consultando Correios...";}
     try{const {dados}=await consultarRastreioCorreiosRegistro(id);
@@ -3267,14 +3290,16 @@ async function carregarTransportadorasRastreamentoIntegrado(){
   try{
     const r=await banco.from("transportadora_integracoes")
       .select("transportadora_nome,status_tecnico,rastreamento_ativo,coleta_ativa,integracao_tipo,api_versao,convite_id")
-      .or("rastreamento_ativo.eq.true,coleta_ativa.eq.true");
+      .limit(200);
     if(r.error)throw r.error;
-    transportadorasRastreamentoIntegrado=(r.data||[]).filter(
-      x=>String(x.status_tecnico||"").toLowerCase()!=="suspensa"
+    transportadorasRastreamentoEstadoV464=r.data||[];
+    transportadorasRastreamentoIntegrado=transportadorasRastreamentoEstadoV464.filter(
+      x=>x.rastreamento_ativo===true && String(x.status_tecnico||"").toLowerCase()!=="suspensa"
     );
   }catch(e){
     console.warn("Não foi possível carregar transportadoras integradas:",e.message);
     transportadorasRastreamentoIntegrado=[];
+    transportadorasRastreamentoEstadoV464=[];
   }
 }
 function nomeNormalizadoTransportadora(v){
@@ -3284,41 +3309,44 @@ function nomeNormalizadoTransportadora(v){
     // V43: tolera cadastros antigos com COREIOS (um R) e variações PAC/SEDEX.
     .replace(/\bcoreios\b/g,"correios");
 }
+function rastreioSiteOficialV464(nome){
+  const n=nomeNormalizadoTransportadora(nome);
+  if(/(^| )alfa( |$)/.test(n))
+    return {url:"https://alfatransportes.com.br/",label:"Rastrear na Alfa"};
+  if(/(^| )uniao( |$)/.test(n))
+    return {url:"https://www.uniaorf.com.br/consulta-de-cargas-online/",label:"Rastrear na União"};
+  return null;
+}
+function rastreioAlfaAutorizadaV464(){
+  return transportadorasRastreamentoIntegrado.some(i=>/(^| )alfa( |$)/.test(nomeNormalizadoTransportadora(i.transportadora_nome)));
+}
 function transportadoraConhecidaPorConsultaDireta(nome){
   const n=nomeNormalizadoTransportadora(nome);
-  // ACCERT e TG usam o SSW. Mesmo que o cadastro antigo da integração esteja
-  // incompleto, elas devem aparecer como rastreáveis e tentar a WebAPI SSW.
-  return /rodonaves/.test(n)||/(^| )alfa( |$)/.test(n)||/correios/.test(n)||/braspress/.test(n)||/accert/.test(n)||/(^| )tg( |$)/.test(n);
+  if(/(^| )alfa( |$)/.test(n))return rastreioAlfaAutorizadaV464();
+  return /rodonaves|correios|braspress|accert|(^| )tg( |$)/.test(n);
+}
+function integracaoRastreamentoDaTransportadora(nome){
+  const n=nomeNormalizadoTransportadora(nome);
+  if(!n)return null;
+  const lista=transportadorasRastreamentoIntegrado.filter(i=>{
+    const x=nomeNormalizadoTransportadora(i.transportadora_nome);
+    return x && (n===x || n.startsWith(x+" ") || x.startsWith(n+" "));
+  });
+  return lista.length===1?lista[0]:null;
 }
 function transportadoraTemRastreamentoIntegrado(nome){
   const n=nomeNormalizadoTransportadora(nome);
   if(!n)return false;
   if(transportadoraConhecidaPorConsultaDireta(nome)||/sigmalog/.test(n))return true;
-  return transportadorasRastreamentoIntegrado.some(i=>{
-    const x=nomeNormalizadoTransportadora(i.transportadora_nome);
-    if(!x)return false;
-    if(n.includes(x)||x.includes(n))return true;
-    // V43: nomes longos/curtos (ex.: ACCERT x ACCERT TRANSPORTES E LOGISTICA).
-    const nt=n.split(" ").filter(w=>w.length>=3);
-    const xt=x.split(" ").filter(w=>w.length>=3);
-    return nt.some(w=>xt.includes(w));
-  });
-}
-function integracaoRastreamentoDaTransportadora(nome){
-  const n=nomeNormalizadoTransportadora(nome);
-  if(!n)return null;
-  return transportadorasRastreamentoIntegrado.find(i=>{
-    const x=nomeNormalizadoTransportadora(i.transportadora_nome);
-    return x&&(n.includes(x)||x.includes(n));
-  })||null;
+  return Boolean(integracaoRastreamentoDaTransportadora(nome));
 }
 function transportadoraEhSSW(nome){
   const n=nomeNormalizadoTransportadora(nome);
-  if(/accert/.test(n)||/(^| )tg( |$)/.test(n)||/sigmalog/.test(n))return true;
+  if(/(^| )alfa( |$)|(^| )uniao( |$)/.test(n))return false;
+  if(/accert|(^| )tg( |$)|sigmalog/.test(n))return true;
   const i=integracaoRastreamentoDaTransportadora(nome);
   return !!i&&(String(i.integracao_tipo||"").toLowerCase()==="webservice"||/ssw/i.test(String(i.api_versao||"")));
 }
-
 
 function textoStatusCorreiosRastreamento(x){
   return String([x?.status_api,x?.ultima_ocorrencia].filter(Boolean).join(' '))
@@ -3938,7 +3966,8 @@ async function atualizarTimelineAoAbrir(rastro,nome){
     if(/rodonaves/i.test(nome))return (await consultarRastreioRodonavesRegistro(rastro.id,{chave})).dados;
     if(/correios|coreios/i.test(nome))return (await consultarRastreioCorreiosRegistro(rastro.id,{chave})).dados;
     if(transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome))return (await consultarRastreioSSWDiretoRegistro(rastro.id,{chave})).dados;
-    if(/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome))return {erroTimeline:"Integração API da Alfa desativada: acesso cancelado pela transportadora."};
+    if(/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome))return {erroTimeline:"A API Alfa está suspensa após HTTP 403. Consulte o site oficial até que a Alfa autorize a chave."};
+    if(/(^|\s)uniao(\s|$)|união transportes/i.test(nome))return {erroTimeline:"União: sem API autorizada. Consulte o rastreamento oficial da transportadora."};
   }catch(e){console.warn("Timeline: consulta ao vivo indisponível",nome,e.message);return {erroTimeline:e.message};}
   return null;
 }
