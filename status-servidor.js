@@ -8,8 +8,8 @@ module.exports=async function handler(req,res){
   if(!exigirAdmin(req,res))return;
 
   const variaveis={
-    SUPABASE_URL:!!process.env.SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY:!!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    SUPABASE_URL:!!process.env.FINANCEIRO02_SUPABASE_URL || process.env.SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY:!!process.env.FINANCEIRO02_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
     INTEGRATIONS_ADMIN_KEY:!!process.env.INTEGRATIONS_ADMIN_KEY,
     INTEGRATIONS_ENCRYPTION_KEY:!!process.env.INTEGRATIONS_ENCRYPTION_KEY
   };
