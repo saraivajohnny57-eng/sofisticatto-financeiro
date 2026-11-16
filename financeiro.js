@@ -1,7 +1,21 @@
-const SUPABASE_URL = "https://drtgtwwsbxrmqcaabzcs.supabase.co";
-const SUPABASE_KEY = "sb_publishable_h0Ep974nBED88dimAY0BGQ_KLqoQ7po";
+const SUPABASE_URL = "https://xrtpidsqbfdlgjefuobs.supabase.co";
+const SUPABASE_KEY = "sb_publishable_TuEwsTMsGX2mXkRGxzTrcw_WXWooOxj";
 let banco = null;
 let realtimeIniciado = false;
+
+/* REST / Storage somente pelo servidor após login; segredo nunca exposto. */
+async function financeiro02Fetch(input, init) {
+  const request = new Request(input, init);
+  const target = new URL(request.url);
+  const proxied = /^\/rest\/v1\/|^\/storage\/v1\/object\//.test(target.pathname);
+  if(target.origin !== SUPABASE_URL || !proxied) return fetch(request);
+  const headers = new Headers(request.headers);
+  ["apikey","authorization","x-client-info"].forEach(name => headers.delete(name));
+  const body = /^(GET|HEAD)$/i.test(request.method) ? undefined : await request.arrayBuffer();
+  return fetch("/api/portal-data?path="+encodeURIComponent(target.pathname+target.search),{
+    method:request.method,headers,body,credentials:"same-origin",cache:"no-store"
+  });
+}
 let registroNotificacaoMobile = null;
 let monitoramentoPerfilIntervalo = null;
 let ultimaNotificacaoPerfilId = null;
@@ -48,7 +62,7 @@ function carregarSupabase(){
     const finalizar = () => {
       try{
         if(!banco){
-          banco = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+          banco = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {global:{fetch:financeiro02Fetch}});
         }
         window.banco = banco;
         resolve(banco);
@@ -280,23 +294,26 @@ function configurarInterfacePorPerfil(){
 }
 
 async function entrar(){
-  if(!bancoPronto()) return;
-  const login = document.getElementById("login").value.trim();
-  const senha = document.getElementById("senha").value.trim();
-  const resposta = await banco.from("usuarios").select("*").eq("login", login).eq("senha", senha).single();
-
-  if(resposta.error || !resposta.data){
-    alert("Login ou senha inválidos");
-    return;
+  const login=document.getElementById("login").value.trim();
+  const senha=document.getElementById("senha").value;
+  if(!login || !senha){alert("Preencha login e senha");return;}
+  try{
+    const response=await fetch("/api/portal-auth",{
+      method:"POST",credentials:"same-origin",cache:"no-store",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({login,senha})
+    });
+    const data=await response.json();
+    if(!response.ok || !data.ok || !data.usuario){
+      alert(data.erro||"Login ou senha inválidos");return;
+    }
+    usuarioLogado=data.usuario;
+    localStorage.setItem("usuarioLogado",JSON.stringify(usuarioLogado));
+    document.getElementById("senha").value="";
+    iniciarSistema();
+  }catch(e){
+    console.error("Login Financeiro02:",e.message);
+    alert("Não foi possível validar o login no Financeiro02.");
   }
-  if(resposta.data.ativo === false){
-    alert("Este acesso está bloqueado. Entre em contato com o Financeiro.");
-    return;
-  }
-
-  usuarioLogado = resposta.data;
-  localStorage.setItem("usuarioLogado", JSON.stringify(usuarioLogado));
-  iniciarSistema();
 }
 
 function iniciarSistema(){
@@ -366,7 +383,7 @@ function mostrarSecao(secao){
   if(secao === "corridas") carregarModuloCorridas?.();
 }
 
-function sair(){ localStorage.removeItem("usuarioLogado"); location.reload(); }
+function sair(){ localStorage.removeItem("usuarioLogado"); fetch("/api/portal-auth",{method:"DELETE",credentials:"same-origin"}).finally(()=>location.reload()); }
 
 async function carregarBancos(){
   const resposta = await banco.from("bancos").select("*").order("nome",{ascending:true});
@@ -1277,53 +1294,10 @@ function abrirRelatoriosPelaNotificacao(){
 }
 
 function iniciarRealtimeNotificacoes(){
-  if(realtimeNotificacoesIniciado || !banco || !usuarioLogado) return;
+  // Realtime de notificações suspenso até a ativação de JWT de Auth.
   realtimeNotificacoesIniciado=true;
-
-  banco
-    .channel("notificacoes-sistema-"+usuarioLogado.tipo)
-    .on(
-      "postgres_changes",
-      {
-        event:"INSERT",
-        schema:"public",
-        table:"notificacoes_sistema",
-        filter:`destinatario_tipo=eq.${usuarioLogado.tipo}`
-      },
-      payload=>{
-        const nova=payload.new;
-        if(!nova) return;
-
-        notificacoesSistema=[
-          nova,
-          ...notificacoesSistema.filter(item=>item.id!==nova.id)
-        ].slice(0,30);
-
-        if(["banco","financeiro","admin"].includes(usuarioLogado.tipo)){
-          ultimaNotificacaoPerfilId=Math.max(
-            Number(ultimaNotificacaoPerfilId || 0),
-            Number(nova.id || 0)
-          );
-
-          notificarChrome(
-            nova.titulo || "Sofisticatto Financeiro",
-            nova.mensagem || "Existe uma nova atualização."
-          );
-
-          carregarRelatorios(true);
-          carregarNotificacoesPersistentes();
-        }
-
-        carregarNotificacoes();
-      }
-    )
-    .subscribe(status=>{
-      console.log("Realtime notificações:",status);
-      if(status==="CHANNEL_ERROR" || status==="TIMED_OUT"){
-        console.warn("Não foi possível iniciar o Realtime das notificações.");
-      }
-    });
 }
+
 
 function carregarNotificacoes(){
   const lista=document.getElementById("listaNotificacoes");
@@ -2160,15 +2134,9 @@ function iniciarSincronizacaoAutomatica(){
 
 
 function iniciarRealtime(){
-  if(realtimeIniciado || !banco) return;
-  realtimeIniciado = true;
-
-  banco
-  .channel("tempo-real")
-  .on("postgres_changes",{event:"*",schema:"public",table:"boletos"},(payload) => {
-    atualizarTempoRealComDebounce(payload);
-  })
-  .subscribe();
+  // Websocket suspenso até a migração do Auth; evita reconexões e tráfego excessivo.
+  if(realtimeIniciado || !banco)return;
+  realtimeIniciado=true;
 }
 
 
@@ -7444,13 +7412,19 @@ document.addEventListener("DOMContentLoaded", async function(){
     carregarNotificacoesPersistentes();
     esconderCarregando();
 
-    const salvo = localStorage.getItem("usuarioLogado");
-    if(salvo){
-      usuarioLogado = JSON.parse(salvo);
-      iniciarSistema();
-    }else{
-      atualizarBotaoNotificacao();
-    }
+    // Revalidar a sessão HttpOnly; dados do localStorage não concedem permissão.
+    const salvo=localStorage.getItem("usuarioLogado");
+    const resposta=await fetch("/api/portal-auth",{method:"GET",credentials:"same-origin",cache:"no-store"});
+    if(resposta.ok && salvo){
+      const sessao=await resposta.json();
+      const antigo=JSON.parse(salvo);
+      if(sessao.usuario && sessao.usuario.id === antigo.id){
+        usuarioLogado={...antigo,...sessao.usuario};
+        delete usuarioLogado.senha;
+        localStorage.setItem("usuarioLogado",JSON.stringify(usuarioLogado));
+        iniciarSistema();
+      }else{localStorage.removeItem("usuarioLogado");atualizarBotaoNotificacao();}
+    }else{localStorage.removeItem("usuarioLogado");atualizarBotaoNotificacao();}
   }catch(erro){
     console.error("Erro ao iniciar sistema:", erro);
     esconderCarregando();
