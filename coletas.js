@@ -3393,7 +3393,7 @@ function transportadoraTemRastreamentoIntegrado(nome){
 function transportadoraEhSSW(nome){
   const n=nomeNormalizadoTransportadora(nome);
   if(/(^| )alfa( |$)|(^| )uniao( |$)/.test(n))return false;
-  if(/accert|(^| )tg( |$)|sigmalog/.test(n))return true;
+  if(/accert|(^| )tg( |$)|sigmalog|transpress/.test(n))return true;
   const i=integracaoRastreamentoDaTransportadora(nome);
   return !!i&&(String(i.integracao_tipo||"").toLowerCase()==="webservice"||/ssw/i.test(String(i.api_versao||"")));
 }
@@ -4016,9 +4016,9 @@ function formatarDataTimelineBR(v){
 }
 function extrairEventosTimelineGenericos(obj,fonte="API"){
   const out=[];const vistos=new Set();
-  const descKeys=["descricao","descrição","description","ocorrencia","ocorrência","evento","event","status","situacao","situação","mensagem","message","detalhe","complemento"];
-  const dateKeys=["data_hora_efetiva","data_hora","dataHora","data_hora_evento","dataOcorrencia","data_ocorrencia","dhEvento","data","timestamp","dtHrCriado","dt_hr_criado","created_at"];
-  const localKeys=["cidade","local","filial","unidade","unidadeDestino","unidade_origem","cidade_evento"];
+  const descKeys=["descricao","descrição","description","ocorrencia","ocorrência","evento","event","status","situacao","situação","mensagem","message","detalhe","complemento","Description","Reason","StatusDescription","OccurrenceDescription"];
+  const dateKeys=["data_hora_efetiva","data_hora","dataHora","data_hora_evento","dataOcorrencia","data_ocorrencia","dhEvento","data","timestamp","dtHrCriado","dt_hr_criado","created_at","DateTime","OccurrenceDate","Date","EventDate"];
+  const localKeys=["cidade","local","filial","unidade","unidadeDestino","unidade_origem","cidade_evento","City","Location","Branch","UnitDestination"];
   function primeiro(o,ks){for(const k of ks){if(o&&o[k]!=null&&String(o[k]).trim())return o[k];}return null}
   function visit(x){
     if(!x||typeof x!=="object")return;
@@ -4030,10 +4030,10 @@ function extrairEventosTimelineGenericos(obj,fonte="API"){
     }
     if(local!=null&&typeof local!=="string"&&typeof local!=="number")local="";
     if(desc&&(dt||local||x.codigo||x.tipo)){
-      const titulo=String(x.ocorrencia||x.evento||x.status||x.situacao||x.tipo||desc).trim();
-      const detalhe=String(x.descricao||x.description||x.complemento||x.detalhe||"").trim();
+      const titulo=String(x.ocorrencia||x.evento||x.status||x.situacao||x.tipo||x.StatusDescription||x.Reason||x.Description||desc).trim();
+      const detalhe=String(x.descricao||x.description||x.complemento||x.detalhe||x.Description||x.Reason||"").trim();
       const key=[titulo,dt,local,detalhe].join("|");
-      if(!vistos.has(key)){vistos.add(key);out.push({titulo,descricao:detalhe&&detalhe!==titulo?detalhe:String(desc),data:dt||null,local:local||null,unidade:primeiro(x,["unidade","filial","unidadeBraspress","nomeFilial","terminal"])||null,destino:primeiro(x,["destino","unidadeDestino","filialDestino","cidadeDestino"])||null,codigo:primeiro(x,["codigo","codigoOcorrencia","codOcorrencia","codigoEvento"])||null,recebedor:primeiro(x,["recebedor","nomeRecebedor","recebidoPor"])||null,documentoRecebedor:primeiro(x,["documentoRecebedor","cpfRecebedor","rgRecebedor"])||null,fonte});}
+      if(!vistos.has(key)){vistos.add(key);out.push({titulo,descricao:detalhe&&detalhe!==titulo?detalhe:String(desc),data:dt||null,local:local||null,unidade:primeiro(x,["unidade","filial","unidadeBraspress","nomeFilial","terminal"])||null,destino:primeiro(x,["destino","unidadeDestino","filialDestino","cidadeDestino"])||null,codigo:primeiro(x,["codigo","codigoOcorrencia","codOcorrencia","codigoEvento","EventCode","OccurrenceCode"])||null,recebedor:primeiro(x,["recebedor","nomeRecebedor","recebidoPor"])||null,documentoRecebedor:primeiro(x,["documentoRecebedor","cpfRecebedor","rgRecebedor"])||null,fonte});}
     }
     Object.values(x).forEach(visit);
   }
@@ -4055,7 +4055,7 @@ function indiceEtapaTimeline(eventos,statusAtual){
     if(reTransfer.test(t))idx=Math.max(idx,2);
     if(reUnidade.test(t))idx=Math.max(idx,3);
     if(reSaiu.test(t))idx=Math.max(idx,4);
-    if(reEntregue.test(t))idx=Math.max(idx,5);
+    if(reEntregue.test(t)&&!/nao entregue|entrega nao realizada|tentativa de entrega|previsao de entrega/.test(t))idx=Math.max(idx,5);
   }
 
   const st=textoNormalizadoTimeline(statusAtual).replace(/\s+/g,"_");
@@ -4389,9 +4389,14 @@ async function abrirLinhaTempoRastreio(id){
     const prevV415=previsaoRastreioV415(rastro,vivo,eventos);
     const previsaoHtmlV415=`<div class="rast-resumo-api" style="margin:10px 0"><span>📅 <b>Previsão de entrega:</b> ${escaparHtmlEmail(prevV415.texto)} ${prevV415.origem?`<small>(${escaparHtmlEmail(prevV415.origem)})</small>`:""}</span></div>`;
     const etapasHtml=`<div class="rast-etapas-box"><div class="rast-etapas-titulo">Etapas da entrega <small style="font-weight:500;color:#77718d">(progressão estimada com base nas ocorrências reais)</small></div><div class="rast-etapas">${etapas.map((x,i)=>`<div class="rast-etapa ${i<atual?'concluida':i===atual?'atual':''}"><div class="rast-etapa-dot">${i<atual?'✓':i===atual?'●':i+1}</div><div>${x}</div></div>`).join("")}</div>${locais.length?`<div class="rast-rota-locais"><b style="font-size:11px;color:#655f77">Locais registrados:</b>${locais.map(l=>`<span class="rast-rota-chip">📍 ${escaparHtmlEmail(l)}</span>`).join("")}</div>`:""}</div>`;
-    if(!eventos.length){body.innerHTML=alertas+previsaoHtmlV415+etapasHtml+'<div class="rast-timeline-vazio">Ainda não há ocorrências detalhadas disponíveis para este pedido.</div>';return;}
+    if(!eventos.length){
+      body.innerHTML=alertas+previsaoHtmlV415+etapasHtml+
+        '<div class="rast-timeline-vazio"><b>Sem ocorrências confirmadas pela transportadora.</b><p>'+
+        (rastro.chave_nfe?'A chave NF-e está cadastrada para consulta.':'Confira os identificadores da remessa para solicitar o rastreamento.')+
+        '</p></div>';return;
+    }
     const oficiais=eventos.filter(e=>e.oficial).length;
-    const resumo=/correios|coreios|braspress/i.test(nome)?`<div class="rast-resumo-api"><span>📦 ${oficiais||eventos.length} ocorrência(s) detalhada(s)</span>${rastro.previsao_entrega?`<span>📅 Previsão: ${escaparHtmlEmail(formatarDataTimelineBR(rastro.previsao_entrega))}</span>`:""}<span>🔄 Atualizado: ${new Date().toLocaleString("pt-BR")}</span></div>`:"";
+    const resumo=/correios|coreios|braspress|rodonaves|sigmalog|transpress/i.test(nome)?`<div class="rast-resumo-api"><span>📦 ${oficiais||eventos.length} ocorrência(s) detalhada(s)</span>${rastro.previsao_entrega?`<span>📅 Previsão: ${escaparHtmlEmail(formatarDataTimelineBR(rastro.previsao_entrega))}</span>`:""}<span>🔄 Atualizado: ${new Date().toLocaleString("pt-BR")}</span></div>`:"";
     const conhecimentosBraspress=/braspress/i.test(nome)&&Array.isArray(vivo?.conhecimentos)?vivo.conhecimentos:[];
     const detalhesBraspress=conhecimentosBraspress.length?`<div class="rast-etapas-box" style="margin-top:12px"><div class="rast-etapas-titulo">Dados do conhecimento Braspress</div>${conhecimentosBraspress.map(c=>`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px 14px;font-size:12px;line-height:1.45"><div><b>Conhecimento/AWB:</b> ${escaparHtmlEmail(c.numero||"—")}</div><div><b>Status:</b> ${escaparHtmlEmail(c.status||"—")}</div><div><b>Origem:</b> ${escaparHtmlEmail(c.origem||[c.cidadeColeta,c.ufColeta].filter(Boolean).join(" / ")||"—")}</div><div><b>Destino:</b> ${escaparHtmlEmail([c.cidade,c.uf].filter(Boolean).join(" / ")||"—")}</div><div><b>Emissão:</b> ${escaparHtmlEmail(c.emissao||"—")}</div><div><b>Previsão:</b> ${escaparHtmlEmail(c.previsaoEntrega||"—")}</div><div><b>Volumes:</b> ${escaparHtmlEmail(c.volumes??"—")}</div><div><b>Peso:</b> ${escaparHtmlEmail(c.peso??"—")}</div><div><b>Valor mercadoria:</b> ${escaparHtmlEmail(c.valorMercantil??"—")}</div><div><b>Frete:</b> ${escaparHtmlEmail(c.totalFrete??"—")}</div><div><b>Última ocorrência:</b> ${escaparHtmlEmail(c.ultimaOcorrencia||"—")}</div><div><b>Data ocorrência:</b> ${escaparHtmlEmail(c.dataOcorrencia||"—")}</div></div>`).join("")}</div>`:"";
     body.innerHTML=alertas+previsaoHtmlV415+etapasHtml+resumo+detalhesBraspress+`<div class="rast-historico-titulo">Histórico completo das ocorrências (${eventos.length})</div><div class="rast-timeline">${eventos.map((e,i)=>{const detalhes=[];if(e.unidade)detalhes.push(`🏤 Unidade: ${escaparHtmlEmail(e.unidade)}`);if(e.destino)detalhes.push(`➡ Destino: ${escaparHtmlEmail(e.destino)}`);if(e.codigo)detalhes.push(`Código: ${escaparHtmlEmail(e.codigo)}`);if(e.recebedor)detalhes.push(`👤 Recebedor: ${escaparHtmlEmail(e.recebedor)}`);if(e.documentoRecebedor)detalhes.push(`Documento: ${escaparHtmlEmail(e.documentoRecebedor)}`);return `<div class="rast-evento ${i===0?'atual':''}"><div class="rast-evento-titulo">${escaparHtmlEmail(e.titulo||"Ocorrência")}</div><div class="rast-evento-data">${e.data&&dataEventoTimeline(e.data)?dataEventoTimeline(e.data).toLocaleString("pt-BR"):"Data não informada"}</div>${e.descricao&&textoNormalizadoTimeline(e.descricao)!==textoNormalizadoTimeline(e.titulo)?`<div class="rast-evento-desc">${escaparHtmlEmail(e.descricao)}</div>`:""}${e.local?`<div class="rast-evento-local">📍 ${escaparHtmlEmail(e.local)}</div>`:""}${detalhes.length?`<div class="rast-evento-detalhes">${detalhes.map(x=>`<span class="rast-evento-detalhe">${x}</span>`).join("")}</div>`:""}<div class="rast-evento-fonte">Fonte: ${escaparHtmlEmail(e.fonte||"Portal")}</div></div>`}).join("")}</div>`;
