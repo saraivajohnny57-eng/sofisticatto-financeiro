@@ -258,13 +258,15 @@ function configurarInterfacePorPerfil(){
   const entregador=usuarioLogado?.tipo==="entregador";
   const cobranca=usuarioEhCobrancaV293();
   if(cobranca){
-    ["btnDashboard","btnRelatorios","btnHistoricoFinanceiro","btnCorridas","btnEnvioDocumentos","btnAdmin"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display="none";});
+    ["btnDashboard","btnRelatorios","btnHistoricoFinanceiro","btnCorridas","btnEnvioDocumentos","btnSefazFiscal","btnAdmin"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display="none";});
     const bi=document.getElementById("btnIntegracaoBancaria"); if(bi)bi.style.display="block";
     const notif=document.querySelector(".notificacao-box"); if(notif)notif.style.display="none";
     setTimeout(configurarIntegracaoPerfilCobrancaV293,0);
     return;
   }
   ["btnDashboard","btnRelatorios","btnHistoricoFinanceiro"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=(comercial||entregador)?"none":"block"});
+  const btnFiscal=document.getElementById("btnSefazFiscal");
+  if(btnFiscal)btnFiscal.style.display=["admin","financeiro"].includes(usuarioLogado?.tipo)?"block":"none";
   const btnCorridas=document.getElementById("btnCorridas");
   if(btnCorridas) btnCorridas.style.display=(usuarioLogado?.tipo==="admin"||usuarioLogado?.tipo==="financeiro"||entregador)?"block":"none";
   const dashCorr=document.getElementById("dashboardCorridasBox");
@@ -350,6 +352,7 @@ function mostrarSecao(secao){
   document.getElementById("historico").style.display = "none";
   document.getElementById("admin").style.display = "none";
   document.getElementById("envioDocumentos").style.display = "none";
+  const secFiscal=document.getElementById("sefazFiscal");if(secFiscal)secFiscal.style.display="none";
   const integracaoBancariaSec=document.getElementById("integracaoBancaria"); if(integracaoBancariaSec)integracaoBancariaSec.style.display="none";
   const corridasSec=document.getElementById("corridas"); if(corridasSec)corridasSec.style.display="none";
   const tercSec=document.getElementById("etiquetasTerceirizados");if(tercSec)tercSec.style.display="none";
@@ -358,6 +361,7 @@ function mostrarSecao(secao){
     secao="corridas";
   }
   if(secao==="etiquetasTerceirizados" && !["admin","financeiro"].includes(usuarioLogado?.tipo)){alert("Acesso restrito.");secao="dashboard";}
+  if(secao==="sefazFiscal" && !["admin","financeiro"].includes(usuarioLogado?.tipo)){alert("Acesso restrito à área fiscal.");secao="dashboard";}
   if(usuarioEhCobrancaV293() && secao!=="integracaoBancaria"){ secao="integracaoBancaria"; }
   if(secao === "envioDocumentos" && !usuarioPodeModuloEmail()){
     alert("Seu usuário não possui acesso a esta área.");
@@ -369,6 +373,7 @@ function mostrarSecao(secao){
   }
 
   document.getElementById(secao).style.display = "block";
+  if(secao==="sefazFiscal")abrirPainelFiscalV476("geral");
   if(secao === "envioDocumentos") carregarModuloEmail();
   if(secao === "integracaoBancaria"){
     if(!(emailClientes||[]).length && typeof carregarClientesEmail==="function"){
@@ -381,6 +386,51 @@ function mostrarSecao(secao){
   }
   if(secao === "etiquetasTerceirizados") listarEtiquetasTerc();
   if(secao === "corridas") carregarModuloCorridas?.();
+}
+
+
+/* V476: nenhuma operação no banco ou em API externa ao selecionar módulos fiscais */
+const fiscalModulosV476={
+ geral:["Visão geral","Central Fiscal da Indústria","Menu disponível","Reúne NF-e, manifestação, eventos, apuração e guias. GNRE e entradas aproveitam as telas existentes. Abrir o menu não consome Supabase."],
+ nfe:["NF-e de entrada / XML","Notas recebidas e XMLs","Integração planejada","Distribuição DF-e por CNPJ e NSU, download incremental, conferência de fornecedor e vínculo com Entradas existentes.","entradas","https://www.nfe.fazenda.gov.br/portal/"],
+ manifestacao:["Manifestação NF-e","Manifestação do Destinatário","Transmissão desativada","Ciência, confirmação, desconhecimento e operação não realizada, somente com certificado, autorização e conferência prévia.",null,"https://www.nfe.fazenda.gov.br/portal/perguntasFrequentes.aspx"],
+ eventos:["Eventos IBS / CBS","Eventos fiscais da reforma","Regras a validar","Eventos relacionados a bens, serviços, créditos e imobilização. Não transmitir somente por ter recebido uma mercadoria.",null,"https://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx"],
+ cbs:["Apuração assistida CBS","Débitos e créditos da CBS","Credencial oficial necessária","Consulta incremental e assíncrona da Receita, com limites de chamadas, checkpoints e cache; não consultar ao abrir a tela.",null,"https://docs.receitafederal.gov.br/apuracao-cbs/"],
+ ibs:["Apuração IBS","Apuração do IBS","Disponibilidade a confirmar","Utilizar serviços oficiais do CGIBS conforme liberação e homologação, sem confundir com endpoints da CBS.",null,"https://www.gov.br/fazenda/pt-br/assuntos/reforma-tributaria"],
+ guias:["DARF / Guias","Guias e recolhimentos","Emissão real desativada","Preparar guias oficiais com conferência fiscal e proteção contra duplicidades, separado do fluxo GNRE.",null,"https://docs.receitafederal.gov.br/apuracao-cbs/"],
+ gnre:["GNRE existente","GNRE / DIFAL","Já existe no Portal Sofisticatto","Atalho para o módulo GNRE e alíquotas da Cotação de Fretes. Não copia tabelas, XMLs nem certificados.","gnre"],
+ consumo:["Integrações e consumo","Proteção do Supabase","Sem novas consultas automáticas","Projeto fiscal usará cache, NSU incremental, consulta sob demanda, deduplicação por chave, histórico compacto e credenciais exclusivamente no servidor.",null,"https://supabase.com/dashboard"]
+};
+function abrirPainelFiscalV476(id){
+ if(!["admin","financeiro"].includes(usuarioLogado?.tipo))return;
+ const menu=document.getElementById("sefazNavegacaoV476"),conteudo=document.getElementById("sefazConteudoV476");
+ if(!menu||!conteudo)return;
+ const chave=Object.prototype.hasOwnProperty.call(fiscalModulosV476,id)?id:"geral";
+ menu.replaceChildren();
+ Object.entries(fiscalModulosV476).forEach(([key,item])=>{
+   const botao=document.createElement("button");botao.type="button";botao.textContent=item[0];
+   botao.classList.toggle("ativo",key===chave);botao.setAttribute("aria-current",key===chave?"page":"false");
+   botao.onclick=()=>abrirPainelFiscalV476(key);menu.appendChild(botao);
+ });
+ const item=fiscalModulosV476[chave],badge=document.createElement("span"),titulo=document.createElement("h2"),descricao=document.createElement("p"),acoes=document.createElement("div");
+ badge.className="sefaz-chip-v476";badge.textContent=item[2];
+ titulo.textContent=item[1];descricao.textContent=item[3];acoes.className="sefaz-acoes-v476";
+ if(item[4]){
+   const b=document.createElement("button");b.textContent=item[4]==="gnre"?"Abrir GNRE existente":"Abrir Entradas existentes";
+   b.onclick=()=>acessarModuloFiscalExistenteV476(item[4]);acoes.appendChild(b);
+ }
+ if(item[5]){
+   const link=document.createElement("a");link.textContent="Documentação / portal oficial";link.href=item[5];link.target="_blank";link.rel="noopener noreferrer";acoes.appendChild(link);
+ }
+ conteudo.replaceChildren(badge,titulo,descricao,acoes);
+}
+function acessarModuloFiscalExistenteV476(tipo){
+ if(usuarioLogado?.tipo!=="financeiro")return alert("O módulo operacional atual está disponível para o perfil Financeiro.");
+ if(typeof mostrarAbaEmail!=="function")return alert("Módulo de documentos não disponível.");
+ mostrarSecao("envioDocumentos");
+ mostrarAbaEmail(tipo==="gnre"?"cotacoes":"coletas");
+ if(tipo==="gnre"&&typeof mostrarPainelFrete==="function")mostrarPainelFrete("aliquotas");
+ if(tipo==="entradas"&&typeof mostrarPainelColeta==="function")mostrarPainelColeta("entradas");
 }
 
 function sair(){ localStorage.removeItem("usuarioLogado"); fetch("/api/integracoes?action=portal-auth",{method:"DELETE",credentials:"same-origin"}).finally(()=>location.reload()); }

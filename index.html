@@ -19,6 +19,19 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Allura&family=Caveat:wght@400;500;600&family=Dancing+Script:wght@400;500;600&family=Great+Vibes&display=swap" rel="stylesheet">
+<style id="sefazLayoutV476">
+.sefaz-v476{display:grid;grid-template-columns:210px minmax(0,1fr);gap:14px}
+.sefaz-menu-v476{background:white;border:1px solid #e2dcef;border-radius:16px;padding:10px;align-self:start}
+.sefaz-menu-v476 button{display:block;width:100%;border:0;border-radius:10px;padding:10px;margin-bottom:5px;background:#ede9fb;color:#4d4694;text-align:left;font-weight:700;cursor:pointer}
+.sefaz-menu-v476 button.ativo{background:#5a4fa3;color:white}
+.sefaz-card-v476{background:white;border:1px solid #e2dcef;border-radius:16px;padding:20px;color:#554b8b;line-height:1.6}
+.sefaz-card-v476 h2{color:#51469e;margin:10px 0}.sefaz-card-v476 p{font-size:14px}
+.sefaz-chip-v476{font-size:12px;background:#eeeafa;color:#50449a;border-radius:99px;padding:5px 10px}
+.sefaz-acoes-v476{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.sefaz-acoes-v476 button,.sefaz-acoes-v476 a{border:0;cursor:pointer;border-radius:10px;background:#5a4fa3;color:white;padding:10px 13px;text-decoration:none;font-size:13px;width:auto}
+.sefaz-nota-v476{background:#fff8e8;border:1px solid #efdcb5;padding:12px;border-radius:12px;margin:12px 0;font-size:13px;color:#624c25}
+@media(max-width:800px){.sefaz-v476{grid-template-columns:1fr}.sefaz-menu-v476{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:6px}.sefaz-menu-v476 button{margin:0}}
+</style>
 </head>
 <body>
 <div id="carregandoSistema" class="carregando-sistema">Carregando...</div>
@@ -50,6 +63,7 @@
       <button title="Envio de Documentos" aria-label="Envio de Documentos" id="btnEnvioDocumentos" onclick="mostrarSecao('envioDocumentos')" style="display:none;"><span class="sof-nav-icon" aria-hidden="true">➤</span><span class="sof-nav-label">Envio de Documentos</span></button>
       <button title="Integração Bancária" aria-label="Integração Bancária" id="btnIntegracaoBancaria" onclick="mostrarSecao('integracaoBancaria')" style="display:none;"><span class="sof-nav-icon" aria-hidden="true">▤</span><span class="sof-nav-label">Integração Bancária</span></button>
       <button title="Etiquetas Terceirizados" aria-label="Etiquetas Terceirizados" id="btnEtiquetasTerceirizados" onclick="mostrarSecao('etiquetasTerceirizados')" style="display:none;"><span class="sof-nav-icon" aria-hidden="true">◇</span><span class="sof-nav-label">Etiquetas Terceirizados</span></button>
+      <button title="SEFAZ / Fiscal" aria-label="SEFAZ / Fiscal" id="btnSefazFiscal" style="display:none" onclick="mostrarSecao('sefazFiscal')"><span class="sof-nav-icon" aria-hidden="true">▣</span><span class="sof-nav-label">SEFAZ / Fiscal</span></button>
       <button title="Administração" aria-label="Administração" id="btnAdmin" onclick="mostrarSecao('admin')" style="display:none;"><span class="sof-nav-icon" aria-hidden="true">⚙</span><span class="sof-nav-label">Administração</span></button>
     </div>
   </div>
@@ -82,6 +96,14 @@
 <label style="grid-column:span 2">URL da arte/logo (opcional)<input id="tercImagem" placeholder="https://..."></label>
 </div><datalist id="tercGrupos"><option>AMAZON</option><option>ENALTECER</option><option>FARMACIA</option><option>GENERAL TERCEIRIZADO</option><option>GREYCIELLY DE SOUSA</option><option>LUX LIFE</option><option>MIVS</option><option>MY</option><option>NAKAMURA</option><option>ROSA RAINHA</option><option>SÍSIFE</option><option>VP</option></datalist><p id="tercModalAviso" style="color:#a22"></p><div style="display:flex;gap:8px;justify-content:end"><button class="btn azul" onclick="fecharCadastroTerc()">Cancelar</button><button class="btn verde" onclick="salvarCadastroTerc()">💾 Salvar cadastro</button></div></div></div>
 
+  <section id="sefazFiscal" style="display:none">
+    <div class="top"><div><h1>SEFAZ • Reforma Tributária</h1><p>Central fiscal Sofisticatto — módulos em uma única área</p></div></div>
+    <div class="sefaz-nota-v476">Menu em preparação: nenhuma consulta, evento fiscal, emissão de guia ou gravação é executada ao abrir esta área.</div>
+    <div class="sefaz-v476">
+      <nav class="sefaz-menu-v476" id="sefazNavegacaoV476" aria-label="Módulos da central fiscal"></nav>
+      <div class="sefaz-card-v476" id="sefazConteudoV476" role="region" aria-live="polite"></div>
+    </div>
+  </section>
   <div id="dashboard">
     <div class="top">
       <div>
@@ -3452,7 +3474,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 
 <script src="progresso-operacoes-v460.js?v=461-logo-correcao"></script>
-<script src="financeiro.js?v=473-diagnostico-bb-retry-bradesco-20261117"></script>
+<script src="financeiro.js?v=476-central-fiscal-20261117"></script>
 <script src="etiquetas-editor-posicao-v464.js?v=466"></script>
 <script src="etiquetas-editor-grafico-v465.js?v=465"></script>
 <script src="relatorio-parcelas-clientes-v429.js?v=429-producao"></script>
