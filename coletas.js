@@ -3621,7 +3621,7 @@ async function sincronizarColetasAutomaticamente(forcar=false){
     const hora=new Date().toLocaleTimeString("pt-BR");
     atualizarIndicadorSincronizacao(
       (falhaColetas||dados.erros||rastreiosGerais.erros)?"aviso":"sucesso",
-      `Última sincronização: ${hora} — coletas: ${dados.consultadas||0} consultada(s), ${dados.alteradas||0} alterada(s); rastreios: ${(rastreiosGerais.consultados??dados.rastreios?.consultados)||0} consultado(s), ${(rastreiosGerais.atualizados??dados.rastreios?.alterados)||0} atualizado(s)${dados.ignoradas?`; ${dados.ignoradas} coleta(s) aguardando código`:""}${(dados.erros||rastreiosGerais.erros)?`; ${(dados.erros||0)+(rastreiosGerais.erros||0)} erro(s)`:""}`
+      `Última sincronização: ${hora} — coletas: ${dados.consultadas||0} consultada(s), ${dados.alteradas||0} alterada(s); rastreios: ${(rastreiosGerais.consultados??dados.rastreios?.consultados)||0} consultado(s), ${(rastreiosGerais.atualizados??dados.rastreios?.alterados)||0} atualizado(s)${rastreiosGerais?.coletasReconciliadas?.coletas_confirmadas?`; ${rastreiosGerais.coletasReconciliadas.coletas_confirmadas} coleta(s) confirmada(s) automaticamente`:""}${rastreiosGerais?.coletasReconciliadas?.rastreios_recuperados?`; ${rastreiosGerais.coletasReconciliadas.rastreios_recuperados} rastreio(s) recuperado(s)`:""}${dados.ignoradas?`; ${dados.ignoradas} coleta(s) aguardando código`:""}${(dados.erros||rastreiosGerais.erros)?`; ${(dados.erros||0)+(rastreiosGerais.erros||0)} erro(s)`:""}`
     );
     await carregarPainelRodonaves();
   }catch(erro){
