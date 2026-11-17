@@ -392,14 +392,14 @@ function mostrarSecao(secao){
 /* V476: nenhuma operação no banco ou em API externa ao selecionar módulos fiscais */
 const fiscalModulosV476={
  geral:["Visão geral","Central Fiscal da Indústria","Menu disponível","Reúne NF-e, manifestação, eventos, apuração e guias. GNRE e entradas aproveitam as telas existentes. Abrir o menu não consome Supabase."],
- nfe:["NF-e de entrada / XML","Notas recebidas e XMLs","Integração planejada","Distribuição DF-e por CNPJ e NSU, download incremental, conferência de fornecedor e vínculo com Entradas existentes.","entradas","https://www.nfe.fazenda.gov.br/portal/"],
+ nfe:["NF-e de entrada / XML","Notas recebidas e XMLs","Consulta real sob demanda","Distribuição DF-e por CNPJ e NSU, download incremental, conferência de fornecedor e vínculo com Entradas existentes.","entradas","https://www.nfe.fazenda.gov.br/portal/"],
  manifestacao:["Manifestação NF-e","Manifestação do Destinatário","Transmissão desativada","Ciência, confirmação, desconhecimento e operação não realizada, somente com certificado, autorização e conferência prévia.",null,"https://www.nfe.fazenda.gov.br/portal/perguntasFrequentes.aspx"],
  eventos:["Eventos IBS / CBS","Eventos fiscais da reforma","Regras a validar","Eventos relacionados a bens, serviços, créditos e imobilização. Não transmitir somente por ter recebido uma mercadoria.",null,"https://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx"],
- cbs:["Apuração assistida CBS","Débitos e créditos da CBS","Credencial oficial necessária","Consulta incremental e assíncrona da Receita, com limites de chamadas, checkpoints e cache; não consultar ao abrir a tela.",null,"https://docs.receitafederal.gov.br/apuracao-cbs/"],
- ibs:["Apuração IBS","Apuração do IBS","Disponibilidade a confirmar","Utilizar serviços oficiais do CGIBS conforme liberação e homologação, sem confundir com endpoints da CBS.",null,"https://www.gov.br/fazenda/pt-br/assuntos/reforma-tributaria"],
- guias:["DARF / Guias","Guias e recolhimentos","Emissão real desativada","Preparar guias oficiais com conferência fiscal e proteção contra duplicidades, separado do fluxo GNRE.",null,"https://docs.receitafederal.gov.br/apuracao-cbs/"],
- gnre:["GNRE existente","GNRE / DIFAL","Já existe no Portal Sofisticatto","Atalho para o módulo GNRE e alíquotas da Cotação de Fretes. Não copia tabelas, XMLs nem certificados.","gnre"],
- consumo:["Integrações e consumo","Proteção do Supabase","Sem novas consultas automáticas","Projeto fiscal usará cache, NSU incremental, consulta sob demanda, deduplicação por chave, histórico compacto e credenciais exclusivamente no servidor.",null,"https://supabase.com/dashboard"]
+ cbs:["Apuração assistida CBS","Débitos e créditos da CBS","API v2 oficial disponível; integração pendente","Consulta incremental e assíncrona da Receita, com limites de chamadas, checkpoints e cache; não consultar ao abrir a tela.",null,"https://docs.receitafederal.gov.br/apuracao-cbs/"],
+ ibs:["Apuração IBS","Apuração do IBS","Manual API oficial publicado; integração pendente","O CGIBS publicou manual de integração. A consulta autenticada exige habilitação e validação da API, separada da CBS.",null,"https://cgibs.gov.br/apuracao-assistida-do-ibs"],
+ guias:["DARF / Guias","Guias e recolhimentos","Emissão real desativada","A Receita prevê endpoints RAD/PCONT na documentação da CBS. Emissão real depende da disponibilidade oficial, de credenciais e da conferência fiscal; separado de GNRE.",null,"https://docs.receitafederal.gov.br/apuracao-cbs/"],
+ gnre:["GNRE existente","GNRE / DIFAL","Módulo existente; produção real não comprovada","Atalho para o módulo GNRE e alíquotas da Cotação de Fretes. Não copia tabelas, XMLs nem certificados.","gnre","https://www.sef.sc.gov.br/orientacoes/gnre-guia-nacional-de-recolhimento-de-tributos-estaduais"],
+ consumo:["Integrações e consumo","Proteção do Supabase","Diagnóstico manual disponível","Projeto fiscal usará cache, NSU incremental, consulta sob demanda, deduplicação por chave, histórico compacto e credenciais exclusivamente no servidor.",null,"https://supabase.com/dashboard"]
 };
 function abrirPainelFiscalV476(id){
  if(!["admin","financeiro"].includes(usuarioLogado?.tipo))return;
@@ -423,6 +423,15 @@ function abrirPainelFiscalV476(id){
    const link=document.createElement("a");link.textContent="Documentação / portal oficial";link.href=item[5];link.target="_blank";link.rel="noopener noreferrer";acoes.appendChild(link);
  }
  conteudo.replaceChildren(badge,titulo,descricao,acoes);
+ if(chave==="geral"||chave==="consumo"){
+  const bloco=document.createElement("div");bloco.className="sefaz-nota-v476";
+  bloco.textContent="Auditoria consolidada dos 9 módulos: somente leitura, sem consultar a SEFAZ, emitir DARF/GNRE, transmitir eventos ou salvar registros.";
+  const executar=document.createElement("button");executar.type="button";executar.textContent="Verificar os 9 módulos (sem transmissão)";
+  executar.onclick=()=>executarAuditoriaFiscalV481();
+  const resultado=document.createElement("div");resultado.id="sefazAuditoriaResultadoV481";
+  resultado.style.cssText="white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font-size:13px;line-height:1.6";
+  bloco.append(document.createElement("hr"),executar,resultado);conteudo.appendChild(bloco);
+ }
  if(chave==="nfe"){
    const box=document.createElement("div");
    box.style.cssText="margin-top:18px;padding:14px;border:1px solid #e0d9f2;border-radius:13px;background:#fbfaff";
@@ -449,6 +458,29 @@ function abrirPainelFiscalV476(id){
    sel.onchange=()=>{resultado.textContent="Ambiente alterado. Use Verificar configuração antes da consulta real.";atualizarEstadoConsultaFiscalV479();};
    atualizarEstadoConsultaFiscalV479();
  }
+}
+async function executarAuditoriaFiscalV481(){
+ if(!["admin","financeiro"].includes(usuarioLogado?.tipo))return;
+ const box=document.getElementById("sefazAuditoriaResultadoV481");if(!box)return;
+ box.textContent="Conferindo requisitos locais e históricos existentes (nenhuma chamada à SEFAZ)...";
+ try{
+  const chave=await chaveAdminColeta();if(!chave){box.textContent="Autorização administrativa necessária.";return;}
+  const resposta=await fetch("/api/integracoes?action=sefaz-dfe&operacao=auditoria&ambiente=producao",{
+   method:"GET",credentials:"same-origin",cache:"no-store",headers:{"x-integrations-admin-key":chave}
+  });
+  const dados=await resposta.json();
+  if(!resposta.ok||!dados.ok)throw Error(dados.erro||"Diagnóstico indisponível.");
+  box.textContent=[
+   "DIAGNÓSTICO ÚNICO — "+new Date().toLocaleString("pt-BR"),
+   "A1: "+(dados.certificado?.valido?"válido até "+dados.certificado.validade:"não validado"),
+   "Acessos ao Financeiro02: "+Object.entries(dados.acessos_banco||{}).map(([k,v])=>k+"="+(v?"OK":"PENDENTE")).join(", "),
+   ...dados.modulos.map((m,i)=>(i+1)+". "+(fiscalModulosV476[m.id]?.[0]||m.id)+" — "+m.situacao.replaceAll("_"," ")+"\n   "+m.detalhe+
+    (m.id==="nfe"?"\n   Último NSU: "+(m.ultimo_nsu||"não registrado")+
+    " | Máximo: "+(m.max_nsu||"não informado")+
+    " | Bloqueio: "+(m.proxima_consulta_em?new Date(m.proxima_consulta_em).toLocaleString("pt-BR"):"nenhum registrado"):"")),
+   "Consultas SEFAZ: 0 | Eventos transmitidos: 0 | Guias emitidas: 0."
+  ].join("\n\n");
+ }catch(e){box.textContent="⚠ Não foi possível concluir o diagnóstico: "+String(e.message||e);}
 }
 // Somente estado visual: sem timers, sem consultas automáticas e sem gravar credenciais no navegador.
 const sefazProximaConsultaV479={producao:null,homologacao:null};
