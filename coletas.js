@@ -1205,6 +1205,8 @@ function statusColetaPainel(a){
   const statusBanco=normalizarStatusColetaPainel(a?.status);
   if(["coletado","cancelado"].includes(statusBanco))return statusBanco;
   const statusApi=normalizarStatusColetaPainel(a?.status_api);
+  if(statusApi==="coletado")return "coletado";
+  if(statusBanco==="nao_coletada")return statusBanco;
   return statusApi||statusBanco||"rascunho";
 }
 function coletaTemDadosReais(a){
@@ -1240,7 +1242,7 @@ function enderecoColetaPainel(a){
   if(externo)return externo;
   return "Endereço vinculado ao protocolo";
 }
-function statusLabelColeta(s){const m={rascunho:"Rascunho",solicitado:"Solicitada",em_aberto:"Em aberto",confirmado:"Confirmada",em_coleta:"Em coleta",coletado:"Coletada",cancelamento_solicitado:"Cancelamento solicitado",cancelado:"Cancelada",erro:"Erro"};return m[s]||String(s||"—").replace(/_/g," ")}
+function statusLabelColeta(s){const m={rascunho:"Rascunho",solicitado:"Solicitada",em_aberto:"Em aberto",confirmado:"Confirmada",em_coleta:"Em coleta",coletado:"Coletada",nao_coletada:"Não coletada",cancelamento_solicitado:"Cancelamento solicitado",cancelado:"Cancelada",erro:"Erro"};return m[s]||String(s||"—").replace(/_/g," ")}
 function classeStatusColeta(s){if(/coletado|confirmado/.test(s))return"sucesso";if(/erro|cancelado/.test(s))return"erro";if(/cancelamento/.test(s))return"alerta";return"aguardando"}
 async function carregarEventosRodonaves(){
   const r=await banco.from("coleta_status_eventos").select("*,coleta_agendamentos(cliente_nome,codigo_coleta)").order("created_at",{ascending:false}).limit(100);
@@ -1318,7 +1320,7 @@ async function carregarPainelRodonaves(){
       <td>${escaparHtmlEmail(a.protocolo_cotacao||"—")}</td>
       <td>${escaparHtmlEmail(a.codigo_coleta||"—")}</td>
       <td>${escaparHtmlEmail(enderecoColetaPainel(a))}</td>
-      <td><span class="coleta-status-painel ${classeStatusColeta(s)}">${escaparHtmlEmail(statusLabelColeta(s))}</span></td>
+      <td><span class="coleta-status-painel ${classeStatusColeta(s)}">${escaparHtmlEmail(statusLabelColeta(s))}</span>${["solicitado","confirmado"].includes(s)&&/telefone|portal_transportadora|whatsapp/i.test(String(a?.dados?.origem_externa||a?.origem||""))?'<small style="display:block;margin-top:5px;color:#775a19;font-size:11px;max-width:165px">Aguardando confirmação da retirada. Se já ocorreu, informe a data real.</small>':""}</td>
       <td>${a.consultado_api_em?new Date(a.consultado_api_em).toLocaleString("pt-BR"):"—"}</td>
       <td>
         ${codigoColetaPodeConsultar(a)&&/rodonaves/i.test(a.frete_transportadoras?.nome||"")?`<button class="btn azul" onclick="consultarColetaPainelRodonaves('${a.id}')">Atualizar API</button>`:""}
@@ -1339,7 +1341,7 @@ async function carregarPainelRodonaves(){
                <button class="btn roxo" onclick="abrirDeclaracaoPrepostagemDaColeta('${a.id}')">📄 Declaração A4</button>`
             : `<button class="btn roxo" onclick="gerarPrePostagemCorreiosDaColeta('${a.id}')">Gerar pré-postagem</button>`
         ):""}
-        ${podeAtualizarManual?`<button class="btn coleta-manual" onclick="alterarStatusManualColeta('${a.id}','coletado')">Marcar coletada</button>`:""}
+        ${podeAtualizarManual?`<button class="btn coleta-manual" title="Confirme a retirada e informe a data/hora reais." onclick="alterarStatusManualColeta('${a.id}','coletado')">Confirmar retirada</button>`:""}
         ${podeAtualizarManual?`<button class="btn coleta-alerta" onclick="alterarStatusManualColeta('${a.id}','nao_coletada')">Não coletada</button>`:""}
         ${podeAtualizarManual?`<button class="btn roxo" onclick="reagendarColetaManual('${a.id}')">Reagendar</button>`:""}
         ${podeAtualizarManual?`<button class="btn vermelho" onclick="solicitarCancelamentoColetaRodonaves('${a.id}')">Cancelar</button>`:""}
@@ -1889,40 +1891,77 @@ async function gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos=true,sil
   return {ok:true,...pre};
 }
 
+
+/* V474 — operador informa a data real; API/SSW permanecem fontes separadas. */
+function dataHoraRetiradaColetaV474(valor){
+ const m=String(valor||'').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
+ if(!m)return null;
+ const [dia,mes,ano,hora,min]=m.slice(1).map(Number);
+ if(ano<2020||ano>2100||hora>23||min>59)return null;
+ const d=new Date(ano,mes-1,dia,hora,min);
+ if(d.getFullYear()!==ano||d.getMonth()!==mes-1||d.getDate()!==dia||d.getHours()!==hora||d.getMinutes()!==min||d.getTime()>Date.now()+5*60000)return null;
+ return {iso:d.toISOString(),local:String(valor).trim()};
+}
+function dataHoraAtualColetaV474(){
+ const d=new Date();
+ return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+const coletasEmAlteracaoV474=new Set();
 async function alterarStatusManualColeta(id,novoStatus){
-  const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
-  if(!a)return;
-  const rotulo=novoStatus==="coletado"?"coletada":"não coletada";
-  const obs=prompt(`Observação para marcar como ${rotulo}:`,"");
-  if(obs===null)return;
-  if(!confirm(`Confirmar alteração para "${rotulo}"?\n\nCliente: ${a.cliente_nome||"—"}\nTransportadora: ${a.frete_transportadoras?.nome||"—"}`))return;
-  const anterior=statusColetaPainel(a);
-  let preCriada=null;
-  if(novoStatus==="coletado"&&coletaRegistroEhCorreios(a)&&!prepostagemCorreiosDaColeta(a)?.idPrePostagem){
-    if(confirm("Esta é uma coleta dos Correios e ainda não possui pré-postagem.\n\nDeseja gerar a pré-postagem agora para liberar a etiqueta e o formulário?")){
-      try{preCriada=await gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos:true});}
-      catch(e){if(!confirm("Não foi possível gerar a pré-postagem:\n\n"+e.message+"\n\nDeseja marcar como coletada mesmo assim?"))return;}
-    }
+ const a=(coletaAgendamentos||[]).find(x=>String(x.id)===String(id));
+ if(!a)return alert('Agendamento não encontrado. Atualize o painel.');
+ if(coletasEmAlteracaoV474.has(String(id)))return;
+ const anterior=statusColetaPainel(a);
+ if(['coletado','cancelado'].includes(anterior))return alert('Coleta já encerrada. Recarregue o painel.');
+ if(!['coletado','nao_coletada'].includes(novoStatus))return;
+ let retirada=null;
+ if(novoStatus==='coletado'){
+  const texto=prompt('Informe a DATA E HORA REAIS da retirada (DD/MM/AAAA HH:MM).\nPode informar ontem, se a transportadora retirou ontem.\nNão confirme enquanto a mercadoria estiver na Sofisticatto.',dataHoraAtualColetaV474());
+  if(texto===null)return;
+  retirada=dataHoraRetiradaColetaV474(texto);
+  if(!retirada)return alert('Data/hora inválida ou futura. Informe DD/MM/AAAA HH:MM.');
+ }
+ const rotulo=novoStatus==='coletado'?'coletada':'não coletada';
+ const obs=prompt('Observação opcional sobre a '+rotulo+':','');
+ if(obs===null)return;
+ if(!confirm('Confirmar '+rotulo+'?\nCliente: '+(a.cliente_nome||'—')+'\nNF: '+(a.numero_nf||'—')+'\nTransportadora: '+(a.frete_transportadoras?.nome||'—')+
+    (retirada?'\nData real da retirada: '+retirada.local:'')+
+    '\n\nEsta é uma confirmação MANUAL; não será atribuída à API da transportadora.'))return;
+ coletasEmAlteracaoV474.add(String(id));
+ try{
+  if(novoStatus==='coletado'&&coletaRegistroEhCorreios(a)&&!prepostagemCorreiosDaColeta(a)?.idPrePostagem){
+   if(confirm('Coleta Correios sem pré-postagem. Deseja preparar agora?')){
+    try{await gerarPrePostagemCorreiosDaColeta(id,{perguntarDocumentos:true})}
+    catch(e){if(!confirm('Não foi possível gerar pré-postagem: '+e.message+'\nRegistrar a coleta mesmo assim?'))return}
+   }
   }
+  const atual=await banco.from('coleta_agendamentos').select('id,status,status_api,coletado_em').eq('id',id).maybeSingle();
+  if(atual.error||!atual.data)throw new Error('Não foi possível conferir status atual da coleta.');
+  if(atual.data.coletado_em||['coletado','cancelado'].includes(normalizarStatusColetaPainel(atual.data.status))||normalizarStatusColetaPainel(atual.data.status_api)==='coletado')
+   throw new Error('Coleta já concluída ou cancelada em outra atualização; registro preservado.');
   const agora=new Date().toISOString();
-  const payload={
-    status:novoStatus,
-    status_api:novoStatus,
-    atualizado_em:agora,
-    consultado_api_em:agora
-  };
-  if(novoStatus==="coletado")payload.coletado_em=agora;
-  const r=await banco.from("coleta_agendamentos").update(payload).eq("id",id);
-  if(r.error)return alert(r.error.message);
-  await registrarEventoColeta(id,anterior,novoStatus,"atualizacao_manual",{observacao:obs||null});
-  if(novoStatus==="coletado"){
-    await criarOuVincularRastreioDaColeta(id,{...a,...payload,status:"coletado"},"atualizacao_manual");
+  const payload={status:novoStatus,atualizado_em:agora};
+  if(retirada)payload.coletado_em=retirada.iso;
+  // Nunca reescrever status_api ou consultado_api_em numa confirmação humana.
+  const grava=await banco.from('coleta_agendamentos').update(payload).eq('id',id).eq('status',atual.data.status).select('id,status');
+  if(grava.error)throw grava.error;
+  if(grava.data?.length!==1)throw new Error('Status mudou em outra sessão. Atualize a lista.');
+  await registrarEventoColeta(id,anterior,novoStatus,'confirmacao_manual_retirada_v474',
+    {observacao:obs||null,data_retira_real:retirada?.iso||null,confirmado_por:usuarioLogado?.login||'sistema'});
+  let avisoRastreio='';
+  if(retirada){
+   try{await criarOuVincularRastreioDaColeta(id,{...a,...payload,status:'coletado'},'confirmacao_manual_retirada_v474')}
+   catch(e){avisoRastreio=' A atualização de Saídas em trânsito apresentou falha: '+e.message;console.warn(avisoRastreio)}
   }
   await carregarPainelRodonaves();
-  if(novoStatus==="coletado"){
-    alert("Coleta marcada como coletada. Ela saiu do Painel de Coletas e foi enviada para Saídas em trânsito.");
+  if(retirada){
+   const mensagem='Retirada confirmada em '+retirada.local+'. Saiu do painel; registro e histórico preservados.'+avisoRastreio;
+   if(typeof mostrarBalaoSistema==='function')mostrarBalaoSistema('Coleta confirmada',mensagem);
+   else alert(mensagem);
   }
-  if(ce("rastreamentoTabelaSaidas"))await carregarRastreamentosLogistica("saida");
+  if(ce('rastreamentoTabelaSaidas'))await carregarRastreamentosLogistica('saida');
+ }catch(e){alert('Não foi possível atualizar a coleta: '+String(e.message||e))}
+ finally{coletasEmAlteracaoV474.delete(String(id))}
 }
 
 async function reagendarColetaManual(id){
@@ -3086,7 +3125,7 @@ async function criarOuVincularRastreioDaColeta(agendamentoId,payload,origemExter
     payload?.dados?.numero_nf||payload?.dados?.numero_nfe||null;
   const numeroCte=payload.numero_cte||payload?.dados?.numero_cte||null;
   const chaveNfe=payload.chave_nfe||payload?.dados?.chave_nfe||payload?.dados?.chave_nf||null;
-  const statusColeta=String(payload.status_api||payload.status||"").toLowerCase();
+  const statusColeta=String(payload.status||payload.status_api||"").toLowerCase();
   const coletada=/coletad/.test(statusColeta);
 
   // V40: qualquer transportadora cadastrada entra no monitoramento quando a
