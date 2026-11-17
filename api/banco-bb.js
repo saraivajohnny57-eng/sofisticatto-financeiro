@@ -439,27 +439,76 @@ function interpretarSituacaoBoletoBb(dados={},registro={}){
     valorPago,valorCredito,valorDesconto,tipoLiquidacao,dataCredito,detalhe
   };
 }
+
+/* V472 — plano completo por IDs estáveis, leve em Supabase e sem novas tabelas. */
+async function planejarSyncCarteiraV472(banco){
+  const ids=[];let ignorados=0,offset=0;
+  for(;;){
+    const r=await supabaseRest('cobrancas_bancarias',{query:`?banco=eq.${banco}&select=id,nosso_numero,linha_digitavel,codigo_barras&order=created_at.asc,id.asc&limit=500&offset=${offset}`});
+    if(!Array.isArray(r))throw new Error('Supabase não retornou a lista de títulos.');
+    for(const x of r){
+      const identificavel=banco==='bb'?!!String(x.nosso_numero||'').trim():!!(x.nosso_numero||x.linha_digitavel||x.codigo_barras);
+      if(identificavel)ids.push(String(x.id));else ignorados++;
+    }
+    offset+=r.length;
+    if(r.length<500)break;
+    if(offset>=20000)throw new Error('Carteira acima do limite de segurança para um único plano. Nenhum título foi alterado.');
+  }
+  return {modo:'planejar',somente_leitura:true,ids,quantidade:ids.length,sem_identificador:ignorados,total_registros:ids.length+ignorados};
+}
+function idsSincronizacaoV472(entrada){
+ const ids=entrada?.ids;
+ if(!Array.isArray(ids)||ids.length<1||ids.length>25||ids.some(id=>! /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id))))throw new Error('Lote inválido: envie de 1 a 25 IDs de boletos.');
+ return [...new Set(ids.map(String))];
+}
+function alteracaoStatusV472(reg,upd,campos){
+ const chave=v=>{
+   if(v===undefined||v===null||v==='')return '';
+   if(typeof v==='boolean')return v?'true':'false';
+   if(typeof v==='number'||(typeof v==='string'&&/^-?\d+(?:\.\d+)?$/.test(v.trim())))return String(Number(v));
+   return String(v);
+ };
+ return campos.some(c=>chave(reg[c])!==chave(upd[c]));
+}
+
 async function sincronizarStatusBoletosBb(amb,entrada={}){
-  const limite=Math.max(1,Math.min(100,Number(entrada.limite||60)));
-  // V289 — inclui também títulos localmente cancelados/baixados para permitir
-  // reconciliação posterior caso o estado oficial do BB tenha sido alterado.
-  // V380: primeiro selecionar os títulos do banco correto; distribuir consultas entre
-  // títulos nunca consultados e os consultados há mais tempo, não apenas os recém-emitidos.
-  const rows=await supabaseRest('cobrancas_bancarias',{query:'?nosso_numero=not.is.null&select=id,numero_nf,nosso_numero,banco,banco_nome,status,vencimento,bb_ultima_consulta&order=created_at.desc&limit=2000'});
-  const alvoId=String(entrada.id||'').trim();
-  const candidatos=(Array.isArray(rows)?rows:[])
-    .filter(r=>(String(r.banco||'').toLowerCase()==='bb'||/banco do brasil/i.test(String(r.banco_nome||'')))&&(!alvoId||String(r.id)===alvoId))
-    .sort((a,b)=>String(a.bb_ultima_consulta||'').localeCompare(String(b.bb_ultima_consulta||'')))
-    .slice(0,alvoId?1:limite);
-  if(!candidatos.length)return {consultados:0,atualizados:0,pagos:0,descontados:0,parciais:0,erros:[]};
+  const modo=String(entrada.modo||'');
+  if(modo==='planejar')return planejarSyncCarteiraV472('bb');
+  const select='id,numero_nf,nosso_numero,banco,banco_nome,status,vencimento,bb_ultima_consulta,bb_codigo_estado,bb_modalidade,bb_descontado,bb_status_detalhe,bb_data_credito,bb_valor_pago,bb_valor_creditado,bb_valor_desconto_utilizado,bb_tipo_liquidacao';
+  let candidatos=[],idsSolicitados=[];
+  if(modo==='lote'){
+    idsSolicitados=idsSincronizacaoV472(entrada);
+    const rows=await supabaseRest('cobrancas_bancarias',{query:`?banco=eq.bb&id=in.(${idsSolicitados.join(',')})&select=${select}&limit=25`});
+    const mapa=new Map((rows||[]).map(r=>[String(r.id),r]));
+    candidatos=idsSolicitados.map(id=>mapa.get(id)).filter(Boolean);
+  }else if(entrada.id){
+    const id=String(entrada.id);
+    if(!/^[0-9a-f-]{36}$/i.test(id))throw new Error('ID do boleto BB inválido.');
+    candidatos=await supabaseRest('cobrancas_bancarias',{query:`?id=eq.${encodeURIComponent(id)}&banco=eq.bb&select=${select}&limit=1`});
+  }else{
+    // Compatibilidade para abas antigas: consulta curta e rotativa.
+    const limite=Math.max(1,Math.min(80,Number(entrada.limite||20)));
+    const rotativo=entrada.rotativo===true;
+    const offset=rotativo?Math.max(0,Math.min(20000,Number(entrada.offset||0))):0;
+    const order=rotativo?'created_at.asc,id.asc':'bb_ultima_consulta.asc.nullsfirst';
+    const rows=await supabaseRest('cobrancas_bancarias',{query:`?banco=eq.bb&nosso_numero=not.is.null&select=${select}&order=${order}&limit=${limite}&offset=${offset}`});
+    candidatos=Array.isArray(rows)?rows:[];
+  }
+  const resumo={consultados:0,concluidos:0,atualizados:0,sem_alteracao:0,pagos:0,descontados:0,parciais:0,erros:[]};
+  for(const id of idsSolicitados)if(!candidatos.some(c=>String(c.id)===id)){
+    resumo.consultados++;
+    resumo.erros.push({id,erro:'Registro não localizado na carteira BB. O plano foi preservado.'});
+  }
+  if(!candidatos.length)return resumo;
   const oauth=await obterTokenOAuth(amb);
-  const resumo={consultados:0,concluidos:0,atualizados:0,pagos:0,descontados:0,parciais:0,erros:[]};
   const agora=new Date().toISOString();
+  const campos=['status','bb_codigo_estado','bb_modalidade','bb_descontado','bb_status_detalhe','bb_data_credito','bb_valor_pago','bb_valor_creditado','bb_valor_desconto_utilizado','bb_tipo_liquidacao'];
   const processar=async reg=>{
     try{
       const q=await consultarBoletoBb(amb,reg.nosso_numero,oauth);
       const sit=interpretarSituacaoBoletoBb(q.data,reg);
       const upd={
+        status:sit.statusNovo||reg.status,
         bb_codigo_estado:sit.estado||null,
         bb_modalidade:sit.modalidade||null,
         bb_descontado:!!sit.descontado,
@@ -468,13 +517,12 @@ async function sincronizarStatusBoletosBb(amb,entrada={}){
         bb_valor_pago:sit.valorPago,
         bb_valor_creditado:sit.valorCredito,
         bb_valor_desconto_utilizado:sit.valorDesconto,
-        bb_tipo_liquidacao:sit.tipoLiquidacao,
-        bb_ultima_consulta:agora,
-        atualizado_em:agora
+        bb_tipo_liquidacao:sit.tipoLiquidacao
       };
-      if(sit.statusNovo && sit.statusNovo!==reg.status)upd.status=sit.statusNovo;
-      await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(reg.id)}`,body:upd});
-      resumo.consultados++;resumo.concluidos++;resumo.atualizados++;
+      const mudou=alteracaoStatusV472(reg,upd,campos);
+      if(mudou)await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(reg.id)}`,body:{...upd,bb_ultima_consulta:agora,atualizado_em:agora}});
+      resumo.consultados++;resumo.concluidos++;
+      if(mudou)resumo.atualizados++;else resumo.sem_alteracao++;
       if(sit.pago)resumo.pagos++;
       if(sit.descontado)resumo.descontados++;
       if(sit.parcial)resumo.parciais++;
@@ -483,7 +531,7 @@ async function sincronizarStatusBoletosBb(amb,entrada={}){
       resumo.erros.push({id:reg.id,numero_nf:reg.numero_nf||null,nosso_numero:reg.nosso_numero||null,erro:texto(e.message,220)});
     }
   };
-  for(let i=0;i<candidatos.length;i+=5)await Promise.all(candidatos.slice(i,i+5).map(processar));
+  for(let i=0;i<candidatos.length;i+=4)await Promise.all(candidatos.slice(i,i+4).map(processar));
   return resumo;
 }
 
