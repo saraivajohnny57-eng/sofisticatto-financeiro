@@ -7825,7 +7825,7 @@ function bbStatusExtraHtml(x){
   const extras=[];
   if(x?.bb_descontado)extras.push('<span class="cobranca-status-tag bb-descontado">Descontado</span>');
   if([18,19].includes(Number(x?.bb_codigo_estado)))extras.push('<span class="cobranca-status-tag bb-parcial">Pago parcial</span>');
-  if(x?.bb_status_detalhe && !x?.bb_descontado && ![18,19].includes(Number(x?.bb_codigo_estado)) && !['Liquidado','Em aberto'].includes(String(x.bb_status_detalhe))){
+  if(x?.bb_status_detalhe && !(x?.status==='cancelado'&&Number(x?.bb_codigo_estado)===7) && !x?.bb_descontado && ![18,19].includes(Number(x?.bb_codigo_estado)) && !['Liquidado','Em aberto'].includes(String(x.bb_status_detalhe))){
     extras.push(`<span class="cobranca-status-tag bb-detalhe">${escaparHtmlEmail(x.bb_status_detalhe)}</span>`);
   }
   return extras.join(' ');
@@ -8158,7 +8158,7 @@ function filtroTextoBancarioV419(){return String(document.getElementById('cobBus
 function correspondeBuscaBancariaV419(x){
   const consulta=filtroTextoBancarioV419();if(!consulta)return true;
   const normal=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-  const texto=normal([x?.cliente_nome,x?.cliente,x?.nome_pagador,x?.nomePagador,x?.cpf_cnpj,x?.cpfCnpj,x?.numero_nf,x?.numero_pedido,x?.pedido,x?.referencia,x?.seu_numero,x?.nosso_numero].filter(Boolean).join(' '));
+  const texto=normal([x?.cliente_nome,x?.cliente,x?.nome_pagador,x?.nomePagador,x?.cpf_cnpj,x?.cpfCnpj,x?.numero_nf,referenciaParcelaCobrancaV470(x),x?.numero_pedido,x?.pedido,x?.referencia,x?.seu_numero,x?.nosso_numero].filter(Boolean).join(' '));
   return normal(consulta).split(/\s+/).every(t=>texto.includes(t));
 }
 function filtrarRelatorioBancarioV419(lista){
@@ -8779,7 +8779,7 @@ function statusEfetivoRelatorioBancoV304(x){
 }
 function statusRelatorioBancoV290(x){
   const statusEfetivo=statusEfetivoRelatorioBancoV304(x);
-  const base={aberto:'Em aberto',vencido:'Vencido',pago:'Pago',cancelado:'Cancelado/Baixado',pendente_integracao:'Pendente integração'}[statusEfetivo]||cobStatus(statusEfetivo);
+  const base=(statusEfetivo==='cancelado'&&codigoBancoCobranca(x?.banco_nome||x?.banco||'')==='bb'&&Number(x?.bb_codigo_estado)===7)?'Baixado no BB':({aberto:'Em aberto',vencido:'Vencido',pago:'Pago',cancelado:'Cancelado/Baixado',pendente_integracao:'Pendente integração'}[statusEfetivo]||cobStatus(statusEfetivo));
   const bancoCod=codigoBancoCobranca(x?.banco_nome||x?.banco||'');
   const cancelado=statusEfetivo==='cancelado';
   const desc=!cancelado && (bancoCod==='bb'?!!x?.bb_descontado:!!x?.bradesco_descontado);
@@ -8828,15 +8828,61 @@ function imprimirRelatorioBancoV290(bancoCod){
   const ei=document.getElementById('cobDataEmissaoIni')?.value,ef=document.getElementById('cobDataEmissaoFim')?.value,vi=document.getElementById('cobDataVencIni')?.value,vf=document.getElementById('cobDataVencFim')?.value;
   const sts=statusSelecionadosV294(),busca=document.getElementById('cobBuscaHistorico')?.value||'';
   if(ei||ef)filtros.push(`Emissão: ${fmtData(ei)} a ${fmtData(ef)}`); if(vi||vf)filtros.push(`Vencimento: ${fmtData(vi)} a ${fmtData(vf)}`); if(sts.length)filtros.push(`Status: ${sts.map(statusLabelV294).join(', ')}`); if(busca)filtros.push(`Busca: ${esc(busca)}`);
-  const linhas=lista.map(x=>`<tr><td>${fmtData(x.vencimento)}</td><td class="status">${esc(statusRelatorioBancoV290(x))}</td><td>${esc(x.cliente_nome||'—')}</td><td>${esc(x.cpf_cnpj||'—')}</td><td>${esc(x.numero_nf||'—')}</td><td>${esc((x.parcela_numero||1)+'/'+(x.parcela_total||1))}</td><td>${esc(x.nosso_numero||'—')}</td><td class="valor">${moeda(x.valor)}</td></tr>`).join('');
+  const linhas=lista.map(x=>`<tr><td>${fmtData(x.vencimento)}</td><td class="status">${esc(statusRelatorioBancoV290(x))}</td><td>${esc(x.cliente_nome||'—')}</td><td>${esc(x.cpf_cnpj||'—')}</td><td>${esc(referenciaParcelaCobrancaV470(x))}</td><td>${esc((x.parcela_numero||1)+'/'+(x.parcela_total||1))}</td><td>${esc(x.nosso_numero||'—')}</td><td class="valor">${moeda(x.valor)}</td></tr>`).join('');
   const w=window.open('','_blank'); if(!w)return alert('O navegador bloqueou a janela do relatório. Libere pop-ups para este site e tente novamente.');
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Relatório ${bancoNome}</title><style>@page{size:A4 landscape;margin:9mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;font-size:9px}.acoes{margin:0 0 8px}.acoes button{padding:8px 14px;font-weight:700}.cab{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #333;padding-bottom:7px;margin-bottom:8px}.cab h1{font-size:17px;margin:0}.cab h2{font-size:12px;margin:3px 0 0}.meta{text-align:right;font-size:8px}.filtros{border:1px solid #bbb;padding:5px 7px;margin-bottom:7px}.kpis{display:flex;gap:6px;margin-bottom:8px}.kpi{border:1px solid #bbb;padding:5px 7px;flex:1}.kpi b{display:block;font-size:11px}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border-bottom:1px solid #bbb;padding:4px 3px;vertical-align:top;overflow-wrap:anywhere}th{background:#eee;border-top:1px solid #888;text-align:left}th:nth-child(1){width:9%}th:nth-child(2){width:14%}th:nth-child(3){width:22%}th:nth-child(4){width:14%}th:nth-child(5){width:8%}th:nth-child(6){width:7%}th:nth-child(7){width:15%}th:nth-child(8){width:11%}.valor{text-align:right;white-space:nowrap}.status{font-weight:700}.rodape{margin-top:8px;border-top:2px solid #333;padding-top:6px;display:flex;justify-content:space-between;font-size:8px}@media print{.acoes{display:none}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}}</style></head><body><div class="acoes"><button onclick="window.print()">🖨 Imprimir / Salvar PDF</button></div><div class="cab"><div><h1>Sofisticatto Cosméticos</h1><h2>RELATÓRIO DE TÍTULOS — ${bancoNome}</h2></div><div class="meta">Gerado em ${new Date().toLocaleString('pt-BR')}<br>Ordenação: vencimento crescente</div></div><div class="filtros"><b>Filtros:</b> ${filtros.length?filtros.join(' • '):'Todos os títulos deste banco'}</div><div class="kpis"><div class="kpi">Títulos<b>${lista.length}</b></div><div class="kpi">Em aberto<b>${abertos.length}</b></div><div class="kpi">Vencidos<b>${vencidos.length}</b></div><div class="kpi">Pagos<b>${pagos.length}</b></div><div class="kpi">Descontados<b>${descontados.length}</b></div><div class="kpi">Cancelados/Baixados<b>${cancelados.length}</b></div><div class="kpi">Valor total<b>${moeda(total)}</b></div></div><table><thead><tr><th>Vencimento</th><th>Status</th><th>Cliente</th><th>CPF/CNPJ</th><th>NF</th><th>Parcela</th><th>Nosso Número</th><th>Valor</th></tr></thead><tbody>${linhas}</tbody></table><div class="rodape"><span>${bancoNome} • ${lista.length} título(s)</span><span>Valor total: <b>${moeda(total)}</b></span></div></body></html>`);
   w.document.close();
 }
 
+
+/* V470 — Identificação visual da parcela e do título bancário.
+   Não modifica NF, Nosso Número ou qualquer registro persistido. */
+function referenciaParcelaCobrancaV470(x){
+  const original=String(x?.numero_nf||'').trim();
+  if(!original)return '—';
+  // Referências legadas já terminadas em -01/-02 não recebem segundo sufixo.
+  if(/-\d{2,3}$/.test(original))return original;
+  const parcela=Number(x?.parcela_numero);
+  const numero=Number.isInteger(parcela)&&parcela>0&&parcela<=999?parcela:1;
+  return original+'-'+String(numero).padStart(2,'0');
+}
+function chaveMesmoBoletoComercialV470(x){
+  const original=String(x?.numero_nf||'').trim().toUpperCase().replace(/-\d{2,3}$/,'');
+  if(!original)return '';
+  const pSuf=String(x?.numero_nf||'').match(/-(\d{2,3})$/);
+  const parcela=Number(x?.parcela_numero)||Number(pSuf?.[1])||1;
+  const cliente=String(x?.cliente_id||x?.cpf_cnpj||x?.cliente_nome||'').trim().toUpperCase();
+  return [String(x?.banco||'').trim().toLowerCase(),cliente,original,parcela].join('|');
+}
+function mapearBoletosPorParcelaV470(lista){
+  const grupos=new Map();
+  for(const x of lista||[]){
+    const chave=chaveMesmoBoletoComercialV470(x);
+    const nosso=String(x?.nosso_numero||x?.banco_nosso_numero||'').trim();
+    if(!chave||!nosso)continue;
+    if(!grupos.has(chave))grupos.set(chave,new Set());
+    grupos.get(chave).add(nosso);
+  }
+  return grupos;
+}
+function statusVisualCobrancaV470(x){
+  if(String(x?.banco||'').toLowerCase()==='bb' &&
+      x?.status==='cancelado' && Number(x?.bb_codigo_estado)===7){
+    return 'Baixado no BB';
+  }
+  return cobStatus(x?.status);
+}
+function dataCreditoBancoValidaV470(data){
+  const dataIso=String(data||'').slice(0,10);
+  if(!/^20\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(dataIso))return false;
+  const d=new Date(dataIso+'T12:00:00Z');
+  return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===dataIso;
+}
+
 function renderHistoricoCobrancas(){
   const tb=document.getElementById('cobHistoricoTabela'); if(!tb)return;
   const lista=cobrancasFiltradasHistoricoV178();
+  const boletosPorParcela=mapearBoletosPorParcelaV470(cobrancasBancarias||[]);
   const baseKpi=usuarioEhCobrancaV293()?(cobrancasBancarias||[]).filter(cobrancaJaEmitidaV293):(cobrancasBancarias||[]);
   document.getElementById('cobKpiAbertos').textContent=baseKpi.filter(x=>['aberto','pendente_integracao'].includes(x.status)&&!dataVencidaV314(x.vencimento)).length;
   document.getElementById('cobKpiPagos').textContent=baseKpi.filter(x=>x.status==='pago').length;
@@ -8845,6 +8891,14 @@ function renderHistoricoCobrancas(){
   tb.innerHTML=lista.length?lista.map(x=>{
     const emitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bb'&&x.nosso_numero;
     const bradescoEmitido=['aberto','pago','vencido'].includes(x.status)&&x.banco==='bradesco'&&x.linha_digitavel;
+    const nossoNumeroVisivel=String(x.nosso_numero||x.banco_nosso_numero||'').trim();
+    const quantidadeTitulos=boletosPorParcela.get(chaveMesmoBoletoComercialV470(x))?.size||0;
+    const nfVisual='<strong>'+escaparHtmlEmail(referenciaParcelaCobrancaV470(x))+'</strong>'+
+      (nossoNumeroVisivel?'<small style="display:block;color:#625b78;font-size:11px;white-space:normal;overflow-wrap:anywhere">Nosso Nº: '+escaparHtmlEmail(nossoNumeroVisivel)+'</small>':'')+
+      (quantidadeTitulos>1?'<small style="display:block;color:#915700;font-size:11px" title="Boletos distintos registrados para a mesma NF e parcela; confira pelo Nosso Número">⚠ '+quantidadeTitulos+' boletos para esta parcela</small>':'');
+    const creditoValido=dataCreditoBancoValidaV470(x.bb_data_credito);
+    const creditoHtml=creditoValido?'<div class="bb-status-meta">Crédito: '+new Date(String(x.bb_data_credito).slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR')+
+      (x.bb_valor_pago!=null&&Number(x.bb_valor_pago)>0?' • Pago '+cobMoeda(x.bb_valor_pago):'')+'</div>':'';
     const acoes=bradescoEmitido
       ?`<button class="btn azul" onclick="abrirBoletoBradescoRegistro('${x.id}')">🖨 Visualizar boleto</button> <button class="btn" style="background:#7b3f9e;color:#fff" onclick="abrirSegundaViaBradescoHistoricoV400('${x.id}')">📅 2ª via atualizada</button> <button class="btn verde" onclick="imprimirPedidoBradescoV264('${x.id}')">📄 Imprimir pedido</button> <button class="btn" style="background:#c62828;color:#fff;" data-verifica-bradesco="${x.id}" onclick="verificarStatusBradescoV277('${x.id}')">🔄 Verificar Bradesco</button> <button class="btn" onclick="abrirBaixaSubstituicaoV352('${x.id}')">🔁 Baixar / substituir</button>`
       :(x.banco==='bradesco'&&x.status==='pendente_integracao'
@@ -8854,7 +8908,7 @@ function renderHistoricoCobrancas(){
         :(x.banco==='bb'&&x.status==='pendente_integracao'
           ?`<button class="btn verde" onclick="verificarConciliarTituloBb('${x.id}')">🔎 Verificar no BB</button> <button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button>`
           :`<button class="btn azul" onclick="editarCobrancaBancaria('${x.id}')">Editar</button> <button class="btn vermelho" onclick="cancelarCobrancaBancaria('${x.id}')">Cancelar</button>`)));
-    return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${escaparHtmlEmail(x.numero_nf||'—')}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${dataEmissaoCobrancaV177(x)?new Date(dataEmissaoCobrancaV177(x)+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${((x.status==='aberto'||x.status==='vencido')&&dataVencidaV314(x.vencimento))?'Vencido / Em aberto':cobStatus(x.status)}</span> ${bbStatusExtraHtml(x)} ${bradescoStatusExtraHtml(x)}${x.bb_data_credito?`<div class="bb-status-meta">Crédito: ${new Date(x.bb_data_credito+'T12:00:00').toLocaleDateString('pt-BR')}${x.bb_valor_pago!=null?' • Pago '+cobMoeda(x.bb_valor_pago):''}</div>`:''}${x.bradesco_data_pagamento?`<div class="bb-status-meta">Pagamento: ${new Date(x.bradesco_data_pagamento+'T12:00:00').toLocaleDateString('pt-BR')}${x.bradesco_valor_pago!=null?' • Pago '+cobMoeda(x.bradesco_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
+    return `<tr><td>${escaparHtmlEmail(x.cliente_nome||'')}</td><td>${nfVisual}</td><td>${x.banco==='bb'?'Banco do Brasil':'Bradesco'}</td><td>${cobMoeda(x.valor)}</td><td>${dataEmissaoCobrancaV177(x)?new Date(dataEmissaoCobrancaV177(x)+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td>${x.vencimento?new Date(x.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td><td><span class="cobranca-status-tag ${x.status}">${((x.status==='aberto'||x.status==='vencido')&&dataVencidaV314(x.vencimento))?'Vencido / Em aberto':statusVisualCobrancaV470(x)}</span> ${bbStatusExtraHtml(x)} ${bradescoStatusExtraHtml(x)}${creditoHtml}${x.bradesco_data_pagamento?`<div class="bb-status-meta">Pagamento: ${new Date(x.bradesco_data_pagamento+'T12:00:00').toLocaleDateString('pt-BR')}${x.bradesco_valor_pago!=null?' • Pago '+cobMoeda(x.bradesco_valor_pago):''}</div>`:''}</td><td>${acoes}</td></tr>`;
   }).join(''):'<tr><td colspan="8">Nenhuma cobrança encontrada.</td></tr>';
 }
 
