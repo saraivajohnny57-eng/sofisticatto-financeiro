@@ -7790,7 +7790,7 @@ function resumoManualCobrancaV471(){
 function previsualizarCobranca(){
   if(negarOperacaoCobrancaV293()) return;
   const d=dadosNovaCobranca(), b=document.getElementById('cobPreview'); if(!b)return;
-  b.innerHTML=`<div class="cobranca-preview-doc"><div class="cobranca-preview-bank">${d.banco==='bb'?'BANCO DO BRASIL':'BRADESCO'}</div><div class="cobranca-preview-valor">${cobMoeda(d.valor)}</div><div><b>Pagador:</b> ${escaparHtmlEmail(d.cliente_nome||'—')}</div><div><b>Documento:</b> ${escaparHtmlEmail(d.cpf_cnpj||'—')}</div><div><b>Vencimento:</b> ${d.vencimento?new Date(d.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</div><div><b>NF:</b> ${escaparHtmlEmail(d.numero_nf||'—')}</div><div><b>Tipo:</b> ${d.tipo==='boleto_pix'?'Boleto + Pix':'Boleto'}</div><div><b>Multa:</b> ${d.multa_percentual}% • <b>Juros:</b> ${d.juros_percentual}% a.m.</div>${resumoManualCobrancaV471()}</div>`;
+  b.innerHTML=`<div class="cobranca-preview-doc"><div class="cobranca-preview-bank">${d.banco==='bb'?'BANCO DO BRASIL':'BRADESCO'}</div><div class="cobranca-preview-valor">${cobMoeda(d.valor)}</div><div><b>Pagador:</b> ${escaparHtmlEmail(d.cliente_nome||'—')}</div><div><b>Documento:</b> ${escaparHtmlEmail(d.cpf_cnpj||'—')}</div><div><b>${(document.getElementById('cobCondicaoManualV471')?.value||'avista')==='avista'?'Vencimento':'Data-base'}:</b> ${d.vencimento?new Date(d.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</div><div><b>NF:</b> ${escaparHtmlEmail(d.numero_nf||'—')}</div><div><b>Tipo:</b> ${d.tipo==='boleto_pix'?'Boleto + Pix':'Boleto'}</div><div><b>Multa:</b> ${d.multa_percentual}% • <b>Juros:</b> ${d.juros_percentual}% a.m.</div>${resumoManualCobrancaV471()}</div>`;
 }
 
 function seuNumeroBradescoOperacional(numeroNf,parcelaNumero=1,parcelaTotal=1){
@@ -7955,21 +7955,35 @@ function bbStatusExtraHtml(x){
 }
 // V380 — consulta individual oficial BB, sem depender da janela da sincronização em lote.
 async function verificarStatusBbV380(id){
-  const reg=(cobrancasBancarias||[]).find(x=>String(x.id)===String(id));
-  if(!reg||String(reg.banco||'').toLowerCase()!=='bb')return alert('Boleto BB não encontrado no Histórico.');
-  const botoes=[...document.querySelectorAll('[data-verifica-bb="'+String(id).replace(/"/g,'')+'"]')];
-  botoes.forEach(b=>b.disabled=true);
-  try{
-    const j=await bbReq('sincronizar-status',{method:'POST',body:{id:String(id),limite:1}});
-    const r=j?.resumo||{};
-    if(!r.consultados||r.erros?.length)throw new Error(r.erros?.[0]?.erro||'O banco não confirmou a consulta deste título.');
-    const q=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(2000);
-    if(q.error)throw q.error;
-    cobrancasBancarias=q.data||[];renderHistoricoCobrancas();
-    const atual=cobrancasBancarias.find(x=>String(x.id)===String(id));
-    alert('Banco do Brasil consultado.\n\nSituação oficial registrada: '+cobStatus(atual?.status)+(atual?.bb_descontado?' / Descontado':'')+'.');
-  }catch(e){alert('Não foi possível confirmar a situação deste boleto no BB.\n\n'+(e.message||e));}
-  finally{botoes.forEach(b=>b.disabled=false);}
+ const reg=(cobrancasBancarias||[]).find(x=>String(x.id)===String(id));
+ if(!reg||String(reg.banco||'').toLowerCase()!=='bb')return alert('Boleto BB não encontrado no Histórico.');
+ const botoes=[...document.querySelectorAll('[data-verifica-bb="'+String(id).replace(/"/g,'')+'"]')];
+ botoes.forEach(b=>b.disabled=true);
+ try{
+  const j=await bbReq('sincronizar-status',{method:'POST',body:{id:String(id),limite:1}});
+  const r=j?.resumo||{};
+  if(!r.concluidos||r.erros?.length)throw new Error(r.erros?.[0]?.erro||'O banco não confirmou a situação deste título.');
+  const q=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(2000);
+  if(q.error)throw q.error;
+  cobrancasBancarias=q.data||[];renderHistoricoCobrancas();
+  const atual=cobrancasBancarias.find(x=>String(x.id)===String(id));
+  mostrarResultadoConsultaBancariaV469('bb','título confirmado pela API',[
+   'NF/parcela: '+referenciaParcelaCobrancaV470(atual||reg),
+   'Nosso Número: '+(atual?.nosso_numero||reg.nosso_numero||'não informado'),
+   'Situação retornada: '+statusVisualCobrancaV470(atual)+(atual?.bb_descontado?' / Descontado':''),
+   'Consulta individual autenticada e sincronizada no Histórico.'
+  ]);
+ }catch(e){
+  const ultima=reg.bb_ultima_consulta?new Date(reg.bb_ultima_consulta).toLocaleString('pt-BR'):'não informada';
+  mostrarResultadoConsultaBancariaV469('bb','consulta atual não confirmada',[
+   'NF/parcela: '+referenciaParcelaCobrancaV470(reg),
+   'Nosso Número: '+(reg.nosso_numero||'não informado'),
+   'A API não confirmou a nova consulta. O status local NÃO foi alterado.',
+   'Último status gravado: '+statusVisualCobrancaV470(reg)+(reg.bb_descontado?' / Descontado':''),
+   'Última consulta confirmada registrada: '+ultima,
+   'O PDF pode ser exibido usando o código de barras salvo, independentemente desta consulta.'
+  ],[{numero_nf:referenciaParcelaCobrancaV470(reg),nosso_numero:reg.nosso_numero,erro:e?.message||e}]);
+ }finally{botoes.forEach(b=>b.disabled=false);}
 }
 
 /* V469 — Resultado de consulta bancária sem dados sensíveis, visível no portal. */
@@ -9805,7 +9819,10 @@ function numeroTituloParcelaBb(p){
   const base=String(p?.numero_nf||p?.referencia||'').trim().slice(0,15);
   const total=Number(p?.parcela_total||1), n=Number(p?.parcela_numero||1);
   if(total<=1)return base.slice(0,15);
-  const sufixo=`-${n}`;return (base.slice(0,15-sufixo.length)+sufixo).slice(0,15);
+  // Novas emissões MANUAIS usam -01/-02 no identificador real do BB.
+  // Emissões antigas do Relatório mantêm -1/-2 para preservar identidade.
+  const sufixo=p?.origem==='integracao_bancaria_manual'?'-'+String(n).padStart(2,'0'):`-${n}`;
+  return (base.slice(0,15-sufixo.length)+sufixo).slice(0,15);
 }
 function enderecoParcelaBb(p){
   return [p?.endereco,p?.numero,p?.complemento].map(v=>String(v||'').trim()).filter(Boolean).join(', ').slice(0,30);

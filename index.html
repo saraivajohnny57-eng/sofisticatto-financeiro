@@ -3209,7 +3209,29 @@ SOFISTICATTO COSMÉTICOS</textarea>
       <label>Cliente</label><div class="cobranca-busca-wrap"><input id="cobClienteBusca" placeholder="Nome, CNPJ ou CPF" oninput="buscarClienteCobranca()"><div id="cobClienteResultados" class="cobranca-resultados"></div></div><input type="hidden" id="cobClienteId">
       <div id="cobClienteResumo" class="cobranca-cliente-resumo">Selecione um cliente para carregar os dados automaticamente.</div>
       <div class="cobranca-linha"><div><label>Banco</label><select id="cobBanco" onchange="aplicarPadraoBancoCobrancaManual()"><option value="bb">Banco do Brasil</option><option value="bradesco">Bradesco</option></select></div><div><label>Tipo</label><select id="cobTipo"><option value="boleto_pix">Boleto + Pix</option><option value="boleto">Boleto</option></select></div></div>
-      <div class="cobranca-linha"><div><label>Valor</label><input id="cobValor" inputmode="decimal" placeholder="0,00"></div><div><label>Vencimento</label><input id="cobVencimento" type="date"></div></div>
+      <div class="cobranca-linha"><div><label>Valor total</label><input id="cobValor" inputmode="decimal" placeholder="0,00" oninput="atualizarParcelasManualCobrancaV471()"></div><div><label id="cobDataBaseLabelV471">Vencimento</label><input id="cobVencimento" type="date" onchange="atualizarParcelasManualCobrancaV471()"></div></div>
+      <div style="margin:10px 0 14px;padding:12px;background:#f8f6fc;border:1px solid #dcd4ed;border-radius:10px">
+        <label for="cobCondicaoManualV471">Condição de pagamento</label>
+        <select id="cobCondicaoManualV471" style="width:100%;margin:5px 0" onchange="atualizarParcelasManualCobrancaV471()">
+          <option value="avista">À vista (1 boleto no vencimento informado)</option>
+          <option value="7">7 dias</option><option value="10">10 dias</option><option value="14">14 dias</option><option value="15">15 dias</option>
+          <option value="30">30 dias</option><option value="45">45 dias</option>
+          <option value="30/45">30/45</option><option value="30/45/60">30/45/60</option>
+          <option value="30/45/60/75/90/105/120">30/45/60/75/90/105/120</option>
+          <option value="30/40/50/60/70/80/90/100">30/40/50/60/70/80/90/100</option>
+          <option value="personalizado">Personalizado</option>
+        </select>
+        <div id="cobCondicaoCustomBoxV471" style="display:none;margin-top:6px">
+          <label for="cobCondicaoCustomV471">Prazos personalizados (dias separados por /)</label>
+          <input id="cobCondicaoCustomV471" placeholder="Ex.: 20/40/60" maxlength="50" style="width:100%;margin-top:5px" oninput="atualizarParcelasManualCobrancaV471()">
+        </div>
+        <small style="display:block;color:#675c78;margin:8px 0">Para prazos parcelados, informe a data-base acima; os vencimentos serão calculados automaticamente. Ajuste datas e valores antes de emitir.</small>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:6px 0">
+          <strong style="font-size:13px">Parcelas da cobrança</strong>
+          <button type="button" class="btn azul" onclick="atualizarParcelasManualCobrancaV471()" style="font-size:11px;padding:7px">↻ Redistribuir valores</button>
+        </div>
+        <div id="cobParcelasManualV471" aria-live="polite"><p style="font-size:12px;color:#675c78">Informe o valor total e o vencimento para montar as parcelas.</p></div>
+      </div>
       <div class="cobranca-linha"><div><label>Nº NF</label><input id="cobNumeroNf"></div><div><label>Referência</label><input id="cobReferencia" placeholder="Automática se vazio"></div></div>
       <div class="cobranca-linha"><div><label>Multa (%)</label><input id="cobMulta" value="2"></div><div><label>Juros ao mês (%)</label><input id="cobJuros" value="5"></div></div>
       <label>Descrição</label><textarea id="cobDescricao" rows="3"></textarea>
@@ -3430,7 +3452,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 
 <script src="progresso-operacoes-v460.js?v=461-logo-correcao"></script>
-<script src="financeiro.js?v=470-parcelas-e-identidade-bb-20261117"></script>
+<script src="financeiro.js?v=471-parcelamento-manual-e-consulta-bb-20261117"></script>
 <script src="etiquetas-editor-posicao-v464.js?v=466"></script>
 <script src="etiquetas-editor-grafico-v465.js?v=465"></script>
 <script src="relatorio-parcelas-clientes-v429.js?v=429-producao"></script>

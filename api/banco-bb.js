@@ -355,13 +355,24 @@ function acharCampoBb(obj,chaves){
 async function consultarBoletoBb(amb,nossoNumero,oAuth=null){
   const o=oAuth||await obterTokenOAuth(amb);
   const base=amb==='teste'?'https://api.hm.bb.com.br':'https://api.bb.com.br';
-  const nn=encodeURIComponent(String(nossoNumero||'').trim());
-  if(!nn)throw new Error('Nosso Número ausente para consulta do boleto.');
+  const nn=String(nossoNumero||'').replace(/\s+/g,'').trim();
+  if(!/^\d{20}$/.test(nn))throw new Error('Consulta BB não executada: Nosso Número deve ter 20 dígitos. O registro local foi preservado.');
   const convenioConsulta=String(process.env.BB_CONVENIO||BB_CONFIG_PRODUCAO.numeroConvenio);
-  const url=`${base}/cobrancas/v2/boletos/${nn}?numeroConvenio=${encodeURIComponent(convenioConsulta)}&gw-dev-app-key=${encodeURIComponent(o.cred.app_key)}`;
-  const r=await getHttps({url,headers:{Authorization:`Bearer ${o.token}`,Accept:'application/json'}});
-  let data={};try{data=JSON.parse(r.text||'{}')}catch{data={raw:r.text}}
-  if(r.status<200||r.status>=300)throw new Error(data?.erros?.[0]?.mensagem||data?.mensagem||data?.message||`Consulta do boleto BB HTTP ${r.status}`);
+  const url=`${base}/cobrancas/v2/boletos/${encodeURIComponent(nn)}?numeroConvenio=${encodeURIComponent(convenioConsulta)}&gw-dev-app-key=${encodeURIComponent(o.cred.app_key)}`;
+  // O portal oficial BB especifica Content-Type application/json no detalhamento.
+  const r=await getHttps({url,headers:{Authorization:`Bearer ${o.token}`,Accept:'application/json','Content-Type':'application/json'}});
+  let data={};try{data=JSON.parse(r.text||'{}')}catch{data={resposta_nao_json:true}}
+  if(r.status<200||r.status>=300){
+    const lista=Array.isArray(data?.erros)?data.erros:(Array.isArray(data?.errors)?data.errors:[]);
+    const item=lista[0]||{};
+    const mensagem=String(item.mensagem||item.message||item.descricao||data?.mensagem||data?.message||data?.erro||data?.error_description||'Resposta sem mensagem de erro detalhada').slice(0,200);
+    const codigo=String(item.codigo||item.code||data?.codigo||'').slice(0,40);
+    const ocorrencia=String(item.ocorrencia||data?.ocorrencia||'').slice(0,55);
+    const detalhe=[`Consulta BB HTTP ${r.status}`,codigo?`código ${codigo}`:'',mensagem,ocorrencia?`ocorrência ${ocorrencia}`:''].filter(Boolean).join(' — ');
+    const erro=new Error(detalhe);
+    erro.http_status=r.status;
+    throw erro;
+  }
   return {status:r.status,data};
 }
 
