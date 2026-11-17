@@ -4778,6 +4778,7 @@ function dadosGeradorRelatorio(){
   };
 }
 
+const RELATORIO_LOGO_OFICIAL_V478 = "/assets/sofisticatto-logo.jpeg";
 function atualizarPreviaRelatorio(){
   const folha = document.getElementById("gerFolhaRelatorio");
   if(!folha) return;
@@ -4792,14 +4793,13 @@ function atualizarPreviaRelatorio(){
   const prazo = d.prazo_texto ? ` (${escaparHtmlEmail(d.prazo_texto)} dias)` : "";
   const mensagemAutomatica = mensagemPagamentoAutomaticaRelatorio(d);
   const observacaoManual = d.observacao_pagamento || "";
-  const logo = assinatura?.logo_url
-    ? `<img class="relatorio-folha-logo" src="${escaparHtmlEmail(assinatura.logo_url)}" alt="Sofisticatto">`
-    : `<div style="text-align:center;font-size:28px;font-style:italic;color:#5a4fa3;margin-bottom:28px;">Sofisticatto<br><small style="font-size:10px;letter-spacing:5px;">COSMÉTICOS</small></div>`;
+  // Marca oficial local: independente de links antigos do Storage após a migração.
+  const logo = `<img class="relatorio-folha-logo" src="${RELATORIO_LOGO_OFICIAL_V478}" alt="Sofisticatto Cosméticos">`;
 
   const assinaturaHtml = assinatura ? `
     <div class="relatorio-assinatura-doc">
       <p>Atenciosamente,</p>
-      ${assinatura.logo_url ? `<img src="${escaparHtmlEmail(assinatura.logo_url)}" alt="Logo">` : ""}
+      <img src="${RELATORIO_LOGO_OFICIAL_V478}" alt="Logo Sofisticatto">
       <br><strong>${escaparHtmlEmail(assinatura.nome_remetente || "")}</strong>
       ${assinatura.setor ? `<br>${escaparHtmlEmail(assinatura.setor)}` : ""}
       ${assinatura.telefone_1 ? `<br>Contato: ${escaparHtmlEmail(assinatura.telefone_1)}${assinatura.telefone_2 ? " ou "+escaparHtmlEmail(assinatura.telefone_2) : ""}` : ""}
@@ -5180,10 +5180,13 @@ async function gerarDocumentoPdfRelatorio(){
   doc.setLineWidth(1.5);
   doc.rect(7,7,196,283);
 
-  const logoDataUrl = await imagemUrlParaDataUrlRelatorio(assinatura?.logo_url || "");
+  const logoDataUrl = await imagemUrlParaDataUrlRelatorio(RELATORIO_LOGO_OFICIAL_V478);
   if(logoDataUrl){
     const formato = String(logoDataUrl).startsWith("data:image/png") ? "PNG" : "JPEG";
-    doc.addImage(logoDataUrl,formato,77,14,56,24,undefined,"FAST");
+    const dim=doc.getImageProperties(logoDataUrl);
+    const fator=Math.min(56/dim.width,24/dim.height);
+    const largura=dim.width*fator,altura=dim.height*fator;
+    doc.addImage(logoDataUrl,formato,105-largura/2,14+(24-altura)/2,largura,altura,undefined,"FAST");
     y = 46;
   }else{
     doc.setTextColor(90,79,163);
@@ -5292,7 +5295,7 @@ async function baixarRelatorioWord(){
     atualizarPreviaRelatorio();
 
     const assinatura = emailAssinaturaAtiva || null;
-    const logoDataUrl = await imagemUrlParaDataUrlRelatorio(assinatura?.logo_url || "");
+    const logoDataUrl = await imagemUrlParaDataUrlRelatorio(RELATORIO_LOGO_OFICIAL_V478);
     const conteudo = htmlRelatorioExportacao(logoDataUrl);
 
     const blob = new Blob(["\ufeff",conteudo],{
