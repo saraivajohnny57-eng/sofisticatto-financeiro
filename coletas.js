@@ -2343,7 +2343,7 @@ async function carregarRastreamentosLogistica(sentido){
     // O painel mostra TODAS as transportadoras cadastradas, mas prioriza no topo
     // aquilo que o sistema consegue rastrear automaticamente.
     rastreamentosLogistica=rastreamentosLogistica.filter(x=>
-      !["entregue","recebido"].includes(String(x.status||"").toLowerCase()) && !correiosAguardandoPostagem(x)
+      !["entregue","recebido","cancelado"].includes(String(x.status||"").toLowerCase()) && !correiosCanceladoV466(x) && !correiosAguardandoPostagem(x)
     );
     const prioridade=x=>{
       const nome=x.frete_transportadoras?.nome||"";
@@ -2362,9 +2362,9 @@ async function carregarRastreamentosLogistica(sentido){
   const entreguesStatus=sentido==="entrada"?"recebido":"entregue";
   // Os KPIs usam a lista completa; a tabela de Saídas continua escondendo os entregues,
   // que aparecem na aba própria.
-  const emTransito=todosRastreiosDoSentido.filter(x=>!["entregue","recebido","cancelado"].includes(x.status)&&!correiosAguardandoPostagem(x)).length;
-  const entregues=todosRastreiosDoSentido.filter(x=>x.status===entreguesStatus).length;
-  const atrasadas=todosRastreiosDoSentido.filter(x=>x.status==="atrasado"||(x.previsao_entrega&&new Date(x.previsao_entrega)<new Date()&&!["entregue","recebido"].includes(x.status))).length;
+  const emTransito=todosRastreiosDoSentido.filter(x=>!["entregue","recebido","cancelado"].includes(x.status)&&!correiosCanceladoV466(x)&&!correiosAguardandoPostagem(x)).length;
+  const entregues=todosRastreiosDoSentido.filter(x=>x.status===entreguesStatus&&!correiosCanceladoV466(x)).length;
+  const atrasadas=todosRastreiosDoSentido.filter(x=>!correiosCanceladoV466(x)&&(x.status==="atrasado"||(x.previsao_entrega&&new Date(x.previsao_entrega)<new Date()&&!["entregue","recebido","cancelado"].includes(x.status)))).length;
   if(sentido==="saida"){ce("rastSaidaTransito").textContent=emTransito;ce("rastSaidaEntregues").textContent=entregues;ce("rastSaidaAtrasadas").textContent=atrasadas}
   else{ce("rastEntradaTransito").textContent=emTransito;ce("rastEntradaRecebidas").textContent=entregues;ce("rastEntradaAtrasadas").textContent=atrasadas}
   await carregarClientesRastreioV415();
@@ -2482,7 +2482,7 @@ async function carregarRastreamentosEntregues(){
     .in("status",["entregue","recebido"])
     .order("ultima_ocorrencia_em",{ascending:false,nullsFirst:false})
     .order("created_at",{ascending:false});
-  rastreamentosEntregues=r.error?[]:(r.data||[]);
+  rastreamentosEntregues=r.error?[]:(r.data||[]).filter(x=>!correiosCanceladoV466(x));
   if(usuarioEhVendedoraRastreio?.()){
     if(!coletaEscopoVendedora.carregado)await carregarEscopoVendedoraColetas();
     const agIds=new Set((coletaAgendamentos||[]).map(a=>String(a.id)));
@@ -3334,7 +3334,7 @@ function nomeNormalizadoTransportadora(v){
 function rastreioSiteOficialV464(nome){
   const n=nomeNormalizadoTransportadora(nome);
   if(/(^| )alfa( |$)/.test(n))
-    return {url:"https://areadocliente.alfatransportes.com.br/rastreio/",label:"Consultar Alfa (minha conta)"};
+    return {url:"https://alfatransportes.com.br/",label:"Rastrear Alfa (sem login)"};
   if(/(^| )uniao( |$)/.test(n))
     return {url:"https://www.uniaorf.com.br/consulta-de-cargas-online/",label:"Rastrear na União"};
   return null;
@@ -3352,14 +3352,15 @@ function abrirConsultaOficialRastreioV465(id){
   const linha=[
     "Transportadora: "+(r.frete_transportadoras?.nome||""),
     "NF: "+(nf||"não informada"),
-    "Destinatário: "+(r.parceiro_nome||"não informado")
+    "Destinatário: "+(r.parceiro_nome||"não informado"),
+    "CNPJ do remetente: 05.451.985/0001-95"
   ].join("\n");
   const link=document.createElement("a");
   link.href=site.url;link.target="_blank";link.rel="noopener noreferrer";
   document.body.append(link);link.click();link.remove();
   // Não automatizar o login nem tentar reutilizar a sessão privada em outro domínio.
   // O usuário escolhe se deseja copiar os identificadores para a consulta oficial.
-  if(nf&&confirm("Área do Cliente Alfa aberta em nova aba.\n\n"+linha+"\n\nCopiar o número da NF para consultar?")){
+  if(nf&&confirm("Consulta pública da Alfa aberta em nova aba.\n\nSelecione Remetente, informe o CNPJ e a NF abaixo.\n\n"+linha+"\n\nCopiar o número da NF para consultar?")){
     if(navigator.clipboard?.writeText)navigator.clipboard.writeText(nf)
       .catch(()=>prompt("Copie a NF para a consulta:",nf));
     else prompt("Copie a NF para a consulta:",nf);
@@ -3402,6 +3403,11 @@ function textoStatusCorreiosRastreamento(x){
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 }
 function rastreioEhCorreios(x){return /correios|coreios/i.test(String(x?.frete_transportadoras?.nome||''));}
+function correiosCanceladoV466(x){
+  return rastreioEhCorreios(x) &&
+    (String(x?.status||'').toLowerCase()==='cancelado' ||
+     /etiqueta cancelada|pre[- ]?postagem cancelada|objeto cancelado|cancelada pelo (emissor|sistema)/.test(textoStatusCorreiosRastreamento(x)));
+}
 function correiosAguardandoPostagem(x){
   if(!rastreioEhCorreios(x))return false;
   const t=textoStatusCorreiosRastreamento(x);
@@ -3410,6 +3416,7 @@ function correiosAguardandoPostagem(x){
 }
 function statusVisualRastreamento(x){
   if(!rastreioEhCorreios(x))return x?.status||'';
+  if(correiosCanceladoV466(x))return 'cancelado';
   const t=textoStatusCorreiosRastreamento(x);
   if(/objeto entregue|entrega realizada|recebido pelo destinatario/.test(t))return'entregue';
   if(/saiu.*para.*entrega|carteiro saiu|em rota de entrega/.test(t))return'saiu_entrega';
@@ -3437,10 +3444,26 @@ async function finalizarRastreamentoLogistica(id,sentido){
   await carregarRastreamentosLogistica(sentido);
 }
 async function excluirRastreamentoLogistica(id,sentido){
-  if(!confirm("Excluir este registro de rastreamento?"))return;
-  const r=await banco.from("logistica_rastreamentos").delete().eq("id",id);
-  if(r.error)return alert(r.error.message);
+  // Remessas Correios consultadas por contrato são encontradas novamente
+  // na API. Guardar tombstone no próprio registro evita reimportar o código.
+  const atual=([...rastreamentosLogistica,...rastreamentosEntregues]||[])
+    .find(x=>String(x.id)===String(id));
+  const correios=atual&&rastreioEhCorreios(atual);
+  if(!confirm(correios
+    ?"Ocultar este objeto dos Correios do Painel Sofisticatto?\n\nO código será preservado no banco para não ser reimportado. Esta ação NÃO cancela a postagem nos Correios."
+    :"Excluir este registro de rastreamento?"))return;
+  let r;
+  if(correios){
+    const observacao=[atual.observacao||"","Ocultado manualmente no Portal; não corresponde a cancelamento oficial dos Correios."]
+      .filter(Boolean).join(" | ").slice(0,900);
+    r=await banco.from("logistica_rastreamentos").update({
+      status:"cancelado",observacao,atualizado_em:new Date().toISOString(),
+      atualizado_por:usuarioLogado?.login||"ocultado_portal_correios_v466"
+    }).eq("id",id);
+  }else r=await banco.from("logistica_rastreamentos").delete().eq("id",id);
+  if(r.error)return alert("Não foi possível atualizar o registro: "+r.error.message);
   await carregarRastreamentosLogistica(sentido);
+  if(correios&&typeof carregarRastreamentosEntregues==="function")await carregarRastreamentosEntregues();
 }
 
 async function carregarTransportadorasLogistica(){
