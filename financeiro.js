@@ -423,7 +423,107 @@ function abrirPainelFiscalV476(id){
    const link=document.createElement("a");link.textContent="Documentação / portal oficial";link.href=item[5];link.target="_blank";link.rel="noopener noreferrer";acoes.appendChild(link);
  }
  conteudo.replaceChildren(badge,titulo,descricao,acoes);
+ if(chave==="nfe"){
+   const box=document.createElement("div");
+   box.style.cssText="margin-top:18px;padding:14px;border:1px solid #e0d9f2;border-radius:13px;background:#fbfaff";
+   const tituloConsulta=document.createElement("h3");
+   tituloConsulta.textContent="Distribuição DF-e — NF-e destinadas à indústria";
+   const aviso=document.createElement("p");
+   aviso.textContent="Consulta real somente ao clicar. Até 50 documentos por chamada, com NSU incremental e bloqueio de repetição. O conteúdo é armazenado no servidor; nenhuma manifestação é transmitida.";
+   const label=document.createElement("label");
+   label.textContent="Ambiente: ";
+   const sel=document.createElement("select");sel.id="sefazAmbienteV477";
+   sel.style.cssText="width:auto;max-width:260px;display:inline-block";
+   for(const [value,nome] of [["producao","Produção — NF-e reais"],["homologacao","Homologação — testes"]]){
+     const op=document.createElement("option");op.value=value;op.textContent=nome;sel.appendChild(op);
+   }
+   label.appendChild(sel);
+   const botoes=document.createElement("div");botoes.className="sefaz-acoes-v476";
+   for(const [id,texto] of [["status","Verificar configuração"],["documentos","Listar documentos gravados"],["consultar","Consultar novas NF-e (1 lote)"]]){
+     const b=document.createElement("button");b.type="button";b.textContent=texto;
+     b.onclick=()=>requisicaoDfeFiscalV477(id);botoes.appendChild(b);
+   }
+   const resultado=document.createElement("div");resultado.id="sefazResultadoV477";resultado.style.cssText="white-space:pre-wrap;overflow-wrap:anywhere;margin-top:15px;font-size:13px";
+   box.append(tituloConsulta,aviso,label,botoes,resultado);conteudo.appendChild(box);
+ }
 }
+async function requisicaoDfeFiscalV477(operacao){
+ if(usuarioLogado?.tipo!=="financeiro"&&usuarioLogado?.tipo!=="admin")return;
+ const result=document.getElementById("sefazResultadoV477"),sel=document.getElementById("sefazAmbienteV477");
+ if(!result||!sel)return;
+ if(operacao==="consultar"&&!confirm("Atenção: isto fará UMA consulta REAL ao Ambiente Nacional da NF-e para o CNPJ da indústria.\n\nSerão processados no máximo 50 documentos, sem transmitir manifestações. Continuar?"))return;
+ result.textContent="Verificando autorização e processando a operação solicitada…";
+ const buttons=[...document.querySelectorAll("#sefazConteudoV476 button")];buttons.forEach(x=>x.disabled=true);
+ try{
+   if(typeof chaveAdminColeta!=="function")throw Error("A autorização administrativa não está disponível nesta tela.");
+   const chave=await chaveAdminColeta();if(!chave)throw Error("É necessária autorização administrativa.");
+   const ambiente=sel.value==="homologacao"?"homologacao":"producao";
+   const url="/api/integracoes?action=sefaz-dfe&operacao="+encodeURIComponent(operacao)+"&ambiente="+ambiente;
+   const resposta=await fetch(url,{method:operacao==="consultar"?"POST":"GET",credentials:"same-origin",cache:"no-store",
+     headers:{"x-integrations-admin-key":chave,...(operacao==="consultar"?{"Content-Type":"application/json"}:{})},
+     body:operacao==="consultar"?JSON.stringify({ambiente}):undefined
+   });
+   const dados=await resposta.json();
+   if(!resposta.ok||!dados.ok)throw Error((dados.erro||dados.motivo||"Consulta indisponível")+(dados.codigo_sefaz?" (SEFAZ "+dados.codigo_sefaz+")":"")+
+     (dados.proxima_consulta_em?"\nNova consulta permitida em: "+new Date(dados.proxima_consulta_em).toLocaleString("pt-BR"):""));
+   if(operacao==="status"){
+     const c=dados.cursor||{};
+     result.textContent=[
+       "Configuração fiscal: "+(dados.cnpj_configurado?"CNPJ configurado":"CNPJ pendente"),
+       "A1: "+(dados.certificado?.valido?"válido até "+dados.certificado.validade:"indisponível ou vencido"),
+       "Último NSU: "+(c.ultimo_nsu||"sem consulta registrada"),
+       "Maior NSU: "+(c.max_nsu||"não informado"),
+       "Próxima consulta: "+(c.proxima_consulta_em?new Date(c.proxima_consulta_em).toLocaleString("pt-BR"):"pode consultar sob demanda"),
+       "Consultas à SEFAZ nesta verificação: 0"
+     ].join("\n");
+   }else if(operacao==="documentos"){
+     const list=dados.documentos||[];
+     result.replaceChildren();
+     const resumo=document.createElement("p");resumo.textContent=list.length+" registro(s) recente(s), limitados aos 30 últimos NSUs.";
+     result.appendChild(resumo);
+     for(const d of list){
+       const linha=document.createElement("div");linha.style.cssText="padding:9px;border-bottom:1px solid #dfd9ec";
+       linha.textContent="NSU "+d.nsu+" · "+(d.tipo_documento||"Documento")+" · Chave: "+(d.chave_acesso||"resumo/evento sem chave")+" · "+new Date(d.recebido_em).toLocaleString("pt-BR");
+       const botao=document.createElement("button");botao.type="button";botao.textContent="Baixar XML recebido";
+       botao.style.cssText="width:auto;margin:0 0 0 10px;padding:6px 10px;border-radius:8px;border:0;background:#5a4fa3;color:white;cursor:pointer";
+       botao.onclick=()=>baixarXmlFiscalV477(d.nsu,ambiente);
+       linha.appendChild(botao);
+       result.appendChild(linha);
+     }
+   }else{
+     result.textContent=[
+       "Consulta oficial concluída: "+dados.codigo_sefaz+" — "+dados.motivo,
+       "Documentos retornados: "+dados.documentos_recebidos,
+       "Último NSU: "+dados.ultimo_nsu,
+       "Maior NSU: "+dados.max_nsu,
+       "Próxima consulta após: "+new Date(dados.proxima_consulta_em).toLocaleString("pt-BR"),
+       "Manifestação: não transmitida. Use 'Listar documentos gravados' para conferir."
+     ].join("\n");
+   }
+ }catch(e){result.textContent="⚠ "+String(e.message||e)}
+ finally{buttons.forEach(x=>x.disabled=false)}
+}
+
+async function baixarXmlFiscalV477(nsu,ambiente){
+ if(!/^\d{15}$/.test(String(nsu||'')))return;
+ try{
+  const chave=await chaveAdminColeta();if(!chave)return;
+  const response=await fetch("/api/integracoes?action=sefaz-dfe&operacao=xml&ambiente="+encodeURIComponent(ambiente)+"&nsu="+encodeURIComponent(nsu),{
+   headers:{"x-integrations-admin-key":chave},credentials:"same-origin",cache:"no-store"
+  });
+  if(!response.ok){
+   const dado=await response.json().catch(()=>({}));
+   throw Error(dado.erro||"Documento indisponível");
+  }
+  const blob=await response.blob();
+  if(blob.size>1048576)throw Error("XML acima do limite permitido");
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download="DFe_NSU_"+nsu+".xml";
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+ }catch(e){alert("Não foi possível baixar o XML: "+e.message)}
+}
+
 function acessarModuloFiscalExistenteV476(tipo){
  if(usuarioLogado?.tipo!=="financeiro")return alert("O módulo operacional atual está disponível para o perfil Financeiro.");
  if(typeof mostrarAbaEmail!=="function")return alert("Módulo de documentos não disponível.");
