@@ -8082,7 +8082,7 @@ async function executarSincronizacaoCompletaV472(banco){
  const textoBotao=btn?.textContent||'Atualizar todos';
  const inicio=Date.now();
  let trava=null,interrompido=false,erroFinal=null,plano=null;
- const acumulado={consultados:0,concluidos:0,atualizados:0,sem_alteracao:0,pagos:0,descontados:0,parciais:0,erros:[],lotesFalhos:0};
+ const acumulado={consultados:0,concluidos:0,atualizados:0,sem_alteracao:0,pagos:0,descontados:0,parciais:0,recuperados_transporte:0,erros:[],lotesFalhos:0};
  let cancelBtn=null,percorridos=0;
  const consultar=body=>bb?bbReq('sincronizar-status',{method:'POST',body}):bradescoReqProducao('sincronizar-status',body);
  const progresso=(total=0)=>{
@@ -8120,7 +8120,7 @@ async function executarSincronizacaoCompletaV472(banco){
    }
    const t=j?.resumo||{};
    if(Number(t.consultados||0)>lote.length)throw new Error('Contagem de retorno bancário inconsistente. Sincronização interrompida.');
-   for(const key of ['consultados','concluidos','atualizados','sem_alteracao','pagos','descontados','parciais'])
+   for(const key of ['consultados','concluidos','atualizados','sem_alteracao','pagos','descontados','parciais','recuperados_transporte'])
     acumulado[key]+=Number(t[key]||0);
    if(Array.isArray(t.erros))acumulado.erros.push(...t.erros);
    percorridos+=lote.length;
@@ -8147,6 +8147,7 @@ async function executarSincronizacaoCompletaV472(banco){
    'Registros com alterações gravadas: '+acumulado.atualizados,
    'Confirmados sem alteração: '+acumulado.sem_alteracao,
    'Falhas individuais: '+acumulado.erros.length,
+   ...(acumulado.recuperados_transporte?['Falhas temporárias de conexão recuperadas: '+acumulado.recuperados_transporte]:[]),
    'Pagos: '+acumulado.pagos+' • Descontados: '+acumulado.descontados,
    ...(plano.sem_identificador?['Sem identificação para consultar a API: '+plano.sem_identificador]:[]),
    ...(interrompido?['Atenção: a carteira NÃO foi integralmente verificada nesta execução.']:[]),
@@ -8287,18 +8288,32 @@ async function verificarStatusBradescoV277(id){
   const reg=(cobrancasBancarias||[]).find(x=>String(x.id)===String(id));
   if(!reg)return alert('Boleto Bradesco não encontrado no Histórico.');
   if(String(reg.banco||'').toLowerCase()!=='bradesco')return alert('Este registro não é do Bradesco.');
-  const btns=document.querySelectorAll(`[data-verifica-bradesco=\"${String(id).replace(/\"/g,'')}\"]`);btns.forEach(b=>b.disabled=true);
+  const btns=document.querySelectorAll('[data-verifica-bradesco="'+String(id).replace(/"/g,'')+'"]');
+  btns.forEach(b=>b.disabled=true);
   try{
     const j=await bradescoReqProducao('consultar-status-titulo',{id:String(id)}),c=j?.consulta||{};
     const novo=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(2000);
     if(!novo.error)cobrancasBancarias=novo.data||[];
     renderHistoricoCobrancas();
-    const tags=[c.status||'—',c.descontado?'Descontado':null].filter(Boolean).join(' • ');
-    alert(`Status Bradesco atualizado.\n\nStatus: ${tags}\n${c.data_pagamento?`Data do pagamento: ${new Date(c.data_pagamento+'T12:00:00').toLocaleDateString('pt-BR')}\n`:''}${c.valor_pago!=null?`Valor pago: ${cobMoeda(c.valor_pago)}\n`:''}Código Bradesco: ${c.codStatus??'—'}`);
-  }catch(e){alert('Não foi possível consultar este boleto no Bradesco.\n\n'+(e.message||e));}
-  finally{btns.forEach(b=>b.disabled=false);}
+    const atual=cobrancasBancarias.find(x=>String(x.id)===String(id))||reg;
+    mostrarResultadoConsultaBancariaV469('bradesco','consulta individual confirmada',[
+      'NF/parcela: '+referenciaParcelaCobrancaV470(atual),
+      'Nosso Número: '+(atual.nosso_numero||'não informado'),
+      'Status atual: '+(c.status||'não informado'),
+      'Status registrado no Histórico: '+cobStatus(atual.status)+(atual.bradesco_descontado?' / Descontado':''),
+      'Código bancário: '+(c.codStatus??'não informado'),
+      ...(c.data_pagamento?['Data do pagamento: '+new Date(c.data_pagamento+'T12:00:00').toLocaleDateString('pt-BR')]:[]),
+      ...(Number(c.valor_pago)>0?['Valor pago: '+cobMoeda(c.valor_pago)]:[]),
+      ...(c.consulta_recuperada?['A primeira conexão foi interrompida; consulta recuperada na segunda tentativa.']:[])
+    ]);
+  }catch(e){
+    mostrarResultadoConsultaBancariaV469('bradesco','consulta individual não confirmada',[
+      'NF/parcela: '+referenciaParcelaCobrancaV470(reg),
+      'Nosso Número: '+(reg.nosso_numero||'não informado'),
+      'O último status salvo foi preservado. Esta tentativa não comprova mudança de situação.'
+    ],[{numero_nf:reg.numero_nf,nosso_numero:reg.nosso_numero,erro:e?.message||e}]);
+  }finally{btns.forEach(b=>b.disabled=false);}
 }
-
 
 /* V469 — clique azul Atualizar apenas recarrega dados locais, sem exclusões nem chamadas bancárias. */
 async function atualizarHistoricoSomenteLeituraV469(){

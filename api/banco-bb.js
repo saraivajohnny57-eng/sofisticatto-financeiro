@@ -371,6 +371,10 @@ async function consultarBoletoBb(amb,nossoNumero,oAuth=null){
     const detalhe=[`Consulta BB HTTP ${r.status}`,codigo?`código ${codigo}`:'',mensagem,ocorrencia?`ocorrência ${ocorrencia}`:''].filter(Boolean).join(' — ');
     const erro=new Error(detalhe);
     erro.http_status=r.status;
+    erro.codigo_banco=codigo;
+    // A rejeição do BB é um fato sobre esta CONSULTA, não prova que um
+    // Nosso Número historicamente registrado deva ser modificado.
+    if(r.status===400 && codigo==='4678420.1')erro.rejeicao_nosso_numero_bb=true;
     throw erro;
   }
   return {status:r.status,data};
@@ -528,7 +532,16 @@ async function sincronizarStatusBoletosBb(amb,entrada={}){
       if(sit.parcial)resumo.parciais++;
     }catch(e){
       resumo.consultados++;
-      resumo.erros.push({id:reg.id,numero_nf:reg.numero_nf||null,nosso_numero:reg.nosso_numero||null,erro:texto(e.message,220)});
+      const rejeitado=!!e.rejeicao_nosso_numero_bb;
+      resumo.erros.push({
+        id:reg.id,numero_nf:reg.numero_nf||null,nosso_numero:reg.nosso_numero||null,
+        categoria:rejeitado?'BB_REJEITOU_DETALHAMENTO_NOSSO_NUMERO':'ERRO_CONSULTA',
+        status_anterior:rejeitado?reg.status:null,
+        ultima_consulta_confirmada:rejeitado?(reg.bb_ultima_consulta||null):null,
+        erro:rejeitado
+          ? 'BB HTTP 400, código 4678420.1: serviço recusou o Nosso Número nesta consulta. O número de 20 dígitos NÃO foi alterado. '+(reg.bb_ultima_consulta?'Último status bancário registrado em '+String(reg.bb_ultima_consulta).slice(0,10)+' permanece preservado.':'Não há consulta anterior registrada; situação pendente de conferência.')+' Consulte no canal oficial do BB se a rejeição persistir.'
+          :texto(e.message,220)
+      });
     }
   };
   for(let i=0;i<candidatos.length;i+=4)await Promise.all(candidatos.slice(i,i+4).map(processar));

@@ -264,6 +264,35 @@ function interpretarConsultaBradesco(data,reg){
   const dtPag=dataBradescoIso(t?.dtPagto);
   return {codStatus:cod,descricao,statusNovo,pago,baixado,descontado,corige35:String(t?.corige35||'').toUpperCase()==='S',dataPagamento:dtPag,valorPago:numeroBradesco(t?.vlrPagto),valorTitulo:numeroBradesco(t?.valMoeda),valorBoleto:numeroBradesco(t?.valorMoedaBol),vencimento:vencIso,titulo:t};
 }
+
+/* V473 — repetição somente da consulta (sem emitir, baixar ou alterar título).
+   ECONNRESET é interrupção de transporte; não equivale a status bancário inválido.
+   Limite estrito: uma única repetição após aguardar 350 ms. */
+function falhaTransitoriaConsultaBradescoV473(erro){
+ const codigo=String(erro?.code||'').toUpperCase();
+ const mensagem=String(erro?.message||erro||'');
+ return ['ECONNRESET','ETIMEDOUT','ECONNABORTED','EPIPE'].includes(codigo)
+   ||/\bECONNRESET\b|\bETIMEDOUT\b|\bEPIPE\b|socket hang up|read ECONNRESET/i.test(mensagem);
+}
+async function consultarTituloBradescoComRetentativaV473(amb,reg,contexto=null){
+ try{
+   const retorno=await consultarTituloBradesco(amb,reg,contexto);
+   return {...retorno,retentativas_transporte:0};
+ }catch(erro){
+   if(!falhaTransitoriaConsultaBradescoV473(erro))throw erro;
+   await new Promise(resolve=>setTimeout(resolve,350));
+   try{
+     const retorno=await consultarTituloBradesco(amb,reg,contexto);
+     return {...retorno,retentativas_transporte:1};
+   }catch(segundaFalha){
+     if(falhaTransitoriaConsultaBradescoV473(segundaFalha))
+       throw new Error('Consulta Bradesco interrompida duas vezes por falha temporária de conexão ('+
+         String(segundaFalha?.code||segundaFalha?.message||'ECONNRESET').slice(0,80)+'). Status local preservado.');
+     throw segundaFalha;
+   }
+ }
+}
+
 async function consultarTituloBradesco(amb,reg,contexto=null){
   if(contexto){const payload=montarConsultaTituloBradesco(contexto.banco,reg);return requestBradescoJson({url:endpointConsultaTitulo(amb),token:contexto.token,mtls:contexto.mtls,body:payload});}
   const bancoReg=await obter(idRegistro(amb,'dados-bancarios'));if(!bancoReg)throw new Error('Dados bancários do Bradesco não configurados.');
@@ -326,7 +355,7 @@ async function sincronizarStatusBoletosBradesco(amb,entrada={}){
   const rows=await supabaseRest('cobrancas_bancarias',{query:`?banco=eq.bradesco&select=${select}&order=bradesco_ultima_consulta.asc.nullsfirst&limit=${limite}`});
   candidatos=Array.isArray(rows)?rows:[];
  }
- const resumo={consultados:0,concluidos:0,atualizados:0,sem_alteracao:0,pagos:0,descontados:0,erros:[]};
+ const resumo={consultados:0,concluidos:0,atualizados:0,sem_alteracao:0,pagos:0,descontados:0,recuperados_transporte:0,erros:[]};
  for(const id of idsSolicitados)if(!candidatos.some(c=>String(c.id)===id)){
   resumo.consultados++;
   resumo.erros.push({id,erro:'Registro não localizado na carteira Bradesco. O plano foi preservado.'});
@@ -343,7 +372,7 @@ async function sincronizarStatusBoletosBradesco(amb,entrada={}){
  const processar=async reg=>{
   try{
    const recuperado=nossoNumeroRegistroBradesco(reg);
-   const q=await consultarTituloBradesco(amb,reg,contexto);
+   const q=await consultarTituloBradescoComRetentativaV473(amb,reg,contexto);
    if(q.http_status<200||q.http_status>=300)throw new Error(detalheRespostaBradesco(q.data)||`Bradesco respondeu HTTP ${q.http_status}`);
    const sit=interpretarConsultaBradesco(q.data,reg);
    const upd={status:sit.statusNovo||reg.status,
@@ -354,7 +383,7 @@ async function sincronizarStatusBoletosBradesco(amb,entrada={}){
     bradesco_valor_pago:sit.valorPago,bradesco_valor_creditado:null};
    const mudou=alteracaoStatusV472(reg,upd,campos);
    if(mudou)await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(reg.id)}`,body:{...upd,bradesco_ultima_consulta:agora,banco_resposta:q.data,atualizado_em:agora}});
-   resumo.consultados++;resumo.concluidos++;if(mudou)resumo.atualizados++;else resumo.sem_alteracao++;
+   resumo.consultados++;resumo.concluidos++;if(q.retentativas_transporte>0)resumo.recuperados_transporte++;if(mudou)resumo.atualizados++;else resumo.sem_alteracao++;
    if(sit.pago)resumo.pagos++;
    if(sit.descontado)resumo.descontados++;
   }catch(e){resumo.consultados++;resumo.erros.push({id:reg.id,numero_nf:reg.numero_nf||null,nosso_numero:reg.nosso_numero||null,erro:String(e.message||e).slice(0,300)});}
@@ -1082,13 +1111,13 @@ module.exports=async function(req,res){
       if(id){const rows=await supabaseRest('cobrancas_bancarias',{query:`?id=eq.${encodeURIComponent(id)}&select=*&limit=1`});reg=Array.isArray(rows)?rows[0]:null;}
       else if(req.body?.nosso_numero){const nn=nossoNumeroConsultaBradesco(req.body.nosso_numero);const rows=await supabaseRest('cobrancas_bancarias',{query:'?banco=eq.bradesco&nosso_numero=not.is.null&select=*&limit=2000'});const matches=(Array.isArray(rows)?rows:[]).filter(x=>{try{return nossoNumeroConsultaBradesco(x.nosso_numero)===nn}catch(_){return false}});if(matches.length>1)throw new Error('Nosso Número ambíguo: há mais de um título correspondente. Consulte pelo ID.');reg=matches[0]||null;}
       if(!reg)throw new Error('Boleto Bradesco não encontrado no Histórico.');
-      const recuperado=nossoNumeroRegistroBradesco(reg);const q=await consultarTituloBradesco(amb,reg);
+      const recuperado=nossoNumeroRegistroBradesco(reg);const q=await consultarTituloBradescoComRetentativaV473(amb,reg);
       if(q.http_status<200||q.http_status>=300)throw new Error(detalheRespostaBradesco(q.data)||`Bradesco respondeu HTTP ${q.http_status}`);
       const sit=interpretarConsultaBradesco(q.data,reg),agora=new Date().toISOString();
       const upd={...(reg.nosso_numero?{}:{nosso_numero:recuperado}),bradesco_descontado:!!sit.descontado,bradesco_status_detalhe:sit.descricao||bradescoStatusDescricao(sit.codStatus)||null,bradesco_data_pagamento:sit.dataPagamento,bradesco_valor_pago:sit.valorPago,bradesco_valor_creditado:null,bradesco_ultima_consulta:agora,banco_resposta:q.data,atualizado_em:agora};
       if(sit.statusNovo&&sit.statusNovo!==reg.status)upd.status=sit.statusNovo;
       await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(reg.id)}`,body:upd});
-      return json(res,200,{ok:true,consulta:{id:reg.id,http_status:q.http_status,codStatus:sit.codStatus,status:sit.descricao,descontado:sit.descontado,status_local:sit.statusNovo,data_pagamento:sit.dataPagamento,valor_pago:sit.valorPago,resposta:q.data}});
+      return json(res,200,{ok:true,consulta:{id:reg.id,http_status:q.http_status,codStatus:sit.codStatus,status:sit.descricao,descontado:sit.descontado,status_local:sit.statusNovo,data_pagamento:sit.dataPagamento,valor_pago:sit.valorPago,consulta_recuperada:!!q.retentativas_transporte,resposta:q.data}});
     }
     if(action==='sincronizar-status'){
       if(amb!=='producao')throw new Error('A sincronização de status Bradesco está liberada para Produção.');
