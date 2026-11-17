@@ -244,6 +244,9 @@ function numeroBradesco(v){if(v===null||v===undefined||String(v).trim()==='')ret
 function interpretarConsultaBradesco(data,reg){
   const t=data?.titulo||data?.Titulo||data?.boleto||{};
   const cod=Number(t?.codStatus||t?.codigoStatus||0)||0;
+  if(!t||!Object.keys(t).length||!Number.isInteger(cod)||cod<=0){
+    throw new Error('Bradesco não retornou título com código de situação válido. Status local preservado.');
+  }
   const descricao=String(t?.status||bradescoStatusDescricao(cod)||'').trim();
   const venc=String(t?.dataVenctoBol||t?.dataVencto||reg?.vencimento||'').trim();
   const vencIso=dataBradescoIso(venc)||String(reg?.vencimento||'').slice(0,10);
@@ -261,7 +264,8 @@ function interpretarConsultaBradesco(data,reg){
   const dtPag=dataBradescoIso(t?.dtPagto);
   return {codStatus:cod,descricao,statusNovo,pago,baixado,descontado,corige35:String(t?.corige35||'').toUpperCase()==='S',dataPagamento:dtPag,valorPago:numeroBradesco(t?.vlrPagto),valorTitulo:numeroBradesco(t?.valMoeda),valorBoleto:numeroBradesco(t?.valorMoedaBol),vencimento:vencIso,titulo:t};
 }
-async function consultarTituloBradesco(amb,reg){
+async function consultarTituloBradesco(amb,reg,contexto=null){
+  if(contexto){const payload=montarConsultaTituloBradesco(contexto.banco,reg);return requestBradescoJson({url:endpointConsultaTitulo(amb),token:contexto.token,mtls:contexto.mtls,body:payload});}
   const bancoReg=await obter(idRegistro(amb,'dados-bancarios'));if(!bancoReg)throw new Error('Dados bancários do Bradesco não configurados.');
   const credReg=await obter(idRegistro(amb,'credenciais')),mtlsReg=await obter(idRegistro(amb,'mtls'));
   if(!credReg||!mtlsReg)throw new Error('Credenciais e mTLS do Bradesco precisam estar configurados.');
@@ -281,15 +285,22 @@ async function sincronizarStatusBoletosBradesco(amb,entrada={}){
     .sort((a,b)=>String(a.bradesco_ultima_consulta||'').localeCompare(String(b.bradesco_ultima_consulta||'')))
     .slice(0,limite);
   if(!candidatos.length)return {consultados:0,atualizados:0,pagos:0,descontados:0,erros:[]};
-  const resumo={consultados:0,atualizados:0,pagos:0,descontados:0,erros:[]},agora=new Date().toISOString();
+  // Autentica UMA vez por lote, não uma vez por título (antes até 80 OAuth/mTLS).
+  const [bancoReg,credReg,mtlsReg]=await Promise.all([obter(idRegistro(amb,'dados-bancarios')),obter(idRegistro(amb,'credenciais')),obter(idRegistro(amb,'mtls'))]);
+  if(!bancoReg||!credReg||!mtlsReg)throw new Error('Configuração Bradesco incompleta para consulta.');
+  const banco=descriptografar(bancoReg)||{},cred=descriptografar(credReg)||{},mtls=descriptografar(mtlsReg)||{};
+  validarParMtls(mtls.cert_pem,mtls.key_pem);
+  const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
+  const contexto={banco,mtls,token:auth.access_token};
+  const resumo={consultados:0,concluidos:0,atualizados:0,pagos:0,descontados:0,erros:[]},agora=new Date().toISOString();
   const processar=async reg=>{
     try{
-      const recuperado=nossoNumeroRegistroBradesco(reg);const q=await consultarTituloBradesco(amb,reg),sit=interpretarConsultaBradesco(q.data,reg);
+      const recuperado=nossoNumeroRegistroBradesco(reg);const q=await consultarTituloBradesco(amb,reg,contexto),sit=interpretarConsultaBradesco(q.data,reg);
       if(q.http_status<200||q.http_status>=300)throw new Error(detalheRespostaBradesco(q.data)||`Bradesco respondeu HTTP ${q.http_status}`);
       const upd={...(reg.nosso_numero?{}:{nosso_numero:recuperado}),bradesco_descontado:!!sit.descontado,bradesco_status_detalhe:sit.descricao||bradescoStatusDescricao(sit.codStatus)||null,bradesco_data_pagamento:sit.dataPagamento,bradesco_valor_pago:sit.valorPago,bradesco_valor_creditado:null,bradesco_ultima_consulta:agora,banco_resposta:q.data,atualizado_em:agora};
       if(sit.statusNovo&&sit.statusNovo!==reg.status)upd.status=sit.statusNovo;
       await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(reg.id)}`,body:upd});
-      resumo.consultados++;resumo.atualizados++;if(sit.pago)resumo.pagos++;if(sit.descontado)resumo.descontados++;
+      resumo.consultados++;resumo.concluidos++;resumo.atualizados++;if(sit.pago)resumo.pagos++;if(sit.descontado)resumo.descontados++;
     }catch(e){resumo.consultados++;resumo.erros.push({id:reg.id,numero_nf:reg.numero_nf||null,nosso_numero:reg.nosso_numero||null,erro:String(e.message||e).slice(0,300)});}
   };
   for(let i=0;i<candidatos.length;i+=5)await Promise.all(candidatos.slice(i,i+5).map(processar));
@@ -392,7 +403,7 @@ async function listarPendenciasCarteiraBradesco(amb){
   const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls),url='https://openapi.bradesco.com.br/boleto/cobranca-pendente/v1/listar';
   // V309 — layout oficial 1.6.3: Nosso Número é opcional, mas campos opcionais numéricos devem ser enviados como 0.
   // O endpoint lista até 50 títulos por chamada e usa paginaAnterior para continuar a paginação.
-  let pagina=0,todos=[];
+  let pagina=0,todos=[],paginacaoCompleta=false;
   for(let i=0;i<100;i++){
     const payload={
       cpfCnpj:{cpfCnpj:Number(cnpj.slice(0,8)),filial:Number(cnpj.slice(8,12)),controle:Number(cnpj.slice(12,14))},
@@ -412,7 +423,7 @@ async function listarPendenciasCarteiraBradesco(amb){
     const arr=Array.isArray(d.titulos)?d.titulos:(Array.isArray(d.Titulos)?d.Titulos:(Array.isArray(d.titulo)?d.titulo:[]));
     todos.push(...arr);
     const mais=String(d.indMaisPagina??d.IndicadorMaisPaginas??d.indicadorMaisPaginas??'').toUpperCase()==='S';
-    if(!mais)break;
+    if(!mais){paginacaoCompleta=true;break;}
     const prox=Number(d.pagina??d.Pagina??d.paginaAtual??0);
     if(!prox||prox===Number(pagina))break;
     pagina=prox;
@@ -447,7 +458,7 @@ async function listarPendenciasCarteiraBradesco(amb){
     const cliente=String(pag.nome??t.nomePagador??t.nomeSacado??'').trim();
     return {nosso_numero:String(t.nossoNumero||t.nuTitulo||t.numeroTitulo||''),seu_numero:String(t.seuNumero||t.numeroDocumento||''),cliente,cpf_cnpj:docPagador(t),vencimento:venc,valor:valorTitulo(t),status,descontado:desc,status_banco:detalheStatus,origem:'banco'};
   }).filter(x=>['aberto','vencido'].includes(x.status)||x.descontado);
-  return {ok:true,somente_leitura:true,quantidade:titulos.length,titulos};
+  return {ok:true,somente_leitura:true,quantidade:titulos.length,titulos,paginacao_completa:paginacaoCompleta};
 }
 
 function validarEndpointRegistroSandbox(token,mtls){

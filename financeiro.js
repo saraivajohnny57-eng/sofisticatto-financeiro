@@ -7848,25 +7848,106 @@ async function verificarStatusBbV380(id){
   }catch(e){alert('Não foi possível confirmar a situação deste boleto no BB.\n\n'+(e.message||e));}
   finally{botoes.forEach(b=>b.disabled=false);}
 }
+
+/* V469 — Resultado de consulta bancária sem dados sensíveis, visível no portal. */
+function mensagemBancariaSeguraV469(v){
+  return String(v??'')
+    .replace(/Bearer\s+[A-Za-z0-9._~+\/-]+/gi,'Bearer [oculto]')
+    .replace(/(client_secret|access_token|api[_-]?key|senha|password)(\s*[:=]\s*)\S+/gi,'$1$2[oculto]')
+    .slice(0,300);
+}
+function mostrarResultadoConsultaBancariaV469(banco,titulo,linhas=[],erros=[]){
+  const anterior=document.getElementById('resultadoConsultaBancariaV469');
+  if(anterior&&typeof anterior.__fechar==='function')anterior.__fechar();
+  const anteriorFoco=document.activeElement;
+  const fundo=document.createElement('div');
+  fundo.id='resultadoConsultaBancariaV469';
+  fundo.style.cssText='position:fixed;inset:0;z-index:2147483000;background:rgba(23,18,43,.60);display:flex;align-items:center;justify-content:center;padding:16px';
+  const caixa=document.createElement('section');
+  caixa.setAttribute('role','dialog');caixa.setAttribute('aria-modal','true');
+  caixa.setAttribute('aria-labelledby','tituloConsultaBancariaV469');
+  caixa.style.cssText='background:#fff;color:#252038;border-radius:16px;padding:22px;width:min(660px,96vw);max-height:87vh;overflow:auto;box-shadow:0 22px 65px #0005;font:14px Arial, sans-serif';
+  const topo=document.createElement('div');topo.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px';
+  const tituloEl=document.createElement('h3');tituloEl.id='tituloConsultaBancariaV469';
+  tituloEl.style.cssText='margin:0;color:#5a4fa3;font-size:19px';
+  tituloEl.textContent=(banco==='bb'?'Banco do Brasil':'Bradesco')+' — '+titulo;
+  const fechar=document.createElement('button');fechar.type='button';fechar.textContent='Fechar';
+  fechar.className='btn azul';fechar.style.cssText='white-space:nowrap';
+  topo.append(tituloEl,fechar);caixa.append(topo);
+  const horario=document.createElement('p');horario.style.cssText='font-size:12px;color:#666;margin:9px 0 14px';
+  horario.textContent='Conferência: '+new Date().toLocaleString('pt-BR')+'. Resultados retornados pela integração bancária.';
+  caixa.append(horario);
+  const resumo=document.createElement('div');resumo.style.cssText='background:#f5f3fc;border:1px solid #d4ccea;border-radius:10px;padding:13px;display:grid;gap:7px';
+  (Array.isArray(linhas)?linhas:[linhas]).forEach(l=>{const p=document.createElement('div');p.textContent=String(l);resumo.appendChild(p)});
+  caixa.append(resumo);
+  const lista=Array.isArray(erros)?erros:[];
+  if(lista.length){
+    const h=document.createElement('h4');h.style.cssText='color:#a02727;margin:18px 0 8px';
+    h.textContent=lista.length+' ocorrência(s) que exigem conferência';caixa.append(h);
+    const area=document.createElement('div');area.style.cssText='border:1px solid #edcece;background:#fffafa;border-radius:10px;padding:10px;max-height:230px;overflow:auto';
+    lista.slice(0,50).forEach((e,i)=>{
+      const p=document.createElement('p');p.style.cssText='padding:7px 0;margin:0;border-bottom:1px solid #f2dede;white-space:pre-wrap;overflow-wrap:anywhere';
+      const referencia=[e.numero_nf?'NF '+e.numero_nf:'',e.nosso_numero?'Nosso Nº '+e.nosso_numero:''].filter(Boolean).join(' • ');
+      p.textContent=(i+1)+'. '+(referencia||'Título não identificado')+' — '+mensagemBancariaSeguraV469(e.erro||e.mensagem||e);
+      area.appendChild(p);
+    });
+    if(lista.length>50){const aviso=document.createElement('p');aviso.textContent='Exibindo as primeiras 50 ocorrências.';area.appendChild(aviso);}
+    caixa.append(area);
+  }
+  const rodape=document.createElement('p');
+  rodape.style.cssText='font-size:12px;color:#625d6c;margin:13px 0 0';
+  rodape.textContent='Uma consulta não emite ou altera a cobrança no banco. A sincronização de status pode atualizar o Histórico local quando a resposta é reconhecida.';
+  caixa.append(rodape);fundo.append(caixa);
+  const sair=()=>{document.removeEventListener('keydown',tecla);fundo.remove();if(anteriorFoco&&typeof anteriorFoco.focus==='function')anteriorFoco.focus()};
+  const tecla=e=>{if(e.key==='Escape')sair()};
+  fundo.__fechar=sair;fechar.onclick=sair;
+  fundo.addEventListener('click',e=>{if(e.target===fundo)sair()});
+  document.addEventListener('keydown',tecla);document.body.append(fundo);fechar.focus();
+}
+function atualizarResumoPendenciasBancosV469(banco,texto){
+  const id=banco==='bb'?'cobPendenciasResumoBbV469':'cobPendenciasResumoBradescoV469';
+  let el=document.getElementById(id);
+  if(!el){
+    const btn=document.getElementById(banco==='bb'?'cobBtnPendenciasBb':'cobBtnPendenciasBradesco');
+    if(!btn)return;
+    el=document.createElement('div');el.id=id;el.setAttribute('role','status');el.setAttribute('aria-live','polite');
+    el.style.cssText='flex-basis:100%;width:100%;font-size:12px;color:#554b77;padding:4px 0';
+    btn.insertAdjacentElement('afterend',el);
+  }
+  el.textContent=String(texto||'');
+}
+
+
 async function sincronizarStatusBbV176(silencioso=false){
   if(bbStatusSyncEmAndamentoV176)return;
   bbStatusSyncEmAndamentoV176=true;
   const btn=document.getElementById('cobBtnSyncBb'),info=document.getElementById('cobSyncBbInfo');
   const fimLoadingV314=!silencioso?iniciarBotaoCarregandoV314(btn,'🔄 Consultando BB'):null;
+  const inicio=Date.now();
   if(info&&!silencioso)info.textContent='Consultando situação dos boletos no Banco do Brasil...';
   try{
     const j=await bbReq('sincronizar-status',{method:'POST',body:{limite:80}});
-    const r=j?.resumo||{};
+    const r=j?.resumo||{},falhas=Array.isArray(r.erros)?r.erros:[];
+    const tentativas=Number(r.consultados||0),concluidas=Number(r.concluidos??r.atualizados??Math.max(0,tentativas-falhas.length));
+    const hora=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     bbStatusUltimaSyncV176=Date.now();
-    if(info)info.textContent=`Última consulta BB: ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} • ${r.consultados||0} título(s) • ${r.pagos||0} pago(s) • ${r.descontados||0} descontado(s)${r.parciais?` • ${r.parciais} parcial(is)`:''}${r.erros?.length?` • ${r.erros.length} erro(s)`:''}`;
+    if(info)info.textContent='Última consulta BB: '+hora+' • '+tentativas+' tentativas • '+concluidas+' concluída(s) • '+falhas.length+' falha(s) • '+(r.pagos||0)+' pago(s) • '+(r.descontados||0)+' descontado(s)';
     const q=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(1000);
-    if(!q.error)cobrancasBancarias=q.data||[];
-    renderHistoricoCobrancas();
-    if(!silencioso && r.erros?.length)console.warn('Sincronização BB com erros parciais:',r.erros);
+    if(q.error)throw q.error;
+    cobrancasBancarias=q.data||[];renderHistoricoCobrancas();
+    if(!silencioso){
+      mostrarResultadoConsultaBancariaV469('bb',falhas.length?'consulta concluída com ressalvas':'consulta concluída',[
+        'Tentativas de consulta ao banco: '+tentativas,
+        'Títulos confirmados e sincronizados: '+concluidas,
+        'Consultas com erro (não atualizadas): '+falhas.length,
+        'Pagos: '+(r.pagos||0)+' • Descontados: '+(r.descontados||0)+' • Parciais: '+(r.parciais||0),
+        'Duração: '+((Date.now()-inicio)/1000).toFixed(1)+' segundos'
+      ],falhas);
+      if(falhas.length)console.warn('Sincronização BB com erros parciais:',falhas);
+    }
   }catch(e){
-    console.warn('Sincronização de status BB:',e);
-    if(info)info.textContent='Não foi possível consultar o BB agora: '+(e.message||e);
-    if(!silencioso)alert('Não foi possível atualizar os status no Banco do Brasil.\n\n'+(e.message||e));
+    if(info)info.textContent='Não foi possível concluir a consulta BB: '+mensagemBancariaSeguraV469(e.message||e);
+    if(!silencioso)mostrarResultadoConsultaBancariaV469('bb','falha na consulta',['A sincronização não pôde ser concluída. Verifique a conexão e tente novamente sem emitir boletos.','Duração: '+((Date.now()-inicio)/1000).toFixed(1)+' segundos'],[{erro:e.message||e}]);
   }finally{
     bbStatusSyncEmAndamentoV176=false;
     if(fimLoadingV314)fimLoadingV314();
@@ -7953,29 +8034,39 @@ async function limparPendenciasBradescoJaEmitidasV270(rows){
   }
   return {removidas:total,pendentes:apagar.length};
 }
+
 async function sincronizarStatusBradescoV277(silencioso=false){
   if(bradescoStatusSyncEmAndamentoV277)return;
   bradescoStatusSyncEmAndamentoV277=true;
   const btn=document.getElementById('cobBtnSyncBradesco'),info=document.getElementById('cobSyncBradescoInfo');
   const fimLoadingV314=!silencioso?iniciarBotaoCarregandoV314(btn,'🔄 Consultando Bradesco'):null;
+  const inicio=Date.now();
   if(info&&!silencioso)info.textContent='Consultando o status oficial dos boletos Bradesco...';
   try{
     const j=await bradescoReqProducao('sincronizar-status',{limite:80});
-    const r=j?.resumo||{};
+    const r=j?.resumo||{},falhas=Array.isArray(r.erros)?r.erros:[];
+    const tentativas=Number(r.consultados||0),concluidas=Number(r.concluidos??r.atualizados??Math.max(0,tentativas-falhas.length));
     const novo=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(2000);
     if(novo.error)throw novo.error;
-    cobrancasBancarias=novo.data||[];
-    renderHistoricoCobrancas();
+    cobrancasBancarias=novo.data||[];renderHistoricoCobrancas();
     const hora=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    if(info)info.textContent=`Última consulta Bradesco: ${hora} • ${r.consultados||0} título(s) • ${r.pagos||0} pago(s) • ${r.descontados||0} descontado(s)${r.erros?.length?` • ${r.erros.length} erro(s)`:''}`;
-    if(!silencioso && r.erros?.length)console.warn('Sincronização Bradesco com erros parciais:',r.erros);
-    if(!silencioso)alert(`Bradesco atualizado.\n\n${r.consultados||0} boleto(s) consultado(s).\n${r.descontados||0} com indicação de Descontado.\n${r.pagos||0} com pagamento identificado.${r.erros?.length?`\n\n${r.erros.length} consulta(s) tiveram erro; veja o console para detalhes.`:''}`);
+    if(info)info.textContent='Última consulta Bradesco: '+hora+' • '+tentativas+' tentativas • '+concluidas+' concluída(s) • '+falhas.length+' falha(s) • '+(r.pagos||0)+' pago(s) • '+(r.descontados||0)+' descontado(s)';
+    if(!silencioso){
+      mostrarResultadoConsultaBancariaV469('bradesco',falhas.length?'consulta concluída com ressalvas':'consulta concluída',[
+        'Tentativas de consulta ao banco: '+tentativas,
+        'Títulos confirmados e sincronizados: '+concluidas,
+        'Consultas com erro (não atualizadas): '+falhas.length,
+        'Pagos: '+(r.pagos||0)+' • Descontados: '+(r.descontados||0),
+        'Duração: '+((Date.now()-inicio)/1000).toFixed(1)+' segundos'
+      ],falhas);
+      if(falhas.length)console.warn('Sincronização Bradesco com erros parciais:',falhas);
+    }
   }catch(e){
-    console.warn('Sincronização de status Bradesco V277:',e);
-    if(info)info.textContent='Não foi possível consultar o Bradesco agora: '+(e.message||e);
-    if(!silencioso)alert('Não foi possível atualizar os status no Bradesco.\n\n'+(e.message||e));
+    if(info)info.textContent='Não foi possível concluir a consulta Bradesco: '+mensagemBancariaSeguraV469(e.message||e);
+    if(!silencioso)mostrarResultadoConsultaBancariaV469('bradesco','falha na consulta',['A sincronização não pôde ser concluída. Nenhuma nova emissão ou manutenção foi solicitada.','Duração: '+((Date.now()-inicio)/1000).toFixed(1)+' segundos'],[{erro:e.message||e}]);
   }finally{
     bradescoStatusSyncEmAndamentoV277=false;
+    if(fimLoadingV314)fimLoadingV314();
     if(btn){btn.disabled=false;btn.textContent='🔄 Atualizar Bradesco';}
   }
 }
@@ -7993,6 +8084,21 @@ async function verificarStatusBradescoV277(id){
     alert(`Status Bradesco atualizado.\n\nStatus: ${tags}\n${c.data_pagamento?`Data do pagamento: ${new Date(c.data_pagamento+'T12:00:00').toLocaleDateString('pt-BR')}\n`:''}${c.valor_pago!=null?`Valor pago: ${cobMoeda(c.valor_pago)}\n`:''}Código Bradesco: ${c.codStatus??'—'}`);
   }catch(e){alert('Não foi possível consultar este boleto no Bradesco.\n\n'+(e.message||e));}
   finally{btns.forEach(b=>b.disabled=false);}
+}
+
+
+/* V469 — clique azul Atualizar apenas recarrega dados locais, sem exclusões nem chamadas bancárias. */
+async function atualizarHistoricoSomenteLeituraV469(){
+  const btn=document.getElementById('cobBtnAtualizarHistorico');
+  const fim=iniciarBotaoCarregandoV314(btn,'Atualizando Histórico');
+  try{
+    const r=await banco.from('cobrancas_bancarias').select('*').order('created_at',{ascending:false}).limit(1000);
+    if(r.error)throw r.error;
+    cobrancasBancarias=r.data||[];
+    renderHistoricoCobrancas();
+  }catch(e){
+    alert('Não foi possível recarregar o Histórico: '+mensagemBancariaSeguraV469(e.message||e));
+  }finally{if(fim)fim();}
 }
 
 async function carregarCobrancasBancarias(){
@@ -8381,10 +8487,32 @@ async function consultarPendenciasCarteiraV294(banco,opcoes={}){
     window.carteiraExternaV294=window.carteiraExternaV294||{};window.carteiraExternaV294[banco]=pendExternas;
     window.carteiraCompletaV296=window.carteiraCompletaV296||{};window.carteiraCompletaV296[banco]=combinado;
     const resumoBB=banco==='bb'&&j?.resumo?`\n${Number(j.resumo.vencidos||0)} vencido(s) ainda pendente(s) no BB.\n${Number(j.resumo.a_vencer||0)} título(s) a vencer no BB.`:'';
-    if(!opcoes.silencioso)alert(`${banco==='bb'?'Banco do Brasil':'Bradesco'} — consulta de pendências (não atualiza o Histórico) concluída.\n\n${tit.length} pendência(s) encontrada(s) no banco.${resumoBB}\n${encontradosNoPortal.length} também estão no Portal Sofisticatto.\n${externos.length} existem somente no banco.\n${combinado.length} título(s) disponível(is) no relatório consolidado.\n\nNenhum boleto foi emitido, alterado ou salvo no Storage.`);
+    const errosDetalhe=tit.filter(x=>x.aviso_detalhe).map(x=>({nosso_numero:x.nosso_numero,numero_nf:x.seu_numero,erro:x.aviso_detalhe}));
+    const incompleta=j?.paginacao_completa===false;
+    const resumoTela=(banco==='bb'?'BB':'Bradesco')+': '+tit.length+' pendência(s) bancária(s), '+encontradosNoPortal.length+' vinculada(s) ao portal, '+externos.length+' sem vínculo, '+errosDetalhe.length+' aviso(s) de detalhe'+(incompleta?' • PÁGINAS INCOMPLETAS':'')+'.';
+    atualizarResumoPendenciasBancosV469(banco,resumoTela);
+    if(!opcoes.silencioso||opcoes.mostrarResultado){
+      mostrarResultadoConsultaBancariaV469(banco,incompleta||errosDetalhe.length?'pendências consultadas com ressalvas':'pendências consultadas',[
+        'Pendências retornadas pelo banco: '+tit.length,
+        'Vinculadas a boletos do portal: '+encontradosNoPortal.length,
+        'Sem vínculo no portal: '+externos.length,
+        'Títulos no relatório: '+combinado.length,
+        ...(resumoBB?[resumoBB.trim()]:[]),
+        ...(incompleta?['ATENÇÃO: a paginação não foi concluída; a lista pode estar incompleta.']:[]),
+        ...(errosDetalhe.length?['Detalhes de '+errosDetalhe.length+' título(s) não foram confirmados; confira as ocorrências abaixo.']:[]),
+        'Nenhum boleto foi emitido ou alterado pela consulta.'
+      ],errosDetalhe);
+    }
     if(combinado.length&&opcoes.abrirRelatorio!==false)imprimirPendenciasConsolidadasV296(banco,combinado);
     return true;
-  }catch(e){if(!opcoes.silencioso)alert(`Não foi possível listar a carteira ${banco==='bb'?'BB':'Bradesco'}:\n\n${e.message}\n\nA consulta é somente leitura e nenhum boleto foi alterado.`);else throw e;return false;}
+  }catch(e){
+    atualizarResumoPendenciasBancosV469(banco,'Falha ao consultar pendências: '+mensagemBancariaSeguraV469(e.message||e));
+    if(!opcoes.silencioso||opcoes.mostrarResultado){
+      mostrarResultadoConsultaBancariaV469(banco,'falha na consulta de pendências',['Não foi possível confirmar a carteira bancária nesta tentativa. Nenhum boleto foi emitido ou alterado.'],[{erro:e.message||e}]);
+    }
+    if(opcoes.silencioso)throw e;
+    return false;
+  }
   finally{if(fimLoading)fimLoading();}
 }
 // V316 — o período de vencimento da tela vale para todos os relatórios bancários.

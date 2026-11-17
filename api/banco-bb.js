@@ -381,7 +381,13 @@ function numeroBb(v){
   return Number.isFinite(n)?n:null;
 }
 function interpretarSituacaoBoletoBb(dados={},registro={}){
-  const estado=Number(acharCampoBb(dados,['codigoEstadoTituloCobranca'])||0);
+  const codigoEstado=acharCampoBb(dados,['codigoEstadoTituloCobranca']);
+  const estado=Number(codigoEstado);
+  // Somente status documentados podem alterar o Histórico. HTTP 200 sem estado
+  // confiável não significa que o boleto esteja em aberto.
+  if(!Number.isInteger(estado)||![1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,21,80].includes(estado)){
+    throw new Error('BB não informou um código de situação reconhecido ('+String(codigoEstado??'ausente').slice(0,32)+'). Status local preservado.');
+  }
   const modalidade=Number(acharCampoBb(dados,['codigoModalidadeTitulo','modalidadeCobranca'])||0);
   const valorPago=numeroBb(acharCampoBb(dados,['valorPagoSacado']));
   const valorCredito=numeroBb(acharCampoBb(dados,['valorCreditoCedente']));
@@ -428,7 +434,7 @@ async function sincronizarStatusBoletosBb(amb,entrada={}){
   // reconciliação posterior caso o estado oficial do BB tenha sido alterado.
   // V380: primeiro selecionar os títulos do banco correto; distribuir consultas entre
   // títulos nunca consultados e os consultados há mais tempo, não apenas os recém-emitidos.
-  const rows=await supabaseRest('cobrancas_bancarias',{query:'?nosso_numero=not.is.null&select=*&order=created_at.desc&limit=2000'});
+  const rows=await supabaseRest('cobrancas_bancarias',{query:'?nosso_numero=not.is.null&select=id,numero_nf,nosso_numero,banco,banco_nome,status,vencimento,bb_ultima_consulta&order=created_at.desc&limit=2000'});
   const alvoId=String(entrada.id||'').trim();
   const candidatos=(Array.isArray(rows)?rows:[])
     .filter(r=>(String(r.banco||'').toLowerCase()==='bb'||/banco do brasil/i.test(String(r.banco_nome||'')))&&(!alvoId||String(r.id)===alvoId))
@@ -436,7 +442,7 @@ async function sincronizarStatusBoletosBb(amb,entrada={}){
     .slice(0,alvoId?1:limite);
   if(!candidatos.length)return {consultados:0,atualizados:0,pagos:0,descontados:0,parciais:0,erros:[]};
   const oauth=await obterTokenOAuth(amb);
-  const resumo={consultados:0,atualizados:0,pagos:0,descontados:0,parciais:0,erros:[]};
+  const resumo={consultados:0,concluidos:0,atualizados:0,pagos:0,descontados:0,parciais:0,erros:[]};
   const agora=new Date().toISOString();
   const processar=async reg=>{
     try{
@@ -457,7 +463,7 @@ async function sincronizarStatusBoletosBb(amb,entrada={}){
       };
       if(sit.statusNovo && sit.statusNovo!==reg.status)upd.status=sit.statusNovo;
       await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(reg.id)}`,body:upd});
-      resumo.consultados++;resumo.atualizados++;
+      resumo.consultados++;resumo.concluidos++;resumo.atualizados++;
       if(sit.pago)resumo.pagos++;
       if(sit.descontado)resumo.descontados++;
       if(sit.parcial)resumo.parciais++;
@@ -539,7 +545,7 @@ async function listarPendenciasCarteiraBb(amb,entrada={}){
   // V300: volta à listagem "Em ser" que funcionou na V298. Não envia boletoVencido,
   // pois essa variação retornou HTTP 404 na aplicação BB em produção.
   // Vencido/a vencer é classificado localmente pela data oficial do título após a consulta individual.
-  let indice='',todos=[];
+  let indice='',todos=[],paginacaoCompleta=false;
   for(let pagina=0;pagina<10;pagina++){
     const q=new URLSearchParams({'gw-dev-app-key':o.cred.app_key,indicadorSituacao:'A',agenciaBeneficiario:agencia,contaBeneficiario:conta});
     if(indice)q.set('indice',indice);
@@ -549,7 +555,7 @@ async function listarPendenciasCarteiraBb(amb,entrada={}){
     const arr=Array.isArray(d?.boletos)?d.boletos:(Array.isArray(d?.listaBoletos)?d.listaBoletos:[]);todos.push(...arr);
     const cont=String(d?.numeroUltimoRegistro||d?.numero_ultimo_registro||'').trim();
     const mais=String(d?.indicadorContinuidade||d?.indicador_continuidade||'').toUpperCase()==='S';
-    if(!mais||!cont)break;indice=cont;
+    if(!mais){paginacaoCompleta=true;break;}if(!cont)break;indice=cont;
   }
   // Proteção contra eventual repetição entre páginas.
   const mapaTodos=new Map();
@@ -557,13 +563,17 @@ async function listarPendenciasCarteiraBb(amb,entrada={}){
   todos=[...mapaTodos.values()];
   const agora=new Date(), hoje=`${agora.getFullYear()}-${String(agora.getMonth()+1).padStart(2,'0')}-${String(agora.getDate()).padStart(2,'0')}`;
   const iso=v=>{const x=String(v||'');let m=x.match(/^(\d{2})[.\/-](\d{2})[.\/-](\d{4})$/);return m?`${m[3]}-${m[2]}-${m[1]}`:x.slice(0,10)};
-  const baseTitulo=t=>{const venc=iso(t.dataVencimento||t.dataVencimentoTitulo||t.vencimento);return {nosso_numero:String(t.numeroBoletoBB||t.numeroTituloCliente||t.nossoNumero||''),seu_numero:String(t.numeroTituloBeneficiario||t.numeroTitulo||''),cliente:t.nomePagador||t.pagador?.nome||t.nomeSacado||'',cpf_cnpj:String(t.numeroCpfCnpjPagador||t.pagador?.numeroInscricao||t.cnpjPagador||t.cpfPagador||''),vencimento:venc,valor:Number(t.valorOriginal||t.valorTitulo||t.valor||0),status:venc&&venc<hoje?'vencido':'aberto',descontado:[3,4].includes(Number(t.codigoModalidadeTitulo||t.modalidadeCobranca||0)),origem:'banco'};};
+  const baseTitulo=t=>{const venc=iso(t.dataVencimento||t.dataVencimentoTitulo||t.vencimento);return {nosso_numero:String(t.numeroBoletoBB||t.numeroTituloCliente||t.nossoNumero||''),seu_numero:String(t.numeroTituloBeneficiario||t.numeroTitulo||''),cliente:t.nomePagador||t.pagador?.nome||t.nomeSacado||'',cpf_cnpj:String(t.numeroCpfCnpjPagador||t.pagador?.numeroInscricao||t.cnpjPagador||t.cpfPagador||''),vencimento:venc,valor:Number(t.valorOriginal||t.valorTitulo||t.valor||0),status:venc&&venc<hoje?'vencido':'aberto',descontado:Number(t.codigoModalidadeTitulo||t.modalidadeCobranca||0)===6,origem:'banco'};};
   const titulos=todos.map(baseTitulo);
-  const enriquecer=async x=>{if(!x.nosso_numero)return x;try{const q=await consultarBoletoBb(amb,x.nosso_numero,o),d=q?.data||{};const campo=(nomes)=>acharCampoBb(d,nomes);x.cliente=String(campo(['nomeSacadoCobranca','nomePagador','nomeSacado','nomeCliente'])||x.cliente||'');x.cpf_cnpj=String(campo(['numeroInscricaoSacadoCobranca','numeroCpfCnpjPagador','numeroInscricaoPagador','cpfCnpjPagador','cpfCnpj','cnpjPagador','cpfPagador'])||x.cpf_cnpj||'');x.seu_numero=String(campo(['numeroTituloCedenteCobranca','numeroTituloBeneficiario','numeroTitulo','seuNumero','numeroDocumento'])||x.seu_numero||'');x.vencimento=iso(campo(['dataVencimentoTituloCobranca','dataVencimento','dataVencimentoTitulo'])||x.vencimento);x.valor=Number(campo(['valorOriginalTituloCobranca','valorAtualTituloCobranca','valorOriginal','valorTitulo','valorOriginalTitulo'])||x.valor||0);x.status=x.vencimento&&x.vencimento<hoje?'vencido':'aberto';}catch(e){x.aviso_detalhe=String(e.message||e).slice(0,180);}return x;};
+  // Evita até uma chamada por boleto quando a listagem oficial já trouxe
+  // todos os identificadores necessários. Mantém consulta individual nos incompletos.
+  const enriquecer=async x=>{if(!x.nosso_numero)return x;
+    if(x.cliente&&x.cpf_cnpj&&x.seu_numero&&x.vencimento&&Number(x.valor)>0)return x;
+    try{const q=await consultarBoletoBb(amb,x.nosso_numero,o),d=q?.data||{};const campo=(nomes)=>acharCampoBb(d,nomes);x.cliente=String(campo(['nomeSacadoCobranca','nomePagador','nomeSacado','nomeCliente'])||x.cliente||'');x.cpf_cnpj=String(campo(['numeroInscricaoSacadoCobranca','numeroCpfCnpjPagador','numeroInscricaoPagador','cpfCnpjPagador','cpfCnpj','cnpjPagador','cpfPagador'])||x.cpf_cnpj||'');x.seu_numero=String(campo(['numeroTituloCedenteCobranca','numeroTituloBeneficiario','numeroTitulo','seuNumero','numeroDocumento'])||x.seu_numero||'');x.vencimento=iso(campo(['dataVencimentoTituloCobranca','dataVencimento','dataVencimentoTitulo'])||x.vencimento);x.valor=Number(campo(['valorOriginalTituloCobranca','valorAtualTituloCobranca','valorOriginal','valorTitulo','valorOriginalTitulo'])||x.valor||0);x.status=x.vencimento&&x.vencimento<hoje?'vencido':'aberto';}catch(e){x.aviso_detalhe=String(e.message||e).slice(0,180);}return x;};
   for(let i=0;i<titulos.length;i+=5)await Promise.all(titulos.slice(i,i+5).map(enriquecer));
   const vencidos=titulos.filter(x=>x.status==='vencido').length;
   const aVencer=titulos.filter(x=>x.status==='aberto').length;
-  return {ok:true,somente_leitura:true,quantidade:titulos.length,titulos,enriquecidos:true,resumo:{a_vencer:aVencer,vencidos,criterio:'classificacao_local_por_data_vencimento'}};
+  return {ok:true,somente_leitura:true,quantidade:titulos.length,titulos,enriquecidos:true,paginacao_completa:paginacaoCompleta,avisos_detalhe:titulos.filter(x=>x.aviso_detalhe).length,resumo:{a_vencer:aVencer,vencidos,criterio:'classificacao_local_por_data_vencimento'}};
 }
 
 // V297 — diagnóstico somente leitura de um título externo BB.
