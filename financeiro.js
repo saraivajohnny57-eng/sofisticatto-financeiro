@@ -2369,25 +2369,28 @@ function nomeClienteDoArquivoEmail(arquivo){
   return semExtensao.includes(" - ") ? semExtensao.split(" - ")[0].trim() : semExtensao;
 }
 
+// Modalidades documentais: apenas filtrar os anexos exibidos, sem excluir os originais.
+const EMAIL_MODOS_V480=Object.freeze({
+ boleto:{id:"emailModoBoleto",descricao:"Boleto",mensagem:"Segue em anexo Boleto, por favor, confirmar o recebimento deste."},
+ completo:{id:"emailModoCompleto",descricao:"Boleto / Relatório / NF / XML",mensagem:"Segue em anexo Boleto, Relatório, NF e XML, por favor, confirmar o recebimento deste."},
+ sem_boleto:{id:"emailModoSemBoleto",descricao:"Relatório / NF / XML",mensagem:"Segue em anexo Relatório, NF e XML, por favor, confirmar o recebimento deste."},
+ boleto_romaneio:{id:"emailModoBoletoRomaneio",descricao:"Boleto / Romaneio / NF / XML",mensagem:"Segue em anexo Boleto, Romaneio, NF e XML, por favor, confirmar o recebimento deste."},
+ relatorio_romaneio:{id:"emailModoRelatorioRomaneio",descricao:"Relatório / Romaneio / NF / XML",mensagem:"Segue em anexo Relatório, Romaneio, NF e XML, por favor, confirmar o recebimento deste."}
+});
 function arquivoCompativelModoEmail(arquivo){
-  const nome = normalizarNomeEmail(arquivo.name);
-  const extensao = arquivo.name.split(".").pop().toLowerCase();
-
-  // Relatórios gerados dentro do sistema devem aparecer em qualquer modo,
-  // para que possam ser enviados junto com boleto, NF, XML ou romaneio.
-  if(nome.includes("RELATORIO") && extensao === "pdf"){
-    return true;
-  }
-
-  if(emailModoAtual === "boleto"){
-    return extensao === "pdf" && !/(NFE|NOTA FISCAL|XML|ROMANEIO)/.test(nome);
-  }
-
-  if(emailModoAtual === "completo"){
-    return ["pdf","xml","doc","docx"].includes(extensao);
-  }
-
-  return ["pdf","xml","doc","docx"].includes(extensao) && !/BOLETO/.test(nome);
+ const nome=normalizarNomeEmail(arquivo?.name||"");
+ const extensao=String(arquivo?.name||"").split(".").pop().toLowerCase();
+ if(!["pdf","xml","doc","docx"].includes(extensao))return false;
+ const relatorio=/RELATORIO/.test(nome),boleto=/BOLETO/.test(nome),romaneio=/ROMANEIO/.test(nome);
+ const nota=/(^|[^A-Z])NF(?:E)?([^A-Z]|$)|NOTA FISCAL|XML/.test(nome);
+ switch(emailModoAtual){
+  case "boleto":return extensao==="pdf"&&(relatorio||(!nota&&!romaneio));
+  case "completo":return true;
+  case "sem_boleto":return !boleto&&!romaneio;
+  case "boleto_romaneio":return !relatorio;
+  case "relatorio_romaneio":return !boleto;
+  default:return false;
+ }
 }
 
 function obterSaudacaoAutomaticaEmail(){
@@ -2399,15 +2402,7 @@ function obterSaudacaoAutomaticaEmail(){
 }
 
 function mensagemPadraoModoEmail(){
-  if(emailModoAtual === "boleto"){
-    return "Segue em anexo Boleto, por favor, confirmar o recebimento deste.";
-  }
-
-  if(emailModoAtual === "completo"){
-    return "Segue em anexo Boleto, Relatório, NF e XML, por favor, confirmar o recebimento deste.";
-  }
-
-  return "Segue em anexo Romaneio, NF e XML, por favor, confirmar o recebimento deste.";
+ return EMAIL_MODOS_V480[emailModoAtual]?.mensagem || EMAIL_MODOS_V480.boleto.mensagem;
 }
 
 function obterMensagemPrincipalEmail(){
@@ -2445,9 +2440,7 @@ function restaurarMensagemPadraoEmail(){
 }
 
 function descricaoModoEmail(){
-  if(emailModoAtual === "boleto") return "Boleto";
-  if(emailModoAtual === "completo") return "Boleto / Relatório / NF / XML";
-  return "Relatório / NF / XML";
+ return EMAIL_MODOS_V480[emailModoAtual]?.descricao || EMAIL_MODOS_V480.boleto.descricao;
 }
 
 async function carregarModuloEmail(){
@@ -3650,16 +3643,14 @@ function limparCorreios(){
 }
 
 function selecionarModoEmail(modo){
-  emailModoAtual = modo;
-  ["Boleto","Completo","SemBoleto"].forEach(nome => document.getElementById("emailModo" + nome).classList.remove("ativo"));
-  const id = modo === "boleto" ? "emailModoBoleto" : modo === "completo" ? "emailModoCompleto" : "emailModoSemBoleto";
-  document.getElementById(id).classList.add("ativo");
-
-  const campo = document.getElementById("emailMensagemPrincipal");
-  if(campo) campo.value = mensagemPadraoModoEmail();
-
-  atualizarPreviaMensagemEmail();
-  prepararEnviosEmail();
+ if(!Object.prototype.hasOwnProperty.call(EMAIL_MODOS_V480,modo))return;
+ emailModoAtual=modo;
+ Object.values(EMAIL_MODOS_V480).forEach(item=>document.getElementById(item.id)?.classList.remove("ativo"));
+ document.getElementById(EMAIL_MODOS_V480[modo].id)?.classList.add("ativo");
+ const campo=document.getElementById("emailMensagemPrincipal");
+ if(campo)campo.value=mensagemPadraoModoEmail();
+ atualizarPreviaMensagemEmail();
+ prepararEnviosEmail();
 }
 
 async function carregarVendedorasEmail(){
@@ -5160,9 +5151,10 @@ function htmlRelatorioExportacao(logoDataUrl=""){
 <html>
 <head>
 <meta charset="UTF-8">
+<style>@page{size:A4;margin:12mm}body{margin:0;background:#fff;color:#171717;font-family:Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35}ul{padding-left:24px}li{margin:4px 0}h3{text-decoration:underline}</style>
 </head>
 <body>
-<div class="folha">
+<table class="folha" role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border:5px solid #c69af5;border-collapse:separate;box-sizing:border-box;background:#ffffff;"><tr><td style="padding:28px 34px;vertical-align:top;">
   ${logoHtml}
   <p><strong>${escaparHtmlEmail(obterSaudacaoRelatorio())} (${escaparHtmlEmail(d.cliente || "NOME DO CLIENTE")})</strong></p>
   <p>${escaparHtmlEmail(d.texto_introducao || "Segue em anexo Pedido e Nota Fiscal da compra efetuada.")}</p>
@@ -5184,7 +5176,7 @@ function htmlRelatorioExportacao(logoDataUrl=""){
   <h3>BANCOS / CONTAS PARA DEPÓSITO:</h3>
   <div style="white-space:pre-line;">${escaparHtmlEmail(d.dados_bancarios || "")}</div>
   ${assinaturaHtml}
-</div>
+</td></tr></table>
 </body>
 </html>`;
 }
@@ -5350,10 +5342,11 @@ function imprimirRelatorioCliente(){
   // A janela de impressão precisa de CSS próprio: sem isso a logo cresce
   // para o tamanho original e o texto usa a fonte padrão do navegador.
   const css=`
-    @page{size:A4 portrait;margin:12mm 14mm}
+    @page{size:A4 portrait;margin:11mm 12mm}
     *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:#fff;color:#171717;font-family:Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35}
-    .relatorio-folha{width:100%;max-width:182mm;min-height:0;margin:0 auto;padding:0;border:0;box-shadow:none;background:#fff;overflow-wrap:anywhere}
+    html,body{margin:0;padding:0;background:#fff;color:#171717;font-family:Arial,Helvetica,sans-serif;font-size:10.5pt;line-height:1.35;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    .relatorio-moldura-impressao{display:none;pointer-events:none}
+    .relatorio-folha{box-sizing:border-box;width:100%;max-width:180mm;min-height:0;margin:0 auto;padding:9mm 10mm;border:0;box-shadow:none;background:#fff;overflow-wrap:anywhere}
     .relatorio-folha-logo{display:block;width:auto;height:auto;max-width:46mm;max-height:24mm;object-fit:contain;margin:0 auto 9mm}
     .relatorio-folha p{margin:2.5mm 0}
     .relatorio-folha ul{margin:3mm 0 5mm;padding-left:7mm}
@@ -5363,11 +5356,11 @@ function imprimirRelatorioCliente(){
     .relatorio-assinatura-doc img{display:block;width:auto;height:auto;max-width:40mm;max-height:19mm;object-fit:contain;margin:2mm 0}
     .relatorio-assinatura-doc strong{font-size:11pt}
     img{max-width:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact}
-    @media screen{body{padding:12mm;background:#eee}.relatorio-folha{background:white;padding:12mm;box-shadow:0 2px 14px #bbb}}
-    @media print{html,body{width:auto;background:#fff}.relatorio-folha{padding:0!important;box-shadow:none!important}}
+    @media screen{body{padding:12mm;background:#eee}.relatorio-folha{background:white;border:1.4mm solid #c69af5;padding:12mm;box-shadow:0 2px 14px #bbb}}
+    @media print{html,body{width:auto;background:#fff}.relatorio-moldura-impressao{display:block;position:fixed;inset:0;border:1.4mm solid #c69af5;z-index:2}.relatorio-folha{padding:9mm 10mm!important;border:0!important;box-shadow:none!important}}
   `;
   janela.document.open();
-  janela.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>'+nomeArquivoRelatorio()+'</title><style>'+css+'</style></head><body><main class="relatorio-folha">'+folha.innerHTML+'</main></body></html>');
+  janela.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>'+nomeArquivoRelatorio()+'</title><style>'+css+'</style></head><body><div class="relatorio-moldura-impressao" aria-hidden="true"></div><main class="relatorio-folha">'+folha.innerHTML+'</main></body></html>');
   janela.document.close();
   // Aguarda a logo e as fontes carregarem antes de abrir a impressão.
   const preparar=async()=>{
