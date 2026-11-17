@@ -441,17 +441,38 @@ function abrirPainelFiscalV476(id){
    const botoes=document.createElement("div");botoes.className="sefaz-acoes-v476";
    for(const [id,texto] of [["status","Verificar configuração"],["documentos","Listar documentos gravados"],["consultar","Consultar novas NF-e (1 lote)"]]){
      const b=document.createElement("button");b.type="button";b.textContent=texto;
+     if(id==="consultar")b.id="sefazBtnConsultarV479";
      b.onclick=()=>requisicaoDfeFiscalV477(id);botoes.appendChild(b);
    }
    const resultado=document.createElement("div");resultado.id="sefazResultadoV477";resultado.style.cssText="white-space:pre-wrap;overflow-wrap:anywhere;margin-top:15px;font-size:13px";
    box.append(tituloConsulta,aviso,label,botoes,resultado);conteudo.appendChild(box);
+   sel.onchange=()=>{resultado.textContent="Ambiente alterado. Use Verificar configuração antes da consulta real.";atualizarEstadoConsultaFiscalV479();};
+   atualizarEstadoConsultaFiscalV479();
  }
+}
+// Somente estado visual: sem timers, sem consultas automáticas e sem gravar credenciais no navegador.
+const sefazProximaConsultaV479={producao:null,homologacao:null};
+function atualizarEstadoConsultaFiscalV479(){
+ const sel=document.getElementById("sefazAmbienteV477"),btn=document.getElementById("sefazBtnConsultarV479");
+ if(!sel||!btn)return;
+ const horario=Date.parse(sefazProximaConsultaV479[sel.value]||"");
+ const bloqueado=Number.isFinite(horario)&&horario>Date.now();
+ btn.disabled=bloqueado;
+ btn.textContent=bloqueado?"Consulta bloqueada até "+new Date(horario).toLocaleString("pt-BR"):"Consultar novas NF-e (1 lote)";
+ btn.title=bloqueado?"Use Verificar configuração para atualizar o horário de liberação. Nenhuma consulta será enviada à SEFAZ.":"Uma consulta real e manual de até 50 documentos";
 }
 async function requisicaoDfeFiscalV477(operacao){
  if(usuarioLogado?.tipo!=="financeiro"&&usuarioLogado?.tipo!=="admin")return;
  const result=document.getElementById("sefazResultadoV477"),sel=document.getElementById("sefazAmbienteV477");
  if(!result||!sel)return;
- if(operacao==="consultar"&&!confirm("Atenção: isto fará UMA consulta REAL ao Ambiente Nacional da NF-e para o CNPJ da indústria.\n\nSerão processados no máximo 50 documentos, sem transmitir manifestações. Continuar?"))return;
+ if(operacao==="consultar"){
+   const ate=Date.parse(sefazProximaConsultaV479[sel.value]||"");
+   if(Number.isFinite(ate)&&ate>Date.now()){
+     result.textContent="Consulta suspensa até "+new Date(ate).toLocaleString("pt-BR")+". Use Verificar configuração para conferir sem consumir quota da SEFAZ.";
+     atualizarEstadoConsultaFiscalV479();return;
+   }
+   if(!confirm("Atenção: isto fará UMA consulta REAL ao Ambiente Nacional da NF-e para o CNPJ da indústria.\n\nSerão processados no máximo 50 documentos, sem transmitir manifestações. Continuar?"))return;
+ }
  result.textContent="Verificando autorização e processando a operação solicitada…";
  const buttons=[...document.querySelectorAll("#sefazConteudoV476 button")];buttons.forEach(x=>x.disabled=true);
  try{
@@ -464,10 +485,13 @@ async function requisicaoDfeFiscalV477(operacao){
      body:operacao==="consultar"?JSON.stringify({ambiente}):undefined
    });
    const dados=await resposta.json();
+   if(dados.proxima_consulta_em)sefazProximaConsultaV479[ambiente]=dados.proxima_consulta_em;
    if(!resposta.ok||!dados.ok)throw Error((dados.erro||dados.motivo||"Consulta indisponível")+(dados.codigo_sefaz?" (SEFAZ "+dados.codigo_sefaz+")":"")+
-     (dados.proxima_consulta_em?"\nNova consulta permitida em: "+new Date(dados.proxima_consulta_em).toLocaleString("pt-BR"):""));
+     (dados.nsu_reportado_sefaz?"\nÚltimo NSU informado pela SEFAZ: "+dados.nsu_reportado_sefaz+" (não altera o cursor local automaticamente)":"")+
+     (dados.proxima_consulta_em?"\nNova consulta permitida após: "+new Date(dados.proxima_consulta_em).toLocaleString("pt-BR"):""));
    if(operacao==="status"){
      const c=dados.cursor||{};
+     sefazProximaConsultaV479[ambiente]=c.proxima_consulta_em||null;
      result.textContent=[
        "Configuração fiscal: "+(dados.cnpj_configurado?"CNPJ configurado":"CNPJ pendente"),
        "A1: "+(dados.certificado?.valido?"válido até "+dados.certificado.validade:"indisponível ou vencido"),
@@ -497,11 +521,12 @@ async function requisicaoDfeFiscalV477(operacao){
        "Último NSU: "+dados.ultimo_nsu,
        "Maior NSU: "+dados.max_nsu,
        "Próxima consulta após: "+new Date(dados.proxima_consulta_em).toLocaleString("pt-BR"),
+       dados.fila_pendente?"Há mais documentos na fila; continue manualmente, um lote por vez.":"Aguarde o período de proteção antes de consultar novamente.",
        "Manifestação: não transmitida. Use 'Listar documentos gravados' para conferir."
      ].join("\n");
    }
  }catch(e){result.textContent="⚠ "+String(e.message||e)}
- finally{buttons.forEach(x=>x.disabled=false)}
+ finally{buttons.forEach(x=>x.disabled=false);atualizarEstadoConsultaFiscalV479()}
 }
 
 async function baixarXmlFiscalV477(nsu,ambiente){
