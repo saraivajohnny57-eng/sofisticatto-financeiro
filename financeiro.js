@@ -7699,10 +7699,98 @@ function dadosNovaCobranca(){
   };
 }
 
+/* V471 — parcelamento manual, alinhado ao relatório, sem emissão automática */
+let cobrancaManualParcelasV471=[];
+let cobrancaManualEmissaoEmAndamentoV471=false;
+function condicaoManualCobrancaV471(){
+ const sel=document.getElementById('cobCondicaoManualV471')?.value||'avista';
+ return sel==='personalizado'?(document.getElementById('cobCondicaoCustomV471')?.value||'').trim():sel;
+}
+
+function prazosManualCobrancaV471(){
+ const raw=condicaoManualCobrancaV471();
+ if(raw==='avista')return [0];
+ if(!/^[1-9]\d{0,2}(?:\/[1-9]\d{0,2}){0,11}$/.test(raw))return [];
+ const parts=raw.split('/').map(Number);
+ if(parts.some((n,i)=>n>365||(i>0&&n<=parts[i-1])))return [];
+ return parts;
+}
+
+function atualizarParcelasManualCobrancaV471(){
+ const sel=document.getElementById('cobCondicaoManualV471')?.value||'avista';
+ const box=document.getElementById('cobCondicaoCustomBoxV471');
+ if(box)box.style.display=sel==='personalizado'?'block':'none';
+ const dataBase=document.getElementById('cobVencimento')?.value||'';
+ const total=cobNum(document.getElementById('cobValor')?.value);
+ const prazos=prazosManualCobrancaV471();
+ cobrancaManualParcelasV471=[];
+ if(prazos.length&&dataBase&&total>0){
+  const valores=dividirValorParcelasBoleto(total,prazos.length);
+  cobrancaManualParcelasV471=prazos.map((dias,i)=>({
+   numero:i+1,total:prazos.length,prazo:dias,
+   vencimento:sel==='avista'?dataBase:dataSomadaBoleto(dataBase,dias),
+   valor:valores[i]
+  }));
+ }
+ renderParcelasManualCobrancaV471();
+}
+
+function alterarParcelaManualCobrancaV471(indice,campo,valor){
+ const item=cobrancaManualParcelasV471[indice];
+ if(!item||!['valor','vencimento'].includes(campo))return;
+ if(campo==='valor')item.valor=cobNum(valor);
+ else item.vencimento=String(valor||'').slice(0,10);
+ renderParcelasManualCobrancaV471();
+}
+
+function validarParcelasManualCobrancaV471(){
+ const total=cobNum(document.getElementById('cobValor')?.value);
+ const prazos=prazosManualCobrancaV471();
+ const base=document.getElementById('cobVencimento')?.value||'';
+ if(!prazos.length)return {ok:false,erro:'Informe uma condição válida: prazos positivos, crescentes e separados por / (até 12 parcelas, máximo 365 dias).'};
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(base))return {ok:false,erro:'Informe a data-base (ou vencimento, para à vista).'};
+ if(!(total>0))return {ok:false,erro:'Informe o valor total da cobrança.'};
+ if(cobrancaManualParcelasV471.length!==prazos.length)return {ok:false,erro:'Atualize a prévia das parcelas antes de emitir.'};
+ if(cobrancaManualParcelasV471.some((p,i)=>p.prazo!==prazos[i]||!p.vencimento||!Number.isFinite(p.valor)||p.valor<=0))
+  return {ok:false,erro:'Revise os prazos, valores e vencimentos de todas as parcelas.'};
+ const soma=cobrancaManualParcelasV471.reduce((s,p)=>s+Math.round(p.valor*100),0);
+ const esperado=Math.round(total*100);
+ if(soma!==esperado)return {ok:false,erro:'A soma das parcelas ('+cobMoeda(soma/100)+') difere do total ('+cobMoeda(esperado/100)+').'};
+ const escolha=document.getElementById('cobCondicaoManualV471')?.value||'avista';
+ return {ok:true,parcelas:cobrancaManualParcelasV471.map(p=>({...p})),condicao:escolha==='avista'?'À vista':condicaoManualCobrancaV471(),data_base:base};
+}
+
+function renderParcelasManualCobrancaV471(){
+ const box=document.getElementById('cobParcelasManualV471');
+ if(!box)return;
+ const sel=document.getElementById('cobCondicaoManualV471')?.value||'avista';
+ const lbl=document.getElementById('cobDataBaseLabelV471');
+ if(lbl)lbl.textContent=sel==='avista'?'Vencimento':'Data-base dos prazos';
+ const estado=validarParcelasManualCobrancaV471();
+ if(!cobrancaManualParcelasV471.length){
+  box.innerHTML='<p style="font-size:12px;color:#716880;margin:7px 0">'+escaparHtmlEmail(estado.erro||'Preencha valor e data-base para visualizar as parcelas.')+'</p>';
+  return;
+ }
+ const linhas=cobrancaManualParcelasV471.map((p,i)=>`<tr>
+  <td style="padding:6px">${p.numero}/${p.total}</td><td style="padding:6px">${p.prazo?p.prazo+' dias':'À vista'}</td>
+  <td style="padding:6px"><input type="date" aria-label="Vencimento parcela ${p.numero}" value="${escaparHtmlEmail(p.vencimento||'')}" onchange="alterarParcelaManualCobrancaV471(${i},'vencimento',this.value)" style="width:100%;min-width:125px"></td>
+  <td style="padding:6px"><input type="text" inputmode="decimal" aria-label="Valor parcela ${p.numero}" value="${Number(p.valor||0).toFixed(2).replace('.',',')}" onchange="alterarParcelaManualCobrancaV471(${i},'valor',this.value)" style="width:100%;min-width:90px"></td></tr>`).join('');
+ const soma=cobrancaManualParcelasV471.reduce((s,p)=>s+Math.round(p.valor*100),0)/100;
+ box.innerHTML=`<div style="overflow:auto"><table style="width:100%;min-width:400px;font-size:12px;border-collapse:collapse"><thead><tr><th>Parcela</th><th>Prazo</th><th>Vencimento</th><th>Valor</th></tr></thead><tbody>${linhas}</tbody></table></div>
+ <p role="status" style="font-size:12px;color:${estado.ok?'#256c37':'#bb1e36'};margin:9px 0"><b>Total das parcelas: ${cobMoeda(soma)}</b> ${estado.ok?'✓ Confere':escaparHtmlEmail(estado.erro)}</p>`;
+}
+
+function resumoManualCobrancaV471(){
+ const estado=validarParcelasManualCobrancaV471();
+ if(!estado.ok)return '<div style="margin-top:10px;color:#aa1d36">⚠ '+escaparHtmlEmail(estado.erro)+'</div>';
+ return '<div style="margin-top:12px;border-top:1px solid #ddd;padding-top:9px"><b>Condição: '+escaparHtmlEmail(estado.condicao)+'</b>'+
+  estado.parcelas.map(p=>'<div style="margin-top:5px">'+p.numero+'/'+p.total+' • '+escaparHtmlEmail(p.vencimento)+' • '+cobMoeda(p.valor)+'</div>').join('')+'</div>';
+}
+
 function previsualizarCobranca(){
   if(negarOperacaoCobrancaV293()) return;
   const d=dadosNovaCobranca(), b=document.getElementById('cobPreview'); if(!b)return;
-  b.innerHTML=`<div class="cobranca-preview-doc"><div class="cobranca-preview-bank">${d.banco==='bb'?'BANCO DO BRASIL':'BRADESCO'}</div><div class="cobranca-preview-valor">${cobMoeda(d.valor)}</div><div><b>Pagador:</b> ${escaparHtmlEmail(d.cliente_nome||'—')}</div><div><b>Documento:</b> ${escaparHtmlEmail(d.cpf_cnpj||'—')}</div><div><b>Vencimento:</b> ${d.vencimento?new Date(d.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</div><div><b>NF:</b> ${escaparHtmlEmail(d.numero_nf||'—')}</div><div><b>Tipo:</b> ${d.tipo==='boleto_pix'?'Boleto + Pix':'Boleto'}</div><div><b>Multa:</b> ${d.multa_percentual}% • <b>Juros:</b> ${d.juros_percentual}% a.m.</div></div>`;
+  b.innerHTML=`<div class="cobranca-preview-doc"><div class="cobranca-preview-bank">${d.banco==='bb'?'BANCO DO BRASIL':'BRADESCO'}</div><div class="cobranca-preview-valor">${cobMoeda(d.valor)}</div><div><b>Pagador:</b> ${escaparHtmlEmail(d.cliente_nome||'—')}</div><div><b>Documento:</b> ${escaparHtmlEmail(d.cpf_cnpj||'—')}</div><div><b>Vencimento:</b> ${d.vencimento?new Date(d.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</div><div><b>NF:</b> ${escaparHtmlEmail(d.numero_nf||'—')}</div><div><b>Tipo:</b> ${d.tipo==='boleto_pix'?'Boleto + Pix':'Boleto'}</div><div><b>Multa:</b> ${d.multa_percentual}% • <b>Juros:</b> ${d.juros_percentual}% a.m.</div>${resumoManualCobrancaV471()}</div>`;
 }
 
 function seuNumeroBradescoOperacional(numeroNf,parcelaNumero=1,parcelaTotal=1){
@@ -7773,38 +7861,73 @@ async function emitirBradescoOperacional(p,{confirmar=true}={}){
 }
 
 async function emitirCobrancaBancaria(){
-  if(negarOperacaoCobrancaV293()) return;
-  const d=dadosNovaCobranca(),st=document.getElementById('cobStatus'),btn=document.getElementById('btnCobEmitirManual');
-  if(!d.cliente_id)return alert('Selecione um cliente cadastrado.');
-  if(!d.cpf_cnpj)return alert('O cliente precisa ter CPF/CNPJ.');
-  if(!d.cep)return alert('O cliente precisa ter CEP.');
-  if(!(d.endereco&&d.numero))return alert('O cliente precisa ter endereço e número.');
-  if(!(d.valor>0))return alert('Informe um valor válido.');
-  if(!d.vencimento)return alert('Informe o vencimento.');
-  if(d.banco==='bb'&&!String(d.numero_nf||'').trim())return alert('Informe o Nº NF/Título para emitir no Banco do Brasil.');
-  if(btn){btn.disabled=true;btn.textContent=d.banco==='bb'?'Emitindo no BB...':'Salvando...';}
-  try{
-    if(d.banco==='bb'){
-      const dup=await banco.from('cobrancas_bancarias').select('id,nosso_numero,status').eq('banco','bb').eq('numero_nf',String(d.numero_nf).trim()).neq('status','cancelado').limit(1);
-      if(!dup.error&&dup.data?.length)throw new Error(`Já existe cobrança BB com o Nº NF/Título ${d.numero_nf}. A emissão foi bloqueada para evitar duplicidade.`);
-    }
-    const payload={...d,numero_nf:String(d.numero_nf||'').trim()||null,referencia:d.referencia||`SOF-${Date.now()}`,status:'pendente_integracao',parcela_numero:1,parcela_total:1,condicao_pagamento:'À vista',data_base:new Date().toISOString().slice(0,10),valor_total_grupo:d.valor,origem:'integracao_bancaria_manual',criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
-    let r=await banco.from('cobrancas_bancarias').insert([payload]).select().single();if(r.error)throw r.error;
-    if(d.banco==='bradesco'){
-      // O registro local criado acima vira a própria parcela operacional do Bradesco.
-      const ret=await emitirBradescoOperacional(r.data,{confirmar:true});
-      const rr=ret?.registro||{};
-      if(!(Number(rr.http_status)>=200&&Number(rr.http_status)<300))throw new Error(`Bradesco respondeu HTTP ${rr.http_status||'—'}. Confira o retorno antes de tentar novamente.`);
-      if(st)st.innerHTML=`✅ Boleto registrado no Bradesco.${rr.nossoNumero_retornado?` Nosso Número: <b>${escaparHtmlEmail(String(rr.nossoNumero_retornado))}</b>.`:''}`;
-      mostrarBalaoSistema?.('Boleto Bradesco emitido','Cobrança registrada e salva no Histórico.');
-      await carregarCobrancasBancarias();return;
-    }
-    const ret=await emitirParcelaBbReal(r.data);
-    if(st)st.innerHTML=`✅ Boleto registrado no Banco do Brasil.${ret?.emissao?.numeroTituloCliente?` Nosso Número: <b>${escaparHtmlEmail(ret.emissao.numeroTituloCliente)}</b>.`:''}`;
-    mostrarBalaoSistema?.('Boleto emitido','Cobrança registrada com sucesso no Banco do Brasil.');
-    await carregarCobrancasBancarias();
-  }catch(e){if(st)st.textContent='⚠ '+(e.message||e);alert('Não foi possível emitir: '+(e.message||e));}
-  finally{if(btn){btn.disabled=false;aplicarPadraoBancoCobrancaManual();}}
+ if(negarOperacaoCobrancaV293())return;
+ if(cobrancaManualEmissaoEmAndamentoV471)return;
+ const d=dadosNovaCobranca(),st=document.getElementById('cobStatus'),btn=document.getElementById('btnCobEmitirManual');
+ if(!d.cliente_id)return alert('Selecione um cliente cadastrado.');
+ if(!d.cpf_cnpj)return alert('O cliente precisa ter CPF/CNPJ.');
+ if(!d.cep)return alert('O cliente precisa ter CEP.');
+ if(!(d.endereco&&d.numero))return alert('O cliente precisa ter endereço e número.');
+ if(!(d.valor>0))return alert('Informe um valor válido.');
+ const conf=validarParcelasManualCobrancaV471();
+ if(!conf.ok)return alert(conf.erro);
+ const numeroNf=String(d.numero_nf||'').trim();
+ if(!numeroNf)return alert('Informe o Nº NF/Título para emitir as parcelas com segurança.');
+ if(conf.parcelas.length>1&&/-\d{1,3}$/.test(numeroNf))return alert('Informe a NF sem o sufixo da parcela. O sistema acrescentará -01, -02... automaticamente.');
+ if(numeroNf.length>(d.banco==='bradesco'?(conf.parcelas.length>1?7:10):(conf.parcelas.length>1?12:15)))
+  return alert('O Nº da NF é longo para esta condição e carteira. Reduza a referência antes da emissão para evitar truncamento de identificadores.');
+ const resumo=conf.parcelas.map(p=>p.numero+'/'+p.total+' • '+p.vencimento+' • '+cobMoeda(p.valor)).join('\n');
+ if(!confirm('EMISSÃO BANCÁRIA REAL\n\nBanco: '+(d.banco==='bb'?'Banco do Brasil':'Bradesco')+'\nCliente: '+d.cliente_nome+'\nNF: '+numeroNf+'\nCondição: '+conf.condicao+'\nTotal: '+cobMoeda(d.valor)+'\n\n'+resumo+'\n\nConfirma emissão sequencial das '+conf.parcelas.length+' parcela(s)?'))return;
+ cobrancaManualEmissaoEmAndamentoV471=true;
+ if(btn){btn.disabled=true;btn.textContent='Conferindo e emitindo parcelas...';}
+ let confirmadas=0;
+ const emitidos=[];
+ let etapa='';
+ try{
+  // Falhar fechado: se não for possível checar duplicidade, não iniciar emissão.
+  etapa='Pré-checagem de duplicidade';
+  const dup=await banco.from('cobrancas_bancarias').select('id,numero_nf,parcela_numero,status,nosso_numero')
+     .eq('banco',d.banco).eq('numero_nf',numeroNf).limit(50);
+  if(dup.error)throw new Error('Não foi possível verificar duplicidade: '+dup.error.message);
+  if(dup.data?.length)throw new Error('Já existem registros para NF '+numeroNf+' neste banco (inclusive emitidos, baixados ou pendentes). Nenhuma nova emissão foi iniciada. Consulte o Histórico.');
+  const grupoId=crypto.randomUUID();
+  const referencia=String(d.referencia||'SOF-'+Date.now()).trim();
+  for(let i=0;i<conf.parcelas.length;i++){
+   const p=conf.parcelas[i];
+   etapa='Parcela '+p.numero+'/'+p.total;
+   if(st)st.textContent='⏳ Emitindo '+etapa+' • '+cobMoeda(p.valor);
+   const payload={...d,numero_nf:numeroNf,referencia,valor:p.valor,vencimento:p.vencimento,
+    parcela_numero:p.numero,parcela_total:p.total,prazo_dias:p.prazo,
+    grupo_id:grupoId,condicao_pagamento:conf.condicao,data_base:conf.data_base,valor_total_grupo:d.valor,
+    instrucoes_banco:instrucoesPadraoBancoCobranca(d.banco),status:'pendente_integracao',
+    origem:'integracao_bancaria_manual',criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
+   const ins=await banco.from('cobrancas_bancarias').insert([payload]).select().single();
+   if(ins.error)throw new Error('Falha ao preparar '+etapa+': '+ins.error.message);
+   if(d.banco==='bradesco'){
+    const ret=await emitirBradescoOperacional(ins.data,{confirmar:false});
+    const rr=ret?.registro||{};
+    if(!(Number(rr.http_status)>=200&&Number(rr.http_status)<300))
+      throw new Error('Bradesco não confirmou a emissão de '+etapa+'. HTTP '+(rr.http_status||'indefinido')+'. Confira antes de tentar novamente.');
+    emitidos.push('Parcela '+p.numero+'/'+p.total+' • Nosso Nº '+(rr.nossoNumero_retornado||'confirmar no Histórico'));
+   }else{
+    const ret=await emitirParcelaBbReal(ins.data);
+    if(ret?.emissao?.avisoLocal)throw new Error(ret.emissao.avisoLocal);
+    if(!ret?.emissao?.numeroTituloCliente)throw new Error('BB não retornou confirmação suficiente de '+etapa+'. Não reemita sem conferência.');
+    emitidos.push('Parcela '+p.numero+'/'+p.total+' • Nosso Nº '+ret.emissao.numeroTituloCliente);
+   }
+   confirmadas++;
+  }
+  if(st)st.textContent='✅ '+confirmadas+' parcela(s) emitida(s) e confirmada(s). '+emitidos.join(' • ');
+  if(typeof mostrarBalaoSistema==='function')mostrarBalaoSistema('Emissão bancária concluída',confirmadas+' parcela(s) registrada(s). Confira o Histórico.');
+ }catch(e){
+  const mensagem=(e.message||String(e));
+  if(st)st.textContent='⚠ '+confirmadas+' parcela(s) confirmada(s). Falha/resultado pendente em '+etapa+': '+mensagem+' Não repita a emissão sem verificar o banco.';
+  alert('Emissão interrompida por segurança.\n\n'+confirmadas+' parcela(s) confirmada(s).\n'+etapa+': '+mensagem+'\n\nNÃO reemita os títulos já confirmados nem as tentativas de resultado incerto.');
+ }finally{
+  cobrancaManualEmissaoEmAndamentoV471=false;
+  if(btn){btn.disabled=false;aplicarPadraoBancoCobrancaManual();}
+  if(confirmadas>0&&typeof atualizarHistoricoSomenteLeituraV469==='function')await atualizarHistoricoSomenteLeituraV469();
+ }
 }
 
 // V278 — Status bancário composto: o indicador DESCONTADO nunca substitui
