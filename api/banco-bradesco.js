@@ -315,6 +315,28 @@ function avaliarOriginaisBradescoV484(resposta,registro){
   pendencias,contrato_put_liberado:false,transmitido:false};
 }
 
+// V485: filtragem da conferência bancária, validada antes de qualquer chamada
+// externa. O endpoint permanece exclusivamente de leitura.
+function filtroConferenciaBradescoV485(entrada={}){
+  const id=String(entrada?.id||'').trim();
+  const numeroNf=String(entrada?.numero_nf||'').trim();
+  const parcela=Number(entrada?.parcela);
+  if(id){
+    if(!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id)){
+      const erro=new Error('Identificador de título inválido. Informe o ID válido do boleto.');
+      erro.http_status=400;
+      throw erro;
+    }
+    return `?id=eq.${encodeURIComponent(id)}&banco=eq.bradesco&select=*&limit=2`;
+  }
+  if(!/^\d{1,10}$/.test(numeroNf)||!Number.isInteger(parcela)||parcela<1||parcela>99){
+    const erro=new Error('Informe ID ou número de NF e parcela para conferência individual.');
+    erro.http_status=400;
+    throw erro;
+  }
+  return `?banco=eq.bradesco&numero_nf=eq.${encodeURIComponent(numeroNf)}&parcela_numero=eq.${parcela}&select=*&limit=2`;
+}
+
 /* V473 — repetição somente da consulta (sem emitir, baixar ou alterar título).
    ECONNRESET é interrupção de transporte; não equivale a status bancário inválido.
    Limite estrito: uma única repetição após aguardar 350 ms. */
@@ -1160,14 +1182,7 @@ module.exports=async function(req,res){
     }
     if(action==='preparar-manutencao-encargos-v433'){
       if(amb!=='producao')throw new Error('Esta consulta deve utilizar o ambiente de produção.');
-      const id=String(req.body?.id||'').trim();
-      const numeroNf=String(req.body?.numero_nf||'').trim();
-      const parcela=Number(req.body?.parcela);
-      if(!id&&(!/^\\d{1,10}$/.test(numeroNf)||!Number.isInteger(parcela)||parcela<1||parcela>99))
-        throw new Error('Informe ID ou número de NF e parcela para conferência individual.');
-      const filtro=id?
-        `?id=eq.${encodeURIComponent(id)}&banco=eq.bradesco&select=*&limit=2`:
-        `?banco=eq.bradesco&numero_nf=eq.${encodeURIComponent(numeroNf)}&parcela_numero=eq.${parcela}&select=*&limit=2`;
+      const filtro=filtroConferenciaBradescoV485(req.body||{});
       const rows=await supabaseRest('cobrancas_bancarias',{query:filtro});
       if(!Array.isArray(rows)||rows.length!==1)throw new Error('Título não localizado de forma única. Nenhuma instrução enviada.');
       const reg=rows[0];
