@@ -81,3 +81,13 @@ test('V488: painel exibe resposta campo por campo, sem alterar boleto',()=>{
   assert.ok(piloto.includes('j.diagnostico_campos_v488?.campos'));
   assert.ok(piloto.includes('TRANSMISSÃO PUT: BLOQUEADA'));
 });
+
+test('V489: prepara o contrato PUT na mesma consulta, sem transmitir nem consultar novamente',()=>{
+  assert.ok(br.includes('function diagnosticoContratoPutBradescoV489('));
+  assert.ok(br.includes('diagnostico_put_v489:diagnosticoContratoPutBradescoV489(q.data,reg,auditoriaOriginais)'));
+  assert.ok(!br.includes("action==='executar-manutencao-encargos-v489'"));
+  assert.ok(load('bradesco-piloto-v438.js').includes('j.diagnostico_put_v489?.campos'));
+});
+test('V489: dados bancários identificáveis são mascarados no inventário',()=>{
+  assert.ok(br.includes('linhaDig|identTitDda|acessEsc|ctaCred|agencCred'));
+});

@@ -761,7 +761,7 @@ function instrucaoSemProtestoBradescoV482(){
 // sem chamadas adicionais ao banco/Supabase e sem revelar dados pessoais.
 function relatorioRetornoBradescoV488(resposta){
   const campos=[],limite=600; let total=0;
-  const sigilosos=/(cpf|cnpj|documento|sacado|pagador|sacador|beneficiario|cliente|nome|endereco|logradouro|bairro|municipio|cidade|cep|email|telefone|celular|fone|agencia|conta|token|secret|password|senha|authorization|chave|certificate|certificado)/i;
+  const sigilosos=/(cpf|cnpj|documento|sacado|pagador|sacador|beneficiario|cliente|nome|endereco|logradouro|bairro|municipio|cidade|cep|email|telefone|celular|fone|agencia|conta|token|secret|password|senha|authorization|chave|certificate|certificado|codBarras|linhaDig|identTitDda|acessEsc|ctaCred|agencCred|digCred|razCredt|complemento|agenOper|agenDepos|bcoDepos|cense|numCartor|numProtoc|\.numero$)/i;
   const visitados=new WeakSet();
   function adicionar(caminho,valor){
     total++;
@@ -790,6 +790,74 @@ function relatorioRetornoBradescoV488(resposta){
   return {tipo:'INVENTARIO_RESPOSTA_CONSULTA_NAO_EQUIVALE_AO_PAYLOAD_PUT',
     total_campos:total,mostrados:campos.length,truncado:total>limite,
     somente_leitura:true,sem_segredos:true,campos};
+}
+
+
+// V489: mapa do CONTRATO PUT a partir da MESMA consulta do piloto.
+// Não faz rede, não gera cURL executável e não fornece dados pessoais.
+function diagnosticoContratoPutBradescoV489(resposta,registro,auditoria){
+  const t=resposta?.titulo||{}, origem=auditoria?.origem||{},pag=auditoria?.campos||{};
+  const campos=[],pendencias=[];
+  const presente=v=>v!==null&&v!==undefined&&String(v).trim()!=='';
+  const dig=v=>String(v??'').replace(/\D/g,'');
+  function add(campo,estado,fonte,indicador,nota=''){
+    campos.push({campo,estado,fonte,indicador:String(indicador??'—'),nota});
+    if(estado==='PENDENTE')pendencias.push(campo+': '+nota);
+  }
+  const docBanco=t.sacado?.cnpj, cpfConfere=auditoria?.documento_pagador?.situacao==='CONFERE';
+  const bancoBenef=dig(t.cedente?.cnpj),nomePag=presente(t.sacado?.nome),endPag=presente(t.sacado?.endereco);
+  const cep=dig(t.sacado?.cep),cepc=dig(t.sacado?.cepc);
+  const agencia=dig(t.agencCred),conta=dig(t.ctaCred);
+  const negocOk=agencia.length>0&&agencia.length<=4&&conta.length>0&&conta.length<=7;
+  const cpfSacador=dig(t.sacador?.cnpj),nomeSacador=String(t.sacador?.nome||'');
+  const sacadorSemDados=!nomeSacador&&(!cpfSacador||Number(cpfSacador)===0);
+  const carteira=dig(registro?.carteira||registro?.produto||registro?.banco_produto);
+  const semProtesto=dig(t.codInscrProt)==='0'&&dig(t.diasProt)==='0';
+  const semDecurso=dig(t.qtdDiasDecurPrz)==='0';
+  const especie=String(t.especDocto||''),emissao=dig(t.dataEmis);
+  const vencOriginal=String(t.dataVencto||'');
+  const vencSegunda=String(t.dataVenctoBol||'');
+  const barras=dig(t.linhaDig),boletoValido=barras.length===47||dig(t.codBarras).length===44;
+  add('cpfCnpj (beneficiário)','PRESERVAR','titulo.cedente.cnpj',bancoBenef.length===14?'DOCUMENTO PRESENTE (OCULTO)':'VERIFICAR DOCUMENTO', 'Não substituir pelos números ilustrativos do e-mail');
+  add('produto',carteira?'PRESERVAR':'PENDENTE','cadastro Bradesco',carteira?'CARTEIRA CONFIGURADA':'A CONFERIR','Conferir carteira 09/ID produto contra o contrato original');
+  add('negociacao',negocOk?'PRESERVAR':'PENDENTE','titulo.agencCred + titulo.ctaCred',negocOk?'4+7 POSIÇÕES (OCULTAS)':'INCOMPLETO','A confirmação no PUT pode exigir comparação com o contrato cadastrado');
+  add('nossoNumero',origem.seu_numero?'PRESERVAR':'PENDENTE','registro.nosso_numero + titulo.snumero',origem.seu_numero?'62710000058':'NÃO CONFIRMADO','Mesmo Nosso Número, sem DV');
+  add('dadosPagador.sacado',pag.nome?'PRESERVAR':'PENDENTE','titulo.sacado.nome',nomePag?'NOME PRESENTE (OCULTO)':'AUSENTE','Não usar "Nome do Sacado" do exemplo');
+  add('dadosPagador.cpfCnpjSacado',cpfConfere?'PRESERVAR':'PENDENTE','titulo.sacado.cnpj (9+4+2) + cadastro',cpfConfere?'CPF CONFERE (OCULTO)':'NÃO CONFERE','Não converter arbitrariamente CPF em CNPJ');
+  add('dadosPagador.endereco',pag.endereco?'PRESERVAR':'PENDENTE','titulo.sacado.endereco',endPag?'ENDEREÇO PRESENTE (OCULTO)':'AUSENTE');
+  add('dadosPagador.cep/sufixo',pag.cep?'PRESERVAR':'PENDENTE','titulo.sacado.cep + titulo.sacado.cepc',pag.cep?'CEP BANCÁRIO PRESENTE (OCULTO)':'AUSENTE','Verificar separação do CEP em 5+3 na montagem real');
+  add('dadosPagador.nomeSacador/cpfCnpjSacador',sacadorSemDados?'ZERO/VAZIO':'PENDENTE','titulo.sacador',sacadorSemDados?'SEM AVALISTA':'HÁ DADOS DE AVALISTA','Não inventar nome nem documento de sacador avalista');
+  add('dadosPagador.aceite',presente(t.aceite)?'PRESERVAR':'PENDENTE','titulo.aceite',t.aceite||'—','No banco é N; exemplo recebido usa S e não deve substituir o original');
+  add('dadosPagador.emailSacado','ZERO/VAZIO','titulo.enderecoEma','[OMITIDO NO DIAGNÓSTICO]','Se original vazio, manter vazio');
+  add('dadosTitulo.seuNumero',origem.seu_numero?'PRESERVAR':'PENDENTE','titulo.snumero',origem.seu_numero?'56078-02':'NÃO CONFIRMADO');
+  add('dadosTitulo.dataEmissao',origem.data_emissao&&emissao.length===8?'PRESERVAR':'PENDENTE','titulo.dataEmis',emissao.length===8?'28/09/2026':'AUSENTE','Chave imutável');
+  add('dadosTitulo.especie',origem.especie_documento?'PRESERVAR':'PENDENTE','titulo.especDocto',especie||'—');
+  add('dadosTitulo.vencimento.dataVencimento',origem.vencimento_original?'PRESERVAR':'PENDENTE','titulo.dataVencto (NÃO dataVenctoBol)',vencOriginal,'Original: 08/11/2026; segunda via: '+(vencSegunda||'—')+'. Confirmar se o PUT espera data original ou zero ao não alterar vencimento');
+  add('dadosTitulo.vencimento.tipoVencimento','PRESERVAR','titulo.ctpoVencto',t.ctpoVencto??0);
+  add('dadosTitulo.protesto',semProtesto?'ZERO/VAZIO':'PENDENTE','titulo.codInscrProt + titulo.diasProt',semProtesto?'0/0':'NÃO ZERADO','Preservar título sem protesto');
+  add('dadosTitulo.decurso',semDecurso?'ZERO/VAZIO':'PENDENTE','titulo.qtdDiasDecurPrz',semDecurso?'0/0':'NÃO ZERADO','Preservar ausência de decurso');
+  add('dadosTitulo.abatimento.tipoAbatimento','PENDENTE','Manual v1.6.4 fixo 1 / e-mail exemplo 0','1 × 0','Escolher somente após confirmar contrato; valorAbatimento deve permanecer 0');
+  add('dadosTitulo.abatimento.valorAbatimento','ZERO/VAZIO','titulo.valAbat',t.valAbat??0);
+  for(let i=1;i<=3;i++){
+    add('dadosTitulo.dataDesc'+i+'/valDesc'+i+'/codValDe'+i+'/tipoDesc'+i,'ZERO/VAZIO','titulo.dataDesc'+i+' + titulo.valDesc'+i,
+      String(t['valDesc'+i]??0)+' / '+String(t['codValDe'+i]??0),'Sem desconto cadastrado; conservar zeros');
+  }
+  add('dadosTitulo.codigoControleParticipante','ZERO/VAZIO','titulo.ctrlPartic','VAZIO');
+  add('dadosTitulo.indicadorAvisoSacado','PENDENTE','Manual fixo "0" / e-mail exemplo ""','0 × ""','Padronizar conforme layout aplicável, sem instrução de aviso indesejada');
+  add('dadosTitulo.comissaoPermanencia.codigoComissaoPermanencia','PROPOSTO','Manual 1-Valor / 2-Percentual',2,'5% ao mês propostos; ainda sem confirmação de aplicação retroativa');
+  add('dadosTitulo.comissaoPermanencia.diasComissaoPermanencia','PROPOSTO','Regra pretendida',1,'Aplicar a partir do dia seguinte ao vencimento original');
+  add('dadosTitulo.comissaoPermanencia.valorComissaoPermanencia','PENDENTE','Manual: campo numérico, 15 posições','5% A.M. (ESCALA A DEFINIR)','Não presumir 5, 050000, 500000 ou outro fator numérico');
+  add('dadosTitulo.codigoMulta','PROPOSTO','Manual 1-Valor / 2-Percentual',2,'Multa de 2%');
+  add('dadosTitulo.diasMulta','PROPOSTO','Regra pretendida',1,'Aplicar no primeiro dia após vencimento');
+  add('dadosTitulo.valorMulta','PENDENTE','Manual: campo numérico, 15 posições','2% (ESCALA A DEFINIR)','Não presumir 2, 020000, 200000 ou outra escala');
+  add('dadosTitulo.codigoNegativacao','PENDENTE','Manual v1.6.4: 1 fixo / e-mail exemplo: 0','1 × 0','Evitar gerar negativação não solicitada; diasNegativacao permanece zero');
+  add('dadosTitulo.diasNegativacao','ZERO/VAZIO','Sem instrução registrada',0);
+  add('dadosTitulo.pagamentoParcial',t.permitePgtoParcial==='N'?'PRESERVAR':'PENDENTE','titulo.permitePgtoParcial',t.permitePgtoParcial||'—','Manter configuração original');
+  add('dadosTitulo.qtdePagamentoParcial','ZERO/VAZIO','titulo.qtdePgtoParcial',t.qtdePgtoParcial??0);
+  return {versao:'V489',tipo:'MAPEAMENTO_NAO_E_JSON_PARA_TRANSMITIR',
+    campos,quantidade_campos:campos.length,pendencias,quantidade_pendencias:pendencias.length,
+    qtd_campos_retorno:126,apenas_leitura:true,pode_transmitir:false,boleto_valido_na_consulta:boletoValido,
+    modo:'Nenhum PUT, nenhuma alteração de título, nenhuma consulta adicional'};
 }
 
 function montarPayloadRegistroReal(body,banco){
@@ -1281,7 +1349,7 @@ module.exports=async function(req,res){
       return json(res,200,{ok:true,transmitido:false,operacao:'PREPARACAO_SEM_ALTERACAO',auditoria_originais_v484:auditoriaOriginais,titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,
        vencimento_original_banco:dataBradescoIso(sit.titulo?.dataVencto)||null,
        vencimento_boleto_atualizado:dataBradescoIso(sit.titulo?.dataVenctoBol)||null,
-       valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},protesto_sem_instrucao:instrucaoSemProtestoBradescoV482(),diagnostico_campos_v488:relatorioRetornoBradescoV488(q.data),documentacao_put_v488:{origem:'Manual Bradesco v1.6.4, Alteração de título',campos_chave:['produto','negociacao','nossoNumero','cpfCnpjSacado','dataEmissao','valorTitulo'],exemplo_nao_autoriza_transmissao:true,divergencias:['codigoNegativacao: exemplo 0 / layout fixo 1','tipoAbatimento: exemplo 0 / layout fixo 1'],campos_juros_multa_a_validar:['comissaoPermanencia.codigoComissaoPermanencia','comissaoPermanencia.valorComissaoPermanencia','comissaoPermanencia.diasComissaoPermanencia','codigoMulta','diasMulta','valorMulta']},orientacao_wf99571:'Campos numéricos não aplicáveis: 0; alfanuméricos: string vazia. Identificadores originais devem ser preservados. Banco solicitou nova tentativa controlada com evidências HTTP.',transmissao_autorizada:false,endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Dados originais conferidos na consulta do banco. PUT ainda bloqueado devido à divergência sobre codigoNegativacao entre o Manual 1.6.4 (fixo 1) e o e-mail do suporte (0 para campo não utilizado); confirmar antes de transmitir.'});
+       valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},protesto_sem_instrucao:instrucaoSemProtestoBradescoV482(),diagnostico_campos_v488:relatorioRetornoBradescoV488(q.data),diagnostico_put_v489:diagnosticoContratoPutBradescoV489(q.data,reg,auditoriaOriginais),documentacao_put_v488:{origem:'Manual Bradesco v1.6.4, Alteração de título',campos_chave:['produto','negociacao','nossoNumero','cpfCnpjSacado','dataEmissao','valorTitulo'],exemplo_nao_autoriza_transmissao:true,divergencias:['codigoNegativacao: exemplo 0 / layout fixo 1','tipoAbatimento: exemplo 0 / layout fixo 1'],campos_juros_multa_a_validar:['comissaoPermanencia.codigoComissaoPermanencia','comissaoPermanencia.valorComissaoPermanencia','comissaoPermanencia.diasComissaoPermanencia','codigoMulta','diasMulta','valorMulta']},orientacao_wf99571:'Campos numéricos não aplicáveis: 0; alfanuméricos: string vazia. Identificadores originais devem ser preservados. Banco solicitou nova tentativa controlada com evidências HTTP.',transmissao_autorizada:false,endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Dados originais conferidos na consulta do banco. PUT ainda bloqueado devido à divergência sobre codigoNegativacao entre o Manual 1.6.4 (fixo 1) e o e-mail do suporte (0 para campo não utilizado); confirmar antes de transmitir.'});
     }
     if(action==='consultar-status-titulo'){
       if(amb!=='producao')throw new Error('A consulta de status desta versão está liberada para Produção.');

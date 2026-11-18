@@ -54,6 +54,13 @@ function montar(){
     'CAMPOS IMUTÁVEIS DO PUT: '+(j.documentacao_put_v488?.campos_chave||[]).join(' | '),
     'DIVERGÊNCIAS MANUAL x EXEMPLO: '+(j.documentacao_put_v488?.divergencias||[]).join(' ; '),
     'CAMPOS DE JUROS/MULTA A VALIDAR: '+(j.documentacao_put_v488?.campos_juros_multa_a_validar||[]).join(' | '),
+    'PRÉ-VALIDAÇÃO DO CONTRATO PUT V489 — usa a mesma consulta, não transmite:',
+    'Campos mapeados: '+(j.diagnostico_put_v489?.quantidade_campos??'indisponível')+
+      ' | pendências: '+(j.diagnostico_put_v489?.quantidade_pendencias??'indisponível'),
+    ...(j.diagnostico_put_v489?.campos||[]).map(c=>'  '+c.campo+' => '+c.estado+' | '+c.indicador+
+      ' | origem: '+c.fonte+(c.nota?' | '+c.nota:'')),
+    'PONTOS IMPEDITIVOS DO PUT:',
+    ...(j.diagnostico_put_v489?.pendencias||[]).map(v=>'  • '+v),
     'TRANSMISSÃO PUT: BLOQUEADA até orientação inequívoca do banco.',
     'Nenhum boleto foi emitido, baixado ou alterado.'
    ].join('\n');
