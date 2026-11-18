@@ -55,6 +55,10 @@ function init(){
    await new Promise(resolve=>setTimeout(resolve,32000));
    const segunda=await solicitar('consulta_documento_resultado',{reciboConsulta:primeira.recibo_consulta});
    append('RESULTADO DA CONSULTA POR NF (sem emitir):\n'+JSON.stringify(segunda,null,2));
+   if(segunda.estado==='consulta_rejeitada_retorno_uf'){
+     append('CONSULTA INVALIDADA: código 701 — Erro na validação do retorno da UF (Manual GNRE 2.17).');
+     append('O processamento 402 da consulta não confirma emissão. A tentativa original permanece incerta e bloqueada. NÃO reemitir.');
+   }
    append('A reserva da tentativa anterior permanece protegida. NAO clique em Emitir.');
   }catch(e){append('Consulta por documento não concluída: '+String(e.message||e)+'. NÃO reemitir.')}
   finally{b.disabled=b.dataset.bloqueio102==='true'}
