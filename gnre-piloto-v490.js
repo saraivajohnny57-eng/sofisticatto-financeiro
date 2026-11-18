@@ -10,7 +10,8 @@ function init(){
  '<button class="buscar" id="g490go" type="button">Conferir primeira GNRE</button>'+
 '<label style="display:block;padding:9px 0"><input type="checkbox" id="g491previous"> Confirmo que ainda NÃO existe guia desta NF-e emitida no portal nacional</label>'+
 '<button class="buscar" id="g491emit" disabled type="button">Emitir GNRE real — R$ 24,91</button> '+
-'<button class="buscar" id="g491consult" disabled type="button">Consultar resultado oficial</button>'+
+'<button class="buscar" id="g491consult" disabled type="button">Consultar resultado oficial</button> '+
+'<button class="buscar" id="g492diag" disabled type="button">Diagnosticar falha (sem enviar)</button>'+
 '<pre id="g490out" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>';
  a.insertAdjacentElement('afterend',b);
  let payload=null,adminKey=null;
@@ -31,7 +32,18 @@ function init(){
    const r=await solicitar('emitir',{...payload,confirmacao:'EMITIR_PA_51185_24_91',semEmissaoAnterior:true});
    append('Retorno GNRE: '+JSON.stringify(r));
    $('g491consult').disabled=false;
-  }catch(e){append('Emissão não confirmada: '+String(e.message||e)+'. NÃO REPETIR sem consultar.');$('g491consult').disabled=false}
+  }catch(e){append('Emissão não confirmada: '+String(e.message||e)+'. NÃO REPETIR sem consultar.');$('g491consult').disabled=false;$('g492diag').disabled=false}
+ };
+ $('g492diag').onclick=async()=>{
+   const bt=$('g492diag');bt.disabled=true;
+   try{
+    if(!payload)throw Error('Conferência da NF-e necessária');
+    const r=await solicitar('diagnosticar',payload);
+    append('DIAGNOSTICO SEM TRANSMISSAO V492:\n'+(r.checks||[]).map(c=>
+      (c.ok?'OK':'FALHA')+' — '+c.etapa+': '+c.detalhe).join('\n')+
+      '\n'+(r.ok?'Pré-validação aprovada; não autoriza reenvio automático.':'Falhas identificadas; não repetir a emissão.'));
+   }catch(e){append('Diagnóstico indisponível: '+String(e.message||e))}
+   finally{bt.disabled=false}
  };
  $('g491consult').onclick=async()=>{
   $('g491consult').disabled=true;
@@ -73,6 +85,7 @@ function init(){
     body:JSON.stringify({nfe:nf,fiscal:{vencimento:$('g490v').value,pagamento:$('g490p').value,obrigacaoConfirmada:true,vencimentoConfirmado:true}})});
    const z=await r.json();if(!r.ok||!z.ok)throw Error(z.erro||'Conferência indisponível');
    adminKey=admin;
+   $('g492diag').disabled=false;
    payload={nfe:nf,fiscal:{vencimento:$('g490v').value,pagamento:$('g490p').value,obrigacaoConfirmada:true,vencimentoConfirmado:true}};
    const bloqueios=(z.pendencias||[]).filter(s=>!String(s).includes('Conferir no portal nacional'));
    $('g491emit').disabled=!(z.lote_preparado&&z.arquivos_locais===0&&z.certificado_cadastrado&&bloqueios.length===0);
