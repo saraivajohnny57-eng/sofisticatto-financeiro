@@ -37,7 +37,11 @@ function montar(){
       ' — portal: '+(doc.tipo_local||'não informado')+' | banco: '+(doc.tipo_banco||'não informado')+
       '. '+(doc.motivo||''),
     'Nome do pagador confere: '+(doc.nome_confere?'SIM':'NÃO CONFIRMADO'),
-    'Atenção: não substituir automaticamente CPF/CNPJ cadastrado, mesmo com nome coincidente.',
+    'Verificação de documento: '+(doc.formato_comparacao||'NAO_VALIDADO')+
+      ' — Manual Bradesco v1.6.4, raiz 9 + filial 4 + controle 2.',
+    doc.situacao==='CONFERE'?
+     'Identificação confirmada pelo retorno bancário: nenhuma correção de CPF/CNPJ necessária.':
+     'Atenção: documento não confirmado. Não substituir CPF/CNPJ automaticamente.',
     'Dados originais: '+Object.entries(v.origem||{}).map(([ch,ok])=>ch+'='+rotulo(ok)).join(' | '),
     'Pagador: '+Object.entries(v.campos||{}).map(([ch,ok])=>ch+'='+rotulo(ok)).join(' | '),
     'Diferença do contrato: manual v1.6.4 determina codigoNegativacao=1, e-mail do suporte sugere zero para numéricos não usados.',

@@ -266,6 +266,36 @@ function interpretarConsultaBradesco(data,reg){
 }
 
 
+// Consulta Bradesco v1.6.4: "sacado.cnpj" e um numero de ate 15 posicoes,
+// inclusive quando o sacado e CPF: raiz 9 + filial 0000 + controle 2.
+// Como a API devolve numeros, zeros iniciais podem se perder.
+function compararDocumentoSacadoBradescoV487(local,retornado){
+ const numeros=v=>String(v??'').replace(/\D/g,'');
+ const docLocal=numeros(local),docBanco=numeros(retornado);
+ const localEhCpf=docLocal.length===11,localEhCnpj=docLocal.length===14;
+ const esperado15=localEhCpf?docLocal.slice(0,9)+'0000'+docLocal.slice(9):
+   localEhCnpj?'0'+docLocal:'';
+ // Permitir retorno direto quando o banco ja entrega o documento sem a divisao 9+4+2,
+ // sem supor que qualquer cadeia de 14 digitos representa obrigatoriamente um CNPJ.
+ const direto=!!docLocal&&docLocal===docBanco&&(localEhCpf||localEhCnpj);
+ const bancario=!direto&&!!esperado15&&docBanco.length>0&&docBanco.length<=15&&
+   docBanco.padStart(15,'0')===esperado15;
+ const confere=direto||bancario;
+ const tipoLocal=localEhCpf?'CPF (11 dígitos)':localEhCnpj?'CNPJ (14 dígitos)':
+   docLocal?'Formato local inválido':'Documento local ausente';
+ const tipoBanco=bancario&&localEhCpf?'CPF bancário (9+4 zeros+2)':
+   bancario&&localEhCnpj?'CNPJ bancário (9+4+2)':
+   direto?(localEhCpf?'CPF':'CNPJ'):
+   !docBanco?'Documento bancário ausente':'Formato bancário não confirmado';
+ return {confere,tipo_local:tipoLocal,tipo_banco:tipoBanco,
+   formato:confere?(bancario?'LAYOUT_9_4_2':'DOCUMENTO_DIRETO'):'NAO_VALIDADO',
+   motivo:confere?(localEhCpf&&bancario?
+     'CPF do banco confere com o cadastro após recompor os quatro zeros da filial e os zeros iniciais.':
+     'Documento do banco confere com o cadastro após a normalização oficial.'):
+     !docLocal||!docBanco?'Documento ausente em uma das fontes.':
+     'Documento não corresponde ao cadastro após aplicar o layout bancário 9+4+2.'};
+}
+
 // V484: dados originais confirmados pela consulta individual oficial, nao pelos
 // valores estimados da data do historico. Nenhum PUT e disparado aqui.
 function avaliarOriginaisBradescoV484(resposta,registro){
@@ -280,26 +310,19 @@ function avaliarOriginaisBradescoV484(resposta,registro){
  const vencimentoLocal=String(registro?.vencimento||'').slice(0,10);
  const centavosLocal=Math.round(Number(registro?.valor||0)*100);
  const centavosBradesco=Number(dig(t.valMoeda));
- const docLocal=dig(registro?.cpf_cnpj);
- const docBanco=dig(t.sacado?.cnpj);
- // Comparar CPF/CNPJ preservando o documento e permitindo apenas zeros de preenchimento à esquerda.
- // Nunca completar CPF com zeros internos: isso poderia associar outro pagador.
- const documentoConfere=[11,14].includes(docLocal.length)&&[11,14].includes(docBanco.length)&&
-   docBanco.replace(/^0+/,'')===docLocal.replace(/^0+/,'');
+ const comparacaoDoc=compararDocumentoSacadoBradescoV487(registro?.cpf_cnpj,t.sacado?.cnpj);
+ const documentoConfere=comparacaoDoc.confere;
  const nomeNormalizado=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]/g,'').toUpperCase();
  const nomeLocal=nomeNormalizado(registro?.cliente_nome),nomeBanco=nomeNormalizado(t.sacado?.nome);
  const nomeConfere=!!nomeLocal&&!!nomeBanco&&nomeLocal===nomeBanco;
- const docTipo=v=>v.length===11?'11 dígitos (formato CPF)':v.length===14?'14 dígitos (formato CNPJ)':
-   v.length===0?'não informado':String(v.length)+' dígitos';
  const documentoPagador={
   confere:documentoConfere,
-  tipo_local:docTipo(docLocal),
-  tipo_banco:docTipo(docBanco),
+  tipo_local:comparacaoDoc.tipo_local,
+  tipo_banco:comparacaoDoc.tipo_banco,
+  formato_comparacao:comparacaoDoc.formato,
   nome_confere:nomeConfere,
-  situacao:documentoConfere?'CONFERE':!docLocal||!docBanco?'AUSENTE':'DIVERGENTE',
-  motivo:documentoConfere?'Os dígitos correspondem.':!docLocal||!docBanco?
-    'Documento não encontrado em uma das fontes.':
-    'Os documentos não correspondem; verificar identidade antes de qualquer manutenção.',
+  situacao:documentoConfere?'CONFERE':comparacaoDoc.motivo.includes('ausente')?'AUSENTE':'DIVERGENTE',
+  motivo:comparacaoDoc.motivo,
   sem_documento_completo:true
  };
  const origem={

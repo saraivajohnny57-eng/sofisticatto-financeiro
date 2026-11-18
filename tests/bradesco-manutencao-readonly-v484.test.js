@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const path=require('node:path');
 const b=fs.readFileSync(path.join(__dirname,'..','api','banco-bradesco.js'),'utf8');
 const ui=fs.readFileSync(path.join(__dirname,'..','bradesco-piloto-v438.js'),'utf8');
-const a=b.indexOf('function avaliarOriginaisBradescoV484('),f=b.indexOf('/* V473 — repetição somente da consulta',a);
+const a=b.indexOf('function compararDocumentoSacadoBradescoV487('),f=b.indexOf('/* V473 — repetição somente da consulta',a);
 assert.ok(a>=0&&f>a);
 const analyze=new Function('dataBradescoIso',b.slice(a,f)+';return avaliarOriginaisBradescoV484')(
  v=>({'28092026':'2026-09-28','08/11/2026':'2026-11-08'}[String(v)]||null));
