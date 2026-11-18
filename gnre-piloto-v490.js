@@ -12,7 +12,8 @@ function init(){
 '<button class="buscar" id="g491emit" disabled type="button">Emitir GNRE real — R$ 24,91</button> '+
 '<button class="buscar" id="g491consult" disabled type="button">Consultar resultado oficial</button> '+
 '<button class="buscar" id="g492diag" disabled type="button">Diagnosticar falha (sem enviar)</button> '+
-'<button class="buscar" id="g497lookup" disabled type="button">Consultar GNRE pela NF (não emite)</button>'+
+'<button class="buscar" id="g497lookup" disabled type="button">Consultar GNRE pela NF (não emite)</button> '+
+'<button class="buscar" id="g501status" disabled type="button">Auditar primeira tentativa (sem enviar)</button>'+
 '<pre id="g490out" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>';
  a.insertAdjacentElement('afterend',b);
  let payload=null,adminKey=null;
@@ -34,6 +35,30 @@ function init(){
    append('Retorno GNRE: '+JSON.stringify(r));
    $('g491consult').disabled=false;
   }catch(e){append('Emissão não confirmada: '+String(e.message||e)+'. NÃO REPETIR sem consultar.');$('g491consult').disabled=false;$('g492diag').disabled=false}
+ };
+ $('g501status').onclick=async()=>{
+   const bt=$('g501status');bt.disabled=true;
+   try{
+    const x=await solicitar('situacao_local');
+    const t=x.tentativa_original||{};
+    const lines=[
+      'AUDITORIA LOCAL DA PRIMEIRA TENTATIVA — NF-e 51185',
+      'Estado: '+String(t.estado||'sem reserva'),
+      'Número de tentativas: '+String(t.tentativa||0),
+      'Erro da transmissão: '+String(t.codigo_erro||'não registrado'),
+      'Início (UTC): '+String(t.criado_em||'não registrado'),
+      'Atualização (UTC): '+String(t.atualizado_em||'não registrado'),
+      'Recibo de emissão armazenado: '+(t.recibo_armazenado?'SIM':'NÃO'),
+      'Guias arquivadas localmente: '+x.quantidade_guias_locais,
+      'Guias emitidas confirmadas localmente: '+x.guias_confirmadas_locais,
+      'Consulta por NF retornou 701: erro de validação do retorno da UF (observado anteriormente)',
+      'Nenhuma transmissão realizada nesta auditoria.',
+      'Reenvio autorizado: NÃO.',
+      String(x.orientacao||'')
+    ];
+    append(lines.join('\n'));
+   }catch(e){append('Auditoria local indisponível: '+String(e.message||e)+'. NÃO reemitir.')}
+   finally{bt.disabled=false}
  };
  $('g497lookup').onclick=async()=>{
   const b=$('g497lookup');b.disabled=true;
@@ -116,6 +141,7 @@ function init(){
    adminKey=admin;
    $('g492diag').disabled=false;
    $('g497lookup').disabled=false;
+   $('g501status').disabled=false;
    payload={nfe:nf,fiscal:{vencimento:$('g490v').value,pagamento:$('g490p').value,obrigacaoConfirmada:true,vencimentoConfirmado:true}};
    const bloqueios=(z.pendencias||[]).filter(s=>!String(s).includes('Conferir no portal nacional'));
    $('g491emit').disabled=!(z.lote_preparado&&z.arquivos_locais===0&&!z.reserva_existente&&z.certificado_cadastrado&&bloqueios.length===0);
@@ -124,7 +150,7 @@ function init(){
     'XML do lote preparado: '+(z.lote_preparado?'SIM':'NÃO'),'Guias locais: '+z.arquivos_locais,
     'Tentativa de emissão reservada: '+(z.reserva_existente?'SIM — '+z.reserva_estado+' (NÃO reemitir)':'NÃO'),
     'Certificado A1 cadastrado: '+(z.certificado_cadastrado?'SIM':'NÃO'),'Pendências: '+z.pendencias.join('; '),
-    'Nenhuma guia transmitida ou emitida.'].join('\n');
+    z.reserva_existente?'Emissão anterior com resultado incerto; NÃO reemitir.':'Nenhuma emissão confirmada localmente; não comprova ausência de guia no serviço oficial.'].join('\n');
   }catch(e){out.textContent='Conferência não concluída: '+String(e.message||e);}
   finally{btn.disabled=false;}
  };
