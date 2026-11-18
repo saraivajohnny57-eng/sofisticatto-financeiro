@@ -1397,6 +1397,33 @@ module.exports=async function(req,res){
       if(bancoReg){const b=descriptografar(bancoReg)||{};const faltam=['cnpj','agencia','conta','carteira','cedente','negociacao'].filter(k=>!String(b[k]||'').trim());if(faltam.length)pendencias.push('contrato de Produção incompleto: '+faltam.join(', '));contrato={cnpj:mascarar(b.cnpj,2,2),agencia:mascarar(b.agencia,1,1),conta:mascarar(b.conta,1,1),carteira:mascarar(b.carteira,0,1),cedente:mascarar(b.cedente,1,1),negociacao:mascarar(b.negociacao,4,4)};}
       return json(res,200,{ok:true,prontidao:{versao:'V233',ambiente:'PRODUCAO',pronto_para_configurar_emissao:pendencias.length===0,emissao_real_habilitada:false,post_producao_executado:false,pendencias,certificado:certificado?{valido_ate:certificado.valido_ate,dias_restantes:certificado.dias_restantes}:null,contrato},mensagem:pendencias.length?'Produção ainda possui pendências de configuração. Nenhum boleto foi enviado.':'Configuração de Produção encontrada e validada localmente. A emissão real continua bloqueada nesta V233; nenhum POST de cobrança foi executado.'});
     }
+    if(action==='verificar-preparacao-sem-envio-v495'){
+      if(amb!=='producao')throw new Error('Verificação restrita à produção.');
+      const id=String(req.body?.id||'').trim();
+      if(!/^[0-9a-f-]{36}$/i.test(id))throw new Error('Identificador de preparação inválido.');
+      const rows=await supabaseRest('cobrancas_bancarias',{query:
+        '?id=eq.'+encodeURIComponent(id)+
+        '&select=id,banco,status,origem,numero_nf,parcela_numero,parcela_total,uf,nosso_numero,banco_nosso_numero,linha_digitavel,banco_linha_digitavel,codigo_barras,banco_codigo_barras,emitido_em,banco_payload,banco_resposta&limit=1'});
+      const item=Array.isArray(rows)?rows[0]:null;
+      if(!item||item.banco!=='bradesco'||item.status!=='pendente_integracao'
+        ||item.origem!=='integracao_bancaria_manual')
+        return json(res,200,{ok:true,reaproveitavel:false,motivo:'Não é uma preparação manual pendente do Bradesco.'});
+      const identificadores=['nosso_numero','banco_nosso_numero','linha_digitavel',
+        'banco_linha_digitavel','codigo_barras','banco_codigo_barras','emitido_em','banco_payload','banco_resposta'];
+      if(identificadores.some(c=>!!item[c])||String(item.uf||'').trim())
+        return json(res,200,{ok:true,reaproveitavel:false,motivo:'Registro possui evidência bancária ou não corresponde à falha por UF ausente.'});
+      const base=String(item.numero_nf||'').replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+      const total=Number(item.parcela_total||1),parcela=Number(item.parcela_numero||1);
+      if(!base||base.length>10||total<1||parcela<1||parcela>total||total>12)
+        return json(res,200,{ok:true,reaproveitavel:false,motivo:'Identificação de parcela inválida.'});
+      const sufixo=total>1?'-'+String(parcela).padStart(2,'0').slice(-2):'';
+      const seuNumero=base.slice(0,10-sufixo.length)+sufixo;
+      const chave=idRegistro('producao','emissao-v248-'+crypto.createHash('sha256').update(seuNumero).digest('hex').slice(0,24));
+      const anterior=await obter(chave);
+      // Uma tentativa bancária, mesmo com resultado desconhecido, impede a retomada.
+      return json(res,200,{ok:true,reaproveitavel:!anterior,
+        motivo:anterior?'Existe tentativa de emissão anterior para este Seu Número. Não repetir.':'Preparação sem transmissão registrada; pode ser reutilizada uma única vez.'});
+    }
     if(action==='preparar-emissao-producao-v248'){
       if(amb!=='producao')throw new Error('A primeira emissão controlada é exclusiva do ambiente de Produção.');
       const reg=await obter(idRegistro(amb,'dados-bancarios')), credReg=await obter(idRegistro(amb,'credenciais')), mtlsReg=await obter(idRegistro(amb,'mtls'));

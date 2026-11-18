@@ -7871,18 +7871,81 @@ function buscarClienteCobranca(){
   box.classList.add('ativo');
 }
 
+
+/* V495: cadastro usado na emissão manual; sem envio bancário ao corrigir. */
+function abrirEditorClienteCobrancaV495(){
+ const cliente=cobClienteSelecionado;
+ if(!cliente?.id){alert('Selecione um cliente cadastrado.');return}
+ let modal=document.getElementById('modalClienteCobrancaV495');
+ if(!modal){
+  modal=document.createElement('div');modal.id='modalClienteCobrancaV495';
+  modal.style.cssText='position:fixed;inset:0;background:#1d142e99;z-index:2147482500;display:none;align-items:center;justify-content:center;padding:12px';
+  modal.innerHTML='<section role="dialog" aria-modal="true" aria-labelledby="cobEdTit" style="background:white;color:#252038;border-radius:14px;padding:20px;max-height:90vh;overflow:auto;width:min(660px,96vw);font:14px Segoe UI,Arial,sans-serif"><h3 id="cobEdTit" style="color:#5a4fa3;margin:0 0 8px">✏️ Corrigir cadastro do pagador</h3><p>Revise os dados utilizados pelos bancos. Nenhum boleto será emitido ao salvar.</p><div id="cobEdCampos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px"></div><p id="cobEdMsg" role="status" style="color:#bd2944;white-space:pre-wrap"></p><div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn azul" id="cobEdCancelar">Cancelar</button><button type="button" class="btn verde" id="cobEdSalvar">💾 Salvar cadastro</button></div></section>';
+  const campos=[['nome','Nome'],['cpf_cnpj','CPF/CNPJ'],['cep','CEP'],['endereco','Endereço'],['numero','Número'],['complemento','Complemento'],['bairro','Bairro'],['cidade','Cidade'],['uf','UF']];
+  const grid=modal.querySelector('#cobEdCampos');
+  for(const item of campos){
+   const field=document.createElement('label');field.style.cssText='display:flex;flex-direction:column;gap:5px;font-weight:600';
+   const label=document.createElement('span');label.textContent=item[1];
+   const input=document.createElement('input');input.dataset.campo=item[0];input.style.cssText='padding:9px;border:1px solid #d2cbe6;border-radius:8px;background:#faf9fd;font:inherit;min-width:0';
+   if(item[0]==='uf'){input.maxLength=2;input.oninput=()=>{input.value=input.value.toUpperCase().replace(/[^A-Z]/g,'')}}
+   if(item[0]==='cep')input.onblur=async()=>{
+    if(String(input.value||'').replace(/\D/g,'').length!==8)return;
+    const info=await consultarCepRelatorio(input.value);
+    if(info?.ok)for(const pair of [['cidade',info.cidade],['uf',info.uf],['bairro',info.bairro],['endereco',info.logradouro]]){
+     const field=modal.querySelector('[data-campo="'+pair[0]+'"]');
+     if(field&&!field.value.trim()&&pair[1])field.value=pair[1];
+    }
+   };
+   field.append(label,input);grid.append(field);
+  }
+  modal.querySelector('#cobEdCancelar').onclick=fecharEditorClienteCobrancaV495;
+  modal.querySelector('#cobEdSalvar').onclick=salvarEditorClienteCobrancaV495;
+  modal.addEventListener('click',e=>{if(e.target===modal)fecharEditorClienteCobrancaV495()});
+  document.body.append(modal);
+ }
+ modal.dataset.clienteId=String(cliente.id);
+ modal.querySelectorAll('[data-campo]').forEach(el=>{const k=el.dataset.campo;el.value=String(cliente[k]||(k==='endereco'?cliente.logradouro:'')||'')});
+ modal.querySelector('#cobEdMsg').textContent='';
+ modal.style.display='flex';modal.querySelector('[data-campo="uf"]').focus();
+}
+function fecharEditorClienteCobrancaV495(){const m=document.getElementById('modalClienteCobrancaV495');if(m)m.style.display='none'}
+async function salvarEditorClienteCobrancaV495(){
+ const m=document.getElementById('modalClienteCobrancaV495'),id=m?.dataset.clienteId;
+ const c=(emailClientes||[]).find(x=>String(x.id)===String(id)),btn=m?.querySelector('#cobEdSalvar');
+ if(!m||!c||String(cobClienteSelecionado?.id)!==String(id))return;
+ const dados={};m.querySelectorAll('[data-campo]').forEach(e=>{dados[e.dataset.campo]=e.value.trim()});
+ dados.uf=String(dados.uf||'').toUpperCase();
+ const v=validarCadastroClienteParaBancos({...c,...dados});
+ const aviso=m.querySelector('#cobEdMsg');
+ if(!v.ok){aviso.textContent='Corrija:\n• '+v.problemas.join('\n• ');return}
+ btn.disabled=true;
+ try{
+  const res=await banco.from('email_clientes').update({...dados,atualizado_em:new Date().toISOString()})
+    .eq('id',id).select('*').single();
+  if(res.error||!res.data)throw Error(res.error?.message||'Cadastro não retornou após salvar');
+  const i=emailClientes.findIndex(x=>String(x.id)===String(id));if(i>=0)emailClientes[i]=res.data;
+  cobClienteSelecionado=res.data;selecionarClienteCobranca(id);
+  fecharEditorClienteCobrancaV495();
+  if(typeof mostrarBalaoSistema==='function')mostrarBalaoSistema('Cadastro atualizado','Revise a cobrança e confirme novamente a emissão.');
+ }catch(e){aviso.textContent='Falha ao salvar: '+String(e.message||e).slice(0,220)}
+ finally{btn.disabled=false}
+}
+
 function selecionarClienteCobranca(id){
   cobClienteSelecionado=(emailClientes||[]).find(c=>String(c.id)===String(id))||null;
   if(!cobClienteSelecionado)return;
   document.getElementById('cobClienteId').value=id;
   document.getElementById('cobClienteBusca').value=cobClienteSelecionado.nome||'';
   document.getElementById('cobClienteResultados').classList.remove('ativo');
-  const falt=[];
-  if(!cobClienteSelecionado.cpf_cnpj)falt.push('CNPJ/CPF');
-  if(!cobClienteSelecionado.cep)falt.push('CEP');
-  if(!(cobClienteSelecionado.endereco||cobClienteSelecionado.logradouro))falt.push('endereço');
-  if(!cobClienteSelecionado.numero)falt.push('número');
-  document.getElementById('cobClienteResumo').innerHTML=`<strong>${escaparHtmlEmail(cobClienteSelecionado.nome||'')}</strong><span>${escaparHtmlEmail(cobClienteSelecionado.cpf_cnpj||'Documento não informado')}</span><span>${escaparHtmlEmail([cobClienteSelecionado.endereco||cobClienteSelecionado.logradouro,cobClienteSelecionado.numero,cobClienteSelecionado.bairro,cobClienteSelecionado.cidade,cobClienteSelecionado.uf,cobClienteSelecionado.cep].filter(Boolean).join(' • '))}</span>${falt.length?`<div class="cobranca-alerta">⚠ Dados faltando: ${falt.join(', ')}</div>`:''}`;
+  const validacao=validarCadastroClienteParaBancos(cobClienteSelecionado);
+  const falt=validacao.problemas;
+  document.getElementById('cobClienteResumo').innerHTML=
+    '<strong>'+escaparHtmlEmail(cobClienteSelecionado.nome||'')+'</strong>'+
+    '<span>'+escaparHtmlEmail(cobClienteSelecionado.cpf_cnpj||'Documento não informado')+'</span>'+
+    '<span>'+escaparHtmlEmail([cobClienteSelecionado.endereco||cobClienteSelecionado.logradouro,cobClienteSelecionado.numero,cobClienteSelecionado.bairro,cobClienteSelecionado.cidade,cobClienteSelecionado.uf,cobClienteSelecionado.cep].filter(Boolean).join(' • '))+'</span>'+
+    (falt.length?'<div class="cobranca-alerta">⚠ Dados faltando: '+falt.map(escaparHtmlEmail).join(', ')+'</div>':'')+
+    '<button type="button" class="btn azul" style="margin-top:8px" onclick="abrirEditorClienteCobrancaV495()">✏️ Corrigir cadastro</button>';
+  if(falt.length)setTimeout(()=>{if(String(cobClienteSelecionado?.id)===String(id))abrirEditorClienteCobrancaV495()},60);
   previsualizarCobranca();
 }
 
@@ -8070,7 +8133,9 @@ async function emitirCobrancaBancaria(){
  if(!d.cliente_id)return alert('Selecione um cliente cadastrado.');
  if(!d.cpf_cnpj)return alert('O cliente precisa ter CPF/CNPJ.');
  if(!d.cep)return alert('O cliente precisa ter CEP.');
- if(!(d.endereco&&d.numero))return alert('O cliente precisa ter endereço e número.');
+ if(!(d.endereco&&d.numero)){abrirEditorClienteCobrancaV495();return}
+ const cadastroV495=validarCadastroClienteParaBancos({...d,nome:d.cliente_nome});
+ if(!cadastroV495.ok){abrirEditorClienteCobrancaV495();return}
  if(!(d.valor>0))return alert('Informe um valor válido.');
  const conf=validarParcelasManualCobrancaV471();
  if(!conf.ok)return alert(conf.erro);
@@ -8089,10 +8154,34 @@ async function emitirCobrancaBancaria(){
  try{
   // Falhar fechado: se não for possível checar duplicidade, não iniciar emissão.
   etapa='Pré-checagem de duplicidade';
-  const dup=await banco.from('cobrancas_bancarias').select('id,numero_nf,parcela_numero,status,nosso_numero')
-     .eq('banco',d.banco).eq('numero_nf',numeroNf).limit(50);
+  const dup=await banco.from('cobrancas_bancarias').select(
+    'id,numero_nf,cliente_id,cpf_cnpj,parcela_numero,parcela_total,status,nosso_numero,banco_nosso_numero,linha_digitavel,banco_linha_digitavel,codigo_barras,banco_codigo_barras,emitido_em,banco_payload,banco_resposta,origem,valor,vencimento,uf')
+    .eq('banco',d.banco).eq('numero_nf',numeroNf).limit(50);
   if(dup.error)throw new Error('Não foi possível verificar duplicidade: '+dup.error.message);
-  if(dup.data?.length)throw new Error('Já existem registros para NF '+numeroNf+' neste banco (inclusive emitidos, baixados ou pendentes). Nenhuma nova emissão foi iniciada. Consulte o Histórico.');
+  const encontrados=dup.data||[],reaproveitar=new Map();
+  if(encontrados.length){
+   if(d.banco!=='bradesco'||encontrados.length===50)throw new Error('Já existem cobranças desta NF neste banco. Consulte o Histórico.');
+   for(const reg of encontrados){
+    const parcela=conf.parcelas.find(x=>x.numero===Number(reg.parcela_numero));
+    const semResultado=['nosso_numero','banco_nosso_numero','linha_digitavel','banco_linha_digitavel',
+      'codigo_barras','banco_codigo_barras','emitido_em','banco_payload','banco_resposta'].every(k=>!reg[k]);
+    const confere=parcela&&Number(reg.parcela_total)===conf.parcelas.length
+      &&Math.round(Number(reg.valor||0)*100)===Math.round(parcela.valor*100)
+      &&String(reg.vencimento||'').slice(0,10)===parcela.vencimento
+      &&String(reg.cliente_id||'')===String(d.cliente_id||'')
+      &&String(reg.cpf_cnpj||'').replace(/\D/g,'')===String(d.cpf_cnpj||'').replace(/\D/g,'');
+    if(reg.status!=='pendente_integracao'||reg.origem!=='integracao_bancaria_manual'
+       ||!semResultado||!confere||String(reg.uf||'').trim()
+       ||reaproveitar.has(Number(reg.parcela_numero)))
+       throw new Error('A NF '+numeroNf+' possui emissão, dados divergentes ou tentativa incerta. Bloqueio mantido; consulte o Histórico.');
+    reaproveitar.set(Number(reg.parcela_numero),reg);
+   }
+   // O backend verifica o bloqueio real da API antes de reutilizar a preparação.
+   for(const [numero,reg] of reaproveitar){
+    const chk=await bradescoReqProducao('verificar-preparacao-sem-envio-v495',{id:reg.id});
+    if(!chk?.reaproveitavel)throw new Error('Parcela '+numero+': '+(chk?.motivo||'emissão incerta; não repetir.'));
+   }
+  }
   const grupoId=crypto.randomUUID();
   const referencia=String(d.referencia||'SOF-'+Date.now()).trim();
   for(let i=0;i<conf.parcelas.length;i++){
@@ -8104,10 +8193,24 @@ async function emitirCobrancaBancaria(){
     grupo_id:grupoId,condicao_pagamento:conf.condicao,data_base:conf.data_base,valor_total_grupo:d.valor,
     instrucoes_banco:instrucoesPadraoBancoCobranca(d.banco),status:'pendente_integracao',
     origem:'integracao_bancaria_manual',criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
-   const ins=await banco.from('cobrancas_bancarias').insert([payload]).select().single();
-   if(ins.error)throw new Error('Falha ao preparar '+etapa+': '+ins.error.message);
+   const antigo=reaproveitar.get(Number(p.numero));let registroParcela;
+   if(antigo){
+    // Reaproveita só a parcela 01 sem UF e sem tentativa registrada no banco.
+    const corrigido={cliente_nome:d.cliente_nome,cpf_cnpj:d.cpf_cnpj,endereco:d.endereco,
+      numero:d.numero,complemento:d.complemento,bairro:d.bairro,cep:d.cep,
+      cidade:d.cidade,uf:d.uf,email:d.email||null,atualizado_em:new Date().toISOString()};
+    const res=await banco.from('cobrancas_bancarias').update(corrigido).eq('id',antigo.id)
+      .eq('status','pendente_integracao').is('nosso_numero',null).is('banco_resposta',null)
+      .select('*').single();
+    if(res.error||!res.data)throw new Error('A preparação foi alterada; não emitir sem nova conferência.');
+    registroParcela=res.data;
+   }else{
+    const ins=await banco.from('cobrancas_bancarias').insert([payload]).select().single();
+    if(ins.error)throw new Error('Falha ao preparar '+etapa+': '+ins.error.message);
+    registroParcela=ins.data;
+   }
    if(d.banco==='bradesco'){
-    const ret=await emitirBradescoOperacional(ins.data,{confirmar:false});
+    const ret=await emitirBradescoOperacional(registroParcela,{confirmar:false});
     const rr=ret?.registro||{};
     if(!(Number(rr.http_status)>=200&&Number(rr.http_status)<300))
       throw new Error('Bradesco não confirmou a emissão de '+etapa+'. HTTP '+(rr.http_status||'indefinido')+'. Confira antes de tentar novamente.');
