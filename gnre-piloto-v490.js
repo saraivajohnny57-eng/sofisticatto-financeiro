@@ -11,7 +11,8 @@ function init(){
 '<label style="display:block;padding:9px 0"><input type="checkbox" id="g491previous"> Confirmo que ainda NÃO existe guia desta NF-e emitida no portal nacional</label>'+
 '<button class="buscar" id="g491emit" disabled type="button">Emitir GNRE real — R$ 24,91</button> '+
 '<button class="buscar" id="g491consult" disabled type="button">Consultar resultado oficial</button> '+
-'<button class="buscar" id="g492diag" disabled type="button">Diagnosticar falha (sem enviar)</button>'+
+'<button class="buscar" id="g492diag" disabled type="button">Diagnosticar falha (sem enviar)</button> '+
+'<button class="buscar" id="g497lookup" disabled type="button">Consultar GNRE pela NF (não emite)</button>'+
 '<pre id="g490out" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>';
  a.insertAdjacentElement('afterend',b);
  let payload=null,adminKey=null;
@@ -33,6 +34,22 @@ function init(){
    append('Retorno GNRE: '+JSON.stringify(r));
    $('g491consult').disabled=false;
   }catch(e){append('Emissão não confirmada: '+String(e.message||e)+'. NÃO REPETIR sem consultar.');$('g491consult').disabled=false;$('g492diag').disabled=false}
+ };
+ $('g497lookup').onclick=async()=>{
+  const b=$('g497lookup');b.disabled=true;
+  append('Iniciando consulta oficial por chave da NF 51185, sem gerar guia...');
+  try{
+   const primeira=await solicitar('consulta_documento_iniciar');
+   if(!primeira.ok||!primeira.recibo_consulta){
+     append('Retorno da consulta por NF: '+JSON.stringify(primeira));return;
+   }
+   append('Consulta por NF recebida (recibo '+primeira.recibo_mascarado+'). Aguardando resultado oficial...');
+   await new Promise(resolve=>setTimeout(resolve,32000));
+   const segunda=await solicitar('consulta_documento_resultado',{reciboConsulta:primeira.recibo_consulta});
+   append('RESULTADO DA CONSULTA POR NF (sem emitir): '+JSON.stringify(segunda));
+   append('A reserva da tentativa anterior permanece protegida. NAO clique em Emitir.');
+  }catch(e){append('Consulta por documento não concluída: '+String(e.message||e)+'. NÃO reemitir.')}
+  finally{b.disabled=false}
  };
  $('g492diag').onclick=async()=>{
    const bt=$('g492diag');bt.disabled=true;
@@ -86,12 +103,14 @@ function init(){
    const z=await r.json();if(!r.ok||!z.ok)throw Error(z.erro||'Conferência indisponível');
    adminKey=admin;
    $('g492diag').disabled=false;
+   $('g497lookup').disabled=false;
    payload={nfe:nf,fiscal:{vencimento:$('g490v').value,pagamento:$('g490p').value,obrigacaoConfirmada:true,vencimentoConfirmado:true}};
    const bloqueios=(z.pendencias||[]).filter(s=>!String(s).includes('Conferir no portal nacional'));
-   $('g491emit').disabled=!(z.lote_preparado&&z.arquivos_locais===0&&z.certificado_cadastrado&&bloqueios.length===0);
+   $('g491emit').disabled=!(z.lote_preparado&&z.arquivos_locais===0&&!z.reserva_existente&&z.certificado_cadastrado&&bloqueios.length===0);
    $('g491consult').disabled=false;
    out.textContent=['GNRE PA/100102 — NF-e 51185','DIFAL: R$ 24,91 | FCP: R$ 0,00','Estimativa da cotação: R$ 31,99 (não usada para emitir)',
-    'XML do lote preparado: '+(z.lote_preparado?'SIM':'NÃO'),'Tentativas locais: '+z.arquivos_locais,
+    'XML do lote preparado: '+(z.lote_preparado?'SIM':'NÃO'),'Guias locais: '+z.arquivos_locais,
+    'Tentativa de emissão reservada: '+(z.reserva_existente?'SIM — '+z.reserva_estado+' (NÃO reemitir)':'NÃO'),
     'Certificado A1 cadastrado: '+(z.certificado_cadastrado?'SIM':'NÃO'),'Pendências: '+z.pendencias.join('; '),
     'Nenhuma guia transmitida ou emitida.'].join('\n');
   }catch(e){out.textContent='Conferência não concluída: '+String(e.message||e);}
