@@ -1,0 +1,21 @@
+name: Bradesco regression
+on:
+  push:
+    branches:
+      - fix/bradesco-56510-diagnostico-20261103
+  pull_request:
+    paths:
+      - financeiro.js
+      - api/banco-bradesco.js
+      - security/tests/bradesco-regressao-56510.test.cjs
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check financeiro.js
+      - run: node --check api/banco-bradesco.js
+      - run: node --test security/tests/bradesco-regressao-56510.test.cjs
