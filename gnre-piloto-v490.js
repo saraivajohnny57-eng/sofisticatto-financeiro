@@ -41,7 +41,15 @@ function init(){
   try{
    const primeira=await solicitar('consulta_documento_iniciar');
    if(!primeira.ok||!primeira.recibo_consulta){
-     append('Retorno da consulta por NF: '+JSON.stringify(primeira));return;
+     append('Retorno da consulta por NF: '+JSON.stringify(primeira));
+     if(primeira.codigo_recebimento==='102'){
+      append('DIAGNÓSTICO GNRE 102: CNPJ titular do certificado A1 não habilitado para o serviço em PRODUÇÃO.');
+      append('O certificado pertence ao mesmo CNPJ da NF? '+(primeira.certificado_mesmo_cnpj_emitente?'SIM':'NÃO — conferir CNPJ do transmissor autorizado'));
+      append('A autorização local não equivale à autorização oficial. Consulte a habilitação do CNPJ do A1 no Portal GNRE. NÃO reemitir esta nota.');
+      b.dataset.bloqueio102='true';
+      $('g491emit').disabled=true;
+     }
+     return;
    }
    append('Consulta por NF recebida (recibo '+primeira.recibo_mascarado+'). Aguardando resultado oficial...');
    await new Promise(resolve=>setTimeout(resolve,32000));
@@ -49,7 +57,7 @@ function init(){
    append('RESULTADO DA CONSULTA POR NF (sem emitir): '+JSON.stringify(segunda));
    append('A reserva da tentativa anterior permanece protegida. NAO clique em Emitir.');
   }catch(e){append('Consulta por documento não concluída: '+String(e.message||e)+'. NÃO reemitir.')}
-  finally{b.disabled=false}
+  finally{b.disabled=b.dataset.bloqueio102==='true'}
  };
  $('g492diag').onclick=async()=>{
    const bt=$('g492diag');bt.disabled=true;
