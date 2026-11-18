@@ -20,18 +20,24 @@ function montar(){
   try{
    if(typeof bradescoReqProducao!=='function')throw new Error('Autorização de integração indisponível. Atualize a página.');
    const j=await bradescoReqProducao('preparar-manutencao-encargos-v433',{numero_nf:'56078',parcela:2});
-   const t=j.titulo||{},v=j.auditoria_originais_v484||{},res=v.resumo||{};
+   const t=j.titulo||{},v=j.auditoria_originais_v484||{},res=v.resumo||{},doc=v.documento_pagador||{};
    const rotulo=v=>v?'OK':'PENDENTE';
    audit484.textContent=[
     'CONFERÊNCIA AUTENTICADA — BRADESCO 56078-02',
     'Modalidade: SOMENTE LEITURA — nenhuma alteração transmitida',
     'Nosso Número: '+(t.nosso_numero||'—'),
     'Valor original: R$ '+Number(t.valor_nominal||0).toFixed(2).replace('.',','),
-    'Vencimento original: '+(t.vencimento||'—'),
+    'Vencimento ORIGINAL no Bradesco: '+(t.vencimento_original_banco||res.vencimento_banco||'não confirmado'),
+    'Vencimento do BOLETO ATUALIZADO: '+(t.vencimento_boleto_atualizado||res.vencimento_boleto_atualizado||t.vencimento||'não informado'),
     'Data de emissão do Bradesco: '+(res.data_emissao||'não informada'),
     'Espécie do documento: '+(res.especie||'não informada'),
     'Seu Número: '+(res.seu_numero||'não informado'),
     'Estado bancário: '+(t.status_banco||'—'),
+    'Documento do pagador: '+(doc.situacao||'NÃO AVALIADO')+
+      ' — portal: '+(doc.tipo_local||'não informado')+' | banco: '+(doc.tipo_banco||'não informado')+
+      '. '+(doc.motivo||''),
+    'Nome do pagador confere: '+(doc.nome_confere?'SIM':'NÃO CONFIRMADO'),
+    'Atenção: não substituir automaticamente CPF/CNPJ cadastrado, mesmo com nome coincidente.',
     'Dados originais: '+Object.entries(v.origem||{}).map(([ch,ok])=>ch+'='+rotulo(ok)).join(' | '),
     'Pagador: '+Object.entries(v.campos||{}).map(([ch,ok])=>ch+'='+rotulo(ok)).join(' | '),
     'Diferença do contrato: manual v1.6.4 determina codigoNegativacao=1, e-mail do suporte sugere zero para numéricos não usados.',

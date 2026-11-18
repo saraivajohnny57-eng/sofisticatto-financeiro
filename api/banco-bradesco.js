@@ -286,6 +286,22 @@ function avaliarOriginaisBradescoV484(resposta,registro){
  // Nunca completar CPF com zeros internos: isso poderia associar outro pagador.
  const documentoConfere=[11,14].includes(docLocal.length)&&[11,14].includes(docBanco.length)&&
    docBanco.replace(/^0+/,'')===docLocal.replace(/^0+/,'');
+ const nomeNormalizado=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]/g,'').toUpperCase();
+ const nomeLocal=nomeNormalizado(registro?.cliente_nome),nomeBanco=nomeNormalizado(t.sacado?.nome);
+ const nomeConfere=!!nomeLocal&&!!nomeBanco&&nomeLocal===nomeBanco;
+ const docTipo=v=>v.length===11?'11 dígitos (formato CPF)':v.length===14?'14 dígitos (formato CNPJ)':
+   v.length===0?'não informado':String(v.length)+' dígitos';
+ const documentoPagador={
+  confere:documentoConfere,
+  tipo_local:docTipo(docLocal),
+  tipo_banco:docTipo(docBanco),
+  nome_confere:nomeConfere,
+  situacao:documentoConfere?'CONFERE':!docLocal||!docBanco?'AUSENTE':'DIVERGENTE',
+  motivo:documentoConfere?'Os dígitos correspondem.':!docLocal||!docBanco?
+    'Documento não encontrado em uma das fontes.':
+    'Os documentos não correspondem; verificar identidade antes de qualquer manutenção.',
+  sem_documento_completo:true
+ };
  const origem={
    seu_numero:presente(seuNumero)&&seuNumero===esperado,
    data_emissao:!!emissaoBradesco,
@@ -311,7 +327,10 @@ function avaliarOriginaisBradescoV484(resposta,registro){
  pendencias.push('AJUSTE_RETROATIVO_A_CONFIRMAR_POR_RETORNO_BANCARIO');
  return {origem,campos:completos,
   resumo:{data_emissao:emissaoBradesco||null,especie:especie||null,seu_numero:seuNumero||null,
-   vencimento_banco:vencimentoBradesco||null,valor_conferido:origem.valor_nominal},
+   vencimento_banco:vencimentoBradesco||null,
+   vencimento_boleto_atualizado:dataBradescoIso(t.dataVenctoBol)||null,
+   valor_conferido:origem.valor_nominal},
+  documento_pagador:documentoPagador,
   pendencias,contrato_put_liberado:false,transmitido:false};
 }
 
@@ -1200,7 +1219,10 @@ module.exports=async function(req,res){
       if(Math.abs(sit.valorTitulo-valor)>0.01 && Math.abs(sit.valorTitulo/100-valor)>0.01)throw new Error('Valor nominal divergente entre banco e portal.');
       const venc=String(sit.vencimento||'').slice(0,10);
       if(!/^\d{4}-\d{2}-\d{2}$/.test(venc))throw new Error('Vencimento bancário inválido.');
-      return json(res,200,{ok:true,transmitido:false,operacao:'PREPARACAO_SEM_ALTERACAO',auditoria_originais_v484:auditoriaOriginais,titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},protesto_sem_instrucao:instrucaoSemProtestoBradescoV482(),orientacao_wf99571:'Campos numéricos não aplicáveis: 0; alfanuméricos: string vazia. Identificadores originais devem ser preservados. Banco solicitou nova tentativa controlada com evidências HTTP.',transmissao_autorizada:false,endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Dados originais conferidos na consulta do banco. PUT ainda bloqueado devido à divergência sobre codigoNegativacao entre o Manual 1.6.4 (fixo 1) e o e-mail do suporte (0 para campo não utilizado); confirmar antes de transmitir.'});
+      return json(res,200,{ok:true,transmitido:false,operacao:'PREPARACAO_SEM_ALTERACAO',auditoria_originais_v484:auditoriaOriginais,titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,
+       vencimento_original_banco:dataBradescoIso(sit.titulo?.dataVencto)||null,
+       vencimento_boleto_atualizado:dataBradescoIso(sit.titulo?.dataVenctoBol)||null,
+       valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},protesto_sem_instrucao:instrucaoSemProtestoBradescoV482(),orientacao_wf99571:'Campos numéricos não aplicáveis: 0; alfanuméricos: string vazia. Identificadores originais devem ser preservados. Banco solicitou nova tentativa controlada com evidências HTTP.',transmissao_autorizada:false,endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Dados originais conferidos na consulta do banco. PUT ainda bloqueado devido à divergência sobre codigoNegativacao entre o Manual 1.6.4 (fixo 1) e o e-mail do suporte (0 para campo não utilizado); confirmar antes de transmitir.'});
     }
     if(action==='consultar-status-titulo'){
       if(amb!=='producao')throw new Error('A consulta de status desta versão está liberada para Produção.');
