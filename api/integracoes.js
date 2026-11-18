@@ -48,6 +48,8 @@ const consultarRastreioBraspress = require("../lib/integracoes/consultar-rastrei
 const gnreCertificado = require("../lib/integracoes/gnre-certificado");
 const gnreDiagnostico = require("../lib/integracoes/gnre-diagnostico");
 const gnreV490 = require("../lib/integracoes/gnre-piloto-51185-preflight");
+const gnreV491 = require("../lib/integracoes/gnre-producao-real-51185");
+const gnreArquivo = require("../lib/integracoes/gnre-arquivo-guias");
 const diagnosticoDfeV445 = require("../lib/integracoes/diagnostico-dfe-v445");
 const sefazDfeV477 = require("../lib/integracoes/sefaz-dfe");
 const ROTAS = Object.freeze({
@@ -55,6 +57,8 @@ const ROTAS = Object.freeze({
   "sefaz-dfe": sefazDfeV477,
   "gnre-diagnostico": gnreDiagnostico,
   "gnre-piloto-51185-preflight": gnreV490,
+  "gnre-producao-real-51185": gnreV491,
+  "gnre-arquivo-guias": gnreArquivo,
   "gnre-certificado": gnreCertificado,
   "validar-chave": validarChave,
   "status-servidor": statusServidor,

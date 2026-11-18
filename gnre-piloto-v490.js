@@ -7,8 +7,47 @@ function init(){
  b.innerHTML='<strong>GNRE PA — primeira NF-e 51185</strong><p>Importe a XML autorizada; valor fiscal declarado: DIFAL R$ 24,91, FCP R$ 0,00. Conferência sem transmissão.</p>'+
  '<input id="g490xml" type="file" accept=".xml"><label>Vencimento fiscal <input id="g490v" type="date"></label> <label>Pagamento <input id="g490p" type="date"></label>'+
  '<label style="display:block"><input id="g490ok" type="checkbox"> Confirmo a obrigação DIFAL/PA e as datas fiscais</label>'+
- '<button class="buscar" id="g490go" type="button">Conferir primeira GNRE</button><pre id="g490out" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>';
+ '<button class="buscar" id="g490go" type="button">Conferir primeira GNRE</button>'+
+'<label style="display:block;padding:9px 0"><input type="checkbox" id="g491previous"> Confirmo que ainda NÃO existe guia desta NF-e emitida no portal nacional</label>'+
+'<button class="buscar" id="g491emit" disabled type="button">Emitir GNRE real — R$ 24,91</button> '+
+'<button class="buscar" id="g491consult" disabled type="button">Consultar resultado oficial</button>'+
+'<pre id="g490out" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>';
  a.insertAdjacentElement('afterend',b);
+ let payload=null,adminKey=null;
+ const append=(t)=>{$('g490out').textContent+='\n'+t};
+ const solicitar=async(modo,data={})=>{
+  if(!adminKey)throw Error('Execute a conferência autenticada primeiro.');
+  const r=await fetch('/api/integracoes?action=gnre-producao-real-51185',{method:'POST',
+   headers:{'Content-Type':'application/json','x-integrations-admin-key':adminKey},
+   body:JSON.stringify({...data,modo})});
+  const j=await r.json();if(!r.ok&&!j.estado)throw Error(j.erro||j.aviso||'Falha na operação');
+  return j;
+ };
+ $('g491emit').onclick=async()=>{
+  if(!payload||!$('g491previous').checked)return alert('Confirme que a GNRE não foi emitida no portal oficial.');
+  if(!window.confirm('Emissão REAL e única de GNRE PA 100102 para NF 51185, R$ 24,91. Confirmar transmissão e obrigação de pagamento?'))return;
+  $('g491emit').disabled=true;append('Transmitindo UMA guia em produção...');
+  try{
+   const r=await solicitar('emitir',{...payload,confirmacao:'EMITIR_PA_51185_24_91',semEmissaoAnterior:true});
+   append('Retorno GNRE: '+JSON.stringify(r));
+   $('g491consult').disabled=false;
+  }catch(e){append('Emissão não confirmada: '+String(e.message||e)+'. NÃO REPETIR sem consultar.');$('g491consult').disabled=false}
+ };
+ $('g491consult').onclick=async()=>{
+  $('g491consult').disabled=true;
+  try{
+   const r=await solicitar('consultar');
+   append('Consulta oficial: '+JSON.stringify(r));
+   if(r.pdf_disponivel&&r.arquivo_id){
+    const p=await fetch('/api/integracoes?action=gnre-arquivo-guias&id='+encodeURIComponent(r.arquivo_id),{
+      headers:{'x-integrations-admin-key':adminKey}});
+    if(!p.ok)throw Error('PDF oficial ainda indisponível');
+    const url=URL.createObjectURL(await p.blob());window.open(url,'_blank','noopener,noreferrer');
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+   }
+  }catch(e){append('Consulta não concluída: '+String(e.message||e))}
+  finally{$('g491consult').disabled=false}
+ };
  $('g490go').onclick=async()=>{
   const btn=$('g490go'),out=$('g490out');btn.disabled=true;out.textContent='Conferindo...';
   try{
@@ -33,6 +72,11 @@ function init(){
    const r=await fetch('/api/integracoes?action=gnre-piloto-51185-preflight',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':admin},
     body:JSON.stringify({nfe:nf,fiscal:{vencimento:$('g490v').value,pagamento:$('g490p').value,obrigacaoConfirmada:true,vencimentoConfirmado:true}})});
    const z=await r.json();if(!r.ok||!z.ok)throw Error(z.erro||'Conferência indisponível');
+   adminKey=admin;
+   payload={nfe:nf,fiscal:{vencimento:$('g490v').value,pagamento:$('g490p').value,obrigacaoConfirmada:true,vencimentoConfirmado:true}};
+   const bloqueios=(z.pendencias||[]).filter(s=>!String(s).includes('Conferir no portal nacional'));
+   $('g491emit').disabled=!(z.lote_preparado&&z.arquivos_locais===0&&z.certificado_cadastrado&&bloqueios.length===0);
+   $('g491consult').disabled=false;
    out.textContent=['GNRE PA/100102 — NF-e 51185','DIFAL: R$ 24,91 | FCP: R$ 0,00','Estimativa da cotação: R$ 31,99 (não usada para emitir)',
     'XML do lote preparado: '+(z.lote_preparado?'SIM':'NÃO'),'Tentativas locais: '+z.arquivos_locais,
     'Certificado A1 cadastrado: '+(z.certificado_cadastrado?'SIM':'NÃO'),'Pendências: '+z.pendencias.join('; '),
