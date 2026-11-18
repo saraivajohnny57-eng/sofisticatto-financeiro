@@ -265,6 +265,56 @@ function interpretarConsultaBradesco(data,reg){
   return {codStatus:cod,descricao,statusNovo,pago,baixado,descontado,corige35:String(t?.corige35||'').toUpperCase()==='S',dataPagamento:dtPag,valorPago:numeroBradesco(t?.vlrPagto),valorTitulo:numeroBradesco(t?.valMoeda),valorBoleto:numeroBradesco(t?.valorMoedaBol),vencimento:vencIso,titulo:t};
 }
 
+
+// V484: dados originais confirmados pela consulta individual oficial, nao pelos
+// valores estimados da data do historico. Nenhum PUT e disparado aqui.
+function avaliarOriginaisBradescoV484(resposta,registro){
+ const t=resposta?.titulo||resposta?.Titulo||{};
+ const dig=v=>String(v??'').replace(/\D/g,'');
+ const presente=v=>v!==undefined&&v!==null&&String(v).trim()!=='';
+ const esperado=String(registro?.referencia||'').replace(/^BRADESCO-/i,'');
+ const seuNumero=String(t.snumero||'').trim();
+ const emissaoBradesco=dataBradescoIso(t.dataEmis);
+ const especie=String(t.especDocto||'').trim();
+ const vencimentoBradesco=dataBradescoIso(t.dataVencto);
+ const vencimentoLocal=String(registro?.vencimento||'').slice(0,10);
+ const centavosLocal=Math.round(Number(registro?.valor||0)*100);
+ const centavosBradesco=Number(dig(t.valMoeda));
+ const docLocal=dig(registro?.cpf_cnpj);
+ const docBanco=dig(t.sacado?.cnpj);
+ // Comparar CPF/CNPJ preservando o documento e permitindo apenas zeros de preenchimento à esquerda.
+ // Nunca completar CPF com zeros internos: isso poderia associar outro pagador.
+ const documentoConfere=[11,14].includes(docLocal.length)&&[11,14].includes(docBanco.length)&&
+   docBanco.replace(/^0+/,'')===docLocal.replace(/^0+/,'');
+ const origem={
+   seu_numero:presente(seuNumero)&&seuNumero===esperado,
+   data_emissao:!!emissaoBradesco,
+   especie_documento:!!especie,
+   documento_pagador:documentoConfere,
+   vencimento_original:!!vencimentoBradesco&&vencimentoBradesco===vencimentoLocal,
+   valor_nominal:centavosLocal>0&&Number.isSafeInteger(centavosBradesco)&&centavosLocal===centavosBradesco,
+   sem_protesto_cadastrado:dig(t.codInscrProt)==='0'&&dig(t.diasProt)==='0',
+   sem_juros_multas_anterior:dig(t.codComisPerm)==='0'&&dig(t.codValMul)==='0'
+ };
+ const dadosPagador=t.sacado||{};
+ const completos={
+   nome:presente(dadosPagador.nome),
+   documento:documentoConfere,
+   endereco:presente(dadosPagador.endereco),
+   cep:presente(dadosPagador.cep),
+   data_emissao:origem.data_emissao,
+   especie_documento:origem.especie_documento,
+   seu_numero:origem.seu_numero
+ };
+ const pendencias=Object.entries(origem).filter(([,ok])=>!ok).map(([k])=>'DADO_ORIGINAL_'+k.toUpperCase());
+ pendencias.push('MANUAL_V164_CODIGO_NEGATIVACAO_FIXO_1_CONTRADIZ_RESPOSTA_SUPORTE_ZERO');
+ pendencias.push('AJUSTE_RETROATIVO_A_CONFIRMAR_POR_RETORNO_BANCARIO');
+ return {origem,campos:completos,
+  resumo:{data_emissao:emissaoBradesco||null,especie:especie||null,seu_numero:seuNumero||null,
+   vencimento_banco:vencimentoBradesco||null,valor_conferido:origem.valor_nominal},
+  pendencias,contrato_put_liberado:false,transmitido:false};
+}
+
 /* V473 — repetição somente da consulta (sem emitir, baixar ou alterar título).
    ECONNRESET é interrupção de transporte; não equivale a status bancário inválido.
    Limite estrito: uma única repetição após aguardar 350 ms. */
@@ -1111,14 +1161,22 @@ module.exports=async function(req,res){
     if(action==='preparar-manutencao-encargos-v433'){
       if(amb!=='producao')throw new Error('Esta consulta deve utilizar o ambiente de produção.');
       const id=String(req.body?.id||'').trim();
-      if(!id)throw new Error('Informe o ID do título para conferência individual.');
-      const rows=await supabaseRest('cobrancas_bancarias',{query:`?id=eq.${encodeURIComponent(id)}&select=*&limit=1`});
-      const reg=Array.isArray(rows)?rows[0]:null;
+      const numeroNf=String(req.body?.numero_nf||'').trim();
+      const parcela=Number(req.body?.parcela);
+      if(!id&&(!/^\\d{1,10}$/.test(numeroNf)||!Number.isInteger(parcela)||parcela<1||parcela>99))
+        throw new Error('Informe ID ou número de NF e parcela para conferência individual.');
+      const filtro=id?
+        `?id=eq.${encodeURIComponent(id)}&banco=eq.bradesco&select=*&limit=2`:
+        `?banco=eq.bradesco&numero_nf=eq.${encodeURIComponent(numeroNf)}&parcela_numero=eq.${parcela}&select=*&limit=2`;
+      const rows=await supabaseRest('cobrancas_bancarias',{query:filtro});
+      if(!Array.isArray(rows)||rows.length!==1)throw new Error('Título não localizado de forma única. Nenhuma instrução enviada.');
+      const reg=rows[0];
       if(!reg||String(reg.banco||'').toLowerCase()!=='bradesco')throw new Error('Título Bradesco não encontrado.');
       if(/pago|liquid|cancel|baixad|protest/i.test(String(reg.status||'')))throw new Error('Título com situação local incompatível com manutenção.');
       const q=await consultarTituloBradesco(amb,reg);
       if(q.http_status<200||q.http_status>=300)throw new Error('Consulta bancária falhou: '+(detalheRespostaBradesco(q.data)||q.http_status));
       const sit=interpretarConsultaBradesco(q.data,reg);
+      const auditoriaOriginais=avaliarOriginaisBradescoV484(q.data,reg);
       if(sit.pago||sit.baixado||sit.descontado||sit.codStatus!==1||!['aberto','vencido'].includes(sit.statusNovo))throw new Error('Situação bancária não permite confirmar elegibilidade para manutenção.');
       const valor=Number(reg.valor);
       if(!Number.isFinite(valor)||valor<=0)throw new Error('Valor nominal inválido.');
@@ -1127,7 +1185,7 @@ module.exports=async function(req,res){
       if(Math.abs(sit.valorTitulo-valor)>0.01 && Math.abs(sit.valorTitulo/100-valor)>0.01)throw new Error('Valor nominal divergente entre banco e portal.');
       const venc=String(sit.vencimento||'').slice(0,10);
       if(!/^\d{4}-\d{2}-\d{2}$/.test(venc))throw new Error('Vencimento bancário inválido.');
-      return json(res,200,{ok:true,transmitido:false,operacao:'PREPARACAO_SEM_ALTERACAO',titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},protesto_sem_instrucao:instrucaoSemProtestoBradescoV482(),orientacao_wf99571:'Campos numéricos não aplicáveis: 0; alfanuméricos: string vazia. Identificadores originais devem ser preservados. Banco solicitou nova tentativa controlada com evidências HTTP.',transmissao_autorizada:false,endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Validar representação de juros e obter todos os dados originais exigidos no PUT antes de habilitar transmissão.'});
+      return json(res,200,{ok:true,transmitido:false,operacao:'PREPARACAO_SEM_ALTERACAO',auditoria_originais_v484:auditoriaOriginais,titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},protesto_sem_instrucao:instrucaoSemProtestoBradescoV482(),orientacao_wf99571:'Campos numéricos não aplicáveis: 0; alfanuméricos: string vazia. Identificadores originais devem ser preservados. Banco solicitou nova tentativa controlada com evidências HTTP.',transmissao_autorizada:false,endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Dados originais conferidos na consulta do banco. PUT ainda bloqueado devido à divergência sobre codigoNegativacao entre o Manual 1.6.4 (fixo 1) e o e-mail do suporte (0 para campo não utilizado); confirmar antes de transmitir.'});
     }
     if(action==='consultar-status-titulo'){
       if(amb!=='producao')throw new Error('A consulta de status desta versão está liberada para Produção.');

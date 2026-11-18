@@ -6,9 +6,43 @@ function montar(){
  if(!base||document.getElementById('bradescoPilotoV438'))return;
  const panel=document.createElement('section');panel.id='bradescoPilotoV438';
  panel.style.cssText='margin:14px 0;padding:16px;border:1px solid #b9a5d5;border-radius:12px;background:#faf8fd';
- const h=document.createElement('h4');h.textContent='Piloto Bradesco — boleto 55994-01';panel.appendChild(h);
+ const h=document.createElement('h4');h.textContent='Piloto Bradesco — manutenção de encargos';panel.appendChild(h);
  const p=document.createElement('p');p.textContent='Consulta individual autenticada ao Bradesco para verificar situação, vencimento, valor e simulação de multa de 2% + juros de 5% ao mês. Somente leitura: não altera nem reemite boleto.';panel.appendChild(p);
  const b=document.createElement('button');b.type='button';b.className='btn roxo';b.textContent='Executar conferência única 55994-01';panel.appendChild(b);
+
+ const button484=document.createElement('button');button484.type='button';button484.className='btn roxo';
+ button484.textContent='Conferir 56078-02 no Bradesco (sem alterar)';
+ button484.style.marginLeft='8px';panel.appendChild(button484);
+ const audit484=document.createElement('pre');audit484.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
+ audit484.setAttribute('aria-live','polite');panel.appendChild(audit484);
+ button484.onclick=async()=>{
+  button484.disabled=true;audit484.textContent='Consultando o registro original no Bradesco (somente leitura)...';
+  try{
+   if(typeof bradescoReqProducao!=='function')throw new Error('Autorização de integração indisponível. Atualize a página.');
+   const j=await bradescoReqProducao('preparar-manutencao-encargos-v433',{numero_nf:'56078',parcela:2});
+   const t=j.titulo||{},v=j.auditoria_originais_v484||{},res=v.resumo||{};
+   const rotulo=v=>v?'OK':'PENDENTE';
+   audit484.textContent=[
+    'CONFERÊNCIA AUTENTICADA — BRADESCO 56078-02',
+    'Modalidade: SOMENTE LEITURA — nenhuma alteração transmitida',
+    'Nosso Número: '+(t.nosso_numero||'—'),
+    'Valor original: R$ '+Number(t.valor_nominal||0).toFixed(2).replace('.',','),
+    'Vencimento original: '+(t.vencimento||'—'),
+    'Data de emissão do Bradesco: '+(res.data_emissao||'não informada'),
+    'Espécie do documento: '+(res.especie||'não informada'),
+    'Seu Número: '+(res.seu_numero||'não informado'),
+    'Estado bancário: '+(t.status_banco||'—'),
+    'Dados originais: '+Object.entries(v.origem||{}).map(([ch,ok])=>ch+'='+rotulo(ok)).join(' | '),
+    'Pagador: '+Object.entries(v.campos||{}).map(([ch,ok])=>ch+'='+rotulo(ok)).join(' | '),
+    'Diferença do contrato: manual v1.6.4 determina codigoNegativacao=1, e-mail do suporte sugere zero para numéricos não usados.',
+    'Pendências: '+(v.pendencias||[]).join('; '),
+    'TRANSMISSÃO PUT: BLOQUEADA até orientação inequívoca do banco.',
+    'Nenhum boleto foi emitido, baixado ou alterado.'
+   ].join('\n');
+  }catch(e){audit484.textContent='Conferência não concluída: '+String(e.message||e);}
+  finally{button484.disabled=false;}
+ };
+
  const result=document.createElement('pre');result.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';result.setAttribute('aria-live','polite');panel.appendChild(result);
  b.onclick=async()=>{
   b.disabled=true;result.textContent='Consultando Bradesco...';
