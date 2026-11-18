@@ -21,7 +21,7 @@ function init(){
   const r=await fetch('/api/integracoes?action=gnre-producao-real-51185',{method:'POST',
    headers:{'Content-Type':'application/json','x-integrations-admin-key':adminKey},
    body:JSON.stringify({...data,modo})});
-  const j=await r.json();if(!r.ok&&!j.estado)throw Error(j.erro||j.aviso||'Falha na operação');
+  const j=await r.json();if(!r.ok&&!j.estado)throw Error([j.codigo,j.etapa,j.erro||j.aviso||'Falha na operação'].filter(Boolean).join(' — '));
   return j;
  };
  $('g491emit').onclick=async()=>{
