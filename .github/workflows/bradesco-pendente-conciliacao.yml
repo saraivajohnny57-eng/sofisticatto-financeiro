@@ -1,0 +1,19 @@
+name: Bradesco pending reconciliation regression
+on:
+  push:
+    branches:
+      - fix/bradesco-pendente-verificacao-clara-20261103
+  pull_request:
+    paths:
+      - financeiro.js
+      - tests/bradesco-pendente-conciliacao.test.cjs
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check financeiro.js
+      - run: node --test tests/bradesco-pendente-conciliacao.test.cjs
