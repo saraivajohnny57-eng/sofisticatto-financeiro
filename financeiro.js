@@ -8051,7 +8051,7 @@ async function bradescoReqProducao(action,body,_tentativa=0){
   return j;
 }
 function payloadBradescoDeCobranca(p,seuNumero){
-  return {nome:String(p.cliente_nome||''),documento:String(p.cpf_cnpj||'').replace(/\D/g,''),valor:Number(p.valor||0),vencimento:String(p.vencimento||''),seuNumero:String(seuNumero||''),cep:String(p.cep||'').replace(/\D/g,''),logradouro:String(p.endereco||''),numero:String(p.numero||'SN'),complemento:String(p.complemento||''),bairro:String(p.bairro||''),municipio:String(p.cidade||''),uf:String(p.uf||'').toUpperCase(),especie:'2',mensagem:'COBRANCA SOFISTICATTO',email:p.email||null,numero_nf_original:String(p.numero_nf||''),registro_id:p.id||null,relatorio_id:p.relatorio_id||null,parcela_numero:Number(p.parcela_numero||1),parcela_total:Number(p.parcela_total||1),referencia:p.referencia||null};
+  return {nome:String(p.cliente_nome||''),documento:String(p.cpf_cnpj||'').replace(/\D/g,''),valor:Number(p.valor||0),vencimento:String(p.vencimento||''),seuNumero:String(seuNumero||''),cep:String(p.cep||'').replace(/\D/g,''),logradouro:String(p.endereco||''),numero:String(p.numero||'SN'),complemento:String(p.complemento||''),bairro:String(p.bairro||''),municipio:String(p.cidade||''),uf:String(p.uf||'').toUpperCase(),especie:'2',mensagem:'COBRANCA SOFISTICATTO',email:p.email||null,juros_percentual:p.juros_percentual??5,multa_percentual:p.multa_percentual??2,numero_nf_original:String(p.numero_nf||''),registro_id:p.id||null,relatorio_id:p.relatorio_id||null,parcela_numero:Number(p.parcela_numero||1),parcela_total:Number(p.parcela_total||1),referencia:p.referencia||null};
 }
 async function emitirBradescoOperacional(p,{confirmar=true}={}){
   const seuNumero=seuNumeroBradescoOperacional(p.numero_nf,p.parcela_numero,p.parcela_total);
@@ -8837,9 +8837,15 @@ function abrirBoletoBradescoRegistro(id){
   const truncarCentavos=v=>Math.floor(v+1e-8);
   const encargoValido=Number.isSafeInteger(nominalCentavos)&&nominalCentavos>0&&/^\d{4}-\d{2}-\d{2}/.test(String(x.vencimento||''));
   const moedaEncargo=centavos=>(centavos/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const multaPrevista=encargoValido?moedaEncargo(truncarCentavos(nominalCentavos*0.02)):null;
-  const jurosDiaPrevisto=encargoValido?moedaEncargo(truncarCentavos(nominalCentavos*0.05/30)):null;
-  const instrucoesEncargos=encargoValido?`JUROS POR DIA DE ATRASO ........ R$ ${jurosDiaPrevisto}<br>APÓS ${esc(venc)} MULTA ........ R$ ${multaPrevista}<br><small>Valores estimados conforme parâmetros de emissão; confirme na 2ª via oficial do Bradesco.</small>`:'Encargos sujeitos à consulta na 2ª via oficial do Bradesco.';
+  const taxaJurosLocal=x.juros_percentual==null?null:Number(x.juros_percentual);
+  const taxaMultaLocal=x.multa_percentual==null?null:Number(x.multa_percentual);
+  const taxasCadastradas=Number.isFinite(taxaJurosLocal)&&taxaJurosLocal>=0&&taxaJurosLocal<=100&&
+    Number.isFinite(taxaMultaLocal)&&taxaMultaLocal>=0&&taxaMultaLocal<=2;
+  const multaPrevista=encargoValido&&taxasCadastradas?moedaEncargo(truncarCentavos(nominalCentavos*taxaMultaLocal/100)):null;
+  const jurosDiaPrevisto=encargoValido&&taxasCadastradas?moedaEncargo(truncarCentavos(nominalCentavos*taxaJurosLocal/100/30)):null;
+  const instrucoesEncargos=encargoValido&&taxasCadastradas?
+    `JUROS ESTIMADOS POR DIA ........ R$ ${jurosDiaPrevisto} (cadastro: ${taxaJurosLocal.toFixed(2).replace('.',',')}% a.m.)<br>MULTA ESTIMADA ........ R$ ${multaPrevista} (cadastro: ${taxaMultaLocal.toFixed(2).replace('.',',')}%)<br><small>Cadastro local não comprova encargos registrados. Confira na segunda via oficial do Bradesco.</small>`:
+    'Encargos não confirmados no cadastro; consulte a segunda via oficial do Bradesco.';
   const beneficiario='SOFISTICATTO COSMETICOS', cnpjBenef='05.451.985/0001-95';
   const agenciaCed='2274-8 / 0280052-7', carteira='09';
   const endBenef='RUA 4 N 217 QD 35 LOTE 14E - VILA ABAJA', cidBenef='74550-470 - GOIANIA - GO';
@@ -10125,7 +10131,7 @@ function corpoEmissaoBbDaParcela(p){
   return {
     numeroTituloBeneficiario:numeroTituloParcelaBb(p),
     valorOriginal:Number(p?.valor||0),dataVencimento:p?.vencimento||'',numeroInscricao:p?.cpf_cnpj||'',
-    nome:p?.cliente_nome||'',endereco:enderecoParcelaBb(p),bairro:p?.bairro||'',cidade:p?.cidade||'',uf:p?.uf||'',cep:p?.cep||'',email:p?.email||''
+    nome:p?.cliente_nome||'',endereco:enderecoParcelaBb(p),bairro:p?.bairro||'',cidade:p?.cidade||'',uf:p?.uf||'',cep:p?.cep||'',email:p?.email||'',jurosPercentual:p?.juros_percentual??5,multaPercentual:p?.multa_percentual??2
   };
 }
 async function emitirParcelaBbReal(p){
@@ -10189,7 +10195,7 @@ function registroParaBoletoVisual(reg,emissao={}){
   return {
     cliente_nome:reg?.cliente_nome||'',cpf_cnpj:reg?.cpf_cnpj||'',endereco:reg?.endereco||'',numero:reg?.numero||'',bairro:reg?.bairro||'',cidade:reg?.cidade||'',uf:reg?.uf||'',cep:reg?.cep||'',
     numero_titulo:numeroTituloParcelaBb(reg),nosso_numero:emissao.numeroTituloCliente||reg?.nosso_numero||'',linha_digitavel:emissao.linhaDigitavel||reg?.linha_digitavel||'',codigo_barras:emissao.codigoBarraNumerico||reg?.codigo_barras||'',url_boleto_oficial:emissao.urlImagemBoleto||reg?.pdf_url||'',
-    valor:Number(reg?.valor||0),vencimento:reg?.vencimento||'',emitido_em:reg?.emitido_em||'',parcela_numero:reg?.parcela_numero||1,parcela_total:reg?.parcela_total||1
+    valor:Number(reg?.valor||0),vencimento:reg?.vencimento||'',emitido_em:reg?.emitido_em||'',juros_percentual:reg?.juros_percentual??null,multa_percentual:reg?.multa_percentual??null,parcela_numero:reg?.parcela_numero||1,parcela_total:reg?.parcela_total||1
   };
 }
 function carregarScriptUmaVez(src,chave){
@@ -10239,6 +10245,14 @@ async function gerarPdfBoletoBb(d,opt={}){
   const linhaFmt=formatarLinhaDigitavelBb(d.linha_digitavel);
   const venc=dataBrBoletoBb(d.vencimento), emissao=dataBrBoletoBb(d.emitido_em||new Date().toISOString());
   const moeda=cobMoeda(d.valor);
+  const jurosTaxa=d.juros_percentual==null?null:Number(d.juros_percentual);
+  const multaTaxa=d.multa_percentual==null?null:Number(d.multa_percentual);
+  const jurosInfo=Number.isFinite(jurosTaxa)&&jurosTaxa>=0&&jurosTaxa<=100?jurosTaxa:null;
+  const multaInfo=Number.isFinite(multaTaxa)&&multaTaxa>=0&&multaTaxa<=2?multaTaxa:null;
+  const percentFmt=v=>v==null?'não confirmado':v.toFixed(2).replace('.',',')+'%';
+  const jurosDiaPdf=jurosInfo==null?null:Number(d.valor||0)*jurosInfo/100/30;
+  const instrucaoResumoPdf=jurosInfo==null||multaInfo==null?'Encargos: confira a segunda via oficial do BB.':
+    'Cadastro local: multa '+percentFmt(multaInfo)+' + juros '+percentFmt(jurosInfo)+' ao mes; confira no BB.';
   const beneficiario='SOFISTICATTO INDUSTRIA COMERCIO E EXPORTACAO DE COSMETICOS LTDA';
   const cnpjBen='05.451.985/0001-95';
   const enderecoBen='RUA 4 QD.35 LT.14E, Nº 217 - VILA ABAJÁ - GOIÂNIA/GO - 74550-470';
@@ -10433,7 +10447,7 @@ async function gerarPdfBoletoBb(d,opt={}){
       drawTextFit(label,rx+6,ry-17,w-12,i===0?5.0:5.2,font,'left');
       rx+=w;
     });
-    drawTextFit('Atraso: multa 2% + juros de mora 5% ao mes (conforme registro no BB).',L+6,ry-rowRecH+4,CW-12,5.1,font);
+    drawTextFit(instrucaoResumoPdf,L+6,ry-rowRecH+4,CW-12,5.1,font);
     ry-=rowRecH;
 
     // Faixa inferior — Local de Pagamento.
@@ -10533,9 +10547,8 @@ async function gerarPdfBoletoBb(d,opt={}){
   const instrH=58;
   rect(L,y-instrH,lw,instrH);
   drawTextFit('Instruções de Responsabilidade do Beneficiário',L+4,y-10,lw-8,5.5,bold);
-  const jurosDia=(Number(d.valor||0)*0.05/30);
-  drawTextFit(opt.segundaVia?'Encargos de atraso: apurados pelo banco recebedor.':`Juros.....: 5,00% ao mês - (${cobMoeda(jurosDia)} ao dia)`,L+7,y-25,lw-14,5.3,font);
-  drawTextFit(opt.segundaVia?'Valor do documento: nominal, sem encargos de atraso.':'Multa.....: 2,00% após 1 dia corrido do vencimento',L+7,y-39,lw-14,5.3,font);
+  drawTextFit(opt.segundaVia?'Encargos de atraso: apurados pelo banco recebedor.':jurosInfo==null?'Juros: verificar a segunda via oficial do BB.':`Juros.....: ${percentFmt(jurosInfo)} ao mês - (${cobMoeda(jurosDiaPdf)} ao dia, estimado)`,L+7,y-25,lw-14,5.3,font);
+  drawTextFit(opt.segundaVia?'Valor do documento: nominal, sem encargos de atraso.':multaInfo==null?'Multa: verificar a segunda via oficial do BB.':`Multa.....: ${percentFmt(multaInfo)} após 1 dia corrido do vencimento`,L+7,y-39,lw-14,5.3,font);
   drawTextFit('Instruções de responsabilidade do Beneficiário.',L+7,y-52,lw-14,4.8,font);
   cell(L+lw,y-19,rw,19,'(-) Desconto / Abatimento','—',{align:'right'});
   cell(L+lw,y-38,rw,19,'(+) Juros / Multa','—',{align:'right'});
@@ -11779,7 +11792,7 @@ async function emitirBoletoPilotoBB(){
     const j=await bbReq('emitir-piloto',{method:'POST',body});const e=j.emissao||{};
     const avisoExtra=e.aviso?`\n\n⚠️ ${e.aviso}`:'';
     if(out){out.className='bb-cert-aviso ok';out.innerHTML=`✅ Boleto REAL confirmado pelo BB. HTTP ${e.status||201}. Nº do título: ${e.numeroTituloBeneficiario||body.numeroTituloBeneficiario||'—'} • Nosso número: ${e.numeroTituloCliente||'—'} • Próximo sequencial: ${e.proximoSequencialNossoNumero||'—'}${e.linhaDigitavel?` • Linha digitável: ${e.linhaDigitavel}`:''}.${e.aviso?' ⚠️ '+e.aviso:''}<div class="bol-retorno-acoes"><button class="btn azul" onclick="imprimirResultadosBbUltimaEmissao()">🖨 Impressão Normal</button><button class="btn verde" onclick="abrirSegundasViasBbUltimaEmissao()">🏦 2ª via BB</button></div>`}
-    let regPiloto={cliente_nome:body.nome,cpf_cnpj:body.numeroInscricao,endereco:body.endereco,numero:'',bairro:body.bairro,cidade:body.cidade,uf:body.uf,cep:body.cep,email:body.email,banco:'bb',banco_nome:'BANCO DO BRASIL',tipo:'boleto',valor:body.valorOriginal,vencimento:body.dataVencimento,numero_nf:body.numeroTituloBeneficiario,referencia:'PILOTO-'+body.numeroTituloBeneficiario,status:'aberto',origem:'piloto_bb',parcela_numero:1,parcela_total:1,nosso_numero:e.numeroTituloCliente||null,linha_digitavel:e.linhaDigitavel||null,codigo_barras:e.codigoBarraNumerico||null,pdf_url:e.urlImagemBoleto||null,emitido_em:new Date().toISOString(),criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
+    let regPiloto={cliente_nome:body.nome,cpf_cnpj:body.numeroInscricao,endereco:body.endereco,numero:'',bairro:body.bairro,cidade:body.cidade,uf:body.uf,cep:body.cep,email:body.email,banco:'bb',banco_nome:'BANCO DO BRASIL',tipo:'boleto',valor:body.valorOriginal,vencimento:body.dataVencimento,numero_nf:body.numeroTituloBeneficiario,referencia:'PILOTO-'+body.numeroTituloBeneficiario,status:'aberto',origem:'piloto_bb',juros_percentual:5,multa_percentual:2,parcela_numero:1,parcela_total:1,nosso_numero:e.numeroTituloCliente||null,linha_digitavel:e.linhaDigitavel||null,codigo_barras:e.codigoBarraNumerico||null,pdf_url:e.urlImagemBoleto||null,emitido_em:new Date().toISOString(),criado_por:usuarioLogado?.login||null,atualizado_em:new Date().toISOString()};
     try{const sr=await banco.from('cobrancas_bancarias').insert([regPiloto]).select().single();if(!sr.error)regPiloto=sr.data}catch(_){}
     window.__bbUltimosResultados=[{ok:true,p:regPiloto,registro:regPiloto,emissao:e}];
     if(typeof carregarCobrancasBancarias==='function')carregarCobrancasBancarias();

@@ -299,6 +299,22 @@ async function marcarReservaEmitida(amb,sequencial,numeroTituloBeneficiario){
   }
 }
 
+// Mesmo contrato para emissão individual/piloto e para parcelas em massa.
+// Banco do Brasil API Cobranças v2: tipo 2 = taxa percentual ao mês e multa percentual.
+function percentualEncargoBbV482(valor,padrao,maximo,nome){
+ const str=valor==null||String(valor).trim()===''?String(padrao):String(valor).trim().replace(',','.');
+ const taxa=Number(str);
+ if(!Number.isFinite(taxa)||taxa<0||taxa>maximo||!/^\d+(?:\.\d{1,4})?$/.test(str))
+  throw new Error(nome+' inválido (0 até '+maximo+'%).');
+ return Math.round(taxa*10000)/10000;
+}
+function encargosBbV482(entrada,vencimento){
+ const juros=percentualEncargoBbV482(entrada?.jurosPercentual??entrada?.juros_percentual,5,100,'Juros ao mês');
+ const multa=percentualEncargoBbV482(entrada?.multaPercentual??entrada?.multa_percentual,2,2,'Multa');
+ return {jurosMora:juros>0?{tipo:2,porcentagem:juros}:{tipo:0},
+         multa:multa>0?{tipo:2,data:amanhaDaData(vencimento),porcentagem:multa}:{tipo:0}};
+}
+
 async function prepararBoletoPiloto(amb,entrada={}){
   if(amb!=='producao')throw new Error('A emissão piloto desta tela está liberada somente em Produção.');
   const {numeroConvenio:convenio,numeroCarteira:carteira,numeroVariacaoCarteira:variacao,codigoModalidade:modalidade}=BB_CONFIG_PRODUCAO;
@@ -320,13 +336,14 @@ async function prepararBoletoPiloto(amb,entrada={}){
   const nossoNumero=montarNossoNumeroBb(seq);
   const seuNumero=texto(entrada.numeroTituloBeneficiario,15).toUpperCase();
   if(!seuNumero)throw new Error('Informe o Nº do Título da cobrança. Use até 15 caracteres, por exemplo o número da NF ou do pedido.');
+  const encargos=encargosBbV482(entrada,venc);
   const payload={
     numeroConvenio:Number(convenio),numeroCarteira:Number(carteira),numeroVariacaoCarteira:Number(variacao),codigoModalidade:modalidade,
     dataEmissao:dataBb(),dataVencimento:dataBb(venc),valorOriginal:Math.round(valor*100)/100,valorAbatimento:0,
     indicadorAceiteTituloVencido:'S',numeroDiasLimiteRecebimento:90,codigoAceite:'N',codigoTipoTitulo:2,descricaoTipoTitulo:'DUPLICATA MERCANTIL',
     indicadorPermissaoRecebimentoParcial:'N',numeroTituloBeneficiario:seuNumero,numeroTituloCliente:nossoNumero,
     mensagemBloquetoOcorrencia:'SOFISTICATTO COSMETICOS',desconto:{tipo:0},segundoDesconto:{tipo:0},terceiroDesconto:{tipo:0},
-    jurosMora:{tipo:2,porcentagem:5.00},multa:{tipo:2,data:amanhaDaData(venc),porcentagem:2.00},
+    ...encargos,
     pagador:{tipoInscricao,numeroInscricao:doc.replace(/^0+/,''),nome,endereco,bairro,cidade,cep:cep.replace(/^0+/,''),uf},
     indicadorPix:'N'
   };

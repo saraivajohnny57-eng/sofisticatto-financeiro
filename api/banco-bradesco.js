@@ -621,6 +621,27 @@ function enviarRegistroCobrancaProducao(token,mtls,payload){
   });
 }
 
+function percentualEncargoRegistroV482(valor,padrao,limite,nome){
+ const bruto=valor==null||String(valor).trim()===''?String(padrao):String(valor).trim().replace(',','.');
+ const n=Number(bruto);
+ if(!Number.isFinite(n)||n<0||n>limite||!/^\d+(?:\.\d{1,4})?$/.test(bruto))
+  throw new Error(nome+' inválido: informe percentual entre 0 e '+limite+' com até quatro casas.');
+ return Math.round(n*10000)/10000;
+}
+function encargosBradescoRegistroV482(entrada){
+ const juros=percentualEncargoRegistroV482(entrada?.juros_percentual??entrada?.jurosPercentual,5,100,'Juros mensais');
+ const multa=percentualEncargoRegistroV482(entrada?.multa_percentual??entrada?.multaPercentual,2,2,'Multa');
+ return {percentualJuros:juros,vlJuros:0,qtdeDiasJuros:juros>0?1:0,
+         percentualMulta:multa,vlMulta:0,qtdeDiasMulta:multa>0?1:0};
+}
+// Orientação escrita do Banco Bradesco, chamado WF-99571, recebida em 18/11/2026.
+// Campos numéricos não aplicáveis = 0. Não inventar alterações de protesto.
+function instrucaoSemProtestoBradescoV482(){
+ return {protesto:{codInstrucaoProtesto:0,qtdeDiasProtesto:0},
+         decurso:{codDecursoPrazo:0,diasDecursoPrazo:0},
+         codigoNegativacao:0,diasNegativacao:0};
+}
+
 function montarPayloadRegistroReal(body,banco){
   const dig=v=>String(v||'').replace(/\D/g,'');
   // V252: a API de registro do Bradesco rejeita caracteres especiais em campos
@@ -646,8 +667,12 @@ function montarPayloadRegistroReal(body,banco){
   if(erros.length)throw new Error('Emissão bloqueada pela pré-validação: '+erros.join(', ')+'.');
   const fmt=v=>{const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);return `${m[3]}.${m[2]}.${m[1]}`};
   const cpfCnpjApi=documento.length===11?documento.padStart(14,'0'):documento;
-  const payload={nuCPFCNPJ:cnpj.slice(0,8),filialCPFCNPJ:cnpj.slice(8,12),ctrlCPFCNPJ:cnpj.slice(12,14),idProduto:carteira,nuNegociacao:negociacao,nuCliente:seuNumero,dtEmissaoTitulo:fmt(hoje),dtVencimentoTitulo:fmt(vencimento),tpVencimento:0,vlNominalTitulo:Number(valor.toFixed(2)),cdEspecieTitulo:especie,cindcdAceitSacdo:'N',percentualJuros:5,vlJuros:0,qtdeDiasJuros:1,percentualMulta:2,vlMulta:0,qtdeDiasMulta:1,percentualDesconto1:0,vlDesconto1:0,dataLimiteDesconto1:'',nomePagador:nome,logradouroPagador:logradouro,nuLogradouroPagador:numero,...(complemento?{complementoLogradouroPagador:complemento}:{}),cepPagador:cep8.slice(0,5),complementoCepPagador:cep8.slice(5,8),bairroPagador:bairro,municipioPagador:municipio,ufPagador:uf,cdIndCpfcnpjPagador:documento.length===11?1:2,nuCpfcnpjPagador:cpfCnpjApi,listaMsgs:[{mensagem:textoBradesco(body?.mensagem||'COBRANCA SOFISTICATTO',80)||'COBRANCA SOFISTICATTO'}]};
+  const payload={nuCPFCNPJ:cnpj.slice(0,8),filialCPFCNPJ:cnpj.slice(8,12),ctrlCPFCNPJ:cnpj.slice(12,14),idProduto:carteira,nuNegociacao:negociacao,nuCliente:seuNumero,dtEmissaoTitulo:fmt(hoje),dtVencimentoTitulo:fmt(vencimento),tpVencimento:0,vlNominalTitulo:Number(valor.toFixed(2)),cdEspecieTitulo:especie,cindcdAceitSacdo:'N',...encargosBradescoRegistroV482(body),percentualDesconto1:0,vlDesconto1:0,dataLimiteDesconto1:'',nomePagador:nome,logradouroPagador:logradouro,nuLogradouroPagador:numero,...(complemento?{complementoLogradouroPagador:complemento}:{}),cepPagador:cep8.slice(0,5),complementoCepPagador:cep8.slice(5,8),bairroPagador:bairro,municipioPagador:municipio,ufPagador:uf,cdIndCpfcnpjPagador:documento.length===11?1:2,nuCpfcnpjPagador:cpfCnpjApi,listaMsgs:[{mensagem:textoBradesco(body?.mensagem||'COBRANCA SOFISTICATTO',80)||'COBRANCA SOFISTICATTO'}]};
   const resumo={pagador:nome,documento:mascarar(documento,3,2),valor:Number(valor.toFixed(2)),vencimento,seuNumero,endereco:`${logradouro}, ${numero}${complemento?' - '+complemento:''} - ${bairro} - ${municipio}/${uf} - CEP ${cep8.slice(0,5)}-${cep8.slice(5)}`,especie,mensagem:payload.listaMsgs[0].mensagem,contrato:{cnpj:mascarar(cnpj,2,2),carteira:mascarar(carteira,0,1),negociacao:mascarar(negociacao,4,4)}};
+  resumo.juros_mensal_percentual=payload.percentualJuros;
+  resumo.multa_percentual=payload.percentualMulta;
+  resumo.dias_inicio_juros=payload.qtdeDiasJuros;
+  resumo.dias_inicio_multa=payload.qtdeDiasMulta;
   const hash=crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
   return {payload,resumo,hash};
 }
@@ -1102,7 +1127,7 @@ module.exports=async function(req,res){
       if(Math.abs(sit.valorTitulo-valor)>0.01 && Math.abs(sit.valorTitulo/100-valor)>0.01)throw new Error('Valor nominal divergente entre banco e portal.');
       const venc=String(sit.vencimento||'').slice(0,10);
       if(!/^\d{4}-\d{2}-\d{2}$/.test(venc))throw new Error('Vencimento bancário inválido.');
-      return json(res,200,{ok:true,transmitido:false,operacao:'PREPARACAO_SEM_ALTERACAO',titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Validar representação de juros e obter todos os dados originais exigidos no PUT antes de habilitar transmissão.'});
+      return json(res,200,{ok:true,transmitido:false,operacao:'PREPARACAO_SEM_ALTERACAO',titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},protesto_sem_instrucao:instrucaoSemProtestoBradescoV482(),orientacao_wf99571:'Campos numéricos não aplicáveis: 0; alfanuméricos: string vazia. Identificadores originais devem ser preservados. Banco solicitou nova tentativa controlada com evidências HTTP.',transmissao_autorizada:false,endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Validar representação de juros e obter todos os dados originais exigidos no PUT antes de habilitar transmissão.'});
     }
     if(action==='consultar-status-titulo'){
       if(amb!=='producao')throw new Error('A consulta de status desta versão está liberada para Produção.');
@@ -1209,7 +1234,7 @@ module.exports=async function(req,res){
         const barras=achar('codigoBarras','codigoBarra','codigo_barras','codigoBarraNumerico');
         const urlPdf=achar('urlBoleto','urlImagemBoleto','urlPdf','pdfUrl','pdf_url');
         const agora=new Date().toISOString();
-        const hist={cliente_nome:String(req.body?.nome||''),cpf_cnpj:String(req.body?.documento||'').replace(/\D/g,''),endereco:String(req.body?.logradouro||''),numero:String(req.body?.numero||''),bairro:String(req.body?.bairro||''),cidade:String(req.body?.municipio||''),uf:String(req.body?.uf||'').toUpperCase(),cep:String(req.body?.cep||'').replace(/\D/g,''),email:req.body?.email||null,banco:'bradesco',banco_nome:'BRADESCO',tipo:'boleto',valor:Number(req.body?.valor||0),vencimento:String(req.body?.vencimento||''),numero_nf:String(req.body?.numero_nf_original||seuNumero),referencia:'BRADESCO-'+seuNumero,status:'aberto',origem:'emissao_bradesco_v268',parcela_numero:Number(req.body?.parcela_numero||1),parcela_total:Number(req.body?.parcela_total||1),nosso_numero:nossoNumero||null,linha_digitavel:linha||null,codigo_barras:barras||null,pdf_url:urlPdf||null,emitido_em:agora,atualizado_em:agora};
+        const hist={cliente_nome:String(req.body?.nome||''),cpf_cnpj:String(req.body?.documento||'').replace(/\D/g,''),endereco:String(req.body?.logradouro||''),numero:String(req.body?.numero||''),bairro:String(req.body?.bairro||''),cidade:String(req.body?.municipio||''),uf:String(req.body?.uf||'').toUpperCase(),cep:String(req.body?.cep||'').replace(/\D/g,''),email:req.body?.email||null,banco:'bradesco',banco_nome:'BRADESCO',tipo:'boleto',valor:Number(req.body?.valor||0),vencimento:String(req.body?.vencimento||''),numero_nf:String(req.body?.numero_nf_original||seuNumero),referencia:'BRADESCO-'+seuNumero,status:'aberto',origem:'emissao_bradesco_v268',juros_percentual:prep.payload.percentualJuros,multa_percentual:prep.payload.percentualMulta,parcela_numero:Number(req.body?.parcela_numero||1),parcela_total:Number(req.body?.parcela_total||1),nosso_numero:nossoNumero||null,linha_digitavel:linha||null,codigo_barras:barras||null,pdf_url:urlPdf||null,emitido_em:agora,atualizado_em:agora};
         try{
           const registroId=String(req.body?.registro_id||'').trim();
           const existentes=registroId?await supabaseRest('cobrancas_bancarias',{query:`?id=eq.${encodeURIComponent(registroId)}&select=id&limit=1`}):await supabaseRest('cobrancas_bancarias',{query:`?banco=eq.bradesco&numero_nf=eq.${encodeURIComponent(hist.numero_nf)}&parcela_numero=eq.${encodeURIComponent(hist.parcela_numero)}&select=id&limit=1`});
@@ -1217,14 +1242,14 @@ module.exports=async function(req,res){
             // V254: se o registro já existir (ex.: primeira emissão criada por versão anterior),
             // completa os campos oficiais retornados pelo Bradesco sem criar duplicidade.
             const existenteId=existentes[0].id;
-            await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(existenteId)}`,body:{status:'aberto',banco:'bradesco',banco_nome:'BRADESCO',origem:'emissao_bradesco_v268',nosso_numero:hist.nosso_numero,linha_digitavel:hist.linha_digitavel,codigo_barras:hist.codigo_barras,pdf_url:hist.pdf_url,referencia:hist.referencia,emitido_em:agora,atualizado_em:agora}});
+            await supabaseRest('cobrancas_bancarias',{method:'PATCH',query:`?id=eq.${encodeURIComponent(existenteId)}`,body:{status:'aberto',banco:'bradesco',banco_nome:'BRADESCO',origem:'emissao_bradesco_v268',nosso_numero:hist.nosso_numero,linha_digitavel:hist.linha_digitavel,codigo_barras:hist.codigo_barras,pdf_url:hist.pdf_url,referencia:hist.referencia,juros_percentual:hist.juros_percentual,multa_percentual:hist.multa_percentual,emitido_em:agora,atualizado_em:agora}});
             historico.salvo=true;historico.id=existenteId;
           }
           else{
             let gravado;
             try{gravado=await supabaseRest('cobrancas_bancarias',{method:'POST',body:hist});}
             catch(e1){
-              const compat={cliente_nome:hist.cliente_nome,cpf_cnpj:hist.cpf_cnpj,banco:hist.banco,banco_nome:hist.banco_nome,tipo:hist.tipo,valor:hist.valor,vencimento:hist.vencimento,numero_nf:hist.numero_nf,referencia:hist.referencia,status:hist.status,origem:hist.origem,nosso_numero:hist.nosso_numero,linha_digitavel:hist.linha_digitavel,codigo_barras:hist.codigo_barras,pdf_url:hist.pdf_url,emitido_em:hist.emitido_em,atualizado_em:hist.atualizado_em};
+              const compat={cliente_nome:hist.cliente_nome,cpf_cnpj:hist.cpf_cnpj,banco:hist.banco,banco_nome:hist.banco_nome,tipo:hist.tipo,valor:hist.valor,vencimento:hist.vencimento,numero_nf:hist.numero_nf,referencia:hist.referencia,juros_percentual:hist.juros_percentual,multa_percentual:hist.multa_percentual,status:hist.status,origem:hist.origem,nosso_numero:hist.nosso_numero,linha_digitavel:hist.linha_digitavel,codigo_barras:hist.codigo_barras,pdf_url:hist.pdf_url,emitido_em:hist.emitido_em,atualizado_em:hist.atualizado_em};
               gravado=await supabaseRest('cobrancas_bancarias',{method:'POST',body:compat});
             }
             const row=Array.isArray(gravado)?gravado[0]:gravado;historico.salvo=true;historico.id=row?.id||null;
