@@ -54,7 +54,7 @@ function init(){
    append('Consulta por NF recebida (recibo '+primeira.recibo_mascarado+'). Aguardando resultado oficial...');
    await new Promise(resolve=>setTimeout(resolve,32000));
    const segunda=await solicitar('consulta_documento_resultado',{reciboConsulta:primeira.recibo_consulta});
-   append('RESULTADO DA CONSULTA POR NF (sem emitir): '+JSON.stringify(segunda));
+   append('RESULTADO DA CONSULTA POR NF (sem emitir):\n'+JSON.stringify(segunda,null,2));
    append('A reserva da tentativa anterior permanece protegida. NAO clique em Emitir.');
   }catch(e){append('Consulta por documento não concluída: '+String(e.message||e)+'. NÃO reemitir.')}
   finally{b.disabled=b.dataset.bloqueio102==='true'}
