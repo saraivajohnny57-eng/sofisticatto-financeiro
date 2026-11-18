@@ -68,3 +68,16 @@ test('Impressão: não atribui encargos fictícios ao banco',()=>{
  assert.ok(front.includes('Cadastro local não comprova encargos registrados'));
  assert.ok(!front.includes('nominalCentavos*0.05/30'));
 });
+
+test('V488: inventario da consulta e campos divergentes sem PUT',()=>{
+  assert.ok(br.includes('function relatorioRetornoBradescoV488('));
+  assert.ok(br.includes('diagnostico_campos_v488:relatorioRetornoBradescoV488(q.data)'));
+  assert.ok(br.includes('codigoNegativacao: exemplo 0 / layout fixo 1'));
+  assert.ok(br.includes('tipoAbatimento: exemplo 0 / layout fixo 1'));
+  assert.ok(!br.includes("action==='executar-manutencao-encargos-v488'"));
+});
+test('V488: painel exibe resposta campo por campo, sem alterar boleto',()=>{
+  const piloto=load('bradesco-piloto-v438.js');
+  assert.ok(piloto.includes('j.diagnostico_campos_v488?.campos'));
+  assert.ok(piloto.includes('TRANSMISSÃO PUT: BLOQUEADA'));
+});

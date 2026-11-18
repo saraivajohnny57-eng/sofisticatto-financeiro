@@ -756,6 +756,42 @@ function instrucaoSemProtestoBradescoV482(){
          codigoNegativacao:0,diasNegativacao:0};
 }
 
+
+// V488: inventario de TODOS os campos devolvidos pela consulta autenticada,
+// sem chamadas adicionais ao banco/Supabase e sem revelar dados pessoais.
+function relatorioRetornoBradescoV488(resposta){
+  const campos=[],limite=600; let total=0;
+  const sigilosos=/(cpf|cnpj|documento|sacado|pagador|sacador|beneficiario|cliente|nome|endereco|logradouro|bairro|municipio|cidade|cep|email|telefone|celular|fone|agencia|conta|token|secret|password|senha|authorization|chave|certificate|certificado)/i;
+  const visitados=new WeakSet();
+  function adicionar(caminho,valor){
+    total++;
+    if(campos.length>=limite)return;
+    const tipo=valor===null?'null':typeof valor;
+    const oculto=sigilosos.test(caminho);
+    const exibido=oculto?(valor===null||valor===''?'[VAZIO]':'[VALOR SENSIVEL OCULTO]'):
+      (valor===null?'null':(typeof valor==='string'?valor:JSON.stringify(valor)));
+    campos.push({caminho,tipo,valor:String(exibido).slice(0,180),
+      vazio:valor===null||valor===''||valor===undefined});
+  }
+  function percorrer(obj,caminho='',profundidade=0){
+    if(profundidade>12){adicionar(caminho,'[PROFUNDIDADE LIMITADA]');return;}
+    if(obj&&typeof obj==='object'){
+      if(visitados.has(obj)){adicionar(caminho,'[REFERENCIA REPETIDA]');return;}
+      visitados.add(obj);
+      const entradas=Array.isArray(obj)?obj.map((valor,i)=>[String(i),valor]):Object.entries(obj);
+      if(!entradas.length){adicionar(caminho,Array.isArray(obj)?'[]':'{}');return;}
+      for(const [chave,valor] of entradas){
+        const novo=caminho?(Array.isArray(obj)?caminho+'['+chave+']':caminho+'.'+chave):chave;
+        percorrer(valor,novo,profundidade+1);
+      }
+    } else adicionar(caminho||'resposta',obj);
+  }
+  percorrer(resposta);
+  return {tipo:'INVENTARIO_RESPOSTA_CONSULTA_NAO_EQUIVALE_AO_PAYLOAD_PUT',
+    total_campos:total,mostrados:campos.length,truncado:total>limite,
+    somente_leitura:true,sem_segredos:true,campos};
+}
+
 function montarPayloadRegistroReal(body,banco){
   const dig=v=>String(v||'').replace(/\D/g,'');
   // V252: a API de registro do Bradesco rejeita caracteres especiais em campos
@@ -1245,7 +1281,7 @@ module.exports=async function(req,res){
       return json(res,200,{ok:true,transmitido:false,operacao:'PREPARACAO_SEM_ALTERACAO',auditoria_originais_v484:auditoriaOriginais,titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,
        vencimento_original_banco:dataBradescoIso(sit.titulo?.dataVencto)||null,
        vencimento_boleto_atualizado:dataBradescoIso(sit.titulo?.dataVenctoBol)||null,
-       valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},protesto_sem_instrucao:instrucaoSemProtestoBradescoV482(),orientacao_wf99571:'Campos numéricos não aplicáveis: 0; alfanuméricos: string vazia. Identificadores originais devem ser preservados. Banco solicitou nova tentativa controlada com evidências HTTP.',transmissao_autorizada:false,endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Dados originais conferidos na consulta do banco. PUT ainda bloqueado devido à divergência sobre codigoNegativacao entre o Manual 1.6.4 (fixo 1) e o e-mail do suporte (0 para campo não utilizado); confirmar antes de transmitir.'});
+       valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},protesto_sem_instrucao:instrucaoSemProtestoBradescoV482(),diagnostico_campos_v488:relatorioRetornoBradescoV488(q.data),documentacao_put_v488:{origem:'Manual Bradesco v1.6.4, Alteração de título',campos_chave:['produto','negociacao','nossoNumero','cpfCnpjSacado','dataEmissao','valorTitulo'],exemplo_nao_autoriza_transmissao:true,divergencias:['codigoNegativacao: exemplo 0 / layout fixo 1','tipoAbatimento: exemplo 0 / layout fixo 1'],campos_juros_multa_a_validar:['comissaoPermanencia.codigoComissaoPermanencia','comissaoPermanencia.valorComissaoPermanencia','comissaoPermanencia.diasComissaoPermanencia','codigoMulta','diasMulta','valorMulta']},orientacao_wf99571:'Campos numéricos não aplicáveis: 0; alfanuméricos: string vazia. Identificadores originais devem ser preservados. Banco solicitou nova tentativa controlada com evidências HTTP.',transmissao_autorizada:false,endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Dados originais conferidos na consulta do banco. PUT ainda bloqueado devido à divergência sobre codigoNegativacao entre o Manual 1.6.4 (fixo 1) e o e-mail do suporte (0 para campo não utilizado); confirmar antes de transmitir.'});
     }
     if(action==='consultar-status-titulo'){
       if(amb!=='producao')throw new Error('A consulta de status desta versão está liberada para Produção.');

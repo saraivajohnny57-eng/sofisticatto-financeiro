@@ -46,6 +46,14 @@ function montar(){
     'Pagador: '+Object.entries(v.campos||{}).map(([ch,ok])=>ch+'='+rotulo(ok)).join(' | '),
     'Diferença do contrato: manual v1.6.4 determina codigoNegativacao=1, e-mail do suporte sugere zero para numéricos não usados.',
     'Pendências: '+(v.pendencias||[]).join('; '),
+    'RETORNO BANCÁRIO — INVENTÁRIO INTEGRAL (sem nova consulta; dados pessoais ocultos):',
+    'Total de campos: '+(j.diagnostico_campos_v488?.total_campos??'indisponível')+
+      ' | exibidos: '+(j.diagnostico_campos_v488?.mostrados??0)+
+      ' | truncado: '+(j.diagnostico_campos_v488?.truncado?'SIM':'NÃO'),
+    ...(j.diagnostico_campos_v488?.campos||[]).map(c=>'  '+c.caminho+' ['+c.tipo+'] = '+c.valor+(c.vazio?' (VAZIO)':'')),
+    'CAMPOS IMUTÁVEIS DO PUT: '+(j.documentacao_put_v488?.campos_chave||[]).join(' | '),
+    'DIVERGÊNCIAS MANUAL x EXEMPLO: '+(j.documentacao_put_v488?.divergencias||[]).join(' ; '),
+    'CAMPOS DE JUROS/MULTA A VALIDAR: '+(j.documentacao_put_v488?.campos_juros_multa_a_validar||[]).join(' | '),
     'TRANSMISSÃO PUT: BLOQUEADA até orientação inequívoca do banco.',
     'Nenhum boleto foi emitido, baixado ou alterado.'
    ].join('\n');
