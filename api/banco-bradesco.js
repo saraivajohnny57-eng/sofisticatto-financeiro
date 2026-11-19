@@ -860,6 +860,51 @@ function diagnosticoContratoPutBradescoV489(resposta,registro,auditoria){
     modo:'Nenhum PUT, nenhuma alteração de título, nenhuma consulta adicional'};
 }
 
+// V508 - Relatório único da consulta autenticada existente. Nenhuma alteração (PUT).
+// Reúne todos os problemas detectáveis na MESMA resposta, sem nova chamada e sem dados pessoais.
+function relatorioUnicoBradescoV508({consulta,registro,situacao,auditoria,contrato}){
+ const checagens=[],push=(campo,estado,fonte,descricao,proxima_acao)=>{
+  checagens.push({campo,estado,fonte,descricao,proxima_acao});
+ };
+ const origem=auditoria?.origem||{};
+ for(const [campo,ok] of Object.entries(origem)){
+  push('original.'+campo,ok?'OK':'FALHA','Consulta autenticada Bradesco',
+   ok?'Dado original conferido':'Dado original não confere ou não foi localizado',
+   ok?'Preservar informação original':'Conferir a fonte bancária antes do PUT');
+ }
+ for(const c of contrato?.campos||[]){
+  push(c.campo,c.estado,c.fonte,c.nota||c.indicador,
+    c.estado==='PENDENTE'?'Resolver o campo sem inventar valor; não transmitir':'Preservar o valor validado');
+ }
+ // Divergências concretas do manual 1.6.4 versus o exemplo escrito do suporte.
+ push('dadosTitulo.codigoNegativacao','PENDENTE','Manual v1.6.4 (fixo 1) x e-mail WF-99571 (0)',
+   'Não há confirmação inequívoca do valor para título sem negativação.',
+   'Não permitir instrução de negativação não solicitada');
+ push('dadosTitulo.abatimento.tipoAbatimento','PENDENTE','Manual v1.6.4 (fixo 1) x exemplo do suporte (0)',
+   'A divergência persiste para título sem abatimento.',
+   'Validar valor exato; valorAbatimento deve continuar zero');
+ push('dadosTitulo.comissaoPermanencia.valorComissaoPermanencia','PENDENTE','Layout do PUT',
+   'Escala para representar 5% ao mês não homologada.',
+   'Não assumir 5, 50000 ou 500000');
+ push('dadosTitulo.valorMulta','PENDENTE','Layout do PUT',
+   'Escala para representar multa de 2% não homologada.',
+   'Não assumir 2, 20000 ou 200000');
+ const pendentes=checagens.filter(v=>v.estado==='PENDENTE'||v.estado==='FALHA');
+ const principais=[...new Set(pendentes.map(v=>v.campo))];
+ return {versao:'V508',titulo:'56078-02',nosso_numero:'62710000058',
+  objetivo:{juros_mensal_percentual:5,multa_percentual:2,sem_protesto:true,sem_negativacao:true},
+  ambiente:'producao',operacao:'TESTE_UNICO_CONSULTA_E_AUDITORIA_SEM_PUT',
+  status:'BLOQUEADO_SEM_TRANSMITIR',transmissao_put_realizada:false,
+  chamadas:{consultas_bancarias_nesta_execucao:1,alteracoes_put:0,reenvio_automatico:false},
+  http_status_consulta:consulta?.http_status??null,
+  situacao_bancaria:situacao?.descricao||null,codigo_status:situacao?.codStatus??null,
+  numero_verificacoes:checagens.length,numero_pendencias:pendentes.length,
+  campos_impeditivos:principais,detalhe_todas_verificacoes:checagens,
+  eventos:{request_put:'NAO_GERADO',response_put:'NAO_EXISTE',curl_put_executado:'NAO_EXISTE'},
+  seguranca:'Nenhum token, certificado, senha ou CPF/CNPJ completo no relatório.',
+  proxima_acao:'Regularizar simultaneamente todos os campos PENDENTES, validar com o manual/suporte e somente depois habilitar um PUT real com captura sanitizada do request/response/cURL.'};
+}
+
 function montarPayloadRegistroReal(body,banco){
   const dig=v=>String(v||'').replace(/\D/g,'');
   // V252: a API de registro do Bradesco rejeita caracteres especiais em campos
@@ -1326,7 +1371,9 @@ module.exports=async function(req,res){
       const simulacao=dataLocalValida&&Number.isFinite(valor)&&valor>0?{data_referencia_utc:hoje,data_base:'VENCIMENTO_ORIGINAL_CADASTRO',vencimento_original:vencimentoLocal,dias_atraso:diasAtraso,valor_nominal:valor,multa_estimada:multa,juros_estimados:juros,total_estimado:Math.round((valor+multa+juros)*100)/100,carater:'SIMULACAO_LOCAL_SEM_CONFIRMACAO_DE_ENCARGOS_BANCARIOS'}:null;
       return json(res,200,{ok:true,transmitido:false,documento:'55994',titulo:{id:reg.id,parcela:reg.parcela_numero,nosso_numero:nossoNumeroRegistroBradesco(reg),status_local:reg.status,status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:sit.vencimento,vencimento_original_banco:vencimentoBanco,vencimento_boleto_atualizado:vencimentoBoleto,vencimento_original_local:vencimentoLocal,valor_nominal_local:valor},elegivel_preliminar:elegivel&&datasConferem,preflight_manutencao:{consulta_autenticada:true,identidade_confirmada:!!nossoNumeroRegistroBradesco(reg),status_permite_manutencao:sit.codStatus===1&&!sit.pago&&!sit.baixado&&!sit.descontado,valor_nominal_confere:Number.isFinite(valor)&&valor>0&&sit.valorTitulo!==null&&(Math.abs(sit.valorTitulo-valor)<=0.01||Math.abs(sit.valorTitulo/100-valor)<=0.01),vencimento_original_confere:datasConferem,contrato_put_completo_validado:false,escala_juros_put_validada:false,transmissao_liberada:false,motivo_pendencia:'Payload integral e representação de encargos no endpoint de alteração ainda não validados.'},vencimento_confere:datasConferem,divergencia_vencimento:!datasConferem,diagnostico_datas_banco:datasInformadas,conferencia_unica_v446:{evidencias_v453:evidenciaV453,auditoria_resposta_v452:avaliacaoRespostaV452,descoberta_campos_v451:{nomes_encontrados:nomesCamposV451,fontes_historico:fontesV451,sem_valores_sensiveis:true},revisao_manual_v450:revisaoManualV450,origem_confirmada:origemConfirmada,impedimentos_contratuais:impedimentosContratuais,identificadores_ok:identificadoresOk,pagador:camposPagadorVerificaveis,titulo:camposTituloVerificaveis,pendencias:pendenciasConsolidadas,metodo:'CONSULTA_AUTENTICADA_E_VALIDACAO_LOCAL',transmitido:false,pronto_para_put:false},verificacao_contrato_alteracao:verificacaoContrato,inventario_campos_put:{carater:'INVENTARIO_INDICATIVO_SEM_DADOS_SENSIVEIS_NAO_E_PAYLOAD_VALIDADO',origem:origemCampos,mapeamento_alternativo:mapeamentoConfirmavel},simulacao,encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},proxima_etapa:elegivel&&datasConferem?'Montar payload integral e validar escala dos juros antes de qualquer PUT.':'Revisar situação bancária; alteração bloqueada.',observacao:'Consulta somente leitura. Nenhum boleto alterado.'});
     }
-    if(action==='preparar-manutencao-encargos-v433'){
+    if(action==='preparar-manutencao-encargos-v433'||action==='teste-unico-encargos-v508'){
+      const testeUnicoV508=action==='teste-unico-encargos-v508';
+      try {
       if(amb!=='producao')throw new Error('Esta consulta deve utilizar o ambiente de produção.');
       const filtro=filtroConferenciaBradescoV485(req.body||{});
       const rows=await supabaseRest('cobrancas_bancarias',{query:filtro});
@@ -1346,10 +1393,40 @@ module.exports=async function(req,res){
       if(Math.abs(sit.valorTitulo-valor)>0.01 && Math.abs(sit.valorTitulo/100-valor)>0.01)throw new Error('Valor nominal divergente entre banco e portal.');
       const venc=String(sit.vencimento||'').slice(0,10);
       if(!/^\d{4}-\d{2}-\d{2}$/.test(venc))throw new Error('Vencimento bancário inválido.');
-      return json(res,200,{ok:true,transmitido:false,operacao:'PREPARACAO_SEM_ALTERACAO',auditoria_originais_v484:auditoriaOriginais,titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,
+      const diagnosticoV489=diagnosticoContratoPutBradescoV489(q.data,reg,auditoriaOriginais);
+      const unicoV508=testeUnicoV508?relatorioUnicoBradescoV508({
+       consulta:q,registro:reg,situacao:sit,auditoria:auditoriaOriginais,contrato:diagnosticoV489
+      }):null;
+      return json(res,200,{ok:true,transmitido:false,diagnostico_unico_v508:unicoV508,operacao:'PREPARACAO_SEM_ALTERACAO',auditoria_originais_v484:auditoriaOriginais,titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,
        vencimento_original_banco:dataBradescoIso(sit.titulo?.dataVencto)||null,
        vencimento_boleto_atualizado:dataBradescoIso(sit.titulo?.dataVenctoBol)||null,
-       valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},protesto_sem_instrucao:instrucaoSemProtestoBradescoV482(),diagnostico_campos_v488:relatorioRetornoBradescoV488(q.data),diagnostico_put_v489:diagnosticoContratoPutBradescoV489(q.data,reg,auditoriaOriginais),documentacao_put_v488:{origem:'Manual Bradesco v1.6.4, Alteração de título',campos_chave:['produto','negociacao','nossoNumero','cpfCnpjSacado','dataEmissao','valorTitulo'],exemplo_nao_autoriza_transmissao:true,divergencias:['codigoNegativacao: exemplo 0 / layout fixo 1','tipoAbatimento: exemplo 0 / layout fixo 1'],campos_juros_multa_a_validar:['comissaoPermanencia.codigoComissaoPermanencia','comissaoPermanencia.valorComissaoPermanencia','comissaoPermanencia.diasComissaoPermanencia','codigoMulta','diasMulta','valorMulta']},orientacao_wf99571:'Campos numéricos não aplicáveis: 0; alfanuméricos: string vazia. Identificadores originais devem ser preservados. Banco solicitou nova tentativa controlada com evidências HTTP.',transmissao_autorizada:false,endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Dados originais conferidos na consulta do banco. PUT ainda bloqueado devido à divergência sobre codigoNegativacao entre o Manual 1.6.4 (fixo 1) e o e-mail do suporte (0 para campo não utilizado); confirmar antes de transmitir.'});
+       valor_nominal:valor},encargos_propostos:{multa_percentual:2,juros_mensal_percentual:5},protesto_sem_instrucao:instrucaoSemProtestoBradescoV482(),diagnostico_campos_v488:relatorioRetornoBradescoV488(q.data),diagnostico_put_v489:diagnosticoV489,documentacao_put_v488:{origem:'Manual Bradesco v1.6.4, Alteração de título',campos_chave:['produto','negociacao','nossoNumero','cpfCnpjSacado','dataEmissao','valorTitulo'],exemplo_nao_autoriza_transmissao:true,divergencias:['codigoNegativacao: exemplo 0 / layout fixo 1','tipoAbatimento: exemplo 0 / layout fixo 1'],campos_juros_multa_a_validar:['comissaoPermanencia.codigoComissaoPermanencia','comissaoPermanencia.valorComissaoPermanencia','comissaoPermanencia.diasComissaoPermanencia','codigoMulta','diasMulta','valorMulta']},orientacao_wf99571:'Campos numéricos não aplicáveis: 0; alfanuméricos: string vazia. Identificadores originais devem ser preservados. Banco solicitou nova tentativa controlada com evidências HTTP.',transmissao_autorizada:false,endpoint_documentado:'/boleto/cobranca-altera/v1/alterar',pendencia:'Dados originais conferidos na consulta do banco. PUT ainda bloqueado devido à divergência sobre codigoNegativacao entre o Manual 1.6.4 (fixo 1) e o e-mail do suporte (0 para campo não utilizado); confirmar antes de transmitir.'});
+      } catch (erroV508) {
+        if(!testeUnicoV508)throw erroV508;
+        // Resposta consolidada até quando a consulta falhar: sem eco de dados sensíveis do erro.
+        const msg=String(erroV508?.message||'');
+        const errosConhecidos=[
+          ['Título não localizado de forma única','IDENTIFICACAO_TITULO'],
+          ['Título Bradesco não encontrado','BANCO_DIVERGENTE'],
+          ['Título com situação local incompatível','STATUS_LOCAL'],
+          ['Consulta bancária falhou','CONSULTA_BANCARIA'],
+          ['Situação bancária não permite','STATUS_BANCARIO'],
+          ['Valor nominal inválido','VALOR_LOCAL'],
+          ['Consulta sem valor nominal bancário','VALOR_BANCARIO_AUSENTE'],
+          ['Valor nominal divergente','VALOR_DIVERGENTE'],
+          ['Vencimento bancário inválido','DATA_VENCIMENTO']
+        ];
+        const codigo=errosConhecidos.find(item=>msg.startsWith(item[0]))?.[1]||'FALHA_NAO_CLASSIFICADA';
+        return json(res,200,{ok:false,transmitido:false,
+          diagnostico_unico_v508:{versao:'V508',titulo:'56078-02',nosso_numero:'62710000058',
+           status:'INTERROMPIDO_SEM_TRANSMITIR',codigo_erro:codigo,
+           motivo:'Pré-validação ou consulta bancária não concluída. Conferir o código e os registros internos protegidos.',
+           detalhe_todas_verificacoes:[{campo:'preflight_ou_consulta',estado:'FALHA',fonte:'Portal Sofisticatto',
+             descricao:codigo,proxima_acao:'Corrigir a causa indicada antes de qualquer novo teste'}],
+           numero_pendencias:1,chamadas:{alteracoes_put:0,reenvio_automatico:false},
+           eventos:{request_put:'NAO_GERADO',response_put:'NAO_EXISTE',curl_put_executado:'NAO_EXISTE'},
+           proxima_acao:'Não enviar PUT. Não repetir automaticamente; tratar primeiro o código registrado.'}});
+      }
     }
     if(action==='consultar-status-titulo'){
       if(amb!=='producao')throw new Error('A consulta de status desta versão está liberada para Produção.');

@@ -11,15 +11,59 @@ function montar(){
  const b=document.createElement('button');b.type='button';b.className='btn roxo';b.textContent='Executar conferência única 55994-01';panel.appendChild(b);
 
  const button484=document.createElement('button');button484.type='button';button484.className='btn roxo';
- button484.textContent='Conferir 56078-02 no Bradesco (sem alterar)';
+ button484.textContent='Teste único 56078-02 — diagnóstico completo';
  button484.style.marginLeft='8px';panel.appendChild(button484);
  const audit484=document.createElement('pre');audit484.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
  audit484.setAttribute('aria-live','polite');panel.appendChild(audit484);
+ let relatorioV508='';
+ const baixarV508=document.createElement('button');baixarV508.type='button';
+ baixarV508.className='btn roxo';baixarV508.style.marginLeft='8px';
+ baixarV508.textContent='Baixar relatório técnico TXT';baixarV508.disabled=true;
+ panel.appendChild(baixarV508);
+ baixarV508.onclick=()=>{
+  if(!relatorioV508)return;
+  const url=URL.createObjectURL(new Blob([relatorioV508],{type:'text/plain;charset=utf-8'}));
+  const a=document.createElement('a');a.href=url;a.download='Bradesco_WF-99571_Teste_Unico_56078-02_V508.txt';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+ };
  button484.onclick=async()=>{
   button484.disabled=true;audit484.textContent='Consultando o registro original no Bradesco (somente leitura)...';
   try{
    if(typeof bradescoReqProducao!=='function')throw new Error('Autorização de integração indisponível. Atualize a página.');
-   const j=await bradescoReqProducao('preparar-manutencao-encargos-v433',{numero_nf:'56078',parcela:2});
+   const j=await bradescoReqProducao('teste-unico-encargos-v508',{numero_nf:'56078',parcela:2});
+   const u=j.diagnostico_unico_v508;
+   if(!u)throw Error('Servidor ainda não publicou V508. Nenhum PUT enviado.');
+   const lista=Array.isArray(u.detalhe_todas_verificacoes)?u.detalhe_todas_verificacoes:[];
+   relatorioV508=[
+    'SOFISTICATTO — CHAMADO WF-99571 — TESTE ÚNICO BRADESCO V508',
+    'Título 56078-02 | Nosso Número 62710000058 | Emissão/alteração PUT: NÃO REALIZADA',
+    'Estado: '+u.status+' | Código: '+(u.codigo_erro||'nenhum'),
+    'HTTP da consulta: '+(u.http_status_consulta??'não concluída'),
+    'Situação bancária: '+(u.situacao_bancaria||'não confirmada'),
+    'Total de verificações: '+(u.numero_verificacoes??lista.length),
+    'Pendências: '+(u.numero_pendencias??0),
+    'Chamada PUT: 0 | cURL executado: NÃO EXISTE | response de PUT: NÃO EXISTE',
+    'NÃO encaminhar este relatório como se houvesse uma alteração executada.',
+    '',
+    'VERIFICAÇÃO CAMPO A CAMPO:',
+    ...lista.map(c=>[c.estado,c.campo,c.fonte,c.descricao,c.proxima_acao].join(' | ')),
+    '',
+    'CAMPOS IMPEDITIVOS: '+(u.campos_impeditivos||[]).join('; '),
+    'PRÓXIMA AÇÃO: '+u.proxima_acao,
+    'OBS.: Identificadores, credenciais e dados pessoais completos omitidos.'
+   ].join('\\n');
+   audit484.textContent=[
+    'RESULTADO DO TESTE ÚNICO — BRADESCO 56078-02',
+    'Situação: '+u.status,
+    'HTTP consulta: '+(u.http_status_consulta??'não concluída')+' | PUT: NÃO ENVIADO',
+    'Verificações: '+(u.numero_verificacoes??lista.length)+' | Pendências: '+(u.numero_pendencias??0),
+    'ERROS / PENDÊNCIAS CONSOLIDADOS:',
+    ...lista.filter(c=>['FALHA','PENDENTE'].includes(c.estado)).map(c=>'• '+c.campo+' — '+c.descricao+' | '+c.proxima_acao),
+    '',
+    'Relatório TXT completo disponível no botão acima. Uma consulta; sem reenvio.'
+   ].join('\\n');
+   baixarV508.disabled=false;
+   return;
    const t=j.titulo||{},v=j.auditoria_originais_v484||{},res=v.resumo||{},doc=v.documento_pagador||{};
    const rotulo=v=>v?'OK':'PENDENTE';
    audit484.textContent=[
