@@ -13,7 +13,8 @@ function init(){
 '<button class="buscar" id="g491consult" disabled type="button">Consultar resultado oficial</button> '+
 '<button class="buscar" id="g492diag" disabled type="button">Diagnosticar falha (sem enviar)</button> '+
 '<button class="buscar" id="g497lookup" disabled type="button">Consultar GNRE pela NF (não emite)</button> '+
-'<button class="buscar" id="g501status" disabled type="button">Auditar primeira tentativa (sem enviar)</button>'+
+'<button class="buscar" id="g501status" disabled type="button">Auditar primeira tentativa (sem enviar)</button> '+
+'<button class="buscar" id="g504config" disabled type="button">Consultar regras PA/100102 (sem emitir)</button>'+
 '<section id="g502retomada" style="display:none;padding:12px;margin-top:10px;border:1px solid #b78a4f;border-radius:10px">'+
 '<strong>Retomada única da NF-e 51185 — R$ 24,91</strong>'+
 '<p>A primeira tentativa terminou com resultado incerto. O Portal GNRE não localizou guia nas consultas realizadas, mas permanece risco residual de duplicidade.</p>'+
@@ -58,6 +59,14 @@ function init(){
    append('Retorno GNRE: '+JSON.stringify(r));
    $('g491consult').disabled=false;
   }catch(e){append('Emissão não confirmada: '+String(e.message||e)+'. NÃO REPETIR sem consultar.');$('g491consult').disabled=false;$('g492diag').disabled=false}
+ };
+ $('g504config').onclick=async()=>{
+    const btn=$('g504config');btn.disabled=true;
+    append('Consultando configuração oficial PA/100102, sem emissão...');
+    try{const r=await solicitar('configuf_pa_100102');
+      append('CONFIGURAÇÃO OFICIAL PA/100102:\n'+JSON.stringify(r,null,2));
+    }catch(e){append('Consulta ConfigUF não concluída: '+String(e.message||e)+'. Nenhum envio de guia.')}
+    finally{btn.disabled=false;}
  };
  $('g501status').onclick=async()=>{
    const bt=$('g501status');bt.disabled=true;
@@ -169,6 +178,7 @@ function init(){
    $('g492diag').disabled=false;
    $('g497lookup').disabled=false;
    $('g501status').disabled=false;
+   $('g504config').disabled=false;
    payload={nfe:nf,fiscal:{vencimento:$('g490v').value,pagamento:$('g490p').value,obrigacaoConfirmada:true,vencimentoConfirmado:true}};
    const bloqueios=(z.pendencias||[]).filter(s=>!String(s).includes('Conferir no portal nacional'));
    $('g491emit').disabled=!(z.lote_preparado&&z.arquivos_locais===0&&!z.reserva_existente&&z.certificado_cadastrado&&bloqueios.length===0);
