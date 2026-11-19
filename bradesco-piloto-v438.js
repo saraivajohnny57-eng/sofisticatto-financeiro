@@ -11,7 +11,7 @@ function montar(){
  const b=document.createElement('button');b.type='button';b.className='btn roxo';b.textContent='Executar conferência única 55994-01';panel.appendChild(b);
 
  const button484=document.createElement('button');button484.type='button';button484.className='btn roxo';
- button484.textContent='Teste único 56078-02 — diagnóstico completo';
+ button484.textContent='Teste único 56078-03 — diagnóstico completo';
  button484.style.marginLeft='8px';panel.appendChild(button484);
  const audit484=document.createElement('pre');audit484.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
  audit484.setAttribute('aria-live','polite');panel.appendChild(audit484);
@@ -23,23 +23,26 @@ function montar(){
  baixarV508.onclick=()=>{
   if(!relatorioV508)return;
   const url=URL.createObjectURL(new Blob([relatorioV508],{type:'text/plain;charset=utf-8'}));
-  const a=document.createElement('a');a.href=url;a.download='Bradesco_WF-99571_Teste_Unico_56078-02_V508.txt';
+  const a=document.createElement('a');a.href=url;a.download='Bradesco_WF-99571_Teste_Unico_56078-03_V510.txt';
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
  };
  button484.onclick=async()=>{
   button484.disabled=true;audit484.textContent='Consultando o registro original no Bradesco (somente leitura)...';
   try{
    if(typeof bradescoReqProducao!=='function')throw new Error('Autorização de integração indisponível. Atualize a página.');
-   const j=await bradescoReqProducao('teste-unico-encargos-v508',{numero_nf:'56078',parcela:2});
+   const j=await bradescoReqProducao('teste-unico-encargos-v508',{numero_nf:'56078',parcela:3});
    const u=j.diagnostico_unico_v508;
    if(!u)throw Error('Servidor ainda não publicou V508. Nenhum PUT enviado.');
    const lista=Array.isArray(u.detalhe_todas_verificacoes)?u.detalhe_todas_verificacoes:[];
    relatorioV508=[
-    'SOFISTICATTO — CHAMADO WF-99571 — TESTE ÚNICO BRADESCO V508',
-    'Título 56078-02 | Nosso Número 62710000058 | Emissão/alteração PUT: NÃO REALIZADA',
+    'SOFISTICATTO — CHAMADO WF-99571 — TESTE ÚNICO BRADESCO V510',
+    'Título 56078-03 | Nosso Número 62710000059 | Emissão/alteração PUT: NÃO REALIZADA',
     'Estado: '+u.status+' | Código: '+(u.codigo_erro||'nenhum'),
     'HTTP da consulta: '+(u.http_status_consulta??'não concluída'),
     'Situação bancária: '+(u.situacao_bancaria||'não confirmada'),
+    'Fonte da consulta: '+(u.fonte_consulta||'não confirmada'),
+    'Última consulta bancária: '+(u.data_consulta_bancaria||'não informada'),
+    'Novas chamadas ao banco: '+(u.chamadas?.consultas_bancarias_nesta_execucao??'não informado'),
     'Total de verificações: '+(u.numero_verificacoes??lista.length),
     'Pendências: '+(u.numero_pendencias??0),
     'Chamada PUT: 0 | cURL executado: NÃO EXISTE | response de PUT: NÃO EXISTE',
@@ -53,9 +56,10 @@ function montar(){
     'OBS.: Identificadores, credenciais e dados pessoais completos omitidos.'
    ].join('\n');
    audit484.textContent=[
-    'RESULTADO DO TESTE ÚNICO — BRADESCO 56078-02',
+    'RESULTADO DO TESTE ÚNICO — BRADESCO 56078-03',
     'Situação: '+u.status,
     'HTTP consulta: '+(u.http_status_consulta??'não concluída')+' | PUT: NÃO ENVIADO',
+    'Fonte: '+(u.fonte_consulta||'pré-validação')+' | Novas consultas: '+(u.chamadas?.consultas_bancarias_nesta_execucao??'não confirmadas'),
     'Verificações: '+(u.numero_verificacoes??lista.length)+' | Pendências: '+(u.numero_pendencias??0),
     'ERROS / PENDÊNCIAS CONSOLIDADOS:',
     ...lista.filter(c=>['FALHA','PENDENTE'].includes(c.estado)).map(c=>'• '+c.campo+' — '+c.descricao+' | '+c.proxima_acao),
@@ -67,7 +71,7 @@ function montar(){
    const t=j.titulo||{},v=j.auditoria_originais_v484||{},res=v.resumo||{},doc=v.documento_pagador||{};
    const rotulo=v=>v?'OK':'PENDENTE';
    audit484.textContent=[
-    'CONFERÊNCIA AUTENTICADA — BRADESCO 56078-02',
+    'CONFERÊNCIA AUTENTICADA — BRADESCO 56078-03',
     'Modalidade: SOMENTE LEITURA — nenhuma alteração transmitida',
     'Nosso Número: '+(t.nosso_numero||'—'),
     'Valor original: R$ '+Number(t.valor_nominal||0).toFixed(2).replace('.',','),
