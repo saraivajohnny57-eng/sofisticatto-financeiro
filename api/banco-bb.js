@@ -1,6 +1,7 @@
 const https=require('https');
 const forge=require('node-forge');
 const {exigirAdmin,supabaseRest,criptografar,descriptografar}=require('../lib/integracoes/_utils');
+const {podeOperarEmissaoCobranca}=require('../lib/portal/permitir-emissao-cobranca');
 
 const TABELA='integracoes_bancarias_segredos';
 const TABELA_SEQUENCIAS='integracoes_bancarias_sequencias';
@@ -709,9 +710,9 @@ async function testarOAuth(amb){
 }
 
 module.exports=async function(req,res){
-  if(!exigirAdmin(req,res))return;
   const action=String(req.query?.action||'status');
   const amb=normalizarAmb(req.query?.ambiente||req.body?.ambiente);
+  if(!podeOperarEmissaoCobranca(req,'bb',action,amb)&&!exigirAdmin(req,res))return;
   try{
     if(action==='status')return json(res,200,{ok:true,...await statusAmbiente(amb)});
     if(action==='salvar-credenciais'){

@@ -35,6 +35,7 @@ function detalheRespostaBradesco(d){
 const https=require('https');
 const forge=require('node-forge');
 const {exigirAdmin,supabaseRest,criptografar,descriptografar}=require('../lib/integracoes/_utils');
+const {podeOperarEmissaoCobranca}=require('../lib/portal/permitir-emissao-cobranca');
 
 const TABELA='integracoes_bradesco_segredos';
 const AMBIENTE_PADRAO='sandbox';
@@ -1022,8 +1023,8 @@ function diagnosticarPayloadMinimoRegistroSandbox(token,mtls){
 }
 
 module.exports=async function(req,res){
-  if(!exigirAdmin(req,res))return;
   const action=String(req.query?.action||'status'), amb=ambiente(req.query?.ambiente||req.body?.ambiente);
+  if(!podeOperarEmissaoCobranca(req,'bradesco',action,amb)&&!exigirAdmin(req,res))return;
   try{
     if(action==='status')return json(res,200,{ok:true,...await status(amb)});
     if(action==='salvar-credenciais'){

@@ -229,7 +229,7 @@ function configurarCadastroClientesPorPerfil(){
   }
   atualizarEmailVendedoraAutomatico?.();
 }
-// V293 — perfil Cobrança: somente títulos já emitidos e operações de acompanhamento.
+// V509 — perfil Cobrança: emissão individual e acompanhamento, sem permissões administrativas.
 function usuarioEhCobrancaV293(){ return usuarioLogado?.tipo === "cobranca"; }
 function cobrancaJaEmitidaV293(x){
   const st=String(x?.status||'');
@@ -246,10 +246,11 @@ function negarOperacaoCobrancaV293(){
 }
 function configurarIntegracaoPerfilCobrancaV293(){
   if(!usuarioEhCobrancaV293()) return;
-  ['cobTabEmissao','cobTabMassa','cobTabCredenciais'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
+  const abaEmissao=document.getElementById('cobTabEmissao');if(abaEmissao)abaEmissao.style.display='inline-flex';
+  ['cobTabMassa','cobTabCredenciais'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
   const pend=document.querySelector('#cobFiltroStatus option[value="pendente_integracao"]'); if(pend) pend.remove();
   const aviso=document.querySelector('.cobranca-integracao-aviso');
-  if(aviso) aviso.innerHTML='<b>Perfil Cobrança:</b> acesso somente a boletos já emitidos, impressão, relatórios e atualização de status bancário.';
+  if(aviso) aviso.textContent='Perfil Cobrança: emissão individual de boletos BB/Bradesco, consulta, impressão e acompanhamento. Emissão em massa e credenciais continuam restritas.';
   mostrarAbaIntegracaoBancaria('historico');
 }
 
@@ -8062,7 +8063,6 @@ function resumoManualCobrancaV471(){
 }
 
 function previsualizarCobranca(){
-  if(negarOperacaoCobrancaV293()) return;
   const d=dadosNovaCobranca(), b=document.getElementById('cobPreview'); if(!b)return;
   b.innerHTML=`<div class="cobranca-preview-doc"><div class="cobranca-preview-bank">${d.banco==='bb'?'BANCO DO BRASIL':'BRADESCO'}</div><div class="cobranca-preview-valor">${cobMoeda(d.valor)}</div><div><b>Pagador:</b> ${escaparHtmlEmail(d.cliente_nome||'—')}</div><div><b>Documento:</b> ${escaparHtmlEmail(d.cpf_cnpj||'—')}</div><div><b>${(document.getElementById('cobCondicaoManualV471')?.value||'avista')==='avista'?'Vencimento':'Data-base'}:</b> ${d.vencimento?new Date(d.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</div><div><b>NF:</b> ${escaparHtmlEmail(d.numero_nf||'—')}</div><div><b>Tipo:</b> ${d.tipo==='boleto_pix'?'Boleto + Pix':'Boleto'}</div><div><b>Multa:</b> ${d.multa_percentual}% • <b>Juros:</b> ${d.juros_percentual}% a.m.</div>${resumoManualCobrancaV471()}</div>`;
 }
@@ -8114,10 +8114,17 @@ function bradescoRespostaBruta(ret){
 }
 
 async function bradescoReqProducao(action,body,_tentativa=0){
-  const chave=await garantirAutorizacaoIntegracoesV315(false);
-  const r=await fetch(`/api/banco-bradesco?action=${encodeURIComponent(action)}&ambiente=producao`,{method:'POST',headers:{'x-integrations-admin-key':chave,'Content-Type':'application/json'},body:JSON.stringify({...body,ambiente:'producao'})});
+  const perfilCobranca=usuarioEhCobrancaV293();
+  const acoesCobranca=new Set(['preparar-emissao-producao-v248','emitir-cobranca-producao-v248','verificar-preparacao-sem-envio-v495','consultar-status-titulo']);
+  if(perfilCobranca&&!acoesCobranca.has(action))throw new Error('Operação Bradesco não permitida para o perfil Cobrança.');
+  const chave=perfilCobranca?'':await garantirAutorizacaoIntegracoesV315(false);
+  const r=await fetch(`/api/banco-bradesco?action=${encodeURIComponent(action)}&ambiente=producao`,{
+    method:'POST',credentials:'same-origin',
+    headers:{...(chave?{'x-integrations-admin-key':chave}:{}),'Content-Type':'application/json'},
+    body:JSON.stringify({...body,ambiente:'producao'})
+  });
   const j=await r.json().catch(()=>({}));
-  if(r.status===401&&_tentativa===0){await garantirAutorizacaoIntegracoesV315(true);return bradescoReqProducao(action,body,1);}
+  if(r.status===401&&!perfilCobranca&&_tentativa===0){await garantirAutorizacaoIntegracoesV315(true);return bradescoReqProducao(action,body,1);}
   if(!r.ok||j.ok===false){const e=new Error(j.erro||j.mensagem||`Bradesco HTTP ${r.status}`);e.bradescoResponse=j;throw e;}
   return j;
 }
@@ -8135,7 +8142,8 @@ async function emitirBradescoOperacional(p,{confirmar=true}={}){
 }
 
 async function emitirCobrancaBancaria(){
- if(negarOperacaoCobrancaV293())return;
+ // V509: cobrança pode emitir somente pela aba individual; outras operações mantêm restrição.
+ if(usuarioEhCobrancaV293() && document.getElementById('cobAbaEmissao')?.style.display==='none')return alert('Acesso restrito à aba Emissão de boleto.');
  if(cobrancaManualEmissaoEmAndamentoV471)return;
  const d=dadosNovaCobranca(),st=document.getElementById('cobStatus'),btn=document.getElementById('btnCobEmitirManual');
  if(!d.cliente_id)return alert('Selecione um cliente cadastrado.');
@@ -8224,7 +8232,7 @@ async function emitirCobrancaBancaria(){
       throw new Error('Bradesco não confirmou a emissão de '+etapa+'. HTTP '+(rr.http_status||'indefinido')+'. Confira antes de tentar novamente.');
     emitidos.push('Parcela '+p.numero+'/'+p.total+' • Nosso Nº '+(rr.nossoNumero_retornado||'confirmar no Histórico'));
    }else{
-    const ret=await emitirParcelaBbReal(ins.data);
+    const ret=await emitirParcelaBbReal(registroParcela);
     if(ret?.emissao?.avisoLocal)throw new Error(ret.emissao.avisoLocal);
     if(!ret?.emissao?.numeroTituloCliente)throw new Error('BB não retornou confirmação suficiente de '+etapa+'. Não reemita sem conferência.');
     emitidos.push('Parcela '+p.numero+'/'+p.total+' • Nosso Nº '+ret.emissao.numeroTituloCliente);
@@ -8687,7 +8695,7 @@ function mostrarAbaTesteBancario(banco='bb'){
   else{if(typeof carregarStatusBradesco==='function')carregarStatusBradesco(false);}
 }
 function mostrarAbaIntegracaoBancaria(aba='historico'){
-  if(usuarioEhCobrancaV293() && aba!=='historico') aba='historico';
+  if(usuarioEhCobrancaV293() && !['historico','emissao','remessas'].includes(aba)) aba='historico';
   const mapa={historico:'cobAbaHistorico',emissao:'cobAbaEmissao',massa:'cobAbaMassa',remessas:'cobAbaRemessas',credenciais:'cobAbaCredenciais'};
   Object.entries(mapa).forEach(([k,id])=>{const el=document.getElementById(id),bt=document.getElementById('cobTab'+k.charAt(0).toUpperCase()+k.slice(1));if(el)el.style.display=k===aba?(k==='emissao'?'grid':'block'):'none';if(bt)bt.classList.toggle('ativa',k===aba);});
   if(aba==='historico'&&typeof carregarCobrancasBancarias==='function')carregarCobrancasBancarias();
@@ -11531,10 +11539,18 @@ async function executarDiagnosticoBancoBB(){
   }
 }
 async function bbReq(action,{method='GET',body,raw=false,_tentativa=0}={}){
-  const chave=await garantirAutorizacaoIntegracoesV315(false);
-  const amb=bbAmbiente();
-  const r=await fetch(`/api/banco-bb?action=${encodeURIComponent(action)}&ambiente=${encodeURIComponent(amb)}`,{method,headers:{'x-integrations-admin-key':chave,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify({...body,ambiente:amb}):undefined});
-  if(r.status===401&&_tentativa===0){await garantirAutorizacaoIntegracoesV315(true);return bbReq(action,{method,body,raw,_tentativa:1});}
+  const perfilCobranca=usuarioEhCobrancaV293();
+  const acoesCobranca=new Set(['emitir-boleto','verificar-titulo','consultar-boleto','sincronizar-status']);
+  if(perfilCobranca && (!acoesCobranca.has(action)||method!=='POST'))throw new Error('Operação BB não permitida para o perfil Cobrança.');
+  if(perfilCobranca&&action==='sincronizar-status'&&!body?.id)throw new Error('Perfil Cobrança: consulta de status permitida somente por título.');
+  const chave=perfilCobranca?'':await garantirAutorizacaoIntegracoesV315(false);
+  const amb=perfilCobranca?'producao':bbAmbiente();
+  const r=await fetch(`/api/banco-bb?action=${encodeURIComponent(action)}&ambiente=${encodeURIComponent(amb)}`,{
+    method,credentials:'same-origin',
+    headers:{...(chave?{'x-integrations-admin-key':chave}:{}),...(body?{'Content-Type':'application/json'}:{})},
+    body:body?JSON.stringify({...body,ambiente:amb}):undefined
+  });
+  if(r.status===401&&!perfilCobranca&&_tentativa===0){await garantirAutorizacaoIntegracoesV315(true);return bbReq(action,{method,body,raw,_tentativa:1});}
   if(raw){if(!r.ok){let j={};try{j=await r.json()}catch{}throw new Error(j.erro||`HTTP ${r.status}`)}return r}
   const j=await r.json().catch(()=>({}));if(!r.ok||j.ok===false)throw new Error(j.erro||`HTTP ${r.status}`);return j;
 }
