@@ -2501,3 +2501,14 @@ body.sof-menu-fechado .sidebar .menu button:hover{background:#ddd5f7}
 #etqPreview.etq-arte-editando .etq-arte-imagem{pointer-events:auto;cursor:move}
 #etqPreview .etq-arte-selecionada{outline:2px dashed #6a1b9a;outline-offset:2px}
 @media print{.etq-arte-editor{display:none!important}}
+
+/* V507 — Prévia do relatório em A4 compacto, sem nomes cortados e com logo única */
+#gerFolhaRelatorio.relatorio-folha{box-sizing:border-box;width:794px;min-height:1123px;height:auto;padding:32px 46px;border:5px solid #c69af5;font-size:13px;line-height:1.23;overflow-wrap:break-word;word-break:normal}
+#gerFolhaRelatorio .relatorio-folha-logo{display:block;max-width:160px;max-height:64px;object-fit:contain;margin:0 auto 14px}
+#gerFolhaRelatorio p{margin:4px 0}
+#gerFolhaRelatorio ul{margin:6px 0 9px 20px;padding-left:12px}
+#gerFolhaRelatorio li{margin:2px 0}
+#gerFolhaRelatorio h3{font-size:14px;margin:12px 0 6px;text-decoration:underline}
+#gerFolhaRelatorio .relatorio-assinatura-doc{margin-top:14px}
+#gerFolhaRelatorio .relatorio-assinatura-doc strong{font-size:14px}
+#gerFolhaRelatorio .relatorio-assinatura-doc img{display:none}

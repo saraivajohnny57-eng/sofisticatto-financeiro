@@ -4847,8 +4847,7 @@ function atualizarPreviaRelatorio(){
   const assinaturaHtml = assinatura ? `
     <div class="relatorio-assinatura-doc">
       <p>Atenciosamente,</p>
-      <img src="${RELATORIO_LOGO_OFICIAL_V478}" alt="Logo Sofisticatto">
-      <br><strong>${escaparHtmlEmail(assinatura.nome_remetente || "")}</strong>
+      <strong>${escaparHtmlEmail(assinatura.nome_remetente || "")}</strong>
       ${assinatura.setor ? `<br>${escaparHtmlEmail(assinatura.setor)}` : ""}
       ${assinatura.telefone_1 ? `<br>Contato: ${escaparHtmlEmail(assinatura.telefone_1)}${assinatura.telefone_2 ? " ou "+escaparHtmlEmail(assinatura.telefone_2) : ""}` : ""}
       ${assinatura.whatsapp ? `<br>WhatsApp: ${escaparHtmlEmail(assinatura.whatsapp)}` : ""}
@@ -5165,13 +5164,13 @@ function htmlRelatorioExportacao(logoDataUrl=""){
   const mensagem = mensagemPagamentoAutomaticaRelatorio(d);
 
   const logoHtml = logoDataUrl
-    ? `<img src="${logoDataUrl}" style="display:block;max-width:180px;max-height:90px;margin:0 auto 28px;">`
+    ? `<img src="${logoDataUrl}" style="display:block;max-width:145px;max-height:56px;object-fit:contain;margin:0 auto 12px;">`
     : `<div style="text-align:center;color:#5a4fa3;font-size:28px;font-style:italic;margin-bottom:28px;">Sofisticatto<br><span style="font-size:10px;letter-spacing:5px;">COSMÉTICOS</span></div>`;
 
   const assinaturaHtml = assinatura ? `
-    <div style="margin-top:32px;">
-      <p>Atenciosamente,</p>
-      <strong style="font-size:16px;">${escaparHtmlEmail(assinatura.nome_remetente || "")}</strong>
+    <div style="margin-top:12px;page-break-inside:avoid;">
+      <p style="margin:0 0 4px;">Atenciosamente,</p>
+      <strong style="font-size:10pt;">${escaparHtmlEmail(assinatura.nome_remetente || "")}</strong>
       ${assinatura.setor ? `<br>${escaparHtmlEmail(assinatura.setor)}` : ""}
       ${(assinatura.telefone_1 || assinatura.telefone_2) ? `<br>Contatos: ${[assinatura.telefone_1,assinatura.telefone_2].filter(Boolean).map(escaparHtmlEmail).join(" ou ")}` : ""}
       ${assinatura.whatsapp ? `<br>WhatsApp: ${escaparHtmlEmail(assinatura.whatsapp)}` : ""}
@@ -5183,10 +5182,10 @@ function htmlRelatorioExportacao(logoDataUrl=""){
 <html>
 <head>
 <meta charset="UTF-8">
-<style>@page{size:A4;margin:12mm}body{margin:0;background:#fff;color:#171717;font-family:Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.35}ul{padding-left:24px}li{margin:4px 0}h3{text-decoration:underline}</style>
+<style>@page{size:A4;margin:8mm}body{margin:0;background:#fff;color:#171717;font-family:Arial,Helvetica,sans-serif;font-size:9pt;line-height:1.2;overflow-wrap:break-word}p{margin:3px 0}ul{padding-left:18px;margin:6px 0}li{margin:2px 0}h3{font-size:10pt;text-decoration:underline;margin:10px 0 5px}.folha{page-break-inside:avoid}</style>
 </head>
 <body>
-<table class="folha" role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border:5px solid #c69af5;border-collapse:separate;box-sizing:border-box;background:#ffffff;"><tr><td style="padding:28px 34px;vertical-align:top;">
+<table class="folha" role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border:4px solid #c69af5;border-collapse:separate;box-sizing:border-box;background:#ffffff;"><tr><td style="padding:15px 18px;vertical-align:top;overflow-wrap:break-word;">
   ${logoHtml}
   <p><strong>${escaparHtmlEmail(obterSaudacaoRelatorio())} (${escaparHtmlEmail(d.cliente || "NOME DO CLIENTE")})</strong></p>
   <p>${escaparHtmlEmail(d.texto_introducao || "Segue em anexo Pedido e Nota Fiscal da compra efetuada.")}</p>
@@ -5214,72 +5213,82 @@ function htmlRelatorioExportacao(logoDataUrl=""){
 }
 
 async function gerarDocumentoPdfRelatorio(){
+  // V507: A4 retrato em uma folha, sem assinatura com logo duplicada.
+  // Todo texto e preservado; em documentos extraordinariamente longos,
+  // o gerador avisa em vez de cortar nomes ou imprimir pagina incompleta.
   await carregarBibliotecaJsPdfRelatorio();
-
   const {jsPDF} = window.jspdf;
-  const {assinatura,linhas} = conteudoTextoRelatorioExportacao();
+  const {linhas} = conteudoTextoRelatorioExportacao();
   const doc = new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
-
-  const margemX = 22;
-  const larguraTexto = 166;
-  const alturaPagina = 297;
-  let y = 18;
-
-  doc.setDrawColor(198,154,245);
-  doc.setLineWidth(1.5);
-  doc.rect(7,7,196,283);
-
   const logoDataUrl = await imagemUrlParaDataUrlRelatorio(RELATORIO_LOGO_OFICIAL_V478);
-  if(logoDataUrl){
-    const formato = String(logoDataUrl).startsWith("data:image/png") ? "PNG" : "JPEG";
-    const dim=doc.getImageProperties(logoDataUrl);
-    const fator=Math.min(56/dim.width,24/dim.height);
-    const largura=dim.width*fator,altura=dim.height*fator;
-    doc.addImage(logoDataUrl,formato,105-largura/2,14+(24-altura)/2,largura,altura,undefined,"FAST");
-    y = 46;
-  }else{
-    doc.setTextColor(90,79,163);
-    doc.setFont("helvetica","italic");
-    doc.setFontSize(23);
-    doc.text("Sofisticatto",105,26,{align:"center"});
-    doc.setFontSize(8);
-    doc.text("C O S M É T I C O S",105,32,{align:"center"});
-    doc.setTextColor(20,20,20);
-    y = 44;
-  }
-
-  doc.setFont("helvetica","normal");
-  doc.setFontSize(10.5);
-
-  function novaPagina(){
-    doc.addPage();
-    doc.setDrawColor(198,154,245);
-    doc.setLineWidth(1.5);
-    doc.rect(7,7,196,283);
-    y = 18;
-  }
-
-  for(const linhaOriginal of linhas){
-    const linha = String(linhaOriginal ?? "");
-
-    if(linha === ""){
-      y += 4;
+  const margemX=18, larguraTexto=174, inicioTexto=37, limiteInferior=278;
+  const entradas=[];
+  let brancoAnterior=false;
+  for(const original of linhas){
+    const texto=String(original??"").trim();
+    if(!texto){
+      if(!brancoAnterior && entradas.length)entradas.push({texto:""});
+      brancoAnterior=true;
       continue;
     }
+    brancoAnterior=false;
+    entradas.push({texto,negrito:/^(BANCOS \/ CONTAS|Número da|Valor |Data |Transportadora|Forma de pagamento|Atenciosamente)/i.test(texto)});
+  }
+  while(entradas.length&&!entradas[entradas.length-1].texto)entradas.pop();
 
-    const partes = doc.splitTextToSize(linha,larguraTexto);
-    const alturaNecessaria = partes.length * 5.2;
-
-    if(y + alturaNecessaria > alturaPagina - 18){
-      novaPagina();
+  function preparar(fonte){
+    const passo=fonte*0.352778*1.20;
+    const itens=[];
+    let usado=0;
+    for(let i=0;i<entradas.length;i++){
+      const item=entradas[i];
+      if(!item.texto){
+        // Os espaços entre bancos e assinatura são reduzidos no PDF.
+        const distancia=1.5;
+        usado+=distancia;itens.push({distancia});
+        continue;
+      }
+      const negrito=item.negrito || (i>0 && entradas[i-1].texto==="Atenciosamente,");
+      doc.setFont("helvetica",negrito?"bold":"normal");
+      doc.setFontSize(fonte);
+      const partes=doc.splitTextToSize(item.texto,larguraTexto);
+      const distancia=partes.length*passo + (item.texto==="BANCOS / CONTAS PARA DEPÓSITO:"?1.3:0);
+      usado+=distancia;itens.push({partes,distancia,negrito});
     }
-
-    const negrito = /^(BANCOS \/ CONTAS|Número da|Valor |Data |Transportadora|Forma de pagamento|Atenciosamente)/i.test(linha);
-    doc.setFont("helvetica",negrito ? "bold" : "normal");
-    doc.text(partes,margemX,y);
-    y += alturaNecessaria;
+    return {itens,usado,passo,fonte};
   }
 
+  let desenho=null;
+  for(let fonte=10.5;fonte>=8.0;fonte-=0.25){
+    const candidato=preparar(fonte);
+    if(inicioTexto+candidato.usado<=limiteInferior){desenho=candidato;break;}
+  }
+  if(!desenho)throw new Error("O relatório excede uma folha A4 mesmo com fonte compacta. Revise os textos adicionais para evitar cortes.");
+
+  doc.setDrawColor(198,154,245);
+  doc.setLineWidth(1.1);
+  doc.rect(6,6,198,285);
+  if(logoDataUrl){
+    const formato=String(logoDataUrl).startsWith("data:image/png")?"PNG":"JPEG";
+    const dim=doc.getImageProperties(logoDataUrl);
+    const fator=Math.min(49/dim.width,19/dim.height);
+    const w=dim.width*fator,h=dim.height*fator;
+    doc.addImage(logoDataUrl,formato,105-w/2,10+(19-h)/2,w,h,undefined,"FAST");
+  }else{
+    doc.setFont("helvetica","italic");
+    doc.setTextColor(90,79,163);doc.setFontSize(21);
+    doc.text("Sofisticatto",105,20,{align:"center"});
+    doc.setFontSize(8);doc.text("COSMÉTICOS",105,26,{align:"center"});
+  }
+  doc.setTextColor(20,20,20);
+  let y=inicioTexto;
+  for(const item of desenho.itens){
+    if(!item.partes){y+=item.distancia;continue;}
+    doc.setFont("helvetica",item.negrito?"bold":"normal");
+    doc.setFontSize(desenho.fonte);
+    doc.text(item.partes,margemX,y+desenho.passo*0.78,{lineHeightFactor:1.20});
+    y+=item.distancia;
+  }
   return doc;
 }
 
@@ -5374,22 +5383,21 @@ function imprimirRelatorioCliente(){
   // A janela de impressão precisa de CSS próprio: sem isso a logo cresce
   // para o tamanho original e o texto usa a fonte padrão do navegador.
   const css=`
-    @page{size:A4 portrait;margin:11mm 12mm}
+    @page{size:A4 portrait;margin:8mm}
     *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:#fff;color:#171717;font-family:Arial,Helvetica,sans-serif;font-size:10.5pt;line-height:1.35;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    html,body{margin:0;padding:0;background:#fff;color:#171717;font-family:Arial,Helvetica,sans-serif;font-size:9pt;line-height:1.2;print-color-adjust:exact;-webkit-print-color-adjust:exact}
     .relatorio-moldura-impressao{display:none;pointer-events:none}
-    .relatorio-folha{box-sizing:border-box;width:100%;max-width:180mm;min-height:0;margin:0 auto;padding:9mm 10mm;border:0;box-shadow:none;background:#fff;overflow-wrap:anywhere}
-    .relatorio-folha-logo{display:block;width:auto;height:auto;max-width:46mm;max-height:24mm;object-fit:contain;margin:0 auto 9mm}
-    .relatorio-folha p{margin:2.5mm 0}
-    .relatorio-folha ul{margin:3mm 0 5mm;padding-left:7mm}
-    .relatorio-folha li{margin:1.3mm 0;break-inside:avoid}
-    .relatorio-folha h3{font-size:11pt;text-decoration:underline;margin:6mm 0 2mm;break-after:avoid}
-    .relatorio-assinatura-doc{margin-top:8mm;break-inside:avoid}
-    .relatorio-assinatura-doc img{display:block;width:auto;height:auto;max-width:40mm;max-height:19mm;object-fit:contain;margin:2mm 0}
-    .relatorio-assinatura-doc strong{font-size:11pt}
+    .relatorio-folha{box-sizing:border-box;width:100%;max-width:188mm;min-height:0;margin:0 auto;padding:6mm 7mm;border:0;box-shadow:none;background:#fff;overflow-wrap:break-word;word-break:normal}
+    .relatorio-folha-logo{display:block;width:auto;height:auto;max-width:44mm;max-height:18mm;object-fit:contain;margin:0 auto 4mm}
+    .relatorio-folha p{margin:1.3mm 0}
+    .relatorio-folha ul{margin:1.7mm 0 3mm;padding-left:6mm}
+    .relatorio-folha li{margin:.7mm 0;break-inside:avoid}
+    .relatorio-folha h3{font-size:10pt;text-decoration:underline;margin:3.5mm 0 1.5mm;break-after:avoid}
+    .relatorio-assinatura-doc{margin-top:4mm;break-inside:avoid}
+    .relatorio-assinatura-doc strong{font-size:9.5pt}
     img{max-width:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact}
-    @media screen{body{padding:12mm;background:#eee}.relatorio-folha{background:white;border:1.4mm solid #c69af5;padding:12mm;box-shadow:0 2px 14px #bbb}}
-    @media print{html,body{width:auto;background:#fff}.relatorio-moldura-impressao{display:block;position:fixed;inset:0;border:1.4mm solid #c69af5;z-index:2}.relatorio-folha{padding:9mm 10mm!important;border:0!important;box-shadow:none!important}}
+    @media screen{body{padding:8mm;background:#eee}.relatorio-folha{background:white;border:1.1mm solid #c69af5;padding:8mm;box-shadow:0 2px 14px #bbb}}
+    @media print{html,body{width:auto;background:#fff}.relatorio-moldura-impressao{display:block;position:fixed;inset:0;border:1.1mm solid #c69af5;z-index:2}.relatorio-folha{padding:5mm 7mm!important;border:0!important;box-shadow:none!important}}
   `;
   janela.document.open();
   janela.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>'+nomeArquivoRelatorio()+'</title><style>'+css+'</style></head><body><div class="relatorio-moldura-impressao" aria-hidden="true"></div><main class="relatorio-folha">'+folha.innerHTML+'</main></body></html>');
