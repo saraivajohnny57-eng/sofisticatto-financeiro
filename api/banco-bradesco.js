@@ -796,7 +796,7 @@ function relatorioRetornoBradescoV488(resposta){
 
 // V489: mapa do CONTRATO PUT a partir da MESMA consulta do piloto.
 // Não faz rede, não gera cURL executável e não fornece dados pessoais.
-function diagnosticoContratoPutBradescoV489(resposta,registro,auditoria){
+function diagnosticoContratoPutBradescoV489(resposta,registro,auditoria,configBanco=null){
   const t=resposta?.titulo||{}, origem=auditoria?.origem||{},pag=auditoria?.campos||{};
   const campos=[],pendencias=[];
   const presente=v=>v!==null&&v!==undefined&&String(v).trim()!=='';
@@ -812,7 +812,10 @@ function diagnosticoContratoPutBradescoV489(resposta,registro,auditoria){
   const negocOk=agencia.length>0&&agencia.length<=4&&conta.length>0&&conta.length<=7;
   const cpfSacador=dig(t.sacador?.cnpj),nomeSacador=String(t.sacador?.nome||'');
   const sacadorSemDados=!nomeSacador&&(!cpfSacador||Number(cpfSacador)===0);
-  const carteira=dig(registro?.carteira||registro?.produto||registro?.banco_produto);
+  // V511: carteira/produto do beneficiário fica no cadastro criptografado do banco,
+  // não nas colunas da tabela cobrancas_bancarias.
+  const carteira=dig(configBanco?.carteira||configBanco?.produto||registro?.carteira||registro?.produto||registro?.banco_produto);
+  const produtoValido=/^[0-9]{1,2}$/.test(carteira)&&Number(carteira)>0;
   const semProtesto=dig(t.codInscrProt)==='0'&&dig(t.diasProt)==='0';
   const semDecurso=dig(t.qtdDiasDecurPrz)==='0';
   const especie=String(t.especDocto||''),emissao=dig(t.dataEmis);
@@ -820,7 +823,10 @@ function diagnosticoContratoPutBradescoV489(resposta,registro,auditoria){
   const vencSegunda=String(t.dataVenctoBol||'');
   const barras=dig(t.linhaDig),boletoValido=barras.length===47||dig(t.codBarras).length===44;
   add('cpfCnpj (beneficiário)','PRESERVAR','titulo.cedente.cnpj',bancoBenef.length===14?'DOCUMENTO PRESENTE (OCULTO)':'VERIFICAR DOCUMENTO', 'Não substituir pelos números ilustrativos do e-mail');
-  add('produto',carteira?'PRESERVAR':'PENDENTE','cadastro Bradesco',carteira?'CARTEIRA CONFIGURADA':'A CONFERIR','Conferir carteira 09/ID produto contra o contrato original');
+  add('produto',produtoValido?'PRESERVAR':'PENDENTE',
+    configBanco?'cadastro bancário protegido — produção':'cadastro local sem carteira',
+    produtoValido?'CÓDIGO DO PRODUTO LOCALIZADO NO CONTRATO (VALOR OCULTO)':'CARTEIRA AUSENTE OU INVÁLIDA',
+    'Comparar com o código efetivo da carteira na alteração; não inventar produto e não copiar dado de exemplo');
   add('negociacao',negocOk?'PRESERVAR':'PENDENTE','titulo.agencCred + titulo.ctaCred',negocOk?'4+7 POSIÇÕES (OCULTAS)':'INCOMPLETO','A confirmação no PUT pode exigir comparação com o contrato cadastrado');
   add('nossoNumero',origem.seu_numero?'PRESERVAR':'PENDENTE','registro.nosso_numero + titulo.snumero',origem.seu_numero?String(nossoNumeroRegistroBradesco(registro)):'NÃO CONFIRMADO','Mesmo Nosso Número, sem DV');
   add('dadosPagador.sacado',pag.nome?'PRESERVAR':'PENDENTE','titulo.sacado.nome',nomePag?'NOME PRESENTE (OCULTO)':'AUSENTE','Não usar "Nome do Sacado" do exemplo');
@@ -844,7 +850,9 @@ function diagnosticoContratoPutBradescoV489(resposta,registro,auditoria){
       String(t['valDesc'+i]??0)+' / '+String(t['codValDe'+i]??0),'Sem desconto cadastrado; conservar zeros');
   }
   add('dadosTitulo.codigoControleParticipante','ZERO/VAZIO','titulo.ctrlPartic','VAZIO');
-  add('dadosTitulo.indicadorAvisoSacado','PENDENTE','Manual fixo "0" / e-mail exemplo ""','0 × ""','Padronizar conforme layout aplicável, sem instrução de aviso indesejada');
+  add('dadosTitulo.indicadorAvisoSacado','PROPOSTO','Manual oficial Bradesco v1.6.4, layout de entrada',
+    'CANDIDATO: string "0" (o layout determina fixo "0"; o exemplo JSON apresenta string vazia)',
+    'Proposta documental, não homologada por PUT; não enviar aviso ao sacado');
   add('dadosTitulo.comissaoPermanencia.codigoComissaoPermanencia','PROPOSTO','Manual 1-Valor / 2-Percentual',2,'5% ao mês propostos; ainda sem confirmação de aplicação retroativa');
   add('dadosTitulo.comissaoPermanencia.diasComissaoPermanencia','PROPOSTO','Regra pretendida',1,'Aplicar a partir do dia seguinte ao vencimento original');
   add('dadosTitulo.comissaoPermanencia.valorComissaoPermanencia','PENDENTE','Manual: campo numérico, 15 posições','5% A.M. (ESCALA A DEFINIR)','Não presumir 5, 050000, 500000 ou outro fator numérico');
@@ -1452,7 +1460,14 @@ module.exports=async function(req,res){
       if(Math.abs(sit.valorTitulo-valor)>0.01 && Math.abs(sit.valorTitulo/100-valor)>0.01)throw new Error('Valor nominal divergente entre banco e portal.');
       const venc=String(sit.vencimento||'').slice(0,10);
       if(!/^\d{4}-\d{2}-\d{2}$/.test(venc))throw new Error('Vencimento bancário inválido.');
-      const diagnosticoV489=diagnosticoContratoPutBradescoV489(q.data,reg,auditoriaOriginais);
+      // Busca SOMENTE a configuração protegida já cadastrada; sem consulta extra ao Bradesco.
+      // A carteira não é revelada no retorno e nunca é inferida de boletos antigos.
+      let cfgBancoV511=null;
+      try {
+       const cfg=await obter(idRegistro(amb,'dados-bancarios'));
+       if(cfg)cfgBancoV511=descriptografar(cfg)||null;
+      }catch(_){ cfgBancoV511=null; }
+      const diagnosticoV489=diagnosticoContratoPutBradescoV489(q.data,reg,auditoriaOriginais,cfgBancoV511);
       const unicoV508=testeUnicoV508?relatorioUnicoBradescoV508({
        consulta:q,registro:reg,situacao:sit,auditoria:auditoriaOriginais,contrato:diagnosticoV489,bloqueiosExtras:bloqueiosExtrasV508
       }):null;
