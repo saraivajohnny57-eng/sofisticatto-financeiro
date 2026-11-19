@@ -168,7 +168,10 @@ function init(){
     enderecoEmitente:(tag(ee,'xLgr')+' '+tag(ee,'nro')).trim().slice(0,60),
     municipioEmitente:tag(ee,'cMun'),cepEmitente:tag(ee,'CEP'),ufOrigem:tag(ee,'UF'),ufDestino:tag(dd,'UF'),
     valorDifal:tag(total,'vICMSUFDest'),valorFcp:tag(total,'vFCP'),consumidorFinal:tag(ide,'indFinal'),
-    indIeDest:tag(dest,'indIEDest'),ambienteNfe:tag(ide,'tpAmb'),statusAutorizacao:tag(prot,'cStat'),chaveProtocolo:tag(prot,'chNFe')};
+    indIeDest:tag(dest,'indIEDest'),ambienteNfe:tag(ide,'tpAmb'),statusAutorizacao:tag(prot,'cStat'),chaveProtocolo:tag(prot,'chNFe'),
+    dataEmissao:(tag(ide,'dhEmi')||tag(ide,'dEmi')).slice(0,10),
+    cpfDestinatario:tag(dest,'CPF'),cnpjDestinatario:tag(dest,'CNPJ'),
+    razaoSocialDestinatario:tag(dest,'xNome'),municipioDestinatario:tag(dd,'cMun')};
    if(typeof obterChaveIntegracoesCotacao!=='function')throw Error('Acesso administrativo indisponível');
    const admin=await obterChaveIntegracoesCotacao();if(!admin)throw Error('Autorização administrativa necessária');
    const r=await fetch('/api/integracoes?action=gnre-piloto-51185-preflight',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':admin},
