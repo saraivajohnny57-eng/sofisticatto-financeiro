@@ -14,6 +14,11 @@ function init(){
 '<button class="buscar" id="g492diag" disabled type="button">Diagnosticar falha (sem enviar)</button> '+
 '<button class="buscar" id="g497lookup" disabled type="button">Consultar GNRE pela NF (não emite)</button> '+
 '<button class="buscar" id="g501status" disabled type="button">Auditar primeira tentativa (sem enviar)</button>'+
+'<section id="g502retomada" style="display:none;padding:12px;margin-top:10px;border:1px solid #b78a4f;border-radius:10px">'+
+'<strong>Retomada única da NF-e 51185 — R$ 24,91</strong>'+
+'<p>A primeira tentativa terminou com resultado incerto. O Portal GNRE não localizou guia nas consultas realizadas, mas permanece risco residual de duplicidade.</p>'+
+'<label style="display:block"><input id="g502confirmar" type="checkbox"> Confirmo que consultei o Portal GNRE com os dados corretos e autorizo UMA nova transmissão, ciente do risco residual de guia duplicada.</label>'+
+'<button id="g502botao" class="buscar" disabled type="button">Autorizar uma retomada real — R$ 24,91</button></section>'+
 '<pre id="g490out" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>';
  a.insertAdjacentElement('afterend',b);
  let payload=null,adminKey=null;
@@ -25,6 +30,24 @@ function init(){
    body:JSON.stringify({...data,modo})});
   const j=await r.json();if(!r.ok&&!j.estado)throw Error([j.codigo,j.etapa,j.erro||j.aviso||'Falha na operação'].filter(Boolean).join(' — '));
   return j;
+ };
+ $('g502confirmar').onchange=()=>{
+   $('g502botao').disabled=!$('g502confirmar').checked||!payload;
+ };
+ $('g502botao').onclick=async()=>{
+   if(!payload||!$('g502confirmar').checked)return;
+   if(window.prompt('Confirma UMA nova transmissão real com risco residual de duplicidade? Digite exatamente: AUTORIZO 51185')!=='AUTORIZO 51185')return;
+   $('g502botao').disabled=true;$('g502confirmar').disabled=true;
+   append('Executando UMA retomada real. Se houver falha, NÃO repetir.');
+   try{
+    const x=await solicitar('emitir_retomada_unica',{...payload,
+      confirmacao:'EMITIR_PA_51185_24_91',
+      semEmissaoAnterior:true,consultaPortalConfirmada:true,
+      aceiteRiscoDuplicidade:'CIENTE_RISCO_DUPLICIDADE_GNRE_51185',
+      confirmacaoFinal:'AUTORIZO_UMA_RETOMADA_REAL_51185'});
+    append('RETORNO DA RETOMADA: '+JSON.stringify(x));
+   }catch(err){append('Retorno não confirmado: '+String(err.message||err)+'. NÃO repetir.');}
+   $('g491consult').disabled=false;
  };
  $('g491emit').onclick=async()=>{
   if(!payload||!$('g491previous').checked)return alert('Confirme que a GNRE não foi emitida no portal oficial.');
@@ -50,6 +73,7 @@ function init(){
       'Atualização (UTC): '+String(t.atualizado_em||'não registrado'),
       'Recibo de emissão armazenado: '+(t.recibo_armazenado?'SIM':'NÃO'),
       'Guias arquivadas localmente: '+x.quantidade_guias_locais,
+      'Retomada já reservada: '+(x.segunda_tentativa_registrada?'SIM — '+x.segunda_tentativa_estado:'NÃO'),
       'Guias emitidas confirmadas localmente: '+x.guias_confirmadas_locais,
       'Consulta por NF retornou 701: erro de validação do retorno da UF (observado anteriormente)',
       'Nenhuma transmissão realizada nesta auditoria.',
@@ -146,9 +170,12 @@ function init(){
    const bloqueios=(z.pendencias||[]).filter(s=>!String(s).includes('Conferir no portal nacional'));
    $('g491emit').disabled=!(z.lote_preparado&&z.arquivos_locais===0&&!z.reserva_existente&&z.certificado_cadastrado&&bloqueios.length===0);
    $('g491consult').disabled=false;
+   $('g502retomada').style.display=z.retomada_elegivel&&z.arquivos_locais===0&&z.certificado_cadastrado&&z.lote_preparado?'block':'none';
+   $('g502confirmar').checked=false;$('g502confirmar').disabled=false;$('g502botao').disabled=true;
    out.textContent=['GNRE PA/100102 — NF-e 51185','DIFAL: R$ 24,91 | FCP: R$ 0,00','Estimativa da cotação: R$ 31,99 (não usada para emitir)',
     'XML do lote preparado: '+(z.lote_preparado?'SIM':'NÃO'),'Guias locais: '+z.arquivos_locais,
-    'Tentativa de emissão reservada: '+(z.reserva_existente?'SIM — '+z.reserva_estado+' (NÃO reemitir)':'NÃO'),
+    'Tentativa original: '+(z.reserva_existente?'SIM — '+z.reserva_estado:'NÃO'),
+    'Retomada única: '+(z.retomada_existente?'JÁ UTILIZADA — '+z.retomada_estado:(z.retomada_elegivel?'Disponível mediante confirmação do risco':'Não liberada')),
     'Certificado A1 cadastrado: '+(z.certificado_cadastrado?'SIM':'NÃO'),'Pendências: '+z.pendencias.join('; '),
     z.reserva_existente?'Emissão anterior com resultado incerto; NÃO reemitir.':'Nenhuma emissão confirmada localmente; não comprova ausência de guia no serviço oficial.'].join('\n');
   }catch(e){out.textContent='Conferência não concluída: '+String(e.message||e);}
