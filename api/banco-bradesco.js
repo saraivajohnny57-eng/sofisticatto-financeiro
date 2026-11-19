@@ -864,7 +864,9 @@ function diagnosticoContratoPutBradescoV489(resposta,registro,auditoria){
 // Reúne todos os problemas detectáveis na MESMA resposta, sem nova chamada e sem dados pessoais.
 function relatorioUnicoBradescoV508({consulta,registro,situacao,auditoria,contrato}){
  const checagens=[],push=(campo,estado,fonte,descricao,proxima_acao)=>{
-  checagens.push({campo,estado,fonte,descricao,proxima_acao});
+  const i=checagens.findIndex(c=>c.campo===campo);
+  const item={campo,estado,fonte,descricao,proxima_acao};
+  if(i>=0)checagens[i]=item;else checagens.push(item);
  };
  const origem=auditoria?.origem||{};
  for(const [campo,ok] of Object.entries(origem)){
@@ -1417,7 +1419,7 @@ module.exports=async function(req,res){
           ['Vencimento bancário inválido','DATA_VENCIMENTO']
         ];
         const codigo=errosConhecidos.find(item=>msg.startsWith(item[0]))?.[1]||'FALHA_NAO_CLASSIFICADA';
-        return json(res,200,{ok:false,transmitido:false,
+        return json(res,200,{ok:true,teste_concluido:false,transmitido:false,
           diagnostico_unico_v508:{versao:'V508',titulo:'56078-02',nosso_numero:'62710000058',
            status:'INTERROMPIDO_SEM_TRANSMITIR',codigo_erro:codigo,
            motivo:'Pré-validação ou consulta bancária não concluída. Conferir o código e os registros internos protegidos.',

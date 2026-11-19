@@ -51,7 +51,7 @@ function montar(){
     'CAMPOS IMPEDITIVOS: '+(u.campos_impeditivos||[]).join('; '),
     'PRÓXIMA AÇÃO: '+u.proxima_acao,
     'OBS.: Identificadores, credenciais e dados pessoais completos omitidos.'
-   ].join('\\n');
+   ].join('\n');
    audit484.textContent=[
     'RESULTADO DO TESTE ÚNICO — BRADESCO 56078-02',
     'Situação: '+u.status,
@@ -61,7 +61,7 @@ function montar(){
     ...lista.filter(c=>['FALHA','PENDENTE'].includes(c.estado)).map(c=>'• '+c.campo+' — '+c.descricao+' | '+c.proxima_acao),
     '',
     'Relatório TXT completo disponível no botão acima. Uma consulta; sem reenvio.'
-   ].join('\\n');
+   ].join('\n');
    baixarV508.disabled=false;
    return;
    const t=j.titulo||{},v=j.auditoria_originais_v484||{},res=v.resumo||{},doc=v.documento_pagador||{};
