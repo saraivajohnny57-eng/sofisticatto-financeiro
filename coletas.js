@@ -3,6 +3,9 @@
    AGENDAMENTO DE COLETA — V40 RASTREIO MULTITRANSPORTADORAS
    ========================================================= */
 let coletaModelos=[],coletaAgendamentos=[],coletaTransportadoras=[],coletaIntegracoesSSW=[],coletaInicializado=false;
+// V506: evita dois INSERTs concorrentes por duplo clique na mesma aba.
+// A unicidade final e garantida pelo indice parcial do Financeiro02.
+let coletaRegistroExternoEmAndamento=false;
 let coletaEscopoVendedora={carregado:false,ids:new Set(),nomes:new Set()};
 async function carregarEscopoVendedoraColetas(){
   if(!usuarioEhVendedoraRastreio?.()){coletaEscopoVendedora={carregado:true,ids:new Set(),nomes:new Set()};return;}
@@ -240,6 +243,9 @@ function aplicarModeloDaTransportadoraColeta(){const tid=cv("coletaTransportador
 async function copiarMensagemColeta(){atualizarPreviaColeta();const t=cv("coletaPreviaMensagem");if(!t)return alert("Preencha os dados da coleta.");try{await navigator.clipboard.writeText(t);alert("Mensagem copiada para o WhatsApp.")}catch{ce("coletaPreviaMensagem").select();document.execCommand("copy")}}
 function whatsappTransportadoraColeta(){const t=coletaTransportadoras.find(x=>String(x.id)===cv("coletaTransportadoraId"));return String(t?.whatsapp||t?.telefone||"").replace(/\D/g,"")}
 async function registrarSolicitacaoCanalExternoColeta(canal){
+  if(coletaRegistroExternoEmAndamento)return null;
+  coletaRegistroExternoEmAndamento=true;
+  try{
   const d=dadosColeta();
   if(!d.razao_destino)throw new Error("Informe o cliente/destino.");
   if(!cv("coletaTransportadoraId"))throw new Error("Selecione a transportadora.");
@@ -275,12 +281,46 @@ async function registrarSolicitacaoCanalExternoColeta(canal){
     atualizado_em:agora
   };
 
+  // Verifica existencia ANTES do INSERT. Busca pequena, sempre limitada a uma NF/protocolo.
+  async function buscarAtivoIgual(){
+    if(!payload.protocolo_cotacao||!payload.numero_nf||!payload.data_programada)return null;
+    let q=banco.from("coleta_agendamentos")
+      .select("id,cliente_nome,status,origem,numero_nf,protocolo_cotacao,transportadora_id,cliente_id,data_programada,dados")
+      .eq("transportadora_id",payload.transportadora_id)
+      .eq("protocolo_cotacao",payload.protocolo_cotacao)
+      .eq("numero_nf",payload.numero_nf)
+      .eq("data_programada",payload.data_programada)
+      .eq("origem",canal)
+      .in("status",["solicitado","em_aberto","confirmado","em_coleta","reagendada"])
+      .order("created_at",{ascending:true}).limit(5);
+    const achou=await q;
+    if(achou.error)throw achou.error;
+    return (achou.data||[]).find(x=>
+      x.dados?.arquivado_painel!==true &&
+      String(x.cliente_id||"")===String(payload.cliente_id||""))||null;
+  }
+  if(!id){
+    const existente=await buscarAtivoIgual();
+    if(existente){
+      ce("coletaAgendamentoId").value=existente.id;
+      await carregarAgendamentosColeta();
+      return {...existente,registro_reutilizado:true};
+    }
+  }
   let r;
   if(id){
     r=await banco.from("coleta_agendamentos").update(payload).eq("id",id).select().single();
   }else{
     payload.criado_por=usuarioLogado?.login||null;
     r=await banco.from("coleta_agendamentos").insert([payload]).select().single();
+    if(r.error?.code==="23505"){
+      const existente=await buscarAtivoIgual();
+      if(existente){
+        ce("coletaAgendamentoId").value=existente.id;
+        await carregarAgendamentosColeta();
+        return {...existente,registro_reutilizado:true};
+      }
+    }
   }
   if(r.error)throw r.error;
 
@@ -296,11 +336,13 @@ async function registrarSolicitacaoCanalExternoColeta(canal){
   await criarOuVincularRastreioDaColeta(id,r.data,canal);
   await carregarAgendamentosColeta();
   return r.data;
+  }finally{coletaRegistroExternoEmAndamento=false;}
 }
 
 async function abrirWhatsAppColeta(){
   try{
-    await registrarSolicitacaoCanalExternoColeta("whatsapp");
+    const registro=await registrarSolicitacaoCanalExternoColeta("whatsapp");
+    if(!registro)return;
     atualizarPreviaColeta();
     const tel=whatsappTransportadoraColeta();
     const url=tel
@@ -314,16 +356,20 @@ async function abrirWhatsAppColeta(){
 
 async function registrarColetaViaPortalTransportadora(){
   try{
-    await registrarSolicitacaoCanalExternoColeta("portal_transportadora");
-    mostrarBalaoSistema("Solicitação registrada","Registrada como enviada pelo portal da transportadora.");
+    const registro=await registrarSolicitacaoCanalExternoColeta("portal_transportadora");
+    if(!registro)return;
+    mostrarBalaoSistema("Solicitação registrada",registro.registro_reutilizado
+      ?"Solicitação já registrada. O mesmo agendamento foi reutilizado.":"Registrada como enviada pelo portal da transportadora.");
     await carregarPainelRodonaves();
   }catch(erro){alert("Não foi possível registrar: "+erro.message)}
 }
 
 async function registrarColetaViaTelefone(){
   try{
-    await registrarSolicitacaoCanalExternoColeta("telefone");
-    mostrarBalaoSistema("Solicitação registrada","Registrada como solicitada por telefone.");
+    const registro=await registrarSolicitacaoCanalExternoColeta("telefone");
+    if(!registro)return;
+    mostrarBalaoSistema("Solicitação registrada",registro.registro_reutilizado
+      ?"Solicitação já existente: registro reutilizado, sem nova coleta.":"Registrada como solicitada por telefone.");
     await carregarPainelRodonaves();
   }catch(erro){alert("Não foi possível registrar: "+erro.message)}
 }
