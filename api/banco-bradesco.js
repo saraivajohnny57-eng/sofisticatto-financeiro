@@ -862,7 +862,7 @@ function diagnosticoContratoPutBradescoV489(resposta,registro,auditoria){
 
 // V508 - Relatório único da consulta autenticada existente. Nenhuma alteração (PUT).
 // Reúne todos os problemas detectáveis na MESMA resposta, sem nova chamada e sem dados pessoais.
-function relatorioUnicoBradescoV508({consulta,registro,situacao,auditoria,contrato}){
+function relatorioUnicoBradescoV508({consulta,registro,situacao,auditoria,contrato,bloqueiosExtras=[]}){
  const checagens=[],push=(campo,estado,fonte,descricao,proxima_acao)=>{
   const i=checagens.findIndex(c=>c.campo===campo);
   const item={campo,estado,fonte,descricao,proxima_acao};
@@ -891,12 +891,13 @@ function relatorioUnicoBradescoV508({consulta,registro,situacao,auditoria,contra
  push('dadosTitulo.valorMulta','PENDENTE','Layout do PUT',
    'Escala para representar multa de 2% não homologada.',
    'Não assumir 2, 20000 ou 200000');
+ for(const bloqueio of bloqueiosExtras)push(bloqueio.campo,'FALHA',bloqueio.fonte,bloqueio.descricao,bloqueio.proxima_acao);
  const pendentes=checagens.filter(v=>v.estado==='PENDENTE'||v.estado==='FALHA');
  const principais=[...new Set(pendentes.map(v=>v.campo))];
  return {versao:'V508',titulo:'56078-02',nosso_numero:'62710000058',
   objetivo:{juros_mensal_percentual:5,multa_percentual:2,sem_protesto:true,sem_negativacao:true},
   ambiente:'producao',operacao:'TESTE_UNICO_CONSULTA_E_AUDITORIA_SEM_PUT',
-  status:'BLOQUEADO_SEM_TRANSMITIR',transmissao_put_realizada:false,
+  status:'BLOQUEADO_SEM_TRANSMITIR',status_local:String(registro?.status||'desconhecido'),transmissao_put_realizada:false,
   chamadas:{consultas_bancarias_nesta_execucao:1,alteracoes_put:0,reenvio_automatico:false},
   http_status_consulta:consulta?.http_status??null,
   situacao_bancaria:situacao?.descricao||null,codigo_status:situacao?.codStatus??null,
@@ -1382,12 +1383,36 @@ module.exports=async function(req,res){
       if(!Array.isArray(rows)||rows.length!==1)throw new Error('Título não localizado de forma única. Nenhuma instrução enviada.');
       const reg=rows[0];
       if(!reg||String(reg.banco||'').toLowerCase()!=='bradesco')throw new Error('Título Bradesco não encontrado.');
-      if(/pago|liquid|cancel|baixad|protest/i.test(String(reg.status||'')))throw new Error('Título com situação local incompatível com manutenção.');
+      const bloqueiosExtrasV508=[];
+      if(/pago|liquid|cancel|baixad|protest/i.test(String(reg.status||''))){
+       if(!testeUnicoV508)throw new Error('Título com situação local incompatível com manutenção.');
+       bloqueiosExtrasV508.push({campo:'cadastro_local.status',fonte:'Financeiro02',
+        descricao:'O registro local está '+String(reg.status).slice(0,40)+'. Consulta bancária permitida somente para reconciliação.',
+        proxima_acao:'Não executar PUT nem reativar o título automaticamente; conciliar com o estado no Bradesco.'});
+      }
       const q=await consultarTituloBradesco(amb,reg);
-      if(q.http_status<200||q.http_status>=300)throw new Error('Consulta bancária falhou: '+(detalheRespostaBradesco(q.data)||q.http_status));
+      if(q.http_status<200||q.http_status>=300){
+       if(!testeUnicoV508)throw new Error('Consulta bancária falhou: '+(detalheRespostaBradesco(q.data)||q.http_status));
+       const codigoBancario=String(detalheRespostaBradesco(q.data)||'').match(/CBTT[0-9]{4}/i)?.[0]||'SEM_CODIGO_BANCARIO';
+       return json(res,200,{ok:true,teste_concluido:false,transmitido:false,
+        diagnostico_unico_v508:{versao:'V508',titulo:'56078-02',nosso_numero:'62710000058',
+         status:'CONSULTA_BANCARIA_REJEITADA',status_local:String(reg.status||'desconhecido'),
+         http_status_consulta:q.http_status,codigo_erro:codigoBancario,
+         numero_verificacoes:1,numero_pendencias:1,
+         detalhe_todas_verificacoes:[{campo:'consulta_bradesco',estado:'FALHA',fonte:'Retorno HTTP Bradesco',
+           descricao:'HTTP '+q.http_status+' / '+codigoBancario,
+           proxima_acao:'Corrigir a causa do retorno; não reenviar a mesma consulta sem necessidade'}],
+         chamadas:{consultas_bancarias_nesta_execucao:1,alteracoes_put:0,reenvio_automatico:false},
+         proxima_acao:'Anexar este código ao chamado WF-99571; não foi executado PUT.'}});
+      }
       const sit=interpretarConsultaBradesco(q.data,reg);
       const auditoriaOriginais=avaliarOriginaisBradescoV484(q.data,reg);
-      if(sit.pago||sit.baixado||sit.descontado||sit.codStatus!==1||!['aberto','vencido'].includes(sit.statusNovo))throw new Error('Situação bancária não permite confirmar elegibilidade para manutenção.');
+      if(sit.pago||sit.baixado||sit.descontado||sit.codStatus!==1||!['aberto','vencido'].includes(sit.statusNovo)){
+        if(!testeUnicoV508)throw new Error('Situação bancária não permite confirmar elegibilidade para manutenção.');
+        bloqueiosExtrasV508.push({campo:'consulta_bancaria.status',fonte:'Consulta oficial Bradesco',
+         descricao:'Situação bancária '+String(sit.descricao||'indisponível').slice(0,70)+', código '+String(sit.codStatus??'?')+'.',
+         proxima_acao:'Não alterar título pago, baixado, descontado ou sem status de aberto comprovado.'});
+      }
       const valor=Number(reg.valor);
       if(!Number.isFinite(valor)||valor<=0)throw new Error('Valor nominal inválido.');
       // Não comparar campos de moeda sem confirmar a unidade (reais/centavos) da resposta bancária.
@@ -1397,7 +1422,7 @@ module.exports=async function(req,res){
       if(!/^\d{4}-\d{2}-\d{2}$/.test(venc))throw new Error('Vencimento bancário inválido.');
       const diagnosticoV489=diagnosticoContratoPutBradescoV489(q.data,reg,auditoriaOriginais);
       const unicoV508=testeUnicoV508?relatorioUnicoBradescoV508({
-       consulta:q,registro:reg,situacao:sit,auditoria:auditoriaOriginais,contrato:diagnosticoV489
+       consulta:q,registro:reg,situacao:sit,auditoria:auditoriaOriginais,contrato:diagnosticoV489,bloqueiosExtras:bloqueiosExtrasV508
       }):null;
       return json(res,200,{ok:true,transmitido:false,diagnostico_unico_v508:unicoV508,operacao:'PREPARACAO_SEM_ALTERACAO',auditoria_originais_v484:auditoriaOriginais,titulo:{id:reg.id,nosso_numero:nossoNumeroRegistroBradesco(reg),status_banco:sit.descricao,codigo_status:sit.codStatus,vencimento:venc,
        vencimento_original_banco:dataBradescoIso(sit.titulo?.dataVencto)||null,
