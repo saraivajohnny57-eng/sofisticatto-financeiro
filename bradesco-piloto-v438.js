@@ -7,11 +7,11 @@ function montar(){
  const panel=document.createElement('section');panel.id='bradescoPilotoV438';
  panel.style.cssText='margin:14px 0;padding:16px;border:1px solid #b9a5d5;border-radius:12px;background:#faf8fd';
  const h=document.createElement('h4');h.textContent='Piloto Bradesco — manutenção de encargos';panel.appendChild(h);
- const p=document.createElement('p');p.textContent='Consulta individual autenticada ao Bradesco para verificar situação, vencimento, valor e simulação de multa de 2% + juros de 5% ao mês. Somente leitura: não altera nem reemite boleto.';panel.appendChild(p);
+ const p=document.createElement('p');p.textContent='O 56078-02 chegou ao PUT do Bradesco em 11/11/2026 (HTTP 412 / CBTT0797). O 56078-03 permanece aberto (código 1). Não precisa estar vencido para configurar encargos. A conferência abaixo reutiliza os resultados anteriores e NÃO transmite uma nova alteração.';panel.appendChild(p);
  const b=document.createElement('button');b.type='button';b.className='btn roxo';b.textContent='Executar conferência única 55994-01';panel.appendChild(b);
 
  const button484=document.createElement('button');button484.type='button';button484.className='btn roxo';
- button484.textContent='Teste único 56078-03 — diagnóstico completo';
+ button484.textContent='Conferência consolidada 56078-03 (sem alterar)';
  button484.style.marginLeft='8px';panel.appendChild(button484);
  const audit484=document.createElement('pre');audit484.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
  audit484.setAttribute('aria-live','polite');panel.appendChild(audit484);

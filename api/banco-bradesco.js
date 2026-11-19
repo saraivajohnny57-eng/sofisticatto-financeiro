@@ -843,7 +843,7 @@ function diagnosticoContratoPutBradescoV489(resposta,registro,auditoria,configBa
   add('dadosTitulo.vencimento.tipoVencimento','PRESERVAR','titulo.ctpoVencto',t.ctpoVencto??0);
   add('dadosTitulo.protesto',semProtesto?'ZERO/VAZIO':'PENDENTE','titulo.codInscrProt + titulo.diasProt',semProtesto?'0/0':'NÃO ZERADO','Preservar título sem protesto');
   add('dadosTitulo.decurso',semDecurso?'ZERO/VAZIO':'PENDENTE','titulo.qtdDiasDecurPrz',semDecurso?'0/0':'NÃO ZERADO','Preservar ausência de decurso');
-  add('dadosTitulo.abatimento.tipoAbatimento','PENDENTE','Manual v1.6.4 fixo 1 / e-mail exemplo 0','1 × 0','Escolher somente após confirmar contrato; valorAbatimento deve permanecer 0');
+  add('dadosTitulo.abatimento.tipoAbatimento','PROPOSTO','Manual v1.6.4: campo obrigatório fixo 1',1,'Usar fixo 1 na futura alteração e valorAbatimento=0, verificando o retorno bancário');
   add('dadosTitulo.abatimento.valorAbatimento','ZERO/VAZIO','titulo.valAbat',t.valAbat??0);
   for(let i=1;i<=3;i++){
     add('dadosTitulo.dataDesc'+i+'/valDesc'+i+'/codValDe'+i+'/tipoDesc'+i,'ZERO/VAZIO','titulo.dataDesc'+i+' + titulo.valDesc'+i,
@@ -859,7 +859,7 @@ function diagnosticoContratoPutBradescoV489(resposta,registro,auditoria,configBa
   add('dadosTitulo.codigoMulta','PROPOSTO','Manual 1-Valor / 2-Percentual',2,'Multa de 2%');
   add('dadosTitulo.diasMulta','PROPOSTO','Regra pretendida',1,'Aplicar no primeiro dia após vencimento');
   add('dadosTitulo.valorMulta','PENDENTE','Manual: campo numérico, 15 posições','2% (ESCALA A DEFINIR)','Não presumir 2, 020000, 200000 ou outra escala');
-  add('dadosTitulo.codigoNegativacao','PENDENTE','Manual v1.6.4: 1 fixo / e-mail exemplo: 0','1 × 0','Evitar gerar negativação não solicitada; diasNegativacao permanece zero');
+  add('dadosTitulo.codigoNegativacao','PROPOSTO','Manual v1.6.4: fixo 1; exemplo de alteração com diasNegativacao=0',1,'Usar o campo fixo 1 e diasNegativacao=0, confirmando ausência de instrução após o eventual PUT');
   add('dadosTitulo.diasNegativacao','ZERO/VAZIO','Sem instrução registrada',0);
   add('dadosTitulo.pagamentoParcial',t.permitePgtoParcial==='N'?'PRESERVAR':'PENDENTE','titulo.permitePgtoParcial',t.permitePgtoParcial||'—','Manter configuração original');
   add('dadosTitulo.qtdePagamentoParcial','ZERO/VAZIO','titulo.qtdePgtoParcial',t.qtdePgtoParcial??0);
@@ -908,12 +908,12 @@ function relatorioUnicoBradescoV508({consulta,registro,situacao,auditoria,contra
     c.estado==='PENDENTE'?'Resolver o campo sem inventar valor; não transmitir':'Preservar o valor validado');
  }
  // Divergências concretas do manual 1.6.4 versus o exemplo escrito do suporte.
- push('dadosTitulo.codigoNegativacao','PENDENTE','Manual v1.6.4 (fixo 1) x e-mail WF-99571 (0)',
-   'Não há confirmação inequívoca do valor para título sem negativação.',
-   'Não permitir instrução de negativação não solicitada');
- push('dadosTitulo.abatimento.tipoAbatimento','PENDENTE','Manual v1.6.4 (fixo 1) x exemplo do suporte (0)',
-   'A divergência persiste para título sem abatimento.',
-   'Validar valor exato; valorAbatimento deve continuar zero');
+ push('dadosTitulo.codigoNegativacao','PROPOSTO','Manual v1.6.4: valor fixo 1 no layout e no exemplo',
+   'Valor 1 com diasNegativacao=0 está no exemplo de alteração; não emitir comando de negativação.',
+   'Conferir a ausência de negativação na consulta após o futuro PUT.');
+ push('dadosTitulo.abatimento.tipoAbatimento','PROPOSTO','Manual v1.6.4: valor fixo 1 (exemplo ilustrativo 0)',
+   'Seguir o campo fixo 1 e manter valorAbatimento=0.',
+   'Caso o banco rejeite, registrar resposta exata no PUT controlado.');
  push('dadosTitulo.comissaoPermanencia.valorComissaoPermanencia','PENDENTE','Layout do PUT',
    'Escala para representar 5% ao mês não homologada.',
    'Não assumir 5, 50000 ou 500000');
@@ -938,7 +938,7 @@ function relatorioUnicoBradescoV508({consulta,registro,situacao,auditoria,contra
   campos_impeditivos:principais,detalhe_todas_verificacoes:checagens,
   eventos:{request_put:'NAO_GERADO',response_put:'NAO_EXISTE',curl_put_executado:'NAO_EXISTE'},
   seguranca:'Nenhum token, certificado, senha ou CPF/CNPJ completo no relatório.',
-  proxima_acao:'Regularizar simultaneamente todos os campos PENDENTES, validar com o manual/suporte e somente depois habilitar um PUT real com captura sanitizada do request/response/cURL.'};
+  proxima_acao:'Não repetir consultas já aprovadas. Faltam confirmar apenas a escala numérica de juros 5% e multa 2% e eventual produto sem cadastro; preparar um único PUT controlado com evidência e reconciliação após o aceite.'};
 }
 
 function montarPayloadRegistroReal(body,banco){
