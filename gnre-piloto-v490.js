@@ -127,7 +127,10 @@ function init(){
   $('g491consult').disabled=true;
   try{
    const r=await solicitar('consultar');
-   append('Consulta oficial: '+JSON.stringify(r));
+   append('Consulta oficial:\n'+JSON.stringify(r,null,2));
+   if(r.codigo_processamento==='403'){
+     append('LOTE PROCESSADO COM PENDÊNCIAS (403): confira detalhe_individual.motivos_rejeicao e situacao_individual acima. A guia ainda não está confirmada. NÃO retransmitir.');
+   }
    if(r.pdf_disponivel&&r.arquivo_id){
     const p=await fetch('/api/integracoes?action=gnre-arquivo-guias&id='+encodeURIComponent(r.arquivo_id),{
       headers:{'x-integrations-admin-key':adminKey}});
