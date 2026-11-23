@@ -10,7 +10,8 @@ function init(){
  '<button class="buscar" id="g490go" type="button">Conferir primeira GNRE</button>'+
 '<label style="display:block;padding:9px 0"><input type="checkbox" id="g491previous"> Confirmo que ainda NÃO existe guia desta NF-e emitida no portal nacional</label>'+
 '<button class="buscar" id="g491emit" disabled type="button">Emitir GNRE real — R$ 24,91</button> '+
-'<button class="buscar" id="g491consult" disabled type="button">Consultar resultado oficial</button> '+
+'<button class="buscar" id="g491consult" type="button">Consultar lote real 51185 — retorno completo (sem emitir)</button> '+
+'<button class="buscar" id="g523auditoria" type="button">Histórico técnico de todos os retornos GNRE</button> '+
 '<button class="buscar" id="g492diag" disabled type="button">Diagnosticar falha (sem enviar)</button> '+
 '<button class="buscar" id="g497lookup" disabled type="button">Consultar GNRE pela NF (não emite)</button> '+
 '<button class="buscar" id="g501status" disabled type="button">Auditar primeira tentativa (sem enviar)</button> '+
@@ -135,7 +136,14 @@ function init(){
  $('g491consult').onclick=async()=>{
   $('g491consult').disabled=true;
   try{
+   if(!adminKey){
+    if(typeof obterChaveIntegracoesCotacao!=='function')throw Error('Acesso administrativo indisponivel.');
+    adminKey=await obterChaveIntegracoesCotacao();
+   }
+   if(!adminKey)throw Error('Autorizacao administrativa necessaria.');
+   append('Consulta autenticada SOMENTE LEITURA do recibo da NF 51185. NENHUMA NOVA EMISSAO.');
    const r=await solicitar('consultar');
+   append('INVENTARIO DE TODOS OS CAMPOS DE RESPOSTA, inclusive nao utilizados pelo parser:\n'+JSON.stringify(r.auditoria||{aviso:'auditoria indisponivel'},null,2));
    append('Consulta oficial:\n'+JSON.stringify(r,null,2));
    if(r.codigo_processamento==='403'){
      append('LOTE PROCESSADO COM PENDÊNCIAS (403): confira detalhe_individual.motivos_rejeicao e situacao_individual acima. A guia ainda não está confirmada. NÃO retransmitir.');
@@ -149,6 +157,19 @@ function init(){
    }
   }catch(e){append('Consulta não concluída: '+String(e.message||e))}
   finally{$('g491consult').disabled=false}
+ };
+ $('g523auditoria').onclick=async()=>{
+  const botao=$('g523auditoria');botao.disabled=true;
+  try{
+   if(!adminKey){
+    if(typeof obterChaveIntegracoesCotacao!=='function')throw Error('Acesso administrativo indisponivel.');
+    adminKey=await obterChaveIntegracoesCotacao();
+   }
+   if(!adminKey)throw Error('Autorizacao administrativa necessaria.');
+   const r=await solicitar('auditoria_consultas');
+   append('HISTORICO DE RESPOSTAS GNRE (sem recibos ou XML em claro):\n'+JSON.stringify(r,null,2));
+  }catch(e){append('Auditoria indisponivel: '+String(e.message||e))}
+  finally{botao.disabled=false}
  };
  $('g490go').onclick=async()=>{
   const btn=$('g490go'),out=$('g490out');btn.disabled=true;out.textContent='Conferindo...';
