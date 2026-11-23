@@ -15,7 +15,7 @@ function init(){
 '<button class="buscar" id="g492diag" disabled type="button">Diagnosticar falha (sem enviar)</button> '+
 '<button class="buscar" id="g497lookup" disabled type="button">Consultar GNRE pela NF (não emite)</button> '+
 '<button class="buscar" id="g501status" disabled type="button">Auditar primeira tentativa (sem enviar)</button> '+
-'<button class="buscar" id="g504config" disabled type="button">Consultar regras PA/100102 (sem emitir)</button>'+
+'<button class="buscar" id="g504config" disabled type="button">Diagnóstico fiscal completo PA/100102 (sem emitir)</button>'+
 '<section id="g502retomada" style="display:none;padding:12px;margin-top:10px;border:1px solid #b78a4f;border-radius:10px">'+
 '<strong>Retomada única da NF-e 51185 — R$ 24,91</strong>'+
 '<p>A primeira tentativa terminou com resultado incerto. O Portal GNRE não localizou guia nas consultas realizadas, mas permanece risco residual de duplicidade.</p>'+
@@ -64,7 +64,7 @@ function init(){
  $('g504config').onclick=async()=>{
     const btn=$('g504config');btn.disabled=true;
     append('Consultando configuração oficial PA/100102, sem emissão...');
-    try{const r=await solicitar('configuf_pa_100102');
+    try{const r=await solicitar('auditoria_fiscal_completa',payload||{});
       append('CONFIGURAÇÃO OFICIAL PA/100102:\n'+JSON.stringify(r,null,2));
     }catch(e){append('Consulta ConfigUF não concluída: '+String(e.message||e)+'. Nenhum envio de guia.')}
     finally{btn.disabled=false;}
