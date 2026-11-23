@@ -10,6 +10,13 @@ function init(){
  '<button class="buscar" id="g490go" type="button">Conferir primeira GNRE</button>'+
 '<label style="display:block;padding:9px 0"><input type="checkbox" id="g491previous"> Confirmo que ainda NÃO existe guia desta NF-e emitida no portal nacional</label>'+
 '<button class="buscar" id="g491emit" disabled type="button">Emitir GNRE real — R$ 24,91</button> '+
+'<section style="margin:10px 0;padding:12px;border:1px solid #d0bb79;border-radius:10px">' +
+'<strong>Emissão corrigida única — NF-e 51185/PA</strong>' +
+'<p>O lote anterior foi invalidado (403/1). A consulta por NF retornou 701/1, mas a primeira tentativa teve timeout. Uma nova transmissão pode criar obrigação tributária; não será repetida automaticamente.</p>' +
+'<label style="display:block"><input type="checkbox" id="g528risco"> Consultei o Portal GNRE e autorizo UMA nova emissão, ciente do risco residual de duplicidade.</label>' +
+'<label style="display:block"><input type="checkbox" id="g528atraso"> Confirmo vencimento original em 19/11/2026 e que o pagamento em atraso pode exigir juros/multa calculados pela UF.</label>' +
+'<button class="buscar" id="g528emit" type="button">Emitir uma única GNRE corrigida em produção e consultar resultado</button>' +
+'</section>' +
 '<button class="buscar" id="g491consult" type="button">Consultar lote real 51185 — retorno completo (sem emitir)</button> '+
 '<button class="buscar" id="g523auditoria" type="button">Histórico técnico de todos os retornos GNRE</button> '+
 '<button class="buscar" id="g492diag" disabled type="button">Diagnosticar falha (sem enviar)</button> '+
@@ -60,6 +67,35 @@ function init(){
    append('Retorno GNRE: '+JSON.stringify(r));
    $('g491consult').disabled=false;
   }catch(e){append('Emissão não confirmada: '+String(e.message||e)+'. NÃO REPETIR sem consultar.');$('g491consult').disabled=false;$('g492diag').disabled=false}
+ };
+ $('g528emit').onclick=async()=>{
+  const btn=$('g528emit');
+  if(!payload||!adminKey)return alert('Importe a XML da NF-e 51185 e execute Conferir primeira GNRE.');
+  if(!$('g528risco').checked||!$('g528atraso').checked||!$('g491previous').checked||!$('g490ok').checked)
+   return alert('Confirme consulta ao portal, risco residual de duplicidade, obrigação fiscal e vencimento em atraso.');
+  if(payload.fiscal.vencimento!=='2026-11-19'||!payload.fiscal.pagamento||payload.fiscal.pagamento<'2026-11-23')
+   return alert('Vencimento original deve ser 19/11/2026 e data prevista de pagamento deve ser atual ou futura.');
+  if(!window.confirm('TRANSMISSÃO REAL — NF-e 51185, PA/100102, principal R$ 24,91. O vencimento original é 19/11/2026. Podem existir encargos e risco residual de duplicidade. Confirmar UMA nova emissão?'))return;
+  btn.disabled=true;
+  append('INÍCIO — emissão real corrigida, única e idempotente. Nenhum reenvio automático.');
+  try{
+   const estado=await solicitar('status_emissao_corrigida');
+   append('TRAVAS E CONFERÊNCIA: '+JSON.stringify(estado,null,2));
+   if(!estado.apta)throw Error('Regras de liberação não atendidas. Nenhuma transmissão realizada.');
+   const fiscal={...payload.fiscal,vencimentoAtrasadoConfirmado:true,encargosAtrasoCientes:true};
+   const retorno=await solicitar('emitir_apos_rejeicao_confirmada',{
+    ...payload,fiscal,
+    confirmacao:'EMITIR_PA_51185_24_91',semEmissaoAnterior:true,consultaPortalConfirmada:true,
+    aceiteRiscoDuplicidade:'CIENTE_RISCO_RESIDUAL_51185',
+    confirmacaoFinal:'AUTORIZO_UMA_EMISSAO_REAL_CORRIGIDA_51185'
+   });
+   append('RETORNO COMPLETO DA RECEPÇÃO (segredos ocultos):\n'+JSON.stringify(retorno,null,2));
+   if(retorno.estado==='lote_recebido'&&retorno.arquivado){
+    append('Consultando uma vez o resultado oficial do novo lote (não transmite nova guia)...');
+    try{const consulta=await solicitar('consultar');append('RESULTADO OFICIAL GNRE:\n'+JSON.stringify(consulta,null,2));}
+    catch(e){append('Resultado ainda não confirmado: '+String(e.message||e)+'. Não repetir a emissão.');}
+   }else append('NÃO REENVIAR. Consulte o resultado e a auditoria antes de nova ação.');
+  }catch(e){append('Emissão não confirmada/concluída: '+String(e.message||e)+'. Não repetir.');}
  };
  $('g504config').onclick=async()=>{
     const btn=$('g504config');btn.disabled=true;
