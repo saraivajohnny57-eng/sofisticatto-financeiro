@@ -17,6 +17,15 @@ function init(){
 '<label style="display:block"><input type="checkbox" id="g528atraso"> Confirmo vencimento original em 19/11/2026 e que o pagamento em atraso pode exigir juros/multa calculados pela UF.</label>' +
 '<button class="buscar" id="g528emit" type="button">Emitir uma única GNRE corrigida em produção e consultar resultado</button>' +
 '</section>' +
+'<section id="g530guia" style="margin:12px 0;padding:15px;background:#f6f3fc;border:1px solid #c4b4e2;border-radius:12px">' +
+'<strong>GNRE oficial emitida — NF-e 51185/PA</strong>' +
+'<p>Guia nº <strong>0020268821834096</strong> · Principal R$ 24,91 · Total oficial <strong>R$ 25,28</strong> · Data-limite de pagamento 23/11/2026.</p>' +
+'<p><strong>Situação: emitida, pagamento não confirmado.</strong> A validade para pagamento após a data-limite deve ser conferida no Portal GNRE.</p>' +
+'<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+'<button class="buscar" id="g530abrir" type="button">Abrir e imprimir PDF oficial</button>' +
+'<button class="buscar" id="g530baixar" type="button">Baixar PDF oficial</button>' +
+'</div><p id="g530status" role="status" aria-live="polite" style="font-size:13px"></p>' +
+'</section>' +
 '<button class="buscar" id="g491consult" type="button">Consultar lote real 51185 — retorno completo (sem emitir)</button> '+
 '<button class="buscar" id="g523auditoria" type="button">Histórico técnico de todos os retornos GNRE</button> '+
 '<button class="buscar" id="g492diag" disabled type="button">Diagnosticar falha (sem enviar)</button> '+
@@ -68,6 +77,63 @@ function init(){
    $('g491consult').disabled=false;
   }catch(e){append('Emissão não confirmada: '+String(e.message||e)+'. NÃO REPETIR sem consultar.');$('g491consult').disabled=false;$('g492diag').disabled=false}
  };
+ // Guia 0020268821834096 arquivada na tabela GNRE (id 3); leitura somente.
+ const ID_GUIA_OFICIAL=3;
+ async function chaveAdminGuia(){
+   if(!adminKey&&typeof obterChaveIntegracoesCotacao==='function')adminKey=await obterChaveIntegracoesCotacao();
+   if(!adminKey)throw Error('Autorização administrativa necessária para acessar o PDF oficial.');
+   return adminKey;
+ }
+ async function recuperarPdfOficial(){
+   const key=await chaveAdminGuia();
+   const resposta=await fetch('/api/integracoes?action=gnre-arquivo-guias&id='+ID_GUIA_OFICIAL,{
+     method:'GET',headers:{'x-integrations-admin-key':key},cache:'no-store'
+   });
+   if(!resposta.ok){
+     const erro=await resposta.json().catch(()=>({}));
+     if(resposta.status===401)adminKey=null;
+     throw Error(erro.erro||('Não foi possível abrir a guia: HTTP '+resposta.status));
+   }
+   const blob=await resposta.blob();
+   if(blob.type!=='application/pdf'||blob.size<100)throw Error('Servidor não retornou um PDF válido.');
+   return blob;
+ }
+ async function executarDocumentoGuia(acao){
+   const status=$('g530status');
+   const botao=$('g530'+acao);
+   // O navegador pode bloquear pop-up após uma requisição; criar janela já no clique.
+   const janela=acao==='abrir'?window.open('about:blank','_blank'):null;
+   botao.disabled=true;status.textContent='Recuperando PDF oficial arquivado no Financeiro02...';
+   try{
+     const blob=await recuperarPdfOficial();
+     const url=URL.createObjectURL(blob);
+     if(acao==='abrir'){
+       if(janela){
+         janela.location.replace(url);
+         status.textContent='PDF oficial aberto; use a função Imprimir do visualizador.';
+       }else{
+         const a=document.createElement('a');a.href=url;a.download='GNRE-PA-51185-0020268821834096.pdf';
+         document.body.appendChild(a);a.click();a.remove();
+         status.textContent='O navegador bloqueou a nova janela; PDF salvo para impressão.';
+       }
+     }else{
+       const a=document.createElement('a');a.href=url;a.download='GNRE-PA-51185-0020268821834096.pdf';
+       document.body.appendChild(a);a.click();a.remove();
+       if(janela)janela.close();
+       status.textContent='Download do PDF oficial solicitado.';
+     }
+     setTimeout(()=>URL.revokeObjectURL(url),120000);
+   }catch(e){
+     if(janela&&!janela.closed)janela.close();
+     status.textContent='Falha: '+String(e.message||e);
+   }finally{botao.disabled=false;}
+ }
+ $('g530abrir').onclick=()=>executarDocumentoGuia('abrir');
+ $('g530baixar').onclick=()=>executarDocumentoGuia('baixar');
+ // A guia já foi emitida; botões antigos permanecem visíveis apenas como histórico, sem permitir novo envio.
+ $('g491emit').disabled=true;
+ $('g528emit').disabled=true;
+ $('g502botao').disabled=true;
  $('g528emit').onclick=async()=>{
   const btn=$('g528emit');
   if(!payload||!adminKey)return alert('Importe a XML da NF-e 51185 e execute Conferir primeira GNRE.');
