@@ -1322,6 +1322,238 @@ function prepararAlteracaoBradesco55937V514(banco,ret){
 
 
 
+function prepararAlteracaoBradesco60584V515(banco,ret){
+ const t=ret?.titulo||ret?.Titulo||{},lim=(v,n)=>String(v??'').trim().slice(0,n),
+ dig=v=>String(v??'').replace(/\D/g,''),num=v=>Number(v);
+ const checks=[],check=(campo,ok,info)=>checks.push({campo,estado:ok?'OK':'BLOQUEIO',info});
+ const d=val=>{const iso=dataBradescoIso(val);return iso?Number(iso.slice(8)+iso.slice(5,7)+iso.slice(0,4)):0;};
+ const cnpj=dig(banco?.cnpj),carteira=dig(banco?.carteira||banco?.produto);
+ const agencia=dig(banco?.agencia),conta=dig(banco?.conta);
+ const negociacao=agencia.length<=4&&conta.length<=7&&agencia&&conta?agencia.padStart(4,'0')+conta.padStart(7,'0'):'';
+ const originalMoeda=num(t.valMoeda),valorNominal=605.85;
+ const valorConfere=Number.isFinite(originalMoeda)&&(Math.abs(originalMoeda-60585)<1||Math.abs(originalMoeda-valorNominal)<0.01);
+ const sit=interpretarConsultaBradesco(ret,{nosso_numero:'62860000010',status:'aberto'});
+ const venc=dataBradescoIso(t.dataVencto);
+ const pag=t.sacado||{},aval=t.sacador||{};
+ const docPag=dig(pag.cnpj).padStart(15,'0');
+ const originalValPerm=num(t.valPerm),originalValMulta=num(t.valMulta);
+ check('retorno_encargos_completo',['codComisPerm','valPerm','diasJuros','codValMul','valMulta','diasMulta','qtdeCasMul'].every(k=>Object.prototype.hasOwnProperty.call(t,k)),
+    'Todos os campos precisam estar presentes; ausência de campo não pode virar zero por inferência');
+ const originalCodJuros=num(t.codComisPerm),originalCodMulta=num(t.codValMul);
+ const originalDiasJuros=num(t.diasJuros??t.diasComisPerm);
+ const originalDiasMulta=num(t.diasMulta);
+ // Padrão observado em títulos já emitidos: juros diários em centavos, multa 200 com duas casas decimais.
+ const jurosDiaCentavos=Math.floor((60585*5)/(100*30)+1e-9);
+ const multaPercentualEscalado=200;
+ check('referencia_bancaria',String(t.snumero||'').trim()==='60584-02','Seu Número precisa corresponder ao documento selecionado');
+ check('status_bancario',sit.codStatus===1&&!sit.pago&&!sit.baixado&&!sit.descontado,'Código 1, sem pagamento, baixa ou desconto');
+ check('identidade_e_valor',valorConfere&&venc==='2026-11-08'&&d(t.dataEmis)===13102026&&String(t.especDocto||'').trim()==='DM','Valor nominal, emissão, vencimento original e espécie confirmados');
+ check('contrato_beneficiario',cnpj.length===14&&carteira.length>0&&carteira.length<=2&&negociacao.length===11,'Beneficiário, produto e negociação na configuração protegida');
+ check('pagador_bancario',dig(pag.cnpj).length>=11&&dig(pag.cnpj).length<=15&&!!String(pag.nome||'').trim()&&String(pag.nome||'').length<=40&&!!String(pag.endereco||'').trim()&&String(pag.endereco||'').length<=40,'Documento, nome e endereço obtidos da consulta, sem inventar dados');
+ check('cep_bancario',dig(pag.cep).length===5&&dig(pag.cepc).length===3,'CEP 5+3 completo no retorno autenticado');
+ check('protesto_e_decurso',num(t.codInscrProt)===0&&num(t.diasProt)===0&&num(t.qtdDiasDecurPrz??0)===0,'Sem instrução de protesto e decurso');
+ check('sem_descontos_abatimentos',num(t.valAbat??0)===0&&[1,2,3].every(i=>num(t['valDesc'+i]??0)===0)&&[1,2,3].every(i=>!dig(t['dataDesc'+i])||Number(dig(t['dataDesc'+i]))===0),'Não remover descontos ou abatimentos previamente acordados');
+ check('pagamento_parcial',String(t.permitePgtoParcial||'N')==='N','Não alterar condição de pagamento parcial');
+ check('valor_multa_escala_bancaria',num(t.qtdeCasMul)===2,'Consulta informa 2 casas decimais para a multa');
+ check('tipo_juros_original',(originalCodJuros===0&&originalValPerm===0)||(originalCodJuros===1&&originalValPerm===jurosDiaCentavos),'Permitir somente juros zerados ou juros diários já iguais ao previsto; não sobrescrever valores desconhecidos');
+ check('tipo_multa_original',(originalCodMulta===0&&originalValMulta===0)||(originalCodMulta===2&&originalValMulta===multaPercentualEscalado),'Permitir somente multa zerada ou percentual de 2% já configurado');
+ check('dados_de_sacador',!String(aval.nome||'').trim()&&(!dig(aval.cnpj)||Number(dig(aval.cnpj))===0),'Não omitir sacador avalista já presente');
+ check('aceite_original',String(t.aceite||'N')==='N','Preservar aceite N');
+ check('email_e_controle_originais',String(t.enderecoEma||'').length<=50&&String(t.ctrlPartic||'').length<=25,
+   'Preservar identificadores complementares sem truncar campos');
+ check('escala_validada_por_retorno_carteira',jurosDiaCentavos===100&&multaPercentualEscalado===200,'Padrão histórico da carteira: valor diário em centavos e multa com 2 casas');
+ const jaConfigurado=originalCodJuros===1&&originalCodMulta===2&&originalValPerm===jurosDiaCentavos&&
+  originalValMulta===multaPercentualEscalado&&originalDiasJuros===1&&originalDiasMulta===1;
+ check('sem_encargos_especiais',Number(t.valAbat||0)===0&&Number(t.valorIof||0)===0,'Não modificar abatimento ou IOF ativo');
+ const falhas=checks.filter(x=>x.estado==='BLOQUEIO').map(x=>x.campo);
+ if(falhas.length)return {pronto:false,ja_configurado:false,checks,falhas};
+ const cpf=dig(pag.cnpj).padStart(15,'0');
+ const titulo={
+  seuNumero:String(t.snumero),
+  dataEmissao:d(t.dataEmis),especie:'DM',
+  vencimento:{dataVencimento:d(t.dataVencto),tipoVencimento:0},
+  protesto:{codInstrucaoProtesto:0,qtdeDiasProtesto:0},
+  decurso:{codDecursoPrazo:0,diasDecursoPrazo:0},
+  abatimento:{tipoAbatimento:1,valorAbatimento:0},
+  dataDesc1:0,valDesc1:0,codValDe1:0,tipoDesc1:0,
+  dataDesc2:0,valDesc2:0,codValDe2:0,tipoDesc2:0,
+  dataDesc3:0,valDesc3:0,codValDe3:0,tipoDesc3:0,
+  codigoControleParticipante:lim(t.ctrlPartic,25),
+  indicadorAvisoSacado:'0',
+  comissaoPermanencia:{diasComissaoPermanencia:1,
+    valorComissaoPermanencia:jurosDiaCentavos,codigoComissaoPermanencia:1},
+  codigoMulta:2,diasMulta:1,valorMulta:multaPercentualEscalado,
+  codigoNegativacao:1,diasNegativacao:0,
+  pagamentoParcial:'N',qtdePagamentoParcial:0
+ };
+ const payload={
+  cpfCnpj:{cpfCnpj:num(cnpj.slice(0,8)),filial:num(cnpj.slice(8,12)),controle:num(cnpj.slice(12,14))},
+  produto:num(carteira),negociacao:num(negociacao),nossoNumero:62860000010,
+  dadosPagador:{
+   sacado:lim(pag.nome,40),
+   cpfCnpjSacado:{cpfCnpj:num(cpf.slice(0,9)),filial:num(cpf.slice(9,13)),controle:num(cpf.slice(13,15))},
+   endereco:lim(pag.endereco,40),
+   cep:num(pag.cep),sufixo:num(pag.cepc),
+   nomeSacador:'',
+   aceite:'N',
+   cpfCnpjSacador:{cpfCnpj:0,filial:0,controle:0},
+   emailSacado:lim(t.enderecoEma,50)
+  },
+  dadosTitulo:titulo
+ };
+ const hash=crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+ return {pronto:!jaConfigurado,ja_configurado:jaConfigurado,checks,falhas,hash,payload,
+   resumo:{valor_nominal:605.85,juros_dia_reais:jurosDiaCentavos/100,
+    juros_dia_centavos:jurosDiaCentavos,codigo_juros:1,multa_percentual:2,
+    valor_multa_enviado:multaPercentualEscalado,qtde_casas_multa:2,
+    juros_anterior_cod:originalCodJuros,juros_anterior_valor:originalValPerm,
+    multa_anterior_cod:originalCodMulta,multa_anterior_valor:originalValMulta,
+    vencimento_original:venc,alteracoes_put_anteriores_neste_titulo:0}};
+}
+
+
+
+
+    if(action==='exportar-evidencia-put-60584-v515'){
+      if(amb!=='producao')throw new Error('Disponível somente em produção.');
+      const auditReg=await obter('bradesco:producao:put-v515-60584-02');
+      if(!auditReg) return json(res,404,{ok:false,mensagem:'Ainda não existe request real reservado. Nada foi transmitido.'});
+      const audit=descriptografar(auditReg)||{},meta=auditReg.metadata||{};
+      return json(res,200,{ok:true,versao:'V515',referencia:'60584-02',
+        estado:meta.estado||'NAO_CONFIRMADO',transmissao_confirmada:!!audit.status_http,
+        aviso:'O request e o response são registros efetivos guardados no Financeiro02. Tokens e chave privada NÃO estão incluídos. Dados bancários e pessoais devem ser compartilhados apenas com o suporte autorizado.',
+        endpoint:'PUT /boleto/cobranca-altera/v1/alterar',
+        hash: audit.hash||null,request: audit.request||null,response:audit.response||null,
+        curl_sanitizado:audit.curl_sanitizado||null,status_http:audit.status_http??null,
+        criado_em:audit.registrado_em||null});
+    }
+    if(action==='preparar-put-60584-v515'||action==='confirmar-put-60584-v515'){
+      const executar=action==='confirmar-put-60584-v515';
+      if(amb!=='producao')throw new Error('Manutenção controlada apenas em produção.');
+      if(String(req.body?.nosso_numero||'').replace(/\D/g,'')!=='62860000010')
+        throw new Error('Operação restrita ao Nosso Número 62860000010.');
+      if(executar && (String(req.body?.confirmacao||'')!=='CONFIRMO PUT 60584-02' ||
+          !/^[a-f0-9]{64}$/.test(String(req.body?.hash_previa||''))))
+        throw new Error('Confirmação explícita e hash íntegro obrigatórios.');
+      // Bloquear ANTES de consultar e transmitir caso exista qualquer reserva anterior.
+      const existente=await supabaseRest('bradesco_put_controlado_v515',{query:'?referencia=eq.60584-02&select=status,http_status,codigo_bancario,criado_em&limit=1'});
+      if(Array.isArray(existente)&&existente.length)return json(res,409,{ok:false,transmitido:false,
+       estado:'OPERACAO_JA_RESERVADA',historico:existente[0],
+       mensagem:'Já houve reserva ou transmissão para este título. NÃO reenvie; concilie o registro existente.'});
+      // Registro local completo obrigatório: não tratar um título da carteira como não cadastrado.
+      const locais=await supabaseRest('cobrancas_bancarias',{query:'?id=eq.8c1da3be-70b4-4d06-a811-b35a3de4bdb4&banco=eq.bradesco&select=id,numero_nf,parcela_numero,referencia,status,valor,nosso_numero,vencimento&limit=2'});
+      const local=Array.isArray(locais)&&locais.length===1?locais[0]:null;
+      if(!local||String(local.numero_nf)!=='605,84'||Number(local.parcela_numero)!==2||
+       String(local.referencia)!=='BRADESCO-60584-02'||String(local.nosso_numero)!=='62860000010'||
+       String(local.status).toLowerCase()!=='aberto'||Math.abs(Number(local.valor)-605.85)>0.001||
+       String(local.vencimento).slice(0,10)!=='2026-11-08')
+        throw new Error('Registro local não confere ou mudou: bloqueado sem PUT.');
+      const confs=await Promise.all(['dados-bancarios','credenciais','mtls'].map(x=>obter(idRegistro(amb,x))));
+      if(confs.some(x=>!x))throw new Error('Configuração bancária, credenciais ou mTLS ausentes.');
+      const banco=descriptografar(confs[0]),cred=descriptografar(confs[1]),mtls=descriptografar(confs[2]);
+      validarParMtls(mtls.cert_pem,mtls.key_pem);
+      const auth=await solicitarTokenMtls(endpointToken(amb),cred,mtls);
+      const contexto={banco,mtls,token:auth.access_token};
+      const q=await consultarTituloBradesco(amb,{nosso_numero:'62860000010'},contexto);
+      if(q.http_status!==200)throw new Error('Consulta bancária não confirmou HTTP 200. PUT não enviado.');
+      let plan;
+      try{plan=prepararAlteracaoBradesco60584V515(banco,q.data);}catch(e){
+       return json(res,200,{ok:true,transmitido:false,estado:'PREVIEW_BLOQUEADO',
+        motivo:String(e.message||e).slice(0,220),proxima_acao:'Reconciliar situação bancária antes de qualquer alteração.'});
+      }
+      const publicPlan={hash:plan.hash||null,pronto:plan.pronto,
+        ja_configurado:plan.ja_configurado,checks:plan.checks,falhas:plan.falhas,
+        resumo:plan.resumo,modo:executar?'EXECUCAO_CONTROLADA':'PREVIA_SEM_PUT',
+        alteracoes_put:0};
+      if(!executar)return json(res,200,{ok:true,transmitido:false,estado:plan.ja_configurado?'ENCARGOS_JA_CONFIGURADOS':plan.pronto?'PRONTO_PARA_CONFIRMACAO':'PREFLIGHT_BLOQUEADO',...publicPlan});
+      if(!plan.pronto||!plan.hash||plan.ja_configurado)
+        return json(res,200,{ok:true,transmitido:false,estado:'EXECUCAO_BLOQUEADA',...publicPlan});
+      if(req.body.hash_previa!==plan.hash)
+        return json(res,409,{ok:false,transmitido:false,estado:'DADOS_ALTERADOS',
+         mensagem:'Dados bancários mudaram desde a prévia. Nenhum PUT enviado. Não confirmar sem rever.'});
+      const reserva={referencia:'60584-02',nosso_numero:'62860000010',status:'reservado',
+        hash_request:plan.hash,diagnostico:{operacao:'V515',juros_diario_centavos:100,multa_percentual:2}};
+      try{await supabaseRest('bradesco_put_controlado_v515',{method:'POST',body:reserva});}
+      catch(_){return json(res,409,{ok:false,transmitido:false,estado:'RESERVA_NAO_CONFIRMADA',
+        mensagem:'A reserva única falhou ou já existe. Não foi transmitido PUT; não repetir sem conciliar.'});}
+      const uri='https://openapi.bradesco.com.br/boleto/cobranca-altera/v1/alterar';
+      const curl='curl -X PUT '+JSON.stringify(uri)+' -H "Authorization: Bearer [REDACTED]" -H "Content-Type: application/json" --data-binary @request.json # mTLS protegido';
+      // Request integral fica criptografado exclusivamente no servidor, nunca no TXT público.
+      try{
+        await salvar('bradesco:producao:put-v515-60584-02',amb,'auditoria-put-v514',
+           {request:plan.payload,curl_sanitizado:curl,hash:plan.hash,
+            enviado_em:null,resposta:null,origem:'consulta autenticada V514'},
+           {estado:'RESERVADO_SEM_ENVIO',referencia:'60584-02'});
+      }catch(_){
+       return json(res,200,{ok:true,transmitido:false,estado:'RESERVADO_SEM_AUDITORIA',
+        mensagem:'Não foi possível guardar o JSON criptografado. PUT não enviado. Reserva preservada.'});
+      }
+      let ret;
+      try{
+        ret=await requestBradescoJson({url:uri,token:contexto.token,mtls,method:'PUT',body:plan.payload});
+      }catch(_){
+        await supabaseRest('bradesco_put_controlado_v515',{method:'PATCH',
+          query:'?referencia=eq.60584-02',body:{status:'resultado_incerto',atualizado_em:new Date().toISOString()}});
+        try{await salvar('bradesco:producao:put-v515-60584-02',amb,'auditoria-put-v514',
+          {request:plan.payload,curl_sanitizado:curl,hash:plan.hash,
+           resultado:'TRANSPORTE_INCERTO',resposta:null},{estado:'RESULTADO_INCERTO',referencia:'60584-02'});}catch(_){}
+        return json(res,200,{ok:true,transmitido:'INCERTO',estado:'RESULTADO_INCERTO',
+          mensagem:'A comunicação foi interrompida após iniciar o PUT. Não repetir: a operação pode ter chegado ao banco.'});
+      }
+      const detalhe=String(detalheRespostaBradesco(ret.data)||'').slice(0,450);
+      const codigo=detalhe.match(/CBTT\d{4}/i)?.[0]||null;
+      // Manual Bradesco API Cobrança 1.6.4: sucesso específico do PUT é CBTT0445.
+      // HTTP 200 isolado não autoriza dar a alteração como concluída.
+      const sucessoBanco=String(ret.data?.mensagem||ret.data?.message||'');
+      const aceita=ret.http_status===200&&Number(ret.data?.status??ret.http_status)===200&&
+        String(ret.data?.transacao||'').toUpperCase()==='CBTTIAGP'&&
+        /CBTT0445\s*-\s*ALTERACAO EFETUADA/i.test(sucessoBanco);
+      const estado=aceita?'aceito_pendente_conciliacao':'rejeitado';
+      // Guardar PRIMEIRO a resposta bancária real cifrada antes do resultado público.
+      let auditoriaCompleta=false,estadoRegistrado=false;
+      try{
+        await salvar('bradesco:producao:put-v515-60584-02',amb,'auditoria-put-v514',
+          {request:plan.payload,response:ret.data,curl_sanitizado:curl,hash:plan.hash,
+           status_http:ret.http_status,registrado_em:new Date().toISOString()},
+          {estado:estado.toUpperCase(),referencia:'60584-02',http_status:ret.http_status});
+        auditoriaCompleta=true;
+      }catch(_){}
+      try{
+        await supabaseRest('bradesco_put_controlado_v515',{method:'PATCH',
+          query:'?referencia=eq.60584-02',body:{status:estado,http_status:ret.http_status,codigo_bancario:codigo,
+            diagnostico:{operacao:'V515',http_status:ret.http_status,codigo_bancario:codigo,
+              resposta_tipo:aceita?'ACEITA_PENDENTE_CONSULTA':'REJEITADA'},
+            atualizado_em:new Date().toISOString()}});
+        estadoRegistrado=true;
+      }catch(_){}
+      if(!estadoRegistrado||!auditoriaCompleta){
+        return json(res,200,{ok:true,transmitido:true,aceito:aceita,estado:'REGISTRO_DE_AUDITORIA_PENDENTE',
+          http_status_put:ret.http_status,codigo_retorno:codigo,descricao:detalhe,
+          evidencia_criptografada:auditoriaCompleta,estado_sincronizado:estadoRegistrado,
+          proxima_acao:'O Bradesco respondeu mas a auditoria local não foi totalmente concluída. NÃO reenviar PUT; conciliar manualmente.'});
+      }
+      if(!aceita)return json(res,200,{ok:true,transmitido:true,aceito:false,estado:'REJEITADO',
+        http_status_put:ret.http_status,codigo_retorno:codigo,descricao:detalhe,
+        proxima_acao:'Revisar a rejeição. NÃO reenviar; evidências criptografadas preservadas no servidor.'});
+      let reconciliado=false,resultadoConsulta='Consulta posterior ainda não concluída';
+      try{
+        const c=await consultarTituloBradesco(amb,{nosso_numero:'62860000010'},contexto);
+        const t=c.data?.titulo||{};
+        reconciliado=c.http_status===200&&Number(t.codComisPerm)===1&&Number(t.valPerm)===100&&
+          Number(t.codValMul)===2&&Number(t.valMulta)===200&&
+          Number(t.diasJuros)===1&&Number(t.diasMulta)===1;
+        resultadoConsulta=reconciliado?'Encargos confirmados na consulta bancária':'Retorno pós-PUT ainda não confirmou todos os encargos';
+        if(reconciliado)await supabaseRest('bradesco_put_controlado_v515',{method:'PATCH',query:'?referencia=eq.60584-02',
+          body:{status:'confirmado',atualizado_em:new Date().toISOString()}});
+      }catch(_){}
+      return json(res,200,{ok:true,transmitido:true,aceito:true,
+        estado:reconciliado?'ALTERACAO_CONFIRMADA':'ACEITA_PENDENTE_CONCILIACAO',
+        http_status_put:ret.http_status,codigo_retorno:codigo,reconciliado,
+        consulta_posterior:resultadoConsulta,proxima_acao:reconciliado?'Encargos registrados e confirmados.':'Não repetir PUT; consultar status da mesma alteração sem transmissão.'});
+    }
+    // Título 55937-004 já possui encargos e não deve voltar a ser alvo de testes reais.
+    if(action==='confirmar-put-55937-v514')
+      return json(res,409,{ok:false,transmitido:false,estado:'ALVO_ANTERIOR_DESATIVADO',mensagem:'O teste real do 55937-004 foi desativado. Acompanhe somente 60584-02.'});
     // V514 — Exporta apenas evidência já efetivamente persistida e cifrada.
     // Um relatório de reserva SEM_ENVIO é explicitamente identificado como não executado.
     if(action==='exportar-evidencia-put-55937-v514'){

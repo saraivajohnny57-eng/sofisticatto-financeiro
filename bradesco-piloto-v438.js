@@ -29,76 +29,76 @@ function montar(){
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
  };
  
- const titulo514=document.createElement('h4');titulo514.textContent='V514 — Primeira alteração real controlada 55937-004';
- panel.appendChild(titulo514);
- const prepara514=document.createElement('button');prepara514.type='button';prepara514.className='btn roxo';
- prepara514.textContent='Preparar PUT real 55937-004 (não envia)';panel.appendChild(prepara514);
- const confirma514=document.createElement('button');confirma514.type='button';confirma514.className='btn roxo';
- confirma514.style.marginLeft='8px';confirma514.textContent='Confirmar UMA alteração real no Bradesco';
- confirma514.disabled=true;panel.appendChild(confirma514);
+ const titulo515=document.createElement('h4');titulo515.textContent='V515 — Primeira alteração real controlada 605,84-02';
+ panel.appendChild(titulo515);
+ const prepara515=document.createElement('button');prepara515.type='button';prepara515.className='btn roxo';
+ prepara515.textContent='Preparar PUT real 605,84-02 (não envia)';panel.appendChild(prepara515);
+ const confirma515=document.createElement('button');confirma515.type='button';confirma515.className='btn roxo';
+ confirma515.style.marginLeft='8px';confirma515.textContent='Confirmar UMA alteração real no Bradesco';
+ confirma515.disabled=true;panel.appendChild(confirma515);
  
- const evidencia514=document.createElement('button');evidencia514.type='button';evidencia514.className='btn roxo';
- evidencia514.style.marginLeft='8px';evidencia514.textContent='Baixar request/response reais (TXT)';
- panel.appendChild(evidencia514);
- evidencia514.onclick=async()=>{
-  evidencia514.disabled=true;
+ const evidencia515=document.createElement('button');evidencia515.type='button';evidencia515.className='btn roxo';
+ evidencia515.style.marginLeft='8px';evidencia515.textContent='Baixar request/response reais (TXT)';
+ panel.appendChild(evidencia515);
+ evidencia515.onclick=async()=>{
+  evidencia515.disabled=true;
   try{
-   const j=await bradescoReqProducao('exportar-evidencia-put-55937-v514',{nosso_numero:'13625803774'});
-   const texto=['BRADESCO — WF-99571 — EVIDÊNCIA REAL V514',
+   const j=await bradescoReqProducao('exportar-evidencia-put-60584-v515',{nosso_numero:'62860000010'});
+   const texto=['BRADESCO — WF-99571 — EVIDÊNCIA REAL V515',
     'Estado: '+j.estado,'HTTP PUT: '+(j.status_http??'NÃO CONFIRMADO'),
     'Transmissão bancária confirmada por resposta: '+(j.transmissao_confirmada?'SIM':'NÃO'),
     'AVISO: '+j.aviso,'Hash: '+j.hash,'CURL (SANITIZADO):',j.curl_sanitizado||'NÃO DISPONÍVEL',
     'REQUEST JSON ORIGINAL:',JSON.stringify(j.request||null,null,2),
     'RESPONSE JSON ORIGINAL:',JSON.stringify(j.response||null,null,2)].join('\n');
    const url=URL.createObjectURL(new Blob([texto],{type:'text/plain;charset=utf-8'}));
-   const a=document.createElement('a');a.href=url;a.download='Bradesco_WF-99571_55937-004_Request_Response_Reais_V514.txt';
+   const a=document.createElement('a');a.href=url;a.download='Bradesco_WF-99571_60584-02_Request_Response_Reais_V515.txt';
    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }catch(e){alert('Evidência indisponível: '+String(e.message||e));}
-  finally{evidencia514.disabled=false;}
+  finally{evidencia515.disabled=false;}
  };
 
- const registro514=document.createElement('pre');registro514.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
- registro514.textContent='A prévia fará uma consulta atualizada, sem PUT. Ao confirmar, o banco será consultado novamente e, se tudo permanecer idêntico, haverá uma única tentativa real, sem reenvio automático.';
- panel.appendChild(registro514);
- let hash514='';
- prepara514.onclick=async()=>{
-  prepara514.disabled=true;confirma514.disabled=true;hash514='';
-  registro514.textContent='Conferindo valores atuais e preparando o payload integral...';
+ const registro515=document.createElement('pre');registro515.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
+ registro515.textContent='A prévia fará uma consulta atualizada, sem PUT. Ao confirmar, o banco será consultado novamente e, se tudo permanecer idêntico, haverá uma única tentativa real, sem reenvio automático.';
+ panel.appendChild(registro515);
+ let hash515='';
+ prepara515.onclick=async()=>{
+  prepara515.disabled=true;confirma515.disabled=true;hash515='';
+  registro515.textContent='Conferindo valores atuais e preparando o payload integral...';
   try{
-   const j=await bradescoReqProducao('preparar-put-55937-v514',{nosso_numero:'13625803774'});
+   const j=await bradescoReqProducao('preparar-put-60584-v515',{nosso_numero:'62860000010'});
    const lista=(j.checks||[]).map(c=>c.estado+' | '+c.campo+' | '+c.info);
-   registro514.textContent=['V514 — PRÉVIA, NENHUMA ALTERAÇÃO ENVIADA',
+   registro515.textContent=['V515 — PRÉVIA, NENHUMA ALTERAÇÃO ENVIADA',
     'Estado: '+j.estado,'Valores propostos: juros R$ '+(j.resumo?.juros_dia_reais??'?')+'/dia (equivalente a 5% a.m. pela regra usada na emissão)',
     'Multa: '+(j.resumo?.multa_percentual??'?')+'% | valor codificado: '+(j.resumo?.valor_multa_enviado??'?')+' (2 casas)',
     'Códigos bancários atuais: juros '+(j.resumo?.juros_anterior_cod??'?')+' valor '+(j.resumo?.juros_anterior_valor??'?')+
     '; multa '+(j.resumo?.multa_anterior_cod??'?')+' valor '+(j.resumo?.multa_anterior_valor??'?'),
     ...lista,'Bloqueios: '+(j.falhas||[]).join('; '),
     'Hash do payload: '+(j.hash||'não gerado')].join('\n');
-   if(j.pronto&&j.hash){hash514=j.hash;confirma514.disabled=false;}
-  }catch(e){registro514.textContent='Prévia não concluída: '+String(e.message||e)+'. PUT não enviado.';}
-  finally{prepara514.disabled=false;}
+   if(j.pronto&&j.hash){hash515=j.hash;confirma515.disabled=false;}
+  }catch(e){registro515.textContent='Prévia não concluída: '+String(e.message||e)+'. PUT não enviado.';}
+  finally{prepara515.disabled=false;}
  };
- confirma514.onclick=async()=>{
-  if(!hash514)return;
-  const msg='ATENÇÃO: ALTERAÇÃO REAL DO BOLETO 55937-004 NO BRADESCO.\n\n' +
-   'Juros diários propostos: R$ 1,15 (equivalente aproximado a 5% ao mês, conforme padrão da carteira).\n' +
+ confirma515.onclick=async()=>{
+  if(!hash515)return;
+  const msg='ATENÇÃO: ALTERAÇÃO REAL DO BOLETO 60584-02 NO BRADESCO.\n\n' +
+   'Juros diários propostos: R$ 1,00 (equivalente aproximado a 5% ao mês, conforme padrão da carteira).\n' +
    'Multa: 2%.\nVencimento e nominal serão preservados.\n\n' +
    'O sistema fará UMA tentativa PUT e não repetirá em caso de erro ou timeout.\n\nConfirmar?';
   if(!window.confirm(msg))return;
-  confirma514.disabled=true;prepara514.disabled=true;
-  registro514.textContent='Executando UMA alteração real controlada. Não recarregue a página.';
+  confirma515.disabled=true;prepara515.disabled=true;
+  registro515.textContent='Executando UMA alteração real controlada. Não recarregue a página.';
   try{
-   const j=await bradescoReqProducao('confirmar-put-55937-v514',{
-    nosso_numero:'13625803774',hash_previa:hash514,confirmacao:'CONFIRMO PUT 55937-004'});
-   registro514.textContent=['RESULTADO DA PRIMEIRA ALTERAÇÃO REAL','Estado: '+(j.estado||'não informado'),
+   const j=await bradescoReqProducao('confirmar-put-60584-v515',{
+    nosso_numero:'62860000010',hash_previa:hash515,confirmacao:'CONFIRMO PUT 60584-02'});
+   registro515.textContent=['RESULTADO DA PRIMEIRA ALTERAÇÃO REAL','Estado: '+(j.estado||'não informado'),
     'HTTP PUT: '+(j.http_status_put??'não enviado'),
     'Código banco: '+(j.codigo_retorno||j.codigo_erro||'—'),
     'Aceito: '+(j.aceito===true?'SIM':j.aceito===false?'NÃO':'NÃO CONFIRMADO'),
     'Consulta posterior: '+(j.consulta_posterior||'—'),
     'Detalhe: '+(j.descricao||j.mensagem||'—'),
     'Próxima ação: '+(j.proxima_acao||'NÃO repetir o PUT')].join('\n');
-  }catch(e){registro514.textContent='Não foi possível confirmar o resultado: '+String(e.message||e)+'. NÃO repita o PUT; verificar histórico V514.';}
-  finally{hash514='';}
+  }catch(e){registro515.textContent='Não foi possível confirmar o resultado: '+String(e.message||e)+'. NÃO repita o PUT; verificar histórico V515.';}
+  finally{hash515='';}
  };
 
 teste513.onclick=async()=>{
