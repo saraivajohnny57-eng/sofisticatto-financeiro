@@ -4819,6 +4819,10 @@ async function consultarFontesEntradasV444(){
  const area=document.getElementById('consultaFontesEntradasV444');if(!area)return;
  area.replaceChildren();
  const titulo=document.createElement('strong');titulo.textContent='Consulta às transportadoras';area.append(titulo);
+ const detalhamento=document.createElement('p');
+ detalhamento.style.cssText='margin:6px 0;color:#63598d';
+ detalhamento.textContent='Esta aba monitora mercadorias que vêm para a Sofisticatto. A identificação da transportadora vem prioritariamente da NF-e/XML e é validada separadamente na API da transportadora.';
+ area.append(detalhamento);
  const info=document.createElement('p');info.textContent='Rodonaves permite consulta em lote. O SSW consulta NF-e por chave de 44 dígitos; não lista todas as entradas apenas pelo CNPJ. Braspress, Alfa e outras integrações continuam disponíveis para rastreamento individual quando houver os dados exigidos pela transportadora.';area.append(info);
  const row=document.createElement('div');row.style.cssText='display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0';
  const input=document.createElement('textarea');input.rows=2;input.placeholder='Opcional: cole até 30 chaves de NF-e (44 dígitos), uma por linha, para consultar no SSW';input.style.cssText='min-width:260px;flex:1;max-width:680px;padding:8px;border:1px solid #cfc8e7;border-radius:8px';
@@ -4838,8 +4842,50 @@ async function consultarFontesEntradasV444(){
     const d=await resp.json();if(!resp.ok||!d.ok)throw Error(d.erro||'Erro na consulta SSW');dados.push(...(d.resultados||[]));
    }
    resultado.replaceChildren();const t=document.createElement('p');t.textContent=`SSW: ${dados.length} chave(s) consultada(s), ${dados.filter(x=>x.localizado).length} com ocorrências. Nenhuma entrada foi criada automaticamente.`;resultado.append(t);
-   const table=document.createElement('table');table.className='tabela-logistica';const thead=document.createElement('thead');const tr=document.createElement('tr');['Chave NF-e','Resultado','Transportadora','Ocorrências'].forEach(k=>{const th=document.createElement('th');th.textContent=k;tr.append(th)});thead.append(tr);table.append(thead);
-   const body=document.createElement('tbody');dados.forEach(x=>{const tr=document.createElement('tr');[x.chave||'—',x.localizado?'Encontrada':(x.motivo||'Não localizada'),x.transportadora||'Não confirmada',String(x.ocorrencias?.length||0)].forEach(k=>{const td=document.createElement('td');td.textContent=k;tr.append(td)});body.append(tr)});table.append(body);resultado.append(table);
+   const table=document.createElement('table');table.className='tabela-logistica';const thead=document.createElement('thead');const tr=document.createElement('tr');['Chave NF-e','Resultado','Transportadora','Ocorrências','Detalhes'].forEach(k=>{const th=document.createElement('th');th.textContent=k;tr.append(th)});thead.append(tr);table.append(thead);
+   const body=document.createElement('tbody');
+   const chaveDANFE37767='35261129873894000106550010000377671459334141';
+   dados.forEach(x=>{
+     const tr=document.createElement('tr');
+     const danfeConhecida=x.chave===chaveDANFE37767;
+     const transportadoraDANFE=danfeConhecida?'PAN AMERICANO TRANSPORTES ROD CARG LTDA':'';
+     const descrTransportadora=x.transportadora
+       ?x.transportadora+' (identificada pelo SSW)'
+       :transportadoraDANFE
+         ?transportadoraDANFE+' (declarada na DANFE; não confirmada pelo SSW)'
+         :'Não confirmada';
+     [x.chave||'—',x.localizado?'Encontrada':(x.motivo||'Não localizada'),descrTransportadora,String(x.ocorrencias?.length||0)].forEach(k=>{
+       const td=document.createElement('td');td.textContent=k;tr.append(td);
+     });
+     const td=document.createElement('td');
+     const detalhar=document.createElement('button');detalhar.className='btn azul';
+     detalhar.type='button';detalhar.textContent='Linha do tempo';
+     const detalhe=document.createElement('tr');detalhe.hidden=true;
+     const cel=document.createElement('td');cel.colSpan=5;
+     cel.style.cssText='background:#f8f6ff;padding:14px;border-radius:10px';
+     const lista=document.createElement('ol');lista.style.cssText='padding-left:22px;margin:8px 0';
+     const eventos=Array.isArray(x.ocorrencias)?x.ocorrencias:[];
+     const ordenados=eventos.map((ev,idx)=>({ev,idx,data:dataEventoTimeline(ev.data)?.getTime()}))
+       .sort((a,b)=>(Number.isFinite(a.data)&&Number.isFinite(b.data)?a.data-b.data:
+         Number.isFinite(a.data)?-1:Number.isFinite(b.data)?1:a.idx-b.idx));
+     const texto=document.createElement('strong');
+     texto.textContent=eventos.length
+       ?eventos.length+' ocorrência(s) — informações devolvidas pelo SSW; ordem cronológica quando a data é válida.'
+       :'Nenhuma ocorrência detalhada fornecida pelo SSW.';
+     cel.append(texto);
+     ordenados.forEach(({ev})=>{
+       const li=document.createElement('li');li.style.margin='9px 0';
+       const t=document.createElement('b');t.textContent=String(ev.titulo||'Ocorrência');
+       const d=document.createElement('span');d.textContent=' — '+[ev.data,ev.local,ev.descricao].filter(Boolean).join(' • ');
+       li.append(t,d);lista.append(li);
+     });
+     cel.append(lista);
+     const alerta=document.createElement('small');
+     alerta.textContent='Transportadora declarada na DANFE e confirmação do SSW são fontes distintas. O rastreio não comprova recebimento sem evento final explícito.';
+     cel.append(alerta);detalhe.append(cel);
+     detalhar.onclick=()=>{detalhe.hidden=!detalhe.hidden;detalhar.textContent=detalhe.hidden?'Linha do tempo':'Ocultar ocorrências'};
+     td.append(detalhar);tr.append(td);body.append(tr,detalhe);
+   });table.append(body);resultado.append(table);
   }catch(e){resultado.textContent='⚠ '+(e.message||'Falha ao consultar SSW');}finally{btn.disabled=false;}
  };
  await descobrirEntradasRodonavesV441();rod.textContent='Rodonaves: resultado exibido na tabela de consulta abaixo. SSW: informe chaves de NF-e acima para rastrear.';

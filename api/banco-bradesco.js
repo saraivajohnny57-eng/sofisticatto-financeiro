@@ -1414,6 +1414,47 @@ function prepararAlteracaoBradesco60584V515(banco,ret){
 
 
 
+    if(action==='auditar-integridade-put-v520'){
+      if(amb!=='producao')throw new Error('Disponível somente em produção.');
+      const audit=await obter('bradesco:producao:put-v515-60584-02');
+      if(!audit)return json(res,404,{ok:false,erro:'Auditoria histórica não encontrada'});
+      const dados=descriptografar(audit)||{};
+      const enviada=dados.request||{};
+      const gravados=await supabaseRest('cobrancas_bancarias',{
+        query:'?id=eq.8c1da3be-70b4-4d06-a811-b35a3de4bdb4&select=referencia,banco_resposta,banco_payload&limit=1'
+      });
+      const registro=gravados?.[0]||{},fonte=registro.banco_resposta?.titulo||{},titulo=enviada.dadosTitulo||{};
+      const defs=[
+       ['protesto.codInstrucaoProtesto','codInscrProt',titulo.protesto?.codInstrucaoProtesto],
+       ['protesto.qtdeDiasProtesto','diasProt',titulo.protesto?.qtdeDiasProtesto],
+       ['decurso.codDecursoPrazo',null,titulo.decurso?.codDecursoPrazo],
+       ['decurso.diasDecursoPrazo','qtdDiasDecurPrz',titulo.decurso?.diasDecursoPrazo],
+       ['codigoNegativacao',null,titulo.codigoNegativacao],
+       ['diasNegativacao',null,titulo.diasNegativacao],
+       ['abatimento.valorAbatimento','valAbat',titulo.abatimento?.valorAbatimento],
+       ['dataDesc1','dataDesc1',titulo.dataDesc1],
+       ['valDesc1','valDesc1',titulo.valDesc1],
+       ['codValDe1','codValDe1',titulo.codValDe1],
+       ['tipoDesc1','tipoDesc1',titulo.tipoDesc1],
+       ['pagamentoParcial','permitePgtoParcial',titulo.pagamentoParcial],
+       ['qtdePagamentoParcial','qtdePgtoParcial',titulo.qtdePagamentoParcial],
+       ['codigoControleParticipante','ctrlPartic',titulo.codigoControleParticipante],
+       ['indicadorAvisoSacado',null,titulo.indicadorAvisoSacado]
+      ];
+      const campos=defs.map(([destino,origem,valor])=>{
+       const existe=!!origem&&Object.prototype.hasOwnProperty.call(fonte,origem)&&fonte[origem]!=null;
+       return{campo:destino,enviado:valor!==undefined,fonte_original:existe?'consultado_no_banco':'nao_retornado',
+         valor_confere:existe?String(fonte[origem])===String(valor):null,
+         validacao_pendente:!existe||String(fonte[origem])!==String(valor)};
+      });
+      const pendentes=campos.filter(c=>c.validacao_pendente);
+      return json(res,200,{ok:true,transmitido:false,referencia:'60584-02',
+        status_real:'REJEITADO_HTTP_412_CBTT0797',total_campos:campos.length,
+        campos_sem_confirmacao:pendentes.length,campos,
+        possui_json_emissao_original:Boolean(registro.banco_payload),
+        pode_reutilizar_put:false,
+        diagnostico:'O contrato de alteração não é o objeto retornado na consulta. Montar o PUT apenas com mapeamento validado, preservando o original e sem preencher campos não retornados como zero. Reenvio não permitido.'});
+    }
     if(action==='diagnosticar-campos-put-60584-v519'){
       if(amb!=='producao')throw new Error('Somente ambiente de produção.');
       const auditoria=await obter('bradesco:producao:put-v515-60584-02');
