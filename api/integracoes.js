@@ -51,6 +51,8 @@ const gnreV490 = require("../lib/integracoes/gnre-piloto-51185-preflight");
 const gnreV491 = require("../lib/integracoes/gnre-producao-real-51185");
 const gnreArquivo = require("../lib/integracoes/gnre-arquivo-guias");
 const gnreConfigMultiUf = require("../lib/integracoes/gnre-config-multiuf");
+const gnrePreEnvioMg = require("../lib/integracoes/gnre-preenvio-mg");
+const gnreRelatorioUfs = require("../lib/integracoes/gnre-relatorio-ufs");
 const diagnosticoDfeV445 = require("../lib/integracoes/diagnostico-dfe-v445");
 const sefazDfeV477 = require("../lib/integracoes/sefaz-dfe");
 const ROTAS = Object.freeze({
@@ -61,6 +63,8 @@ const ROTAS = Object.freeze({
   "gnre-producao-real-51185": gnreV491,
   "gnre-arquivo-guias": gnreArquivo,
   "gnre-config-multiuf": gnreConfigMultiUf,
+  "gnre-preenvio-mg": gnrePreEnvioMg,
+  "gnre-relatorio-ufs": gnreRelatorioUfs,
   "gnre-certificado": gnreCertificado,
   "validar-chave": validarChave,
   "status-servidor": statusServidor,
