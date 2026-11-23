@@ -13,6 +13,49 @@ function montar(){
  const button484=document.createElement('button');button484.type='button';button484.className='btn roxo';
  button484.textContent='Conferência consolidada 56078-03 (sem alterar)';
  button484.style.marginLeft='8px';panel.appendChild(button484);
+
+ const teste513=document.createElement('button');teste513.type='button';teste513.className='btn roxo';
+ teste513.style.marginLeft='8px';teste513.textContent='Consultar 55937-004 — encargos (teste único)';
+ panel.appendChild(teste513);
+ const saida513=document.createElement('pre');
+ saida513.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:10px;font:13px/1.5 Segoe UI,Arial,sans-serif';
+ panel.appendChild(saida513);
+ const download513=document.createElement('button');download513.type='button';download513.className='btn roxo';
+ download513.textContent='Baixar resultado 55937-004 (TXT)';download513.disabled=true;panel.appendChild(download513);
+ let texto513='';
+ download513.onclick=()=>{if(!texto513)return;
+  const url=URL.createObjectURL(new Blob([texto513],{type:'text/plain;charset=utf-8'}));
+  const a=document.createElement('a');a.href=url;a.download='Bradesco_WF-99571_55937-004_V513.txt';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ };
+ teste513.onclick=async()=>{
+  teste513.disabled=true;saida513.textContent='Uma consulta individual no Bradesco, sem PUT...';
+  try{
+   if(typeof bradescoReqProducao!=='function')throw Error('Autorização bancária não disponível');
+   const j=await bradescoReqProducao('preflight-55937-v513',{nosso_numero:'13625803774'});
+   texto513=[
+    'SOFISTICATTO | BRADESCO WF-99571 | V513',
+    'Título: 55937-004 | Nosso Número: 13625803774',
+    'Status: '+(j.status||'indisponível')+' | HTTP: '+(j.http_status??'sem resposta'),
+    'Referência da consulta: BANCO (sem registro local)',
+    'Situação: '+(j.titulo?.status_bancario||'não confirmado'),
+    'Valor nominal: '+(j.titulo?.valor_nominal??'não confirmado'),
+    'Vencimento original: '+(j.titulo?.vencimento_original||'não confirmado'),
+    'Emissão original: '+(j.titulo?.data_emissao||'não confirmada'),
+    'Espécie: '+(j.titulo?.especie||'não confirmada'),
+    'PUT: NÃO EXECUTADO | HTTP PUT: NÃO EXISTE',
+    'Erro consulta: '+(j.codigo_erro||'nenhum'),
+    '--- TODOS OS CAMPOS ---',
+    ...(j.checks||[]).map(v=>v.estado+' | '+v.campo+' | '+v.detalhe),
+    '--- IMPEDIMENTOS ---',
+    ...(j.impedimentos||[]).map(v=>'- '+v),
+    'Próxima ação: '+(j.proxima_acao||'Conferir os campos pendentes antes do PUT.')
+   ].join('\n');
+   saida513.textContent=texto513;download513.disabled=false;
+  }catch(e){saida513.textContent='Não foi possível concluir a consulta: '+String(e.message||e)+'. Nenhum PUT enviado.';}
+  finally{teste513.disabled=false;}
+ };
+
  const audit484=document.createElement('pre');audit484.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
  audit484.setAttribute('aria-live','polite');panel.appendChild(audit484);
  let relatorioV508='';

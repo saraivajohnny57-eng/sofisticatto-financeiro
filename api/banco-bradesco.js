@@ -1228,6 +1228,56 @@ module.exports=async function(req,res){
       const sit=interpretarConsultaBradesco(d,{nosso_numero:nn});
       return json(res,200,{ok:true,somente_leitura:true,consulta:{nosso_numero:nn,linha_digitavel:buscar('linhaDigitavel','linha_digitavel','linhaDig'),codigo_barras:buscar('cdBarras','codigoBarras','codigoBarraNumerico','codigo_barras'),url_boleto:buscar('urlImagemBoleto','urlBoleto','pdfUrl'),vencimento:sit.vencimento,status:sit.statusNovo,status_descricao:sit.descricao,valor_titulo:sit.valorTitulo,valor_boleto:sit.valorBoleto,valor_pago:sit.valorPago,juros:buscar('vlJuros','valorJuros'),multa:buscar('vlMulta','valorMulta')}});
     }
+
+    // V513 — Novo título escolhido pelo usuário, emitido diretamente no banco.
+    // Uma consulta individual; não pressupõe cadastro local, não faz PUT.
+    if(action==='preflight-55937-v513'){
+      if(amb!=='producao')throw new Error('Este teste usa exclusivamente consulta de produção.');
+      const nn=String(req.body?.nosso_numero||'').replace(/\D/g,'');
+      if(nn!=='13625803774')throw new Error('V513 restrito ao Nosso Número 13625803774.');
+      let q;
+      try{q=await consultarTituloBradesco(amb,{nosso_numero:nn});}
+      catch(e){return json(res,200,{ok:true,versao:'V513',referencia:'55937-004',nosso_numero:nn,
+        status:'CONSULTA_NAO_CONCLUIDA',http_status:Number(e.http_status)||null,
+        codigo_erro:'TRANSPORTE_OU_AUTENTICACAO',transmitido:false,alteracoes_put:0,
+        checks:[{campo:'Consulta bancária',estado:'FALHA',detalhe:'Não foi possível concluir a consulta individual; sem alteração'}]});}
+      if(q.http_status<200||q.http_status>=300){
+        const cod=String(detalheRespostaBradesco(q.data)||'').match(/CBTT\d{4}/i)?.[0]||'SEM_CODIGO';
+        return json(res,200,{ok:true,versao:'V513',referencia:'55937-004',nosso_numero:nn,
+          status:'CONSULTA_RECUSADA',http_status:q.http_status,codigo_erro:cod,transmitido:false,alteracoes_put:0,
+          checks:[{campo:'Consulta bancária',estado:'FALHA',detalhe:'HTTP '+q.http_status+' / '+cod}]});}
+      const t=q.data?.titulo||q.data?.Titulo||q.data?.boleto||{};
+      let sit;
+      try{sit=interpretarConsultaBradesco(q.data,{nosso_numero:nn,status:'aberto'});}catch(_){sit=null;}
+      const checks=[],check=(campo,ok,detalhe)=>checks.push({campo,estado:ok?'OK':'PENDENTE',detalhe});
+      const venc=dataBradescoIso(t.dataVencto),emissao=dataBradescoIso(t.dataEmis),especie=String(t.especDocto||'').trim();
+      const seu=String(t.snumero||'').trim();
+      const val=Number(t.valMoeda);
+      const valor=Number.isFinite(val)&&Math.abs(val-69319)<=1?val/100:Number.isFinite(val)&&Math.abs(val-693.19)<0.011?val:null;
+      const ativo=!!sit&&sit.codStatus===1&&!sit.pago&&!sit.baixado&&!sit.descontado;
+      const prot=Number(t.codInscrProt??NaN)===0&&Number(t.diasProt??NaN)===0;
+      const pag=t.sacado||{};
+      const doc=String(pag.cnpj||'').replace(/\D/g,'');
+      check('Nosso Número',true,'Consulta autenticada direcionada a 13625803774');
+      check('Seu Número',seu==='55937-004',seu==='55937-004'?'55937-004 no retorno individual':'Seu Número ausente ou divergente; não inferir correspondência');
+      check('Situação ativa',ativo,'Código bancário '+String(sit?.codStatus??'ausente')+'; status '+String(sit?.descricao||'não retornado'));
+      check('Valor nominal',valor!==null&&Math.abs(valor-693.19)<0.011,valor===null?'Valor retornado não confere':'R$ '+valor.toFixed(2).replace('.',','));
+      check('Vencimento original',venc==='2026-11-13',venc||'ausente');
+      check('Emissão e espécie originais',!!emissao&&!!especie,(emissao||'data ausente')+' | '+(especie||'espécie ausente'));
+      check('Pagador bancário',doc.length>=11&&doc.length<=15&&!!pag.nome&&!!pag.endereco,'Documento, nome e endereço '+(doc?'presentes (ocultos)':'incompletos'));
+      check('Sem protesto',prot,prot?'0/0 confirmado':'não confirmado; não alterar instruções');
+      check('Situação de encargos',t.codComisPerm!==undefined&&t.codValMul!==undefined,
+        'Códigos atuais: juros '+String(t.codComisPerm??'?')+'; multa '+String(t.codValMul??'?'));
+      check('Escala dos juros 5% ao mês no PUT',false,'valorComissaoPermanencia ainda sem escala oficialmente confirmada');
+      check('Escala da multa 2% no PUT',false,'valorMulta ainda sem escala oficialmente confirmada');
+      const impedimentos=checks.filter(c=>c.estado!=='OK').map(c=>c.campo);
+      return json(res,200,{ok:true,versao:'V513',referencia:'55937-004',nosso_numero:nn,origem:'BANCO',
+        status:ativo?'CONSULTADO_SEM_PUT':'NAO_ELEGIVEL',http_status:q.http_status,
+        titulo:{valor_nominal:valor,vencimento_original:venc,data_emissao:emissao,especie,
+          codigo_situacao:sit?.codStatus||null,status_bancario:sit?.descricao||null},
+        checks,impedimentos,alteracoes_put:0,consultas_individuais:1,transmitido:false,
+        proxima_acao:'Completar os impedimentos indicados e executar um único PUT controlado com evidência real de request/response e posterior consulta; não repetir testes anteriores.'});
+    }
     // V433: pré-validação autenticada de manutenção; nenhuma instrução PUT é transmitida.
     // A API de alteração exige o registro completo do boleto; não reconstruir campos
     // imutáveis/contratuais a partir de dados locais incompletos.
