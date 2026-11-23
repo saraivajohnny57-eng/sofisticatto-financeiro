@@ -1388,8 +1388,12 @@ function prepararAlteracaoBradesco55937V514(banco,ret){
       }
       const detalhe=String(detalheRespostaBradesco(ret.data)||'').slice(0,450);
       const codigo=detalhe.match(/CBTT\d{4}/i)?.[0]||null;
-      const aceita=ret.http_status>=200&&ret.http_status<300&&Number(ret.data?.status??ret.http_status)===200
-        &&!/\berro\b|insucesso|rejeitad/i.test(detalhe);
+      // Manual Bradesco API Cobrança 1.6.4: sucesso específico do PUT é CBTT0445.
+      // HTTP 200 isolado não autoriza dar a alteração como concluída.
+      const sucessoBanco=String(ret.data?.mensagem||ret.data?.message||'');
+      const aceita=ret.http_status===200&&Number(ret.data?.status??ret.http_status)===200&&
+        String(ret.data?.transacao||'').toUpperCase()==='CBTTIAGP'&&
+        /CBTT0445\s*-\s*ALTERACAO EFETUADA/i.test(sucessoBanco);
       const estado=aceita?'aceito_pendente_conciliacao':'rejeitado';
       await supabaseRest('bradesco_put_controlado_v514',{method:'PATCH',
         query:'?referencia=eq.55937-004',body:{status:estado,http_status:ret.http_status,codigo_bancario:codigo,
