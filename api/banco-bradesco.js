@@ -1436,10 +1436,19 @@ function prepararAlteracaoBradesco60584V515(banco,ret){
           !/^[a-f0-9]{64}$/.test(String(req.body?.hash_previa||''))))
         throw new Error('Confirmação explícita e hash íntegro obrigatórios.');
       // Bloquear ANTES de consultar e transmitir caso exista qualquer reserva anterior.
-      const existente=await supabaseRest('bradesco_put_controlado_v515',{query:'?referencia=eq.60584-02&select=status,http_status,codigo_bancario,criado_em&limit=1'});
-      if(Array.isArray(existente)&&existente.length)return json(res,409,{ok:false,transmitido:false,
-       estado:'OPERACAO_JA_RESERVADA',historico:existente[0],
-       mensagem:'Já houve reserva ou transmissão para este título. NÃO reenvie; concilie o registro existente.'});
+      const existente=await supabaseRest('bradesco_put_controlado_v515',{
+        query:'?referencia=eq.60584-02&select=status,http_status,codigo_bancario,criado_em,hash_request&limit=1'});
+      const controle=Array.isArray(existente)?existente[0]||null:null;
+      const recuperacao=controle?.status==='falha_auditoria_sem_envio'&&controle?.http_status==null&&
+        /^[a-f0-9]{64}$/.test(String(controle.hash_request||''));
+      if(controle&&!recuperacao)return json(res,409,{ok:false,transmitido:false,
+       estado:'OPERACAO_JA_RESERVADA',historico:{status:controle.status,http_status:controle.http_status},
+       mensagem:'Já existe tentativa não recuperável neste fluxo. NÃO reenviar; conciliar histórico.'});
+      if(recuperacao){
+        const auditExistente=await obter('bradesco:producao:put-v515-60584-02');
+        if(auditExistente)return json(res,409,{ok:false,transmitido:false,
+          estado:'AUDITORIA_JA_EXISTE',mensagem:'Uma auditoria já existe: não é seguro retomar automaticamente.'});
+      }
       // Registro local completo obrigatório: não tratar um título da carteira como não cadastrado.
       const locais=await supabaseRest('cobrancas_bancarias',{query:'?id=eq.8c1da3be-70b4-4d06-a811-b35a3de4bdb4&banco=eq.bradesco&select=id,numero_nf,parcela_numero,referencia,status,valor,nosso_numero,vencimento&limit=2'});
       const local=Array.isArray(locais)&&locais.length===1?locais[0]:null;
@@ -1461,7 +1470,10 @@ function prepararAlteracaoBradesco60584V515(banco,ret){
        return json(res,200,{ok:true,transmitido:false,estado:'PREVIEW_BLOQUEADO',
         motivo:String(e.message||e).slice(0,220),proxima_acao:'Reconciliar situação bancária antes de qualquer alteração.'});
       }
-      const publicPlan={hash:plan.hash||null,pronto:plan.pronto,
+      if(recuperacao&&plan.hash!==controle.hash_request)
+        return json(res,409,{ok:false,transmitido:false,estado:'HASH_ORIGINAL_DIVERGENTE',
+          mensagem:'O payload mudou desde a tentativa sem envio. Não reenviar; conciliar o título.'});
+      const publicPlan={recuperacao_segura:!!recuperacao,hash:plan.hash||null,pronto:plan.pronto,
         ja_configurado:plan.ja_configurado,checks:plan.checks,falhas:plan.falhas,
         resumo:plan.resumo,modo:executar?'EXECUCAO_CONTROLADA':'PREVIA_SEM_PUT',
         alteracoes_put:0};
@@ -1473,20 +1485,41 @@ function prepararAlteracaoBradesco60584V515(banco,ret){
          mensagem:'Dados bancários mudaram desde a prévia. Nenhum PUT enviado. Não confirmar sem rever.'});
       const reserva={referencia:'60584-02',nosso_numero:'62860000010',status:'reservado',
         hash_request:plan.hash,diagnostico:{operacao:'V515',juros_diario_centavos:100,multa_percentual:2}};
-      try{await supabaseRest('bradesco_put_controlado_v515',{method:'POST',body:reserva});}
-      catch(_){return json(res,409,{ok:false,transmitido:false,estado:'RESERVA_NAO_CONFIRMADA',
-        mensagem:'A reserva única falhou ou já existe. Não foi transmitido PUT; não repetir sem conciliar.'});}
+      if(!recuperacao){
+        try{await supabaseRest('bradesco_put_controlado_v515',{method:'POST',body:reserva});}
+        catch(_){return json(res,409,{ok:false,transmitido:false,estado:'RESERVA_NAO_CONFIRMADA',
+          mensagem:'A reserva única falhou ou já existe. Não foi transmitido PUT; não repetir sem conciliar.'});}
+      }
       const uri='https://openapi.bradesco.com.br/boleto/cobranca-altera/v1/alterar';
       const curl='curl -X PUT '+JSON.stringify(uri)+' -H "Authorization: Bearer [REDACTED]" -H "Content-Type: application/json" --data-binary @request.json # mTLS protegido';
-      // Request integral fica criptografado exclusivamente no servidor, nunca no TXT público.
+      // Antes de qualquer PUT, persistir o JSON cifrado; somente a confirmação de gravação prossegue.
       try{
-        await salvar('bradesco:producao:put-v515-60584-02',amb,'auditoria-put-v514',
+        await salvar('bradesco:producao:put-v515-60584-02',amb,'auditoria-put-v515',
            {request:plan.payload,curl_sanitizado:curl,hash:plan.hash,
-            enviado_em:null,resposta:null,origem:'consulta autenticada V514'},
+            enviado_em:null,resposta:null,origem:'consulta autenticada V516'},
            {estado:'RESERVADO_SEM_ENVIO',referencia:'60584-02'});
       }catch(_){
-       return json(res,200,{ok:true,transmitido:false,estado:'RESERVADO_SEM_AUDITORIA',
-        mensagem:'Não foi possível guardar o JSON criptografado. PUT não enviado. Reserva preservada.'});
+       if(!recuperacao){
+        try{await supabaseRest('bradesco_put_controlado_v515',{method:'PATCH',
+          query:'?referencia=eq.60584-02&status=eq.reservado&http_status=is.null&hash_request=eq.'+plan.hash,
+          body:{status:'falha_auditoria_sem_envio',atualizado_em:new Date().toISOString()}});}catch(_){}
+       }
+       return json(res,200,{ok:true,transmitido:false,estado:'FALHA_AUDITORIA_SEM_ENVIO',
+        mensagem:'Falha no armazenamento cifrado. PUT não enviado; não repetir sem recuperar este estado.'});
+      }
+      // Na recuperação, uma única requisição pode reivindicar a reserva antiga:
+      // atualização condicional impede duas confirmações simultâneas.
+      if(recuperacao){
+        let tomada=[];
+        try{
+         tomada=await supabaseRest('bradesco_put_controlado_v515',{method:'PATCH',
+          query:'?referencia=eq.60584-02&status=eq.falha_auditoria_sem_envio&http_status=is.null&hash_request=eq.'+plan.hash,
+          body:{status:'reservado',atualizado_em:new Date().toISOString(),
+            diagnostico:{operacao:'V516',origem:'RECUPERACAO_DE_AUDITORIA_SEM_ENVIO',juros_diario_centavos:100,multa_percentual:2}}});
+        }catch(_){}
+        if(!Array.isArray(tomada)||tomada.length!==1)
+          return json(res,409,{ok:false,transmitido:false,estado:'RECUPERACAO_NAO_CONFIRMADA',
+             mensagem:'Não foi possível reivindicar a reserva original; nenhum PUT enviado. Não tente novamente sem verificar.'});
       }
       let ret;
       try{
@@ -1494,7 +1527,7 @@ function prepararAlteracaoBradesco60584V515(banco,ret){
       }catch(_){
         await supabaseRest('bradesco_put_controlado_v515',{method:'PATCH',
           query:'?referencia=eq.60584-02',body:{status:'resultado_incerto',atualizado_em:new Date().toISOString()}});
-        try{await salvar('bradesco:producao:put-v515-60584-02',amb,'auditoria-put-v514',
+        try{await salvar('bradesco:producao:put-v515-60584-02',amb,'auditoria-put-v515',
           {request:plan.payload,curl_sanitizado:curl,hash:plan.hash,
            resultado:'TRANSPORTE_INCERTO',resposta:null},{estado:'RESULTADO_INCERTO',referencia:'60584-02'});}catch(_){}
         return json(res,200,{ok:true,transmitido:'INCERTO',estado:'RESULTADO_INCERTO',
@@ -1512,7 +1545,7 @@ function prepararAlteracaoBradesco60584V515(banco,ret){
       // Guardar PRIMEIRO a resposta bancária real cifrada antes do resultado público.
       let auditoriaCompleta=false,estadoRegistrado=false;
       try{
-        await salvar('bradesco:producao:put-v515-60584-02',amb,'auditoria-put-v514',
+        await salvar('bradesco:producao:put-v515-60584-02',amb,'auditoria-put-v515',
           {request:plan.payload,response:ret.data,curl_sanitizado:curl,hash:plan.hash,
            status_http:ret.http_status,registrado_em:new Date().toISOString()},
           {estado:estado.toUpperCase(),referencia:'60584-02',http_status:ret.http_status});

@@ -29,7 +29,7 @@ function montar(){
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
  };
  
- const titulo515=document.createElement('h4');titulo515.textContent='V515 — Primeira alteração real controlada 605,84-02';
+ const titulo515=document.createElement('h4');titulo515.textContent='V516 — Recuperação segura do primeiro PUT 605,84-02';
  panel.appendChild(titulo515);
  const prepara515=document.createElement('button');prepara515.type='button';prepara515.className='btn roxo';
  prepara515.textContent='Preparar PUT real 605,84-02 (não envia)';panel.appendChild(prepara515);
@@ -67,7 +67,8 @@ function montar(){
   try{
    const j=await bradescoReqProducao('preparar-put-60584-v515',{nosso_numero:'62860000010'});
    const lista=(j.checks||[]).map(c=>c.estado+' | '+c.campo+' | '+c.info);
-   registro515.textContent=['V515 — PRÉVIA, NENHUMA ALTERAÇÃO ENVIADA',
+   registro515.textContent=['V516 — PRÉVIA, NENHUMA ALTERAÇÃO ENVIADA',
+    'Recuperação da reserva anterior: '+(j.recuperacao_segura?'SIM — sem PUT enviado anteriormente':'NÃO'),
     'Estado: '+j.estado,'Valores propostos: juros R$ '+(j.resumo?.juros_dia_reais??'?')+'/dia (equivalente a 5% a.m. pela regra usada na emissão)',
     'Multa: '+(j.resumo?.multa_percentual??'?')+'% | valor codificado: '+(j.resumo?.valor_multa_enviado??'?')+' (2 casas)',
     'Códigos bancários atuais: juros '+(j.resumo?.juros_anterior_cod??'?')+' valor '+(j.resumo?.juros_anterior_valor??'?')+
@@ -83,7 +84,7 @@ function montar(){
   const msg='ATENÇÃO: ALTERAÇÃO REAL DO BOLETO 60584-02 NO BRADESCO.\n\n' +
    'Juros diários propostos: R$ 1,00 (equivalente aproximado a 5% ao mês, conforme padrão da carteira).\n' +
    'Multa: 2%.\nVencimento e nominal serão preservados.\n\n' +
-   'O sistema fará UMA tentativa PUT e não repetirá em caso de erro ou timeout.\n\nConfirmar?';
+   'A reserva anterior falhou ANTES de enviar o PUT. O sistema só reutilizará essa reserva se o hash continuar igual, e fará UMA tentativa real, sem reenvio automático.\n\nConfirmar?';
   if(!window.confirm(msg))return;
   confirma515.disabled=true;prepara515.disabled=true;
   registro515.textContent='Executando UMA alteração real controlada. Não recarregue a página.';
