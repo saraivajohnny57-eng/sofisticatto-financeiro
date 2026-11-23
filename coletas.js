@@ -2869,7 +2869,8 @@ async function sincronizarRastreiosSSWLocais(){
 // V440: rastreios importados pelo Tracking DANFE usam a consulta pública por chave,
 // independentemente de a transportadora ter integração privada SSW configurada.
 function rastreioDanfeV440(r){
- return /^SSW Tracking DANFE/i.test(String(r?.metodo_consulta||'')) && /^\d{44}$/.test(String(r?.chave_nfe||'').replace(/\D/g,''));
+ return /^\d{44}$/.test(String(r?.chave_nfe||'').replace(/\D/g,'')) &&
+   (r?.sentido==='entrada'||/^SSW Tracking DANFE/i.test(String(r?.metodo_consulta||'')));
 }
 function rastreioPodeAtualizarV440(r){
  // Exibir a ação mesmo sem integração/identificador: o usuário poderá
@@ -2900,24 +2901,39 @@ async function atualizarRastreioDanfeV440(rastro,botao){
   const mapa=new Map(antigo.map(e=>[identidade(e),e]));
   for(const e of eventos)mapa.set(identidade(e),e);
   const conjunto=[...mapa.values()];
-  const ultimo=eventos[eventos.length-1];
-  const descricao=[ultimo.ocorrencia,ultimo.descricao].filter(Boolean).join(' — ');
-  const update={consulta_api:{...(rastro.consulta_api||{}),tracking:conjunto},atualizado_em:new Date().toISOString()};
+  // Ordena pela data oficial, preservando a sequência de entrada somente para datas ausentes.
+  const ordenados=conjunto.map((e,idx)=>({e,idx,data:dataEventoTimeline(e.data_hora)?.getTime()}))
+    .sort((a,b)=>Number.isFinite(a.data)&&Number.isFinite(b.data)?a.data-b.data:
+      Number.isFinite(a.data)?-1:Number.isFinite(b.data)?1:a.idx-b.idx);
+  const ultimo=[...ordenados].reverse().find(x=>Number.isFinite(x.data))?.e||null;
+  const descricao=ultimo?[ultimo.ocorrencia,ultimo.descricao].filter(Boolean).join(' — '):'';
+  const update={consulta_api:{...(rastro.consulta_api||{}),tracking:ordenados.map(x=>x.e),
+    origem:'SSW Tracking DANFE',transportadora_ssw:resultado.transportadora||null,
+    transportadora_confirmada_ssw:!!resultado.transportadora,
+    transportadora_documental:rastro.frete_transportadoras?.nome||null},
+    metodo_consulta:'SSW Tracking DANFE',consultado_api_em:new Date().toISOString(),
+    atualizado_em:new Date().toISOString()};
   // Não rebaixa um status entregue nem substitui eventos por uma resposta vazia.
-  if(!['entregue','recebido'].includes(String(rastro.status||'').toLowerCase())){
-   update.ultima_ocorrencia=descricao||rastro.ultima_ocorrencia;
-   update.ultima_ocorrencia_em=ultimo.data_hora||rastro.ultima_ocorrencia_em;
-   update.status_api=descricao||rastro.status_api;
-   const t=normalizarTransportadoraV436(descricao);
-   if(/\bENTREGUE\b|ENTREGA REALIZADA|RECEBIDO PELO DESTINATARIO/.test(t))update.status='entregue';
-   else if(/SAIU.*ENTREGA|ROTA DE ENTREGA/.test(t))update.status='saiu_entrega';
-   else if(/OCORRENCIA|DEVOLUCAO|EXTRAVIO/.test(t))update.status='ocorrencia';
+  if(!['entregue','recebido'].includes(String(rastro.status||'').toLowerCase())&&ultimo){
+   const ant=dataEventoTimeline(rastro.ultima_ocorrencia_em)?.getTime();
+   const nov=dataEventoTimeline(ultimo.data_hora)?.getTime();
+   if(Number.isFinite(nov)&&(!Number.isFinite(ant)||nov>=ant)){
+     update.ultima_ocorrencia=descricao||rastro.ultima_ocorrencia;
+     update.ultima_ocorrencia_em=new Date(nov).toISOString();
+     update.status_api=descricao||rastro.status_api;
+     const t=normalizarTransportadoraV436(descricao);
+     if(/ENTREGA FINALIZADA|ENTREGA EFETUADA|ENTREGA REALIZADA|ENTREGUE AO DESTINATARIO|RECEBIDO PELO DESTINATARIO/.test(t)){
+       update.status=rastro.sentido==='entrada'?'recebido':'entregue';
+       update.finalizado_em=new Date(nov).toISOString();
+     }else if(/SAIU.*ENTREGA|ROTA DE ENTREGA/.test(t))update.status='saiu_entrega';
+     else if(/OCORRENCIA|DEVOLUCAO|EXTRAVIO/.test(t))update.status='ocorrencia';
+   }
   }
   const gravar=await banco.from('logistica_rastreamentos').update(update).eq('id',rastro.id).select('id').maybeSingle();
   if(gravar.error||!gravar.data)throw new Error(gravar.error?.message||'Não foi possível confirmar a gravação.');
   await carregarRastreamentosLogistica(rastro.sentido||'saida');
   if(typeof carregarRastreamentosEntregues==='function')await carregarRastreamentosEntregues();
-  alert(`Consulta SSW por chave NF-e concluída.\n\nNF: ${rastro.numero_nfe||'—'}\nOcorrências retornadas: ${eventos.length}\nEventos no histórico: ${conjunto.length}\n\nA transportadora cadastrada não foi alterada.`);
+  alert(`Consulta SSW por chave NF-e concluída.\n\nNF: ${rastro.numero_nfe||'—'}\nOcorrências retornadas: ${eventos.length}\nEventos no histórico: ${conjunto.length}\nTransportadora SSW: ${resultado.transportadora||'não identificada'}\nTransportadora no cadastro: ${rastro.frete_transportadoras?.nome||'não informada'}\n\nA transportadora cadastrada não foi alterada. Veja a Linha do tempo para os detalhes.`);
  }catch(e){alert('Não foi possível atualizar pelo SSW Tracking DANFE: '+e.message);}
  finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
 }
