@@ -2927,6 +2927,8 @@ async function atualizarRastreioDanfeV440(rastro,botao){
        update.finalizado_em=new Date(nov).toISOString();
      }else if(/SAIU.*ENTREGA|ROTA DE ENTREGA/.test(t))update.status='saiu_entrega';
      else if(/OCORRENCIA|DEVOLUCAO|EXTRAVIO/.test(t))update.status='ocorrencia';
+     else if(/EM TRANSITO|EM TRANSFERENCIA|MERCADORIA COLETADA|COLETA REALIZADA|MERCADORIA ENCAMINHADA/.test(t))update.status='em_transito';
+     else if(/RECEBIDO NA FILIAL|CHEGADA A FILIAL|MERCADORIA NA FILIAL/.test(t))update.status='na_filial';
    }
   }
   const gravar=await banco.from('logistica_rastreamentos').update(update).eq('id',rastro.id).select('id').maybeSingle();
