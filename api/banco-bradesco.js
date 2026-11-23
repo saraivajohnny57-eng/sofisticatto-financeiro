@@ -1246,7 +1246,7 @@ function prepararAlteracaoBradesco55937V514(banco,ret){
  const sit=interpretarConsultaBradesco(ret,{nosso_numero:'13625803774',status:'aberto'});
  const venc=dataBradescoIso(t.dataVencto);
  const pag=t.sacado||{},aval=t.sacador||{};
- const docPag=dig(pag.cnpj).padStart(15,'0'),docAval=dig(aval.cnpj).padStart(15,'0');
+ const docPag=dig(pag.cnpj).padStart(15,'0');
  const originalValPerm=num(t.valPerm),originalValMulta=num(t.valMulta);
  const originalCodJuros=num(t.codComisPerm),originalCodMulta=num(t.codValMul);
  const originalDiasJuros=num(t.diasJuros??t.diasComisPerm);
@@ -1262,19 +1262,21 @@ function prepararAlteracaoBradesco55937V514(banco,ret){
  check('pagador_bancario',dig(pag.cnpj).length>=11&&dig(pag.cnpj).length<=15&&!!String(pag.nome||'').trim()&&String(pag.nome||'').length<=40&&!!String(pag.endereco||'').trim()&&String(pag.endereco||'').length<=40,'Documento, nome e endereço obtidos da consulta, sem inventar dados');
  check('cep_bancario',dig(pag.cep).length===5&&dig(pag.cepc).length===3,'CEP 5+3 completo no retorno autenticado');
  check('protesto_e_decurso',num(t.codInscrProt)===0&&num(t.diasProt)===0&&num(t.qtdDiasDecurPrz??0)===0,'Sem instrução de protesto e decurso');
- check('sem_descontos_abatimentos',num(t.valAbat??0)===0&&[1,2,3].every(i=>num(t['valDesc'+i]??0)===0)&&[1,2,3].every(i=>!dataBradescoIso(t['dataDesc'+i])),'Não remover descontos ou abatimentos previamente acordados');
+ check('sem_descontos_abatimentos',num(t.valAbat??0)===0&&[1,2,3].every(i=>num(t['valDesc'+i]??0)===0)&&[1,2,3].every(i=>!dig(t['dataDesc'+i])||Number(dig(t['dataDesc'+i]))===0),'Não remover descontos ou abatimentos previamente acordados');
  check('pagamento_parcial',String(t.permitePgtoParcial||'N')==='N','Não alterar condição de pagamento parcial');
  check('valor_multa_escala_bancaria',num(t.qtdeCasMul)===2,'Consulta informa 2 casas decimais para a multa');
  check('tipo_juros_original',originalCodJuros===1&&Number.isFinite(originalValPerm),'Manter juros diários em valor, modalidade já registrada no título');
  check('tipo_multa_original',originalCodMulta===2&&Number.isFinite(originalValMulta),'Manter multa percentual, modalidade já registrada no título');
- check('dados_de_sacador',!String(aval.nome||'').trim()&&!dig(aval.cnpj),'Não omitir sacador avalista já presente');
+ check('dados_de_sacador',!String(aval.nome||'').trim()&&(!dig(aval.cnpj)||Number(dig(aval.cnpj))===0),'Não omitir sacador avalista já presente');
  check('aceite_original',String(t.aceite||'N')==='N','Preservar aceite N');
+ check('email_e_controle_originais',String(t.enderecoEma||'').length<=50&&String(t.ctrlPartic||'').length<=25,
+   'Preservar identificadores complementares sem truncar campos');
  check('escala_validada_por_retorno_carteira',jurosDiaCentavos===115&&multaPercentualEscalado===200,'Padrão histórico da carteira: valor diário em centavos e multa com 2 casas');
  const jaConfigurado=originalCodJuros===1&&originalCodMulta===2&&originalValPerm===jurosDiaCentavos&&
   originalValMulta===multaPercentualEscalado&&originalDiasJuros===1&&originalDiasMulta===1;
  const falhas=checks.filter(x=>x.estado==='BLOQUEIO').map(x=>x.campo);
  if(falhas.length)return {pronto:false,ja_configurado:false,checks,falhas};
- const cpf=dig(pag.cnpj).padStart(15,'0'),cpfA=dig(aval.cnpj).padStart(15,'0');
+ const cpf=dig(pag.cnpj).padStart(15,'0');
  const titulo={
   seuNumero:String(t.snumero),
   dataEmissao:d(t.dataEmis),especie:'DM',
