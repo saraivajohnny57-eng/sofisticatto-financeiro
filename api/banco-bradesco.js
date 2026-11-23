@@ -1411,17 +1411,29 @@ function prepararAlteracaoBradesco55937V514(banco,ret){
         String(ret.data?.transacao||'').toUpperCase()==='CBTTIAGP'&&
         /CBTT0445\s*-\s*ALTERACAO EFETUADA/i.test(sucessoBanco);
       const estado=aceita?'aceito_pendente_conciliacao':'rejeitado';
-      await supabaseRest('bradesco_put_controlado_v514',{method:'PATCH',
-        query:'?referencia=eq.55937-004',body:{status:estado,http_status:ret.http_status,codigo_bancario:codigo,
-          diagnostico:{operacao:'V514',http_status:ret.http_status,codigo_bancario:codigo,
-            resposta_tipo:aceita?'ACEITA_PENDENTE_CONSULTA':'REJEITADA'},
-          atualizado_em:new Date().toISOString()}});
+      // Guardar PRIMEIRO a resposta bancária real cifrada antes do resultado público.
+      let auditoriaCompleta=false,estadoRegistrado=false;
       try{
         await salvar('bradesco:producao:put-v514-55937-004',amb,'auditoria-put-v514',
           {request:plan.payload,response:ret.data,curl_sanitizado:curl,hash:plan.hash,
            status_http:ret.http_status,registrado_em:new Date().toISOString()},
           {estado:estado.toUpperCase(),referencia:'55937-004',http_status:ret.http_status});
+        auditoriaCompleta=true;
       }catch(_){}
+      try{
+        await supabaseRest('bradesco_put_controlado_v514',{method:'PATCH',
+          query:'?referencia=eq.55937-004',body:{status:estado,http_status:ret.http_status,codigo_bancario:codigo,
+            diagnostico:{operacao:'V514',http_status:ret.http_status,codigo_bancario:codigo,
+              resposta_tipo:aceita?'ACEITA_PENDENTE_CONSULTA':'REJEITADA'},
+            atualizado_em:new Date().toISOString()}});
+        estadoRegistrado=true;
+      }catch(_){}
+      if(!estadoRegistrado||!auditoriaCompleta){
+        return json(res,200,{ok:true,transmitido:true,aceito:aceita,estado:'REGISTRO_DE_AUDITORIA_PENDENTE',
+          http_status_put:ret.http_status,codigo_retorno:codigo,descricao:detalhe,
+          evidencia_criptografada:auditoriaCompleta,estado_sincronizado:estadoRegistrado,
+          proxima_acao:'O Bradesco respondeu mas a auditoria local não foi totalmente concluída. NÃO reenviar PUT; conciliar manualmente.'});
+      }
       if(!aceita)return json(res,200,{ok:true,transmitido:true,aceito:false,estado:'REJEITADO',
         http_status_put:ret.http_status,codigo_retorno:codigo,descricao:detalhe,
         proxima_acao:'Revisar a rejeição. NÃO reenviar; evidências criptografadas preservadas no servidor.'});
