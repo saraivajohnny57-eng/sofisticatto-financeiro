@@ -57,6 +57,37 @@ function montar(){
   finally{evidencia515.disabled=false;}
  };
 
+
+ const auditar520=document.createElement('button');
+ auditar520.type='button';auditar520.className='btn azul';
+ auditar520.style.marginLeft='8px';
+ auditar520.textContent='Auditar campos completos do PUT (sem enviar)';
+ panel.appendChild(auditar520);
+ auditar520.onclick=async()=>{
+  auditar520.disabled=true;
+  try{
+   const j=await bradescoReqProducao('auditar-integridade-put-v520',{nosso_numero:'62860000010'});
+   const linhas=(j.campos||[]).map(x=>[
+     x.validacao_pendente?'PENDENTE':'OK',
+     x.campo,
+     x.fonte_original,
+     x.enviado?'no PUT':'ausente do PUT',
+     x.valor_confere===null?'sem comparação':x.valor_confere?'valor preservado':'valor diferente'
+   ].join(' | '));
+   registro515.textContent=[
+      'V520 — AUDITORIA DO PUT REAL (SOMENTE LEITURA)',
+      'Transmissão nesta conferência: NÃO',
+      'Resultado anterior: '+j.status_real,
+      'Campos comparados: '+j.total_campos,
+      'Campos pendentes de confirmação: '+j.campos_sem_confirmacao,
+      'JSON original de emissão arquivado: '+(j.possui_json_emissao_original?'SIM':'NÃO'),
+      ...linhas,
+      'Próxima etapa: confirmar com o Bradesco os códigos e campos sem retorno antes de preparar novo PUT.'
+   ].join('\n');
+  }catch(e){registro515.textContent='Diagnóstico não concluído: '+String(e.message||e)+'; nenhum PUT enviado.'}
+  finally{auditar520.disabled=false;}
+ };
+
  const registro515=document.createElement('pre');registro515.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
  registro515.textContent='A prévia fará uma consulta atualizada, sem PUT. Ao confirmar, o banco será consultado novamente e, se tudo permanecer idêntico, haverá uma única tentativa real, sem reenvio automático.';
  panel.appendChild(registro515);
