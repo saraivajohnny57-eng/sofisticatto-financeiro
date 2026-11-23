@@ -768,11 +768,42 @@ function atualizarStatusChaveColeta(texto,ok=false){
   el.style.color=ok?"#17683d":"#7b5919";
 }
 
+function digitarSenhaMestreColetaProtegida(){
+  return new Promise(resolve=>{
+    const fundo=document.createElement('div');
+    fundo.setAttribute('role','presentation');
+    fundo.style.cssText='position:fixed;inset:0;background:rgba(24,18,45,.64);z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:18px';
+    fundo.innerHTML=[
+      '<form role="dialog" aria-modal="true" aria-labelledby="tituloSenhaColetaSegura" style="box-sizing:border-box;width:min(420px,100%);background:#fff;padding:26px;border-radius:16px;box-shadow:0 15px 60px rgba(0,0,0,.25);font-family:Arial,sans-serif;color:#272136">',
+      '<h3 id="tituloSenhaColetaSegura" style="margin:0 0 10px;color:#5a4fa3">🔐 Autorizar este dispositivo</h3>',
+      '<p style="font-size:14px;line-height:1.5">Informe a Senha Mestre de Integrações. Os caracteres ficarão ocultos.</p>',
+      '<label for="senhaColetaSegura" style="display:block;margin-bottom:8px;font-weight:600">Senha mestre</label>',
+      '<input id="senhaColetaSegura" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" required style="box-sizing:border-box;width:100%;height:44px;border:1px solid #c9c3e7;border-radius:8px;padding:10px;font-size:16px">',
+      '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">',
+      '<button type="button" data-cancelar style="padding:11px 18px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer">Cancelar</button>',
+      '<button type="submit" style="padding:11px 18px;border:0;border-radius:8px;background:#5a4fa3;color:#fff;cursor:pointer">Autorizar</button>',
+      '</div></form>'
+    ].join('');
+    const formulario=fundo.querySelector('form');
+    const campo=fundo.querySelector('#senhaColetaSegura');
+    const encerrar=valor=>{
+      document.removeEventListener('keydown',tecla);
+      campo.value='';
+      fundo.remove();
+      resolve(valor);
+    };
+    const tecla=e=>{if(e.key==='Escape'){e.preventDefault();encerrar(null);}};
+    formulario.addEventListener('submit',e=>{e.preventDefault();const valor=campo.value.trim();if(valor)encerrar(valor);});
+    fundo.querySelector('[data-cancelar]').addEventListener('click',()=>encerrar(null));
+    fundo.addEventListener('click',e=>{if(e.target===fundo)encerrar(null);});
+    document.addEventListener('keydown',tecla);
+    document.body.appendChild(fundo);
+    campo.focus();
+  });
+}
+
 async function solicitarChaveColeta(){
-  const digitada=prompt(
-    "Informe a Senha Mestre de Integrações para autorizar este dispositivo:",
-    ""
-  );
+  const digitada=await digitarSenhaMestreColetaProtegida();
   const valor=String(digitada||"").trim();
   if(!valor)return "";
   const autorizado=await validarChaveColetaNoServidor(valor);
