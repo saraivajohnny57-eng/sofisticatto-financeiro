@@ -47,3 +47,26 @@ test('Interface libera Emissão e preserva restrição de massa, configurações
  assert.match(src,/if\(negarOperacaoCobrancaV293\(\)\) return;/);
  assert.match(src,/const ret=await emitirParcelaBbReal\(registroParcela\)/);
 });
+
+test('Perfil Cobrança consulta pendências reais BB e Bradesco sem chave mestre',()=>{
+ for(const banco of ['bb','bradesco']){
+  assert.equal(permitir(req('cobranca','listar-pendencias-carteira'),banco,'listar-pendencias-carteira','producao'),true);
+  assert.equal(permitir(req('financeiro','listar-pendencias-carteira'),banco,'listar-pendencias-carteira','producao'),false);
+  assert.equal(permitir(req('cobranca','listar-pendencias-carteira',{anonymous:true}),banco,'listar-pendencias-carteira','producao'),false);
+  assert.equal(permitir(req('cobranca','listar-pendencias-carteira',{method:'GET'}),banco,'listar-pendencias-carteira','producao'),false);
+  assert.equal(permitir(req('cobranca','listar-pendencias-carteira',{origin:'https://outro-site.test'}),banco,'listar-pendencias-carteira','producao'),false);
+  assert.equal(permitir(req('cobranca','listar-pendencias-carteira',{ambiente:'teste'}),banco,'listar-pendencias-carteira','teste'),false);
+ }
+});
+test('Consulta de pendências não concede manutenção, baixa ou varredura em massa',()=>{
+ for(const banco of ['bb','bradesco'])for(const acao of ['salvar-credenciais','salvar-mtls','baixar-titulo-producao-v353','sincronizar-todos','excluir','alterar','emitir-piloto'])
+  assert.equal(permitir(req('cobranca',acao),banco,acao,'producao'),false);
+ assert.equal(permitir(req('cobranca','sincronizar-status'),'bradesco','sincronizar-status','producao'),false);
+ assert.equal(permitir(req('cobranca','sincronizar-status'),'bb','sincronizar-status','producao'),false);
+});
+test('Interface Cobrança permite as mesmas duas consultas e mantém bloqueios de massa',()=>{
+ const src=fs.readFileSync(path.join(repo,'financeiro.js'),'utf8');
+ assert.match(src,/['"]consultar-status-titulo['"],['"]listar-pendencias-carteira['"]/);
+ assert.match(src,/['"]sincronizar-status['"],['"]listar-pendencias-carteira['"]/);
+ assert.match(src,/if\(perfilCobranca\&\&action==='sincronizar-status'\&\&!body\?\.id\)/);
+});

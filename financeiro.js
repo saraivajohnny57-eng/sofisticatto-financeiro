@@ -8115,7 +8115,7 @@ function bradescoRespostaBruta(ret){
 
 async function bradescoReqProducao(action,body,_tentativa=0){
   const perfilCobranca=usuarioEhCobrancaV293();
-  const acoesCobranca=new Set(['preparar-emissao-producao-v248','emitir-cobranca-producao-v248','verificar-preparacao-sem-envio-v495','consultar-status-titulo']);
+  const acoesCobranca=new Set(['preparar-emissao-producao-v248','emitir-cobranca-producao-v248','verificar-preparacao-sem-envio-v495','consultar-status-titulo','listar-pendencias-carteira']);
   if(perfilCobranca&&!acoesCobranca.has(action))throw new Error('Operação Bradesco não permitida para o perfil Cobrança.');
   const chave=perfilCobranca?'':await garantirAutorizacaoIntegracoesV315(false);
   const r=await fetch(`/api/banco-bradesco?action=${encodeURIComponent(action)}&ambiente=producao`,{
@@ -11571,7 +11571,7 @@ async function executarDiagnosticoBancoBB(){
 }
 async function bbReq(action,{method='GET',body,raw=false,_tentativa=0}={}){
   const perfilCobranca=usuarioEhCobrancaV293();
-  const acoesCobranca=new Set(['emitir-boleto','verificar-titulo','consultar-boleto','sincronizar-status']);
+  const acoesCobranca=new Set(['emitir-boleto','verificar-titulo','consultar-boleto','sincronizar-status','listar-pendencias-carteira']);
   if(perfilCobranca && (!acoesCobranca.has(action)||method!=='POST'))throw new Error('Operação BB não permitida para o perfil Cobrança.');
   if(perfilCobranca&&action==='sincronizar-status'&&!body?.id)throw new Error('Perfil Cobrança: consulta de status permitida somente por título.');
   const chave=perfilCobranca?'':await garantirAutorizacaoIntegracoesV315(false);
