@@ -73,18 +73,27 @@ function init(){
   if(!payload||!adminKey)return alert('Importe a XML da NF-e 51185 e execute Conferir primeira GNRE.');
   if(!$('g528risco').checked||!$('g528atraso').checked||!$('g491previous').checked||!$('g490ok').checked)
    return alert('Confirme consulta ao portal, risco residual de duplicidade, obrigação fiscal e vencimento em atraso.');
-  if(payload.fiscal.vencimento!=='2026-11-19'||!payload.fiscal.pagamento||payload.fiscal.pagamento<'2026-11-23')
-   return alert('Vencimento original deve ser 19/11/2026 e data prevista de pagamento deve ser atual ou futura.');
+  // A conferência pode ter guardado valores anteriores. Ler sempre os campos que estão visíveis.
+  const vencimentoAtual=$('g490v').value;
+  const pagamentoAtual=$('g490p').value;
+  const hojeBrasil=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
+  if(vencimentoAtual!=='2026-11-19')
+   return alert('A NF-e 51185 precisa preservar o vencimento original de 19/11/2026. Confira Vencimento fiscal.');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(pagamentoAtual)||pagamentoAtual<hojeBrasil)
+   return alert('A data do pagamento deve ser '+hojeBrasil.split('-').reverse().join('/')+' ou posterior. Confira Pagamento.');
+  const fiscalAtual={...payload.fiscal,vencimento:vencimentoAtual,pagamento:pagamentoAtual,
+   vencimentoAtrasadoConfirmado:true,encargosAtrasoCientes:true};
   if(!window.confirm('TRANSMISSÃO REAL — NF-e 51185, PA/100102, principal R$ 24,91. O vencimento original é 19/11/2026. Podem existir encargos e risco residual de duplicidade. Confirmar UMA nova emissão?'))return;
   btn.disabled=true;
   append('INÍCIO — emissão real corrigida, única e idempotente. Nenhum reenvio automático.');
+  let envioSolicitado=false;
   try{
    const estado=await solicitar('status_emissao_corrigida');
    append('TRAVAS E CONFERÊNCIA: '+JSON.stringify(estado,null,2));
    if(!estado.apta)throw Error('Regras de liberação não atendidas. Nenhuma transmissão realizada.');
-   const fiscal={...payload.fiscal,vencimentoAtrasadoConfirmado:true,encargosAtrasoCientes:true};
+   envioSolicitado=true;
    const retorno=await solicitar('emitir_apos_rejeicao_confirmada',{
-    ...payload,fiscal,
+    ...payload,fiscal:fiscalAtual,
     confirmacao:'EMITIR_PA_51185_24_91',semEmissaoAnterior:true,consultaPortalConfirmada:true,
     aceiteRiscoDuplicidade:'CIENTE_RISCO_RESIDUAL_51185',
     confirmacaoFinal:'AUTORIZO_UMA_EMISSAO_REAL_CORRIGIDA_51185'
@@ -96,6 +105,7 @@ function init(){
     catch(e){append('Resultado ainda não confirmado: '+String(e.message||e)+'. Não repetir a emissão.');}
    }else append('NÃO REENVIAR. Consulte o resultado e a auditoria antes de nova ação.');
   }catch(e){append('Emissão não confirmada/concluída: '+String(e.message||e)+'. Não repetir.');}
+  finally{if(!envioSolicitado)btn.disabled=false;}
  };
  $('g504config').onclick=async()=>{
     const btn=$('g504config');btn.disabled=true;
