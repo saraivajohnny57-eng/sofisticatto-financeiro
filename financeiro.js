@@ -11424,10 +11424,41 @@ async function emitirBoletosEmMassa(){
 function bbAdminKey(){return sessionStorage.getItem('integrations_admin_key')||localStorage.getItem('integrations_admin_key')||''}
 // V315 — autorização simples para perfis operacionais (inclusive Cobrança).
 // Em um computador novo, pede somente a Senha Mestre uma vez e troca por um token de dispositivo.
+
+function solicitarSenhaMestreBancariaProtegidaV522(){
+  return new Promise(resolve=>{
+    const focoAnterior=document.activeElement;
+    const fundo=document.createElement('div');
+    fundo.style.cssText='position:fixed;inset:0;z-index:2147483645;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(17,14,34,.66)';
+    const caixa=document.createElement('form');
+    caixa.setAttribute('role','dialog');
+    caixa.setAttribute('aria-modal','true');
+    caixa.setAttribute('aria-labelledby','tituloSenhaBancariaProtegida');
+    caixa.style.cssText='box-sizing:border-box;background:#fff;color:#292337;border-radius:16px;box-shadow:0 15px 50px #0004;width:min(420px,100%);padding:26px;font-family:Arial,sans-serif';
+    caixa.innerHTML=`<h3 id="tituloSenhaBancariaProtegida" style="color:#5a4fa3;margin:0 0 12px">🔐 Acesso aos relatórios bancários</h3><p style="font-size:14px;line-height:1.5">Digite a Senha Mestre de Integrações para autorizar este computador. A digitação fica oculta.</p><label for="senhaBancariaProtegida" style="display:block;font-weight:600;margin-bottom:8px">Senha mestre</label><input id="senhaBancariaProtegida" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" required style="box-sizing:border-box;width:100%;font-size:16px;height:44px;padding:10px;border:1px solid #bbb1df;border-radius:8px"><div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end"><button type="button" data-cancelar style="padding:11px 16px;border:1px solid #ccc;background:white;border-radius:8px;cursor:pointer">Cancelar</button><button type="submit" style="padding:11px 16px;background:#5a4fa3;color:white;border:0;border-radius:8px;cursor:pointer">Autorizar</button></div>`;
+    fundo.appendChild(caixa);
+    const campo=caixa.querySelector('#senhaBancariaProtegida');
+    function fechar(valor){
+      document.removeEventListener('keydown',tecla);
+      campo.value='';
+      fundo.remove();
+      if(focoAnterior && typeof focoAnterior.focus==='function')focoAnterior.focus();
+      resolve(valor);
+    }
+    function tecla(e){if(e.key==='Escape'){e.preventDefault();fechar(null)}}
+    caixa.addEventListener('submit',e=>{e.preventDefault();if(campo.value.trim())fechar(campo.value.trim());});
+    caixa.querySelector('[data-cancelar]').addEventListener('click',()=>fechar(null));
+    fundo.addEventListener('click',e=>{if(e.target===fundo)fechar(null)});
+    document.addEventListener('keydown',tecla);
+    document.body.appendChild(fundo);
+    campo.focus();
+  });
+}
+
 async function garantirAutorizacaoIntegracoesV315(forcar=false){
   if(!forcar&&bbAdminKey())return bbAdminKey();
   if(forcar){sessionStorage.removeItem('integrations_admin_key');localStorage.removeItem('integrations_admin_key');}
-  const senha=String(prompt('Acesso aos relatórios bancários\n\nDigite a Senha Mestre de Integrações. Neste computador ela será solicitada somente nesta autorização:')||'').trim();
+  const senha=String(await solicitarSenhaMestreBancariaProtegidaV522()||'').trim();
   if(!senha)throw new Error('Autorização bancária cancelada.');
   const r=await fetch('/api/integracoes?action=validar-chave',{method:'POST',headers:{'Content-Type':'application/json','x-integrations-admin-key':senha,'x-device-name':'Sofisticatto Financeiro - '+(navigator.userAgentData?.platform||navigator.platform||'computador')},body:JSON.stringify({device_name:'Sofisticatto Financeiro - '+(navigator.userAgentData?.platform||navigator.platform||'computador')})});
   const j=await r.json().catch(()=>({}));
