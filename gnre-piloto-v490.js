@@ -20,7 +20,7 @@ function init(){
 '<section id="g530guia" style="margin:12px 0;padding:15px;background:#f6f3fc;border:1px solid #c4b4e2;border-radius:12px">' +
 '<strong>GNRE oficial emitida — NF-e 51185/PA</strong>' +
 '<p>Guia nº <strong>0020268821834096</strong> · Principal R$ 24,91 · Total oficial <strong>R$ 25,28</strong> · Data-limite de pagamento 23/11/2026.</p>' +
-'<p><strong>Situação: emitida, pagamento não confirmado.</strong> A validade para pagamento após a data-limite deve ser conferida no Portal GNRE.</p>' +
+'<p><strong>Situação: pagamento bancário realizado e comprovado em 23/11/2026 pelo BB.</strong> Compensação fiscal na SEFAZ ainda não conferida. Guia arquivada para reimpressão.</p>' +
 '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
 '<button class="buscar" id="g530abrir" type="button">Abrir e imprimir PDF oficial</button>' +
 '<button class="buscar" id="g530baixar" type="button">Baixar PDF oficial</button>' +
