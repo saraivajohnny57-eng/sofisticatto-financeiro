@@ -1414,6 +1414,39 @@ function prepararAlteracaoBradesco60584V515(banco,ret){
 
 
 
+    if(action==='diagnosticar-campos-put-60584-v519'){
+      if(amb!=='producao')throw new Error('Somente ambiente de produção.');
+      const auditoria=await obter('bradesco:producao:put-v515-60584-02');
+      const reg=await supabaseRest('bradesco_put_controlado_v515',{
+        query:'?referencia=eq.60584-02&select=status,http_status,codigo_bancario&limit=1'});
+      const tentativa=Array.isArray(reg)?reg[0]:null;
+      if(!auditoria||!tentativa)return json(res,404,{ok:false,erro:'Auditoria não localizada; nenhum PUT novo será feito.'});
+      const auditoriaDecifrada=descriptografar(auditoria)||{};
+      const request=auditoriaDecifrada.request||{};
+      const titulo=request.dadosTitulo||{};
+      const original=await supabaseRest('cobrancas_bancarias',{
+        query:'?id=eq.8c1da3be-70b4-4d06-a811-b35a3de4bdb4&select=numero_nf,parcela_numero,banco_resposta,banco_payload,instrucoes_banco&limit=1'});
+      const consulta=original?.[0]?.banco_resposta?.titulo||{};
+      const campos=[
+        ['protesto.codInstrucaoProtesto',titulo.protesto?.codInstrucaoProtesto,consulta.codInscrProt],
+        ['protesto.qtdeDiasProtesto',titulo.protesto?.qtdeDiasProtesto,consulta.diasProt],
+        ['decurso.codDecursoPrazo',titulo.decurso?.codDecursoPrazo,consulta.codDecursoPrazo],
+        ['decurso.diasDecursoPrazo',titulo.decurso?.diasDecursoPrazo,consulta.qtdDiasDecurPrz],
+        ['codigoNegativacao',titulo.codigoNegativacao,consulta.codNegativacao],
+        ['diasNegativacao',titulo.diasNegativacao,consulta.diasNegativacao]
+      ].map(([campo,enviado,original])=>({
+         campo,presente_no_put:enviado!==undefined,valor_enviado:enviado??null,
+         original_disponivel:original!==undefined&&original!==null,
+         divergente:original!==undefined&&original!==null?String(original)!==String(enviado):null
+      }));
+      return json(res,200,{ok:true,transmitido:false,referencia:'60584-02',
+        estado:tentativa.status,http_status:tentativa.http_status,codigo_bancario:tentativa.codigo_bancario,
+        origem_original_emissao_preservada:Boolean(original?.[0]?.banco_payload),
+        campos,
+        observacao:'Diagnóstico dos seis campos relevantes, sem CPF/CNPJ ou credenciais. Um campo não retornado na consulta não pode ser considerado zero. Nenhum novo PUT enviado.',
+        conclusao:'Os seis campos estavam presentes; confirmar se os valores são aceitos para o contrato bancário. Não reaproveitar placeholders sem validação.'
+      });
+    }
     if(action==='exportar-evidencia-put-60584-v515'){
       if(amb!=='producao')throw new Error('Disponível somente em produção.');
       const auditReg=await obter('bradesco:producao:put-v515-60584-02');

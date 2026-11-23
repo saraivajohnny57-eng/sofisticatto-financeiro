@@ -2632,17 +2632,25 @@ async function atualizarTodosRastreiosEntregues(){
   const botao=ce("btnAtualizarTodosEntregues");
   const status=ce("statusAtualizarTodosEntregues");
   if(botao){botao.disabled=true;botao.textContent="Atualizando..."}
+  rastProgressoV519('entregues',0,'Iniciando conferência das entregas');
   try{
+    rastProgressoV519('entregues',1,'Aplicando ocorrências SSW recebidas');
     await sincronizarRastreiosSSWLocais();
     await carregarRastreamentosEntregues();
     const chave=await chaveAdminColeta();
     if(!chave)throw new Error("Informe a chave administrativa.");
     let ok=0,erro=0;
+    rastProgressoV519('entregues',2,'Consultando registros de entrega na API');
     for(let i=0;i<rastreamentosEntregues.length;i++){
       const x=rastreamentosEntregues[i];
       const nome=x.frete_transportadoras?.nome||"";
       if(!(/rodonaves/i.test(nome)||/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome)||/correios|coreios/i.test(nome)))continue;
       if(status)status.textContent=`Atualizando ${i+1}/${rastreamentosEntregues.length}...`;
+      const painel=ce('rastProgressoEntreguesV519');
+      const barra=painel?.querySelector('progress');
+      if(barra){barra.max=Math.max(rastreamentosEntregues.length,1);barra.value=i+1;}
+      const legenda=painel?.querySelector('[data-rast-progresso-label]');
+      if(legenda)legenda.textContent=`Consultando ${i+1}/${rastreamentosEntregues.length} registros (por transportadora)`;
       try{
         if(/rodonaves/i.test(nome))await consultarRastreioRodonavesRegistro(x.id,{silencioso:true,chave});
         else if(/correios|coreios/i.test(nome))await consultarRastreioCorreiosRegistro(x.id,{chave});
@@ -2653,8 +2661,10 @@ async function atualizarTodosRastreiosEntregues(){
     }
     await carregarRastreamentosEntregues();
     if(status)status.textContent=`Concluído: ${ok} atualizado(s), ${erro} erro(s).`;
+    rastProgressoV519('entregues',5,`${ok} atualizado(s), ${erro} erro(s)`,'concluido');
   }catch(e){
     if(status)status.textContent="Falha na atualização.";
+    rastProgressoV519('entregues',0,String(e.message||e),'erro');
     alert(e.message);
   }finally{
     if(botao){botao.disabled=false;botao.textContent="🔄 Atualizar entregues"}
@@ -3048,6 +3058,23 @@ async function atualizarRastreioRodonaves(id,botao=null){
   }
 }
 
+
+function rastProgressoV519(tipo,etapa,texto,estado='executando'){
+  const painel=ce(tipo==='entregues'?'rastProgressoEntreguesV519':'rastProgressoSaidasV519');
+  if(!painel)return;
+  const barra=painel.querySelector('progress');
+  const legenda=painel.querySelector('[data-rast-progresso-label]');
+  if(estado==='oculto'){painel.hidden=true;return;}
+  painel.hidden=false;
+  const atual=Math.max(0,Math.min(5,Number(etapa)||0));
+  if(barra){
+    if(estado==='indeterminado'){barra.removeAttribute('value');}
+    else barra.value=atual;
+  }
+  if(legenda)legenda.textContent=(estado==='erro'?'Falha: ':estado==='concluido'?'Concluído: ':'')+String(texto||'');
+  painel.setAttribute('aria-busy',estado==='executando'||estado==='indeterminado'?'true':'false');
+}
+
 let timerAtualizacaoAutomaticaRastreios=null;
 let atualizacaoTodosRastreiosEmAndamento=false;
 
@@ -3064,6 +3091,7 @@ async function atualizarTodosRastreiosSaida(silencioso=false){
   try{
     atualizacaoTodosRastreiosEmAndamento=true;
     if(botao&&!silencioso){botao.disabled=true;botao.textContent="Sincronizando...";}
+    if(!silencioso)rastProgressoV519('saidas',0,'Iniciando conferência e autorização');
     if(status&&!silencioso)status.textContent="Buscando mercadorias diretamente nas transportadoras...";
 
     let chave=localStorage.getItem("integrations_admin_key")||sessionStorage.getItem("integrations_admin_key")||"";
@@ -3075,11 +3103,14 @@ async function atualizarTodosRastreiosSaida(silencioso=false){
 
     // Somente na atualização solicitada pela pessoa, e no máximo uma
     // vez por 15 minutos, reconciliar cadastros ainda não vinculados.
+    if(!silencioso)rastProgressoV519('saidas',1,'Conciliando coletas e notas vinculadas');
     if(!silencioso)await reconciliarRastreiosDasColetasConfiguradas();
 
     // Primeiro reaplica ocorrências SSW já recebidas. Depois o backend faz a
     // descoberta geral: importa objetos dos Correios, consulta APIs diretas e SSW.
+    if(!silencioso)rastProgressoV519('saidas',2,'Aplicando ocorrências SSW recebidas');
     const sswAtualizados=await sincronizarRastreiosSSWLocais().catch(()=>0);
+    if(!silencioso)rastProgressoV519('saidas',3,'Consultando APIs externas; aguardando resposta, sem estimativa', 'indeterminado');
     const resposta=await fetch('/api/integracoes?action=atualizar-rastreios-geral',{
       method:'POST',
       headers:{'x-integrations-admin-key':chave,'Content-Type':'application/json'},
@@ -3088,6 +3119,7 @@ async function atualizarTodosRastreiosSaida(silencioso=false){
     const dados=await resposta.json().catch(()=>({}));
     if(!resposta.ok)throw new Error(dados.erro||`HTTP ${resposta.status}`);
 
+    if(!silencioso)rastProgressoV519('saidas',4,'Atualizando as tabelas Saídas, Entregues e Coletas');
     await carregarRastreamentosLogistica("saida");
     await carregarRastreamentosEntregues();
     await carregarPainelRodonaves();
@@ -3103,6 +3135,7 @@ async function atualizarTodosRastreiosSaida(silencioso=false){
     }
     const detalhe=[...porTransportadora].map(([nome,v])=>nome+': '+v.ok+' OK, '+v.erro+' falha(s)').join(' | ');
     if(status)status.textContent=resumo+(detalhe?' Por transportadora: '+detalhe:'');
+    if(!silencioso)rastProgressoV519('saidas',5,resumo,'concluido');
     if(!silencioso){
       if(Array.isArray(cor.avisos)&&cor.avisos.length)console.warn('Avisos Correios:',cor.avisos);
       if(Array.isArray(dados.resultados)&&dados.resultados.some(x=>!x.ok))console.warn('Falhas por transportadora:',dados.resultados.filter(x=>!x.ok));
@@ -3110,6 +3143,7 @@ async function atualizarTodosRastreiosSaida(silencioso=false){
     }
   }catch(erro){
     if(status&&!silencioso)status.textContent="Falha ao sincronizar os rastreios.";
+    if(!silencioso)rastProgressoV519('saidas',0,String(erro.message||erro),'erro');
     if(!silencioso)alert("Não foi possível atualizar todos os rastreios: "+erro.message);
     else console.warn("Atualização automática de rastreios:",erro.message);
   }finally{

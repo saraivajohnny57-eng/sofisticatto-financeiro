@@ -31,6 +31,10 @@
 .sefaz-acoes-v476 button,.sefaz-acoes-v476 a{border:0;cursor:pointer;border-radius:10px;background:#5a4fa3;color:white;padding:10px 13px;text-decoration:none;font-size:13px;width:auto}
 .sefaz-nota-v476{background:#fff8e8;border:1px solid #efdcb5;padding:12px;border-radius:12px;margin:12px 0;font-size:13px;color:#624c25}
 @media(max-width:800px){.sefaz-v476{grid-template-columns:1fr}.sefaz-menu-v476{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:6px}.sefaz-menu-v476 button{margin:0}}
+.rastreio-progresso-v519{flex-basis:100%;width:100%;max-width:540px;display:flex;flex-direction:column;gap:4px;padding:7px 0;color:#5a4fa3;font-size:12px}
+.rastreio-progresso-v519[hidden]{display:none!important}
+.rastreio-progresso-v519 progress{width:100%;height:13px;accent-color:#5a4fa3;border-radius:10px;overflow:hidden}
+.rastreio-progresso-v519 small{display:block;overflow-wrap:anywhere}
 </style>
 </head>
 <body>
@@ -1791,6 +1795,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
               <button class="btn verde" onclick="abrirFormularioRastreamento('saida')">+ Nova saída</button>
               <button id="btnAtualizarTodosRastreios" class="btn azul" onclick="atualizarTodosRastreiosSaida()">🔄 Verificar APIs e atualizar rastreios (SSW / EDI / transportadoras)</button>
               <span id="statusAtualizarTodosRastreios" class="status-atualizacao-rastreios"></span>
+              <div id="rastProgressoSaidasV519" class="rastreio-progresso-v519" role="status" aria-live="polite" aria-busy="false" hidden><progress max="5" value="0" aria-label="Progresso da atualização de rastreios"></progress><small data-rast-progresso-label>Pronto para iniciar</small></div>
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
@@ -1827,6 +1832,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
           <div class="rastreamento-acoes-topo">
             <button id="btnAtualizarTodosEntregues" class="btn azul" onclick="atualizarTodosRastreiosEntregues()">🔄 Atualizar entregues</button>
             <span id="statusAtualizarTodosEntregues" class="status-atualizacao-rastreios"></span>
+            <div id="rastProgressoEntreguesV519" class="rastreio-progresso-v519" role="status" aria-live="polite" aria-busy="false" hidden><progress max="5" value="0" aria-label="Progresso da atualização de rastreios"></progress><small data-rast-progresso-label>Pronto para iniciar</small></div>
           </div>
           <div class="campo-busca-logistica">
             <span>🔎</span>
@@ -3502,7 +3508,7 @@ SOFISTICATTO COSMÉTICOS</textarea>
 <script src="portal-integracoes.js?v=15"></script>
 <script src="integracoes-seguras.js?v=220-braspress-detalhado"></script>
 <script src="motor-integracoes.js?v=34"></script>
-<script src="coletas.js?v=517-ordem-cronologica-entregues"></script>
+<script src="coletas.js?v=519-progresso-real-rastreios"></script>
 
 
 <div id="modalEnderecoFrete" class="frete-modal-overlay" style="display:none;">
