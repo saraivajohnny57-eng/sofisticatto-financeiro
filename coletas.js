@@ -3069,7 +3069,7 @@ function rastProgressoV519(tipo,etapa,texto,estado='executando'){
   const atual=Math.max(0,Math.min(5,Number(etapa)||0));
   if(barra){
     if(estado==='indeterminado'){barra.removeAttribute('value');}
-    else barra.value=atual;
+    else {barra.max=5;barra.value=atual;}
   }
   if(legenda)legenda.textContent=(estado==='erro'?'Falha: ':estado==='concluido'?'Concluído: ':'')+String(texto||'');
   painel.setAttribute('aria-busy',estado==='executando'||estado==='indeterminado'?'true':'false');
