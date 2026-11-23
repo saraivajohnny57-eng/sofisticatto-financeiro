@@ -2403,6 +2403,13 @@ async function carregarRastreamentosLogistica(sentido){
           (v.coleta_agendamento_id?20:0)+
           (v.numero_nfe?4:0)+(v.chave_nfe?4:0)+(v.numero_cte?3:0)+(v.protocolo_rastreio?5:0)+
           (/correios/i.test(String(v.frete_transportadoras?.nome||''))?1:0);
+        if(['entregue','recebido'].includes(String(x.status||'').toLowerCase()) &&
+           !['entregue','recebido'].includes(String(atual.status||'').toLowerCase())){
+          unicos.set(key,{...atual,...x,coleta_agendamento_id:x.coleta_agendamento_id||atual.coleta_agendamento_id});
+          continue;
+        }
+        if(['entregue','recebido'].includes(String(atual.status||'').toLowerCase()) &&
+           !['entregue','recebido'].includes(String(x.status||'').toLowerCase()))continue;
         const sx=score(x),sa=score(atual);
         if(sx>sa || (sx===sa&&new Date(x.updated_at||x.atualizado_em||x.created_at||0)>new Date(atual.updated_at||atual.atualizado_em||atual.created_at||0))){
           unicos.set(key,{...atual,...x,
@@ -4090,9 +4097,12 @@ function garantirModalLinhaTempoRastreio(){
 function fecharLinhaTempoRastreio(){document.getElementById("modalLinhaTempoRastreio")?.classList.remove("ativo")}
 function dataEventoTimeline(v){
   if(!v)return null;
-  const d=new Date(v);if(!Number.isNaN(d.getTime()))return d;
+  const d=new Date(v);
+  if(!Number.isNaN(d.getTime())&&d.getFullYear()>=2000)return d;
   const m=String(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
-  if(!m)return null;let a=Number(m[3]);if(a<100)a+=2000;return new Date(a,Number(m[2])-1,Number(m[1]),Number(m[4]||0),Number(m[5]||0),Number(m[6]||0));
+  if(!m)return null;let a=Number(m[3]);if(a<100)a+=2000;
+  if(a<2000)return null;
+  return new Date(a,Number(m[2])-1,Number(m[1]),Number(m[4]||0),Number(m[5]||0),Number(m[6]||0));
 }
 function formatarDataTimelineBR(v){
   const d=dataEventoTimeline(v);
@@ -4102,9 +4112,12 @@ function formatarDataTimelineBR(v){
 function extrairEventosTimelineGenericos(obj,fonte="API"){
   const out=[];const vistos=new Set();
   const descKeys=["descricao","descrição","description","ocorrencia","ocorrência","evento","event","status","situacao","situação","mensagem","message","detalhe","complemento","Description","Reason","StatusDescription","OccurrenceDescription"];
-  const dateKeys=["data_hora_efetiva","data_hora","dataHora","data_hora_evento","dataOcorrencia","data_ocorrencia","dhEvento","data","timestamp","dtHrCriado","dt_hr_criado","created_at","DateTime","OccurrenceDate","Date","EventDate"];
+  const dateKeys=["data_hora_efetiva","data_hora","dataHora","data_hora_evento","dataOcorrencia","data_ocorrencia","dhEvento","data","timestamp","dtHrCriado","dt_hr_criado","created_at","DateTime","Date","OccurrenceDate","EventDate"];
   const localKeys=["cidade","local","filial","unidade","unidadeDestino","unidade_origem","cidade_evento","City","Location","Branch","UnitDestination"];
-  function primeiro(o,ks){for(const k of ks){if(o&&o[k]!=null&&String(o[k]).trim())return o[k];}return null}
+  function primeiro(o,ks){for(const k of ks){if(o&&o[k]!=null&&String(o[k]).trim()){
+      if(/date|data|timestamp|created/i.test(k)&&String(o[k]).trim().startsWith('0001-'))continue;
+      return o[k];
+    }}return null}
   function visit(x){
     if(!x||typeof x!=="object")return;
     if(Array.isArray(x)){x.forEach(visit);return;}
@@ -4132,7 +4145,7 @@ function indiceEtapaTimeline(eventos,statusAtual){
   const reTransfer=/objeto em transferencia|em transferencia|saida de unidade|transfer|em viagem|em transito|transporte entre unidades|encaminhad|deslocamento/;
   const reUnidade=/chegada.*unidade|entrada.*unidade|na filial|unidade de destino|centro de distribuicao|em tratamento|unidade de tratamento|unidade de distribuicao/;
   const reSaiu=/saiu.*para.*entrega|saida.*para.*entrega|em rota de entrega|rota de entrega|veiculo em entrega|carteiro saiu/;
-  const reEntregue=/\bentregue\b|\bentregues\b|entrega realizada|mercadoria entregue|objeto entregue|ctrc entregue|baixa realizada|recebido pelo destinatario|entregue ao destinatario/;
+  const reEntregue=/\bentregue\b|\bentregues\b|entrega finalizada|entrega efetuada|entrega realizada|mercadoria entregue|objeto entregue|ctrc entregue|baixa realizada|recebido pelo destinatario|entregue ao destinatario/;
 
   for(const t of textos){
     // "Etiqueta emitida" e "aguardando postagem" mantêm a etapa em 0.
