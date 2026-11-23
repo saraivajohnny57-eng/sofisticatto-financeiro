@@ -1321,6 +1321,22 @@ function prepararAlteracaoBradesco55937V514(banco,ret){
 }
 
 
+
+    // V514 — Exporta apenas evidência já efetivamente persistida e cifrada.
+    // Um relatório de reserva SEM_ENVIO é explicitamente identificado como não executado.
+    if(action==='exportar-evidencia-put-55937-v514'){
+      if(amb!=='producao')throw new Error('Disponível somente em produção.');
+      const auditReg=await obter('bradesco:producao:put-v514-55937-004');
+      if(!auditReg) return json(res,404,{ok:false,mensagem:'Ainda não existe request real reservado. Nada foi transmitido.'});
+      const audit=descriptografar(auditReg)||{},meta=auditReg.metadata||{};
+      return json(res,200,{ok:true,versao:'V514',referencia:'55937-004',
+        estado:meta.estado||'NAO_CONFIRMADO',transmissao_confirmada:!!audit.status_http,
+        aviso:'O request e o response são registros efetivos guardados no Financeiro02. Tokens e chave privada NÃO estão incluídos. Dados bancários e pessoais devem ser compartilhados apenas com o suporte autorizado.',
+        endpoint:'PUT /boleto/cobranca-altera/v1/alterar',
+        hash: audit.hash||null,request: audit.request||null,response:audit.response||null,
+        curl_sanitizado:audit.curl_sanitizado||null,status_http:audit.status_http??null,
+        criado_em:audit.registrado_em||null});
+    }
     if(action==='preparar-put-55937-v514'||action==='confirmar-put-55937-v514'){
       const executar=action==='confirmar-put-55937-v514';
       if(amb!=='producao')throw new Error('Manutenção controlada apenas em produção.');

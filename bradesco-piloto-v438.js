@@ -36,6 +36,27 @@ function montar(){
  const confirma514=document.createElement('button');confirma514.type='button';confirma514.className='btn roxo';
  confirma514.style.marginLeft='8px';confirma514.textContent='Confirmar UMA alteração real no Bradesco';
  confirma514.disabled=true;panel.appendChild(confirma514);
+ 
+ const evidencia514=document.createElement('button');evidencia514.type='button';evidencia514.className='btn roxo';
+ evidencia514.style.marginLeft='8px';evidencia514.textContent='Baixar request/response reais (TXT)';
+ panel.appendChild(evidencia514);
+ evidencia514.onclick=async()=>{
+  evidencia514.disabled=true;
+  try{
+   const j=await bradescoReqProducao('exportar-evidencia-put-55937-v514',{nosso_numero:'13625803774'});
+   const texto=['BRADESCO — WF-99571 — EVIDÊNCIA REAL V514',
+    'Estado: '+j.estado,'HTTP PUT: '+(j.status_http??'NÃO CONFIRMADO'),
+    'Transmissão bancária confirmada por resposta: '+(j.transmissao_confirmada?'SIM':'NÃO'),
+    'AVISO: '+j.aviso,'Hash: '+j.hash,'CURL (SANITIZADO):',j.curl_sanitizado||'NÃO DISPONÍVEL',
+    'REQUEST JSON ORIGINAL:',JSON.stringify(j.request||null,null,2),
+    'RESPONSE JSON ORIGINAL:',JSON.stringify(j.response||null,null,2)].join('\n');
+   const url=URL.createObjectURL(new Blob([texto],{type:'text/plain;charset=utf-8'}));
+   const a=document.createElement('a');a.href=url;a.download='Bradesco_WF-99571_55937-004_Request_Response_Reais_V514.txt';
+   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(e){alert('Evidência indisponível: '+String(e.message||e));}
+  finally{evidencia514.disabled=false;}
+ };
+
  const registro514=document.createElement('pre');registro514.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;font:13px/1.5 Segoe UI,Arial,sans-serif';
  registro514.textContent='A prévia fará uma consulta atualizada, sem PUT. Ao confirmar, o banco será consultado novamente e, se tudo permanecer idêntico, haverá uma única tentativa real, sem reenvio automático.';
  panel.appendChild(registro514);
