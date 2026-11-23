@@ -26,6 +26,14 @@ function init(){
 '<button class="buscar" id="g530baixar" type="button">Baixar PDF oficial</button>' +
 '</div><p id="g530status" role="status" aria-live="polite" style="font-size:13px"></p>' +
 '</section>' +
+'<section style="margin:12px 0;padding:14px;border:1px solid #c6b9dc;border-radius:11px">' +
+'<strong>Outros estados — consultar regras oficiais GNRE (sem emitir)</strong>' +
+'<p>O sistema consulta a ConfigUF por estado e receita, guarda o retorno completo criptografado e mostra os requisitos. A emissão real permanece bloqueada até cada receita ser validada.</p>' +
+'<label>Estado <select id="g531uf"></select></label> ' +
+'<label>Receita <input id="g531receita" value="100102" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" placeholder="000000"></label> ' +
+'<button class="buscar" id="g531consultar" type="button">Consultar configuração oficial (sem emitir)</button>' +
+'<pre id="g531saida" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:480px;overflow:auto"></pre>' +
+'</section>' +
 '<button class="buscar" id="g491consult" type="button">Consultar lote real 51185 — retorno completo (sem emitir)</button> '+
 '<button class="buscar" id="g523auditoria" type="button">Histórico técnico de todos os retornos GNRE</button> '+
 '<button class="buscar" id="g492diag" disabled type="button">Diagnosticar falha (sem enviar)</button> '+
@@ -134,6 +142,29 @@ function init(){
  $('g491emit').disabled=true;
  $('g528emit').disabled=true;
  $('g502botao').disabled=true;
+
+ // Consulta multiestado somente leitura; nunca chama modo='emitir'.
+ const ufs='AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO'.split(' ');
+ const seletor=$('g531uf');seletor.innerHTML=ufs.map(uf=>'<option value="'+uf+'">'+uf+'</option>').join('');
+ seletor.value='MG';
+ $('g531consultar').onclick=async()=>{
+  const btn=$('g531consultar'),saida=$('g531saida');
+  const uf=seletor.value,receita=String($('g531receita').value||'').trim();
+  if(!/^[0-9]{6}$/.test(receita))return alert('Informe receita GNRE com seis dígitos.');
+  btn.disabled=true;saida.textContent='Consultando ConfigUF oficial de '+uf+'/'+receita+' (sem emissão)...';
+  try{
+   if(!adminKey&&typeof obterChaveIntegracoesCotacao==='function')adminKey=await obterChaveIntegracoesCotacao();
+   if(!adminKey)throw Error('Autorização administrativa necessária.');
+   const resp=await fetch('/api/integracoes?action=gnre-config-multiuf',{
+    method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','x-integrations-admin-key':adminKey},
+    body:JSON.stringify({uf,receita})
+   });
+   const resposta=await resp.json();
+   saida.textContent=JSON.stringify(resposta,null,2);
+   if(!resp.ok)saida.textContent+='\nA consulta não confirmou os requisitos; não é possível emitir essa receita sem validação.';
+  }catch(e){saida.textContent='Consulta indisponível: '+String(e.message||e)+'. Nenhuma guia emitida.';}
+  finally{btn.disabled=false;}
+ };
  $('g528emit').onclick=async()=>{
   const btn=$('g528emit');
   if(!payload||!adminKey)return alert('Importe a XML da NF-e 51185 e execute Conferir primeira GNRE.');
