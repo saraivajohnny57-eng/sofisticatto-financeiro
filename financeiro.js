@@ -250,7 +250,7 @@ function configurarIntegracaoPerfilCobrancaV293(){
   ['cobTabMassa','cobTabCredenciais'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
   const pend=document.querySelector('#cobFiltroStatus option[value="pendente_integracao"]'); if(pend) pend.remove();
   const aviso=document.querySelector('.cobranca-integracao-aviso');
-  if(aviso) aviso.textContent='Perfil Cobrança: emissão individual de boletos BB/Bradesco, consulta, impressão e acompanhamento. Emissão em massa e credenciais continuam restritas.';
+  if(aviso) aviso.textContent='Perfil Cobrança: emissão individual, consulta bancária, segunda via e atualização de status por título ou em lotes BB/Bradesco. Alterações contratuais, baixas, emissão em massa e credenciais continuam restritas.';
   mostrarAbaIntegracaoBancaria('historico');
 }
 
@@ -8115,7 +8115,7 @@ function bradescoRespostaBruta(ret){
 
 async function bradescoReqProducao(action,body,_tentativa=0){
   const perfilCobranca=usuarioEhCobrancaV293();
-  const acoesCobranca=new Set(['preparar-emissao-producao-v248','emitir-cobranca-producao-v248','verificar-preparacao-sem-envio-v495','consultar-status-titulo','listar-pendencias-carteira']);
+  const acoesCobranca=new Set(['preparar-emissao-producao-v248','emitir-cobranca-producao-v248','verificar-preparacao-sem-envio-v495','consultar-status-titulo','listar-pendencias-carteira','consultar-segunda-via-v389','sincronizar-status']);
   if(perfilCobranca&&!acoesCobranca.has(action))throw new Error('Operação Bradesco não permitida para o perfil Cobrança.');
   const chave=perfilCobranca?'':await garantirAutorizacaoIntegracoesV315(false);
   const r=await fetch(`/api/banco-bradesco?action=${encodeURIComponent(action)}&ambiente=producao`,{
@@ -11571,9 +11571,9 @@ async function executarDiagnosticoBancoBB(){
 }
 async function bbReq(action,{method='GET',body,raw=false,_tentativa=0}={}){
   const perfilCobranca=usuarioEhCobrancaV293();
-  const acoesCobranca=new Set(['emitir-boleto','verificar-titulo','consultar-boleto','sincronizar-status','listar-pendencias-carteira']);
+  const acoesCobranca=new Set(['emitir-boleto','verificar-titulo','consultar-boleto','sincronizar-status','listar-pendencias-carteira','diagnosticar-titulo-externo']);
   if(perfilCobranca && (!acoesCobranca.has(action)||method!=='POST'))throw new Error('Operação BB não permitida para o perfil Cobrança.');
-  if(perfilCobranca&&action==='sincronizar-status'&&!body?.id)throw new Error('Perfil Cobrança: consulta de status permitida somente por título.');
+  if(perfilCobranca&&action==='sincronizar-status'&&!body?.id&&!['planejar','lote'].includes(body?.modo))throw new Error('Perfil Cobrança: atualização permitida por título ou pelos lotes do botão Atualizar todos.');
   const chave=perfilCobranca?'':await garantirAutorizacaoIntegracoesV315(false);
   const amb=perfilCobranca?'producao':bbAmbiente();
   const r=await fetch(`/api/banco-bb?action=${encodeURIComponent(action)}&ambiente=${encodeURIComponent(amb)}`,{

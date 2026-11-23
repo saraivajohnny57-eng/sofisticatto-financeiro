@@ -35,9 +35,20 @@ test('Sessão, origem, método, ambiente e perfil são obrigatórios',()=>{
  assert.equal(permitir(req('cobranca','emitir-boleto',{method:'GET'}),'bb','emitir-boleto','producao'),false);
  assert.equal(permitir(req('cobranca','emitir-boleto',{ambiente:'teste'}),'bb','emitir-boleto','teste'),false);
 });
-test('Sincronização Cobrança só por ID individual',()=>{
- assert.equal(permitir(req('cobranca','sincronizar-status'),'bb','sincronizar-status','producao'),false);
- assert.equal(permitir(req('cobranca','sincronizar-status',{body:{id:'aba4444f-1111-4444-aaaa-111111111111'}}),'bb','sincronizar-status','producao'),true);
+test('Cobrança sincroniza status individual e lotes de ambos os bancos, nunca mudanças bancárias',()=>{
+ const id='aba4444f-1111-4444-aaaa-111111111111';
+ for(const banco of ['bb','bradesco']){
+  for(const body of [{id},{modo:'planejar'},{modo:'lote',ids:[id]}])
+   assert.equal(permitir(req('cobranca','sincronizar-status',{body}),banco,'sincronizar-status','producao'),true);
+  for(const body of [{},{modo:'lote',ids:[]},{modo:'lote',ids:['invalido']},
+    {modo:'lote',ids:Array(21).fill(id)},{modo:'lote',ids:[id,id]},
+    {modo:'outro'},{limite:80,rotativo:true}])
+   assert.equal(permitir(req('cobranca','sincronizar-status',{body}),banco,'sincronizar-status','producao'),false);
+  assert.equal(permitir(req('cobranca','sincronizar-status',{body:{modo:'planejar'},method:'GET'}),banco,'sincronizar-status','producao'),false);
+  assert.equal(permitir(req('cobranca','sincronizar-status',{body:{modo:'planejar'},anonymous:true}),banco,'sincronizar-status','producao'),false);
+  assert.equal(permitir(req('cobranca','sincronizar-status',{body:{modo:'planejar'},origin:'https://malicioso.com'}),banco,'sincronizar-status','producao'),false);
+  assert.equal(permitir(req('cobranca','sincronizar-status',{body:{modo:'planejar'},ambiente:'teste'}),banco,'sincronizar-status','teste'),false);
+ }
 });
 test('Interface libera Emissão e preserva restrição de massa, configurações e cancelamento',()=>{
  const src=fs.readFileSync(path.join(repo,'financeiro.js'),'utf8');
@@ -58,15 +69,26 @@ test('Perfil Cobrança consulta pendências reais BB e Bradesco sem chave mestre
   assert.equal(permitir(req('cobranca','listar-pendencias-carteira',{ambiente:'teste'}),banco,'listar-pendencias-carteira','teste'),false);
  }
 });
-test('Consulta de pendências não concede manutenção, baixa ou varredura em massa',()=>{
+test('Consulta de pendências não concede manutenção, baixa nem emissão em massa',()=>{
  for(const banco of ['bb','bradesco'])for(const acao of ['salvar-credenciais','salvar-mtls','baixar-titulo-producao-v353','sincronizar-todos','excluir','alterar','emitir-piloto'])
   assert.equal(permitir(req('cobranca',acao),banco,acao,'producao'),false);
- assert.equal(permitir(req('cobranca','sincronizar-status'),'bradesco','sincronizar-status','producao'),false);
- assert.equal(permitir(req('cobranca','sincronizar-status'),'bb','sincronizar-status','producao'),false);
+ assert.equal(permitir(req('cobranca','confirmar-put-60584-v515'),'bradesco','confirmar-put-60584-v515','producao'),false);
+ assert.equal(permitir(req('cobranca','preparar-put-60584-v515'),'bradesco','preparar-put-60584-v515','producao'),false);
 });
-test('Interface Cobrança permite as mesmas duas consultas e mantém bloqueios de massa',()=>{
+test('Interface Cobrança libera segunda via e atualização em lotes; mantém restrições de manutenção',()=>{
  const src=fs.readFileSync(path.join(repo,'financeiro.js'),'utf8');
  assert.match(src,/['"]consultar-status-titulo['"],['"]listar-pendencias-carteira['"]/);
  assert.match(src,/['"]sincronizar-status['"],['"]listar-pendencias-carteira['"]/);
- assert.match(src,/if\(perfilCobranca\&\&action==='sincronizar-status'\&\&!body\?\.id\)/);
+ assert.match(src,/['"]consultar-segunda-via-v389['"],['"]sincronizar-status['"]/);
+ assert.match(src,/\['planejar','lote'\]/);
+});
+
+test('Cobrança permite as consultas individuais e segunda via que a interface realmente chama',()=>{
+ for(const action of ['consultar-status-titulo','consultar-segunda-via-v389','listar-pendencias-carteira'])
+  assert.equal(permitir(req('cobranca',action),'bradesco',action,'producao'),true);
+ for(const action of ['consultar-boleto','verificar-titulo','listar-pendencias-carteira','diagnosticar-titulo-externo'])
+  assert.equal(permitir(req('cobranca',action),'bb',action,'producao'),true);
+ const segunda=fs.readFileSync(path.join(repo,'segunda-via-v388.js'),'utf8');
+ assert.match(segunda,/bradescoReqProducao\('consultar-segunda-via-v389'/);
+ assert.match(segunda,/bbReq\('consultar-boleto'/);
 });
