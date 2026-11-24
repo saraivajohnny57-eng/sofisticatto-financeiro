@@ -44,6 +44,18 @@ function criar(){
  '<label style="flex:1;min-width:180px">Convenio (quando aplicavel)<input id="g534conv" maxlength="30" placeholder="Opcional quando S" style="display:block;width:100%"></label></div>',
  '<label style="display:block;margin:7px 0"><input id="g534confirm" type="checkbox"> Confirmo obrigacao DIFAL/MG e vencimento legal</label>',
  '<label style="display:block;margin:7px 0"><input id="g534atraso" type="checkbox"> Estou ciente dos encargos de vencimento anterior</label>',
+ '<details id="g534fcparea" style="margin:9px 0;padding:11px;border:1px solid #dcd3e9;border-radius:9px">',
+ '<summary style="cursor:pointer;font-weight:600;color:#504486">FCP / MG 100129 — preencher somente quando NF tiver FCP</summary>',
+ '<p style="font-size:13px">Conforme ConfigUF oficial: convenio O = obrigatorio; referencia S = exigida; nao informar documento de origem nem detalhamento. Conferir com a contabilidade.</p>',
+ '<div style="display:flex;gap:10px;flex-wrap:wrap">',
+ '<label style="flex:1;min-width:160px">Vencimento FCP<input id="g534vfcp" type="date" style="display:block;width:100%"></label>',
+ '<label style="flex:1;min-width:160px">Pagamento FCP<input id="g534pfcp" type="date" style="display:block;width:100%"></label>',
+ '<label style="flex:1;min-width:160px">Convenio/protocolo FCP<input id="g534convfcp" maxlength="30" placeholder="Obrigatorio: dado oficial" style="display:block;width:100%"></label></div>',
+ '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">',
+ '<label style="flex:1;min-width:160px">Mes/ano referencia FCP<input type="month" id="g534refmes" style="display:block;width:100%"></label>',
+ '<label style="flex:1;min-width:160px">Codigo do periodo FCP<select id="g534refperiodo" style="display:block;width:100%"><option value="">Selecionar conforme fiscal</option><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label></div>',
+ '<label style="display:block;margin-top:8px"><input type="checkbox" id="g534fcpconfirm"> Confirmo convenio, periodo de referencia e vencimento do FCP com o fiscal</label>',
+ '</details>',
  '<button class="buscar" id="g534preparar" type="button">Conferir XML e preparar MG (sem emitir)</button>',
  '<div id="g534resumo" role="status" style="white-space:pre-wrap;font-size:13px;margin-top:9px;line-height:1.5"></div>',
  '<details><summary>Retorno tecnico MG</summary><pre id="g534tecnico" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:330px;overflow:auto"></pre></details>',
@@ -105,6 +117,7 @@ async function prepararMg(){
    end=emit?.getElementsByTagName('enderEmit')[0];
   if(!ide||!emit||!dest||!prot||!inf)throw Error('Arquivo sem NF-e completa e protocolo de autorizacao.');
   const nfe={chave:String(inf.getAttribute('Id')||'').replace(/^NFe/,''),
+   dataEmissao:tag(ide,'dhEmi')||tag(ide,'dEmi'),
    numero:tag(ide,'nNF'),cnpjEmitente:tag(emit,'CNPJ'),
    chaveProtocolo:tag(prot,'chNFe'),statusAutorizacao:tag(prot,'cStat'),
    ambienteNfe:tag(ide,'tpAmb'),ufOrigem:tag(end,'UF'),
@@ -116,13 +129,25 @@ async function prepararMg(){
   const {status,dados}=await chamar('gnre-preenvio-mg',{nfe,fiscal:{
    vencimento:$('g534v').value,pagamento:$('g534p').value,convenio:$('g534conv').value.trim(),
    obrigacaoConfirmada:$('g534confirm').checked,vencimentoConfirmado:$('g534confirm').checked,
-   atrasoCiente:$('g534atraso').checked}});
+   atrasoCiente:$('g534atraso').checked,
+   vencimentoFcp:$('g534vfcp').value,pagamentoFcp:$('g534pfcp').value,
+   convenioFcp:$('g534convfcp').value.trim(),
+   referenciaFcp:($('g534refmes').value&&$('g534refperiodo').value!=='')?{
+     periodo:$('g534refperiodo').value,mes:$('g534refmes').value.slice(5,7),
+     ano:$('g534refmes').value.slice(0,4)
+   }:null,
+   vencimentoFcpConfirmado:$('g534fcpconfirm').checked,
+   convenioFcpConfirmado:$('g534fcpconfirm').checked,
+   referenciaFcpConfirmada:$('g534fcpconfirm').checked}});
   $('g534tecnico').textContent=JSON.stringify(dados,null,2);
   if(status!==200||!dados.ok)throw Error(dados.erro||'Falha ao analisar a NF-e.');
-  out.textContent='NF-e '+(dados.numero_nfe||'?')+' — MG / 100102'+
+  out.textContent='NF-e '+(dados.numero_nfe||'?')+' — MG / DIFAL 100102 + FCP 100129 quando devido'+
    '\nDIFAL: R$ '+(dados.valor_difal||'?')+'  |  FCP: R$ '+(dados.valor_fcp||'?')+
-   '\nXML offline: '+(dados.lote_xml_offline_preparado?'PREPARADO':'PENDENTE')+
-   '\nPendencias: '+(dados.pendencias?.join('; ')||'Nenhuma na conferencia preliminar')+
+   '\nCotacao de tributos somada (sem encargos): R$ '+(dados.cotacao_principal_somado||'?')+
+   '\nGuias offline: '+(dados.guias_preparadas||0)+' de '+(dados.guias_requeridas||'?')+
+   ' | Lote completo: '+(dados.lote_xml_offline_preparado?'PREPARADO':'PENDENTE')+
+   '\nPendencias DIFAL: '+(dados.pendencias_difal?.join('; ')||'Nenhuma na conferencia preliminar')+
+   '\nPendencias FCP: '+(dados.pendencias_fcp?.join('; ')||'Nenhuma')+
    '\nObservacoes: '+(dados.avisos?.join('; ')||'-')+
    '\nNao houve emissao real. A primeira guia MG exige validacao final do XML.';
  }catch(e){out.textContent='Falha na conferencia: '+String(e.message||e).slice(0,280)+' (nenhuma guia emitida)';}
