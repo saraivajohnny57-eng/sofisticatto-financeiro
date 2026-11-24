@@ -14,7 +14,7 @@
  // A moldura de 10 mm é uma zona segura da arte (não é impressa).
  const TAMANHO={w:229,h:114,margem:10};
  const BLOCOS={rem:{w:78,baixo:104},dest:{w:85,baixo:104}};
- const LAYOUT_VERSAO=5;
+ const LAYOUT_VERSAO=6;
  const limitar=(v,min,max)=>Math.max(min,Math.min(max,v));
  const arredondar=v=>Math.round(v*10)/10;
  const ids=['nome','doc','rua','numero','compl','bairro','cep','cidade','uf','nf'];
@@ -42,19 +42,20 @@
    const antigo=JSON.parse(localStorage.getItem(STORAGE)||'{}');
    if(antigo&&typeof antigo==='object'&&!Array.isArray(antigo))p={...p,...antigo};
   }catch(_){}
-  // Migração v5: aproxima apenas o remetente da lateral. Mantém destinatário.
-  // Preserva o destinatário que já foi aprovado e as correções de impressão.
+  // Migração v6: converte correções compartilhadas em posições individuais.
   if(Number(p.layoutVersao)!==LAYOUT_VERSAO){
-   p.remX=VALORES.remX;
-   p.remY=VALORES.remY;
-   p.remAng=VALORES.remAng;
-   p.layoutVersao=LAYOUT_VERSAO;
-   persistirConfig(p);
+   const dx=limitar(Number(p.x)||0,-5,5),dy=limitar(Number(p.y)||0,-5,5);
+   for(const tipo of ['rem','dest']){
+    p[tipo+'X']=(Number(p[tipo+'X'])||VALORES[tipo+'X'])+dy;
+    p[tipo+'Y']=(Number(p[tipo+'Y'])||VALORES[tipo+'Y'])-dx;
+   }
+   p.x=0;p.y=0;p.layoutVersao=LAYOUT_VERSAO;persistirConfig(p);
   }
   for(const chave of ['x','y','remX','remY','remAng','destX','destY','destAng']){
    const n=Number(p[chave]);p[chave]=Number.isFinite(n)?n:VALORES[chave];
   }
-  p.x=limitar(p.x,-5,5);p.y=limitar(p.y,-5,5);
+  // Nenhum deslocamento global: logo/remetente e destinatário são independentes.
+  p.x=0;p.y=0;
   p.remAng=limitar(p.remAng,-5,5);p.destAng=limitar(p.destAng,-5,5);
   if(p.modo!=='a4'&&p.modo!=='envelope115')p.modo='envelope';
   return p;
@@ -65,8 +66,6 @@
  function guardar(){
   const p={...configuracao(),
    modo:['a4','envelope115'].includes(valor('Modo'))?valor('Modo'):'envelope',
-   x:limitar(Number(valor('X'))||0,-5,5),
-   y:limitar(Number(valor('Y'))||0,-5,5),
    documento:!!el('Documento')?.checked,
    nota:!!el('Nota')?.checked
   };
@@ -85,14 +84,10 @@
   const cos=Math.cos(rad),sen=Math.sin(rad);
   const w=bloco.w,h=alturaBlocoMm(tipo);
   const metadeX=(w*cos+h*sen)/2,metadeY=(w*sen+h*cos)/2;
-  // Coordenadas exatas após a rotação de 90°: xPapel=114+p.x-yArte,
-  // yPapel=p.y+xArte. Conserva 10 mm físicos de cada lado da mídia 114x229.
-  // Reserva outros 10 mm no final da alimentação para minimizar cortes.
-  // O remetente pode se aproximar até 5 mm da margem do arquivo.
-  // Para distância física precisa, o driver NÃO pode estar configurado em A4.
-  const minArteX=tipo==='rem'?Math.max(5,5-p.y):Math.max(10,10-p.y);
-  const maxArteX=Math.min(209,219-p.y);
-  const minArteY=Math.max(10,10+p.x),maxArteY=Math.min(bloco.baixo,104+p.x);
+  // Limites separados para o formato 114 × 229 mm: 5 mm para remetente, 10 mm para destinatário.
+  const margem=tipo==='rem'?5:10;
+  const minArteX=margem,maxArteX=209;
+  const minArteY=margem,maxArteY=tipo==='rem'?109:104;
   return {
    minX:minArteX+metadeX-w/2,maxX:maxArteX-metadeX-w/2,
    minY:minArteY+metadeY-h/2,maxY:maxArteY-metadeY-h/2,
@@ -107,35 +102,62 @@
    cabe:l.cabe
   };
  }
+ function extremosRotacao(tipo,p){
+  const w=BLOCOS[tipo].w,h=alturaBlocoMm(tipo),a=(p[tipo+'Ang']||0)*Math.PI/180;
+  const dx=w*Math.cos(a),dy=w*Math.sin(a),hx=-h*Math.sin(a),hy=h*Math.cos(a);
+  return {minX:Math.min(0,dx,hx,dx+hx),maxY:Math.max(0,dy,hy,dy+hy)};
+ }
+ function posicaoFisica(tipo,p){
+  const pos=posicaoPermitida(tipo,p),ext=extremosRotacao(tipo,p);
+  return {topo:arredondar(pos.x+ext.minX),lateral:arredondar(TAMANHO.h-pos.y-ext.maxY)};
+ }
+ function aplicarCampoPosicao(tipo,eixo){
+  const prefixo=tipo==='rem'?'Rem':'Dest';
+  const input=el(prefixo+(eixo==='topo'?'Topo':'Lateral'));
+  if(!input||!input.value.trim())return;
+  const numero=Number(input.value);
+  if(!Number.isFinite(numero))return;
+  const p=configuracao(),ext=extremosRotacao(tipo,p);
+  if(eixo==='topo')p[tipo+'X']=numero-ext.minX;
+  else p[tipo+'Y']=TAMANHO.h-numero-ext.maxY;
+  const permitida=posicaoPermitida(tipo,p);
+  p[tipo+'X']=permitida.x;p[tipo+'Y']=permitida.y;
+  persistirConfig(p);atualizar();
+  textoNo('Info','Ajuste salvo somente para '+(tipo==='rem'?'remetente':'destinatário')+'.');
+ }
+ function posicaoLogo(p){
+  // A logo acompanha só o remetente, nunca o destinatário.
+  const pos=posicaoPermitida('rem',p);
+  return {x:limitar(pos.x,5,209),y:limitar(pos.y-30,5,85)};
+ }
  function aplicarLayout(){
   const papel=el('Papel');if(!papel)return[];
   const largura=papel.clientWidth;
-  // 10 pt = 3,5278 mm. Mantém na prévia a mesma fonte da impressão.
   if(largura)papel.style.fontSize=(largura/TAMANHO.w*3.52778)+'px';
-  let p=configuracao(),mudou=false;
+  const p=configuracao(),alertas=[];let mudou=false;
   for(const tipo of ['rem','dest']){
    const bloco=el(tipo==='rem'?'ArrastarRem':'ArrastarDest');
    if(!bloco)continue;
    bloco.style.width=(BLOCOS[tipo].w/TAMANHO.w*100)+'%';
-  }
-  const alertas=[];
-  for(const tipo of ['rem','dest']){
-   const bloco=el(tipo==='rem'?'ArrastarRem':'ArrastarDest');
-   if(!bloco)continue;
    const pos=posicaoPermitida(tipo,p);
    if(!pos.cabe)alertas.push(tipo==='rem'?'remetente':'destinatário');
    if(p[tipo+'X']!==pos.x||p[tipo+'Y']!==pos.y)mudou=true;
    p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
-   if(tipo==='rem'&&el('RemMargem'))el('RemMargem').value=String(pos.x);
    bloco.style.left=(pos.x/TAMANHO.w*100)+'%';
    bloco.style.top=(pos.y/TAMANHO.h*100)+'%';
    bloco.style.transform='rotate('+p[tipo+'Ang']+'deg)';
-   const rotulo=el(tipo==='rem'?'RemAngulo':'DestAngulo');
+   const prefixo=tipo==='rem'?'Rem':'Dest',rotulo=el(prefixo+'Angulo');
    if(rotulo)rotulo.textContent=p[tipo+'Ang']+'°';
+   const f=posicaoFisica(tipo,p);
+   for(const [sufixo,numero] of [['Topo',f.topo],['Lateral',f.lateral]]){
+    const input=el(prefixo+sufixo);
+    if(input&&document.activeElement!==input)input.value=String(numero);
+   }
   }
   if(mudou)persistirConfig(p);
-  // X/Y são correções no papel retrato. A arte gira 90° ao imprimir.
-  if(largura)papel.style.transform='translate('+(p.y*largura/TAMANHO.w)+'px,'+(-p.x*largura/TAMANHO.w)+'px)';
+  const logo=el('Logo'),lp=posicaoLogo(p);
+  if(logo){logo.style.left=(lp.x/TAMANHO.w*100)+'%';logo.style.top=(lp.y/TAMANHO.h*100)+'%';}
+  papel.style.transform='none';
   return alertas;
  }
  function mudarAngulo(tipo,delta){
@@ -177,12 +199,11 @@
   bloco.addEventListener('pointerup',terminar);
   bloco.addEventListener('pointercancel',terminar);
  }
- function restaurarBlocos(){
+ function restaurarTipo(tipo){
   const p=configuracao();
-  for(const tipo of ['rem','dest'])
-   for(const campo of ['X','Y','Ang'])p[tipo+campo]=VALORES[tipo+campo];
+  for(const campo of ['X','Y','Ang'])p[tipo+campo]=VALORES[tipo+campo];
   persistirConfig(p);atualizar();
-  textoNo('Info','Posições e ângulos restaurados, respeitando a margem de 1 cm.');
+  textoNo('Info','Somente o '+(tipo==='rem'?'remetente':'destinatário')+' foi restaurado.');
  }
  function dados(){
   const dest={};
@@ -294,14 +315,15 @@
     '<div class="end">'+htmlEnd(endDest(dest).join('\n'))+'</div>'+
     (config.nota&&dest.nf?'<div class="ref-nfe">Referência: NF-e '+textoSeguro(dest.nf)+'</div>':'')+'</div>';
   const imageUrl=location.origin+LOGO;
+  const logoPos=posicaoLogo(config);
   // A folha fica em retrato, mas a arte tem 229x114 mm e recebe rotação de 90°.
   const papelAnterior=modo==='envelope115';
   const larguraPapel=papelAnterior?115:114;
   const alturaPapel=papelAnterior?230:229;
   const margemCentral=papelAnterior?0.5:0;
-  const align='translate('+(114+margemCentral+config.x)+'mm,'+(margemCentral+config.y)+'mm) rotate(90deg)';
+  const align='translate('+(114+margemCentral)+'mm,'+margemCentral+'mm) rotate(90deg)';
   const printCss=modo==='a4'?
-   '@page{size:A4 portrait;margin:0}.sheet{width:210mm;height:297mm}.art{left:10mm;top:45mm;width:229mm;height:114mm;transform-origin:top left;transform:translate('+config.x+'mm,'+config.y+'mm) scale(.82)}':
+   '@page{size:A4 portrait;margin:0}.sheet{width:210mm;height:297mm}.art{left:10mm;top:45mm;width:229mm;height:114mm;transform-origin:top left;transform:scale(.82)}':
    '@page{size:'+larguraPapel+'mm '+alturaPapel+'mm;margin:0}.sheet{width:'+larguraPapel+'mm;height:'+alturaPapel+'mm}.art{width:229mm;height:114mm;left:0;top:0;transform-origin:top left;transform:'+align+'}';
   function estiloBloco(tipo){
    const pos=posicaoPermitida(tipo,config);
@@ -313,19 +335,21 @@
   'button{border:0;border-radius:8px;background:#594b9e;color:white;padding:11px 18px;font-weight:700;cursor:pointer}'+
   '.toolbar small{margin-left:12px;color:#51476c}.sheet{position:relative;background:white;margin:20px auto;box-shadow:0 1px 14px #0002;overflow:hidden}'+
   '.art{position:absolute;border:0;box-sizing:border-box;background:#fff;overflow:hidden}'+
-  '.art img{position:absolute;left:10mm;top:10mm;width:45mm;height:22mm;object-fit:contain;object-position:left center}'+
+  '.art img{position:absolute;width:45mm;height:22mm;object-fit:contain;object-position:left center}'+
   '.rem{position:absolute;font-size:9pt;line-height:1.35;overflow-wrap:anywhere;transform-origin:top left}'+
   '.rem strong,.dest strong{display:block;font-size:8pt;letter-spacing:.4px;margin-bottom:2mm}.rn{font-weight:bold;font-size:10pt}'+
   '.dest{position:absolute;font-size:10pt;line-height:1.32;overflow-wrap:anywhere;transform-origin:top left}'+
   '.dn{font-size:13pt;font-weight:bold;line-height:1.22;margin-bottom:2mm}.end{white-space:normal;font-size:10pt}'+
   '.ref-nfe{display:block;margin-top:3mm;font-size:8pt;line-height:1.3;color:#444;overflow-wrap:anywhere}'+
+  '.postal-lines{position:absolute;left:190mm;top:9mm;width:27mm;opacity:.55}.postal-lines i{display:block;border-top:1px solid #777;margin-top:3mm}.postal-lines i:nth-child(2){width:88%}.postal-lines i:nth-child(3){width:76%}'+
   printCss+
   '@media print{html,body{width:100%;height:100%;background:white}.toolbar{display:none!important}'+
   '.sheet{box-shadow:none!important;margin:0!important;break-after:page;page-break-after:avoid}'+
   'html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'+
   '</style></head><body><div class="toolbar"><button type="button" onclick="window.print()">Imprimir / Salvar como PDF</button>'+
   '<small>'+(modo==='a4'?'Conferência em A4':'Brother: tamanho do papel '+(papelAnterior?'115 × 230':'114 × 229')+' mm (NÃO A4), alimentação manual, escala 100%')+'</small></div>'+
-  '<div class="sheet"><div class="art"><img alt="Sofisticatto" src="'+textoSeguro(imageUrl)+'">'+
+  '<div class="sheet"><div class="art"><img alt="Sofisticatto" style="left:'+logoPos.x+'mm;top:'+logoPos.y+'mm" src="'+textoSeguro(imageUrl)+'">'+
+  '<div class="postal-lines" aria-hidden="true"><i></i><i></i><i></i></div>'+
   remHTML+destHTML+'</div></div></body></html>';
   p.document.open();p.document.write(html);p.document.close();
   textoNo('Info','Prévia aberta. Na Brother, escolha exatamente '+(papelAnterior?'115 × 230':'114 × 229')+' mm, alimentação manual e escala 100%.');
@@ -345,23 +369,28 @@
   '<label>UF<input id="envUf" maxlength="2"></label><label>NF-e (opcional)<input id="envNf"></label></div>',
   '<button type="button" id="envRemCorreios" class="btn azul">Atualizar remetente dos Correios</button>',
   '<p id="envRemResumo" class="env-sender"></p>',
-  '<div class="env-layout-editor"><strong>Ajustar posição e ângulo</strong>',
-  '<label class="env-rem-margem">Margem lateral do remetente (mm, na arte)<input id="envRemMargem" type="number" min="5" max="45" step="1" value="5"></label>',
-  '<p class="env-driver-alerta"><strong>Atenção à Brother:</strong> se em Preferências de Impressão o tamanho do papel continuar <b>A4</b>, a impressora pode centralizar a arte e criar uma margem grande, mesmo com o remetente a 5 mm no arquivo. Selecione o envelope 114 × 229 mm no driver antes de imprimir.</p>',
-  '<p>Arraste o REMETENTE e o DESTINATÁRIO com o mouse diretamente na prévia. A referência da NF-e acompanha o destinatário. A linha pontilhada marca 1 cm e a impressora recebe uma folga extra no final do papel.</p>',
-  '<div class="env-giro"><b>Remetente</b><button type="button" data-env-bloco="rem" data-env-giro="-1" aria-label="Girar remetente 1 grau à esquerda">↶ 1°</button><output id="envRemAngulo">0°</output><button type="button" data-env-bloco="rem" data-env-giro="1" aria-label="Girar remetente 1 grau à direita">↷ 1°</button></div>',
-  '<div class="env-giro"><b>Destinatário</b><button type="button" data-env-bloco="dest" data-env-giro="-1" aria-label="Girar destinatário 1 grau à esquerda">↶ 1°</button><output id="envDestAngulo">0°</output><button type="button" data-env-bloco="dest" data-env-giro="1" aria-label="Girar destinatário 1 grau à direita">↷ 1°</button></div>',
-  '<button type="button" id="envRestaurarPos" class="btn">Restaurar posições e ângulos</button></div>',
-  '<div class="env-controls"><label>Modelo de impressão<select id="envModo"><option value="envelope">Envelope 114 × 229 mm (novo)</option><option value="envelope115">Envelope 115 × 230 mm (anterior)</option><option value="a4">Conferência em folha A4</option></select></label>',
-  '<label>Correção X (mm)<input id="envX" type="number" min="-5" max="5" step="0.5"></label>',
-  '<label>Correção Y (mm)<input id="envY" type="number" min="-5" max="5" step="0.5"></label></div>',
+  '<div class="env-layout-editor"><strong>Posições independentes</strong>',
+  '<p>Ajuste cada bloco sem mover o outro. As distâncias são medidas na impressão física. Arraste os blocos na prévia se preferir. A logo acompanha o remetente; a referência NF-e acompanha o destinatário.</p>',
+  '<div class="env-pos-grid">',
+  '<div class="env-pos-card"><b>Remetente + logo</b>',
+  '<label>Distância do topo (mm)<input id="envRemTopo" type="number" min="5" max="209" step="0.5"></label>',
+  '<label>Distância da lateral (mm)<input id="envRemLateral" type="number" min="5" max="80" step="0.5"></label>',
+  '<div class="env-giro"><button type="button" data-env-bloco="rem" data-env-giro="-1">↶ 1°</button><output id="envRemAngulo">0°</output><button type="button" data-env-bloco="rem" data-env-giro="1">↷ 1°</button></div>',
+  '<button type="button" class="btn" data-env-restaurar="rem">Restaurar só remetente</button></div>',
+  '<div class="env-pos-card"><b>Destinatário + NF-e</b>',
+  '<label>Distância do topo (mm)<input id="envDestTopo" type="number" min="10" max="209" step="0.5"></label>',
+  '<label>Distância da lateral (mm)<input id="envDestLateral" type="number" min="10" max="80" step="0.5"></label>',
+  '<div class="env-giro"><button type="button" data-env-bloco="dest" data-env-giro="-1">↶ 1°</button><output id="envDestAngulo">0°</output><button type="button" data-env-bloco="dest" data-env-giro="1">↷ 1°</button></div>',
+  '<button type="button" class="btn" data-env-restaurar="dest">Restaurar só destinatário</button></div>',
+  '</div><p class="env-driver-alerta"><strong>Brother:</strong> papel 114 × 229 mm, escala 100%, não A4. A prévia utiliza o mesmo posicionamento da impressão.</p></div>',
+  '<div class="env-controls"><label>Modelo de impressão<select id="envModo"><option value="envelope">Envelope 114 × 229 mm</option><option value="envelope115">Envelope 115 × 230 mm</option><option value="a4">Conferência A4</option></select></label></div>',
   '<label class="env-check"><input type="checkbox" id="envDocumento"> Mostrar CPF/CNPJ do destinatário</label>',
   '<label class="env-check"><input type="checkbox" id="envNota"> Mostrar referência da NF-e</label>',
   '<div class="env-actions"><button type="button" id="envImprimir" class="btn roxo">Imprimir envelope / salvar PDF</button>',
   '<button type="button" id="envLimpar" class="btn">Limpar destinatário</button></div>',
   '<p id="envInfo" class="env-info" role="status"></p></div>',
   '<div class="card"><h2>Prévia do envelope</h2><p id="envMedida"></p>',
-  '<div class="env-frame"><div class="env-paper" id="envPapel"><div class="env-limite" aria-hidden="true"></div><img class="env-logo" src="'+LOGO+'" alt="Logo Sofisticatto">',
+  '<div class="env-frame"><div class="env-paper" id="envPapel"><div class="env-limite" aria-hidden="true"></div><img class="env-logo" id="envLogo" src="'+LOGO+'" alt="Logo Sofisticatto"><div class="env-postal-lines" aria-hidden="true"><i></i><i></i><i></i></div>',
   '<div class="env-rem env-draggable" id="envArrastarRem" title="Arraste para reposicionar o remetente"><strong>REMETENTE</strong><b id="envPrevRemNome"></b><small id="envPrevRemCnpj"></small><span id="envPrevRemEndereco"></span></div>',
   '<div class="env-dest env-draggable" id="envArrastarDest" title="Arraste para reposicionar o destinatário"><strong>DESTINATÁRIO</strong><b id="envPrevDestNome">NOME DO DESTINATÁRIO</b><small id="envPrevDestDoc"></small>',
   '<span id="envPrevDestEndereco"></span><small class="env-nf" id="envPrevNf"></small></div>',
@@ -407,7 +436,16 @@
    '.env-giro b{min-width:94px;font-size:13px;color:#4d436b}',
    '.env-giro button{border:1px solid #c5b6dd;background:#fff;color:#594b9e;border-radius:7px;padding:6px 11px;font-weight:700;cursor:pointer}',
    '.env-giro output{font-weight:700;font-size:13px;min-width:25px;text-align:center}',
-   '#envRestaurarPos{margin-top:8px;font-size:12px}',
+   '.env-pos-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}',
+   '.env-pos-card{border:1px solid #dcd3ee;background:#fff;border-radius:9px;padding:10px}',
+   '.env-pos-card>b{font-size:13px;color:#51467c;display:block;margin-bottom:8px}',
+   '.env-pos-card label{display:block;font-size:12px;color:#51467c;margin:8px 0}',
+   '.env-pos-card input{margin-top:3px;width:100%;max-width:100%}',
+   '.env-pos-card .btn{font-size:12px;padding:8px 9px}',
+   '.env-postal-lines{position:absolute;left:82.97%;top:7.9%;width:11.8%;opacity:.55;pointer-events:none}',
+   '.env-postal-lines i{display:block;border-top:1px solid #777;margin-top:10%;width:100%}',
+   '.env-postal-lines i:nth-child(2){width:88%}.env-postal-lines i:nth-child(3){width:76%}',
+   '@media(max-width:580px){.env-pos-grid{grid-template-columns:1fr}}',
    '.env-rem-margem{font-size:12px;color:#51467c;display:block;margin:9px 0}',
    '.env-rem-margem input{max-width:100px!important;margin-left:8px}',
    '.env-driver-alerta{background:#fff9ee;border-left:3px solid #be822c;padding:8px 10px!important;color:#654817!important}',
@@ -415,24 +453,24 @@
   ].join('\n');
   document.head.appendChild(style);
   const p=configuracao();
-  el('Modo').value=p.modo;el('X').value=p.x;el('Y').value=p.y;
+  el('Modo').value=p.modo;
   el('Documento').checked=!!p.documento;el('Nota').checked=!!p.nota;
   el('Xml').addEventListener('change',importarXml);
   for(const id of ids){const e=el(id.charAt(0).toUpperCase()+id.slice(1));if(e)e.addEventListener('input',atualizar);}
   el('Cep').addEventListener('blur',()=>{el('Cep').value=formatCep(el('Cep').value);atualizar();});
   el('Uf').addEventListener('blur',()=>{el('Uf').value=valor('Uf').toUpperCase();atualizar();});
-  for(const id of ['Modo','X','Y','Documento','Nota'])el(id).addEventListener('change',guardar);
+  for(const id of ['Modo','Documento','Nota'])el(id).addEventListener('change',guardar);
+  for(const tipo of ['rem','dest'])for(const eixo of ['topo','lateral']){
+   const id=(tipo==='rem'?'Rem':'Dest')+(eixo==='topo'?'Topo':'Lateral');
+   el(id).addEventListener('change',()=>aplicarCampoPosicao(tipo,eixo));
+  }
   el('Imprimir').addEventListener('click',criarImpressao);
   root.querySelectorAll('[data-env-bloco][data-env-giro]').forEach(botao=>{
    botao.addEventListener('click',()=>mudarAngulo(
     botao.getAttribute('data-env-bloco'),Number(botao.getAttribute('data-env-giro'))));
   });
-  el('RestaurarPos').addEventListener('click',restaurarBlocos);
-  el('RemMargem').addEventListener('change',()=>{
-   const p=configuracao();
-   p.remX=arredondar(limitar(Number(valor('RemMargem'))||5,5,45));
-   persistirConfig(p);atualizar();
-   textoNo('Info','Margem do remetente ajustada na arte. Na Brother, use o tamanho real do envelope, nunca A4.');
+  root.querySelectorAll('[data-env-restaurar]').forEach(botao=>{
+   botao.addEventListener('click',()=>restaurarTipo(botao.getAttribute('data-env-restaurar')));
   });
   conectarArraste('rem');conectarArraste('dest');
   el('RemCorreios').addEventListener('click',()=>{
