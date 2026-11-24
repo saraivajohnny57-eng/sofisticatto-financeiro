@@ -155,40 +155,77 @@
   const erros=aplicarLayout(),faltam=validar();
   textoNo('Status',faltam.length?'Confira: '+faltam.join(', ')+'.':
    erros.length?'O conteúdo de '+erros.join(' e ')+' não cabe na margem segura. Ajuste os dados ou a posição.':
-   'Prévia e impressão em retrato, sem rotação global. Arraste cada item independentemente.');
+   'Arraste cada bloco, redimensione pela alça e altere fonte e medidas. A impressão usa essas posições.');
   textoNo('Medida',config.modo==='a4'?'A4 para conferência: envelope DEITADO, 229 × 114 mm':
    config.modo==='envelope115'?'Envelope DEITADO 230 × 115 mm (arte 229 × 114 mm)':
    'Envelope DEITADO 229 × 114 mm — paisagem, tamanho real');
  }
+ function aplicarZoom(){
+  const papel=el('Papel');if(!papel)return;
+  const widthCss=PAPEL.w*96/25.4;
+  papel.style.width=zoomAtual==='ajustar'?'min(100%, '+widthCss.toFixed(2)+'px)':
+    (widthCss*Number(zoomAtual)/100).toFixed(2)+'px';
+  textoNo('Escala',zoomAtual==='ajustar'?'Ajustado à tela':
+    zoomAtual+'% da escala CSS (aproximada conforme o monitor)');
+ }
+ function selecionarBloco(tipo){
+  selecionado=tipo;
+  for(const t of TIPOS)el('Arrastar'+PREFIXO[t])?.classList.toggle('env-selecionado',t===tipo);
+  document.getElementById('envelopeRoot')?.querySelectorAll('[data-env-card]').forEach(card=>{
+   card.classList.toggle('env-card-selecionado',card.getAttribute('data-env-card')===tipo);
+  });
+ }
  function aplicarLayout(){
-  const papel=el('Papel');
-  if(!papel)return[];
+  const papel=el('Papel');if(!papel)return[];
   const largura=papel.clientWidth;
   if(largura)papel.style.fontSize=(largura/PAPEL.w*3.52778)+'px';
-  const p=configuracao(),erros=[];
-  let mudou=false;
-  // Todos os elementos usam exatamente os mesmos x/y do CSS para imprimir.
+  const p=configuracao(),erros=[];let mudou=false;
   for(const tipo of TIPOS){
-   const no=el('Arrastar'+PREFIXO[tipo]);
-   if(!no)continue;
-   const t=tamanhoBloco(tipo);
-   no.style.width=(BLOCOS[tipo].w/PAPEL.w*100)+'%';
-   if(BLOCOS[tipo].h)no.style.height=(BLOCOS[tipo].h/PAPEL.h*100)+'%';
+   const no=el('Arrastar'+PREFIXO[tipo]);if(!no)continue;
+   const b=tamanhoBloco(tipo,p);
+   no.style.width=(b.w/PAPEL.w*100)+'%';
+   no.style.height=(b.h/PAPEL.h*100)+'%';
    const pos=posicaoPermitida(tipo,p);
-   if(!pos.cabe)erros.push(NOMES[tipo]);
+   if(!pos.cabe)erros.push(NOMES[tipo]+' fora das margens');
    if(pos.x!==p[tipo+'X']||pos.y!==p[tipo+'Y'])mudou=true;
    p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
    no.style.left=(pos.x/PAPEL.w*100)+'%';
    no.style.top=(pos.y/PAPEL.h*100)+'%';
    no.style.transform='rotate('+(p[tipo+'Ang']||0)+'deg)';
-   const px=el(PREFIXO[tipo]+'X'),py=el(PREFIXO[tipo]+'Y');
-   if(px&&document.activeElement!==px)px.value=String(pos.x);
-   if(py&&document.activeElement!==py)py.value=String(pos.y);
+   if(tipo==='rem'||tipo==='dest'){
+    no.style.fontSize=(p[tipo+'Font']/10)+'em';
+    no.style.padding=largura?(p[tipo+'Pad']*largura/PAPEL.w)+'px':'0';
+   }
+   for(const eixo of ['X','Y','W','H',...(tipo==='rem'||tipo==='dest'?['Font','Pad']:[])]){
+    const input=el(PREFIXO[tipo]+eixo);
+    if(input&&document.activeElement!==input)input.value=String(p[tipo+eixo]);
+   }
    const ang=el(PREFIXO[tipo]+'Angulo');
    if(ang)ang.textContent=(p[tipo+'Ang']||0)+'°';
+   const overflow=(tipo==='rem'||tipo==='dest')&&no.clientHeight>0&&
+     (no.scrollHeight>no.clientHeight+2||no.scrollWidth>no.clientWidth+2);
+   no.classList.toggle('env-overflow',overflow);
+   if(overflow)erros.push('texto de '+NOMES[tipo]+' não cabe no bloco');
   }
   if(mudou)guardarConfig(p);
+  selecionarBloco(selecionado);
+  const limite=el('Limite'),grade=el('Grade');
+  if(limite)limite.style.display=guiasAtivas?'':'none';
+  if(grade)grade.style.display=guiasAtivas?'':'none';
   return erros;
+ }
+ function mudarMedida(tipo,eixo,novo){
+  if(String(novo).trim()==='')return;
+  const n=Number(novo),b=BLOCOS[tipo];
+  if(!Number.isFinite(n))return;
+  const limites={W:[b.minW,b.maxW],H:[b.minH,b.maxH],Font:[7,14],Pad:[0,4]};
+  if(!limites[eixo])return;
+  const p=configuracao();
+  p[tipo+eixo]=arredondar(limitar(n,...limites[eixo]));
+  const pos=posicaoPermitida(tipo,p);
+  p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
+  guardarConfig(p);selecionarBloco(tipo);atualizar();
+  textoNo('Info','Tamanho de '+NOMES[tipo]+' alterado sem mover os outros elementos.');
  }
  function mudarPosicao(tipo,eixo,valorNovo){
   const p=configuracao(),n=Number(valorNovo);
@@ -214,18 +251,25 @@
   no.addEventListener('dragstart',e=>e.preventDefault());
   no.addEventListener('pointerdown',e=>{
    if(e.button!==0||!papel.clientWidth)return;
-   const p=configuracao();
-   inicio={id:e.pointerId,x:e.clientX,y:e.clientY,origX:p[tipo+'X'],origY:p[tipo+'Y']};
+   selecionarBloco(tipo);
+   const p=configuracao(),resize=!!e.target.closest?.('[data-env-resize]');
+   inicio={id:e.pointerId,mouseX:e.clientX,mouseY:e.clientY,
+    x:p[tipo+'X'],y:p[tipo+'Y'],w:p[tipo+'W'],h:p[tipo+'H'],resize};
    no.setPointerCapture(e.pointerId);
-   no.classList.add('env-arrastando');
-   e.preventDefault();
+   no.classList.add('env-arrastando');e.preventDefault();
   });
   no.addEventListener('pointermove',e=>{
    if(!inicio||e.pointerId!==inicio.id)return;
-   const escala=PAPEL.w/papel.getBoundingClientRect().width;
+   const mm=PAPEL.w/papel.getBoundingClientRect().width;
+   const dx=(e.clientX-inicio.mouseX)*mm,dy=(e.clientY-inicio.mouseY)*mm;
    const p=configuracao();
-   p[tipo+'X']=inicio.origX+(e.clientX-inicio.x)*escala;
-   p[tipo+'Y']=inicio.origY+(e.clientY-inicio.y)*escala;
+   if(inicio.resize){
+    const b=BLOCOS[tipo];
+    p[tipo+'W']=arredondar(limitar(inicio.w+dx,b.minW,b.maxW));
+    p[tipo+'H']=arredondar(limitar(inicio.h+dy,b.minH,b.maxH));
+   }else{
+    p[tipo+'X']=inicio.x+dx;p[tipo+'Y']=inicio.y+dy;
+   }
    const pos=posicaoPermitida(tipo,p);
    p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
    guardarConfig(p);aplicarLayout();
@@ -240,9 +284,10 @@
  }
  function restaurarTipo(tipo){
   const p=configuracao();
-  for(const e of ['X','Y'])p[tipo+e]=PADRAO[tipo+e];
+  for(const e of ['X','Y','W','H',...(tipo==='rem'||tipo==='dest'?['Font','Pad']:[])])
+   p[tipo+e]=PADRAO[tipo+e];
   if(tipo!=='logo')p[tipo+'Ang']=0;
-  guardarConfig(p);atualizar();
+  guardarConfig(p);selecionarBloco(tipo);atualizar();
   textoNo('Info','Somente '+NOMES[tipo]+' restaurado.');
  }
  function guardarOpcoes(){
@@ -359,8 +404,8 @@
    '.rn{font-size:1.111em;font-weight:bold;line-height:1.22;margin-bottom:.3em}',
    '.dn{font-size:1.3em;font-weight:bold;line-height:1.2;margin-bottom:.4em}',
    '.end{white-space:normal}.ref-nfe{display:block;margin-top:.9em;font-size:.8em;line-height:1.32;color:#444}',
-   '.postal-lines{position:absolute;transform-origin:top left;opacity:.6;box-sizing:border-box}',
-   '.postal-lines i{display:block;border-top:1px solid #6e6e6e;margin-top:3mm;width:100%}',
+   '.postal-lines{position:absolute;transform-origin:top left;opacity:.6;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-evenly}',
+   '.postal-lines i{display:block;border-top:1px solid #6e6e6e;width:100%}',
    '.postal-lines i:nth-child(2){width:88%}.postal-lines i:nth-child(3){width:76%}',
    paginaCss,
    '@media print{html,body{background:white!important;width:100%;height:100%}',
