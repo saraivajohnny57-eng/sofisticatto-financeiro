@@ -2508,7 +2508,7 @@ async function carregarRastreamentosLogistica(sentido){
     <td>${escaparHtmlEmail(x.frete_transportadoras?.nome||"Não informada")}${integradoV464?`<div class="rastreio-metodo">● Rastreio automático</div>`:(siteV464?`<div class="rastreio-metodo">Integração automática pendente</div>`:"")}</td>
     <td>${escaparHtmlEmail(x.numero_nfe||"—")}</td>
     <td>${escaparHtmlEmail((/correios|coreios/i.test(x.frete_transportadoras?.nome||"")&&x.protocolo_rastreio)?x.protocolo_rastreio:(x.numero_cte||x.protocolo_rastreio||"—"))}</td>
-    <td>${x.previsao_entrega?new Date(x.previsao_entrega+"T12:00:00").toLocaleDateString("pt-BR"):"Não informada"}</td>
+    <td>${estadoRedespachoV523(x)?"Pendente — redespacho":x.previsao_entrega?new Date(x.previsao_entrega+"T12:00:00").toLocaleDateString("pt-BR"):"Não informada"}</td>
     <td>
       <span class="coleta-status-painel ${classeStatusRastreamento(statusVisualRastreamento(x))}">${statusLabelRastreamento(statusVisualRastreamento(x))}</span>
       ${x.ultima_ocorrencia?`<div class="rastreio-ultima-ocorrencia">${escaparHtmlEmail(x.ultima_ocorrencia)}</div>`:""}
@@ -2899,6 +2899,70 @@ async function sincronizarRastreiosSSWLocais(){
 
 // V440: rastreios importados pelo Tracking DANFE usam a consulta pública por chave,
 // independentemente de a transportadora ter integração privada SSW configurada.
+// Entrega ao parceiro de redespacho não é entrega ao destinatário final.
+function eventoRedespachoV523(e){
+ const t=normalizarTransportadoraV436([e?.titulo,e?.ocorrencia,e?.descricao,e?.complemento,e?.recebedor].filter(Boolean).join(' '));
+ if(/NAO ENTREGUE|TENTATIVA DE ENTREGA|PREVISAO DE ENTREGA/.test(t))return false;
+ return /PARENTESCO\s*TRANSP\b|RECEBIDO (?:POR|PELA|PELO) (?:A |O )?TRANSPORTADOR[AO]|ENTREGUE (?:A|AO|PARA) (?:A |O )?TRANSPORTADOR[AO]|ENTREGUE.*REDESPACHO|RECEBIDO.*REDESPACHO/.test(t);
+}
+function entregaFinalRedespachoV523(e){
+ const t=normalizarTransportadoraV436([e?.titulo,e?.ocorrencia,e?.descricao,e?.recebedor].filter(Boolean).join(' '));
+ return !eventoRedespachoV523(e)&&!/NAO ENTREGUE|TENTATIVA|PREVISAO|SAIU.*ENTREGA/.test(t)&&
+ /ENTREGUE|ENTREGA (?:REALIZADA|EFETUADA|FINALIZADA)|RECEBIDO/.test(t)&&/SOFISTICATTO/.test(t)&&
+ /RECEBIDO (?:POR|PELA|PELO)|ENTREGUE (?:A|AO|PARA)|RECEBEDOR/.test(t);
+}
+function estadoRedespachoV523(r,eventos=[]){
+ if(r?.sentido!=='entrada')return null;
+ if(r.status==='cancelado'||(r.status==='recebido'&&r.finalizado_em&&!eventoRedespachoV523({descricao:r.ultima_ocorrencia})))return null;
+ const e=[...(Array.isArray(r.consulta_api?.tracking)?r.consulta_api.tracking:[]),...eventos];
+ if(r.ultima_ocorrencia)e.push({descricao:r.ultima_ocorrencia,data:r.ultima_ocorrencia_em});
+ const tempo=x=>dataEventoTimeline(x.data||x.data_hora)?.getTime()||0;
+ const transfer=e.filter(eventoRedespachoV523).sort((a,b)=>tempo(b)-tempo(a))[0];
+ if(!transfer)return null;
+ const final=e.some(x=>entregaFinalRedespachoV523(x)&&tempo(x)>0&&tempo(x)>=tempo(transfer));
+ if(final)return null;
+ return {transfer,tempo:tempo(transfer),parceiro:r.frete_transportadoras?.nome||'Transportadora de redespacho'};
+}
+async function consultarEtapaRedespachoV523(id,box,btn){
+ btn.disabled=true;box.textContent='Consultando integração específica e documentos CT-e...';
+ try{
+  const r=await obterRastreamentoPorId(id);
+  if(!r||!estadoRedespachoV523(r))throw Error('Redespacho pendente não identificado.');
+  const chave=String(r.chave_nfe||'').replace(/\D/g,'');
+  if(chave.length!==44)throw Error('Informe a chave NF-e de 44 dígitos no cadastro.');
+  const admin=await chaveAdminColeta();if(!admin)throw Error('Autorização administrativa necessária.');
+  const headers={'Content-Type':'application/json','x-integrations-admin-key':admin};
+  const get=async(url,options)=>{const q=await fetch(url,options),d=await q.json().catch(()=>({}));if(!q.ok||!d.ok)throw Error(d.erro||'Consulta indisponível');return d;};
+  const resultados=await Promise.allSettled([
+   get('/api/integracoes?'+new URLSearchParams({action:'consultar-rastreio-ssw',registro_id:String(id),redespacho:'1'}),{headers}),
+   get('/api/integracoes?action=descobrir-entradas-gmail',{method:'POST',headers,body:JSON.stringify({dias:30,chaveNfe:chave})})
+  ]);
+  box.replaceChildren();
+  const p=t=>{const n=document.createElement('p');n.textContent=t;box.append(n);};
+  const [ssw,gmail]=resultados;
+  if(ssw.status==='fulfilled'){
+   const d=ssw.value;p('SSW da transportadora cadastrada: '+(d.motivo||'Consulta concluída'));
+   if(d.previsaoEntrega)p('Previsão do redespacho: '+formatarDataTimelineBR(d.previsaoEntrega));
+   const eventos=Array.isArray(d.eventos)?d.eventos:[];
+   if(eventos.length){
+    const ol=document.createElement('ol');
+    for(const ev of eventos){const li=document.createElement('li');li.textContent=[formatarDataTimelineBR(ev.data),ev.titulo,ev.descricao,ev.local].filter(Boolean).join(' — ');ol.append(li)}
+    box.append(ol);
+   }
+  }else p('SSW específico: '+ssw.reason.message);
+  if(gmail.status==='fulfilled'){
+   const docs=(gmail.value.resultados||[]).filter(x=>x.destinatarioConfirmado&&(x.chavesNfe||[]).includes(chave));
+   const nome=r.frete_transportadoras?.nome||'';
+   const n=v=>normalizarTransportadoraV436(v).replace(/\b(?:LOGISTICA|TRANSPORTES|LTDA|EIRELI|EIRE)\b/g,'').replace(/\s/g,'');
+   const parceiros=docs.filter(x=>n(x.transportadora)&&n(x.transportadora)===n(nome));
+   p('CT-e da transportadora de redespacho: '+(parceiros.length?parceiros.map(x=>[x.numeroCte,x.chaveCte,x.transportadora].filter(Boolean).join(' / ')).join('; '):'não localizado nos anexos examinados.'));
+   if(docs.length>parceiros.length)p('Outros CT-es vinculados à NF-e: '+docs.filter(x=>!parceiros.includes(x)).map(x=>[x.numeroCte,x.transportadora].join(' / ')).join('; '));
+  }else p('Gmail: '+gmail.reason.message);
+  p('O CT-e identifica o trecho, mas não comprova a movimentação. Sem confirmação da transportadora parceira, a entrega final e sua previsão continuam pendentes.');
+ }catch(e){box.textContent=e.message;}
+ finally{btn.disabled=false;}
+}
+
 function rastreioDanfeV440(r){
  return /^\d{44}$/.test(String(r?.chave_nfe||'').replace(/\D/g,'')) &&
    (r?.sentido==='entrada'||/^SSW Tracking DANFE/i.test(String(r?.metodo_consulta||'')));
@@ -2953,7 +3017,12 @@ async function atualizarRastreioDanfeV440(rastro,botao){
      update.ultima_ocorrencia_em=new Date(nov).toISOString();
      update.status_api=descricao||rastro.status_api;
      const t=normalizarTransportadoraV436(descricao);
-     if(/ENTREGA FINALIZADA|ENTREGA EFETUADA|ENTREGA REALIZADA|ENTREGUE AO DESTINATARIO|RECEBIDO PELO DESTINATARIO/.test(t)){
+     if(rastro.sentido==='entrada'&&eventoRedespachoV523(ultimo)){
+       update.status='em_transito';
+     }else if(rastro.sentido==='entrada'&&estadoRedespachoV523({...rastro,consulta_api:update.consulta_api,ultima_ocorrencia:descricao,ultima_ocorrencia_em:new Date(nov).toISOString()})&&!entregaFinalRedespachoV523(ultimo)){
+       update.status=normalizarStatusOcorrenciaSSWCliente(ultimo.ocorrencia,ultimo.descricao);
+       if(['entregue','aguardando_coleta'].includes(update.status))update.status='em_transito';
+     }else if(/ENTREGA FINALIZADA|ENTREGA EFETUADA|ENTREGA REALIZADA|ENTREGUE AO DESTINATARIO|RECEBIDO PELO DESTINATARIO/.test(t)||rastro.sentido==='entrada'&&entregaFinalRedespachoV523(ultimo)){
        update.status=rastro.sentido==='entrada'?'recebido':'entregue';
        update.finalizado_em=new Date(nov).toISOString();
      }else if(/SAIU.*ENTREGA|ROTA DE ENTREGA/.test(t))update.status='saiu_entrega';
@@ -3590,6 +3659,7 @@ function correiosAguardandoPostagem(x){
     && !/objeto postado|postado apos|objeto em transferencia|em transferencia|encaminhad|saiu.*para.*entrega|objeto entregue/.test(t);
 }
 function statusVisualRastreamento(x){
+  if(estadoRedespachoV523(x))return 'redespacho';
   if(!rastreioEhCorreios(x))return x?.status||'';
   if(correiosCanceladoV466(x))return 'cancelado';
   const t=textoStatusCorreiosRastreamento(x);
@@ -3601,7 +3671,7 @@ function statusVisualRastreamento(x){
   return x?.status||'';
 }
 function statusLabelRastreamento(s){
-  const m={aguardando_coleta:"Aguardando coleta",aguardando_postagem:"Aguardando postagem",postado:"Postado / coletado",em_transito:"Em trânsito",na_filial:"Na filial",saiu_entrega:"Saiu para entrega",entregue:"Entregue",recebido:"Recebido",atrasado:"Atrasado",ocorrencia:"Com ocorrência",cancelado:"Cancelado"};
+  const m={redespacho:"Em redespacho",aguardando_coleta:"Aguardando coleta",aguardando_postagem:"Aguardando postagem",postado:"Postado / coletado",em_transito:"Em trânsito",na_filial:"Na filial",saiu_entrega:"Saiu para entrega",entregue:"Entregue",recebido:"Recebido",atrasado:"Atrasado",ocorrencia:"Com ocorrência",cancelado:"Cancelado"};
   return m[s]||String(s||"—").replace(/_/g," ");
 }
 function classeStatusRastreamento(s){
@@ -4299,6 +4369,7 @@ async function atualizarTimelineAoAbrir(rastro,nome){
     if(/braspress/i.test(nome))return await consultarRastreioBraspressTimeline(rastro,chave);
     if(/rodonaves/i.test(nome))return (await consultarRastreioRodonavesRegistro(rastro.id,{chave})).dados;
     if(/correios|coreios/i.test(nome))return (await consultarRastreioCorreiosRegistro(rastro.id,{chave})).dados;
+    if(rastreioDanfeV440(rastro))return null; // consulta DANFE explicitamente pelo botão, sem sobrescrever o histórico de redespacho
     if(transportadoraEhSSW(nome)||/accert|\btg\b/i.test(nome))return (await consultarRastreioSSWDiretoRegistro(rastro.id,{chave})).dados;
     if(/(^|\s)alfa(\s|$)|alfa transportes/i.test(nome))return {erroTimeline:"Consulta automática Alfa pendente de liberação da chave idr (HTTP 403). Eventos já armazenados permanecem no portal."};
     if(/(^|\s)uniao(\s|$)|união transportes/i.test(nome))return {erroTimeline:"União: integração automática pendente de API/EDI autorizada. Histórico já registrado permanece no portal."};
@@ -4558,7 +4629,9 @@ async function abrirLinhaTempoRastreio(id){
     }
     eventos=[...map.values()].filter(e=>!(/^\d{1,4}$/.test(String(e.titulo||"").trim()) && String(e.descricao||"").trim())).sort((a,b)=>(dataEventoTimeline(b.data)?.getTime()||0)-(dataEventoTimeline(a.data)?.getTime()||0));
     const etapas=["Pedido/coleta","Coletada","Em transferência","Unidade de destino","Saiu para entrega","Entregue"];
-    const atual=/braspress/i.test(nome)?indiceEtapaBraspressReal(eventos,rastro.status):indiceEtapaTimeline(eventos,rastro.status);
+    const redespacho=estadoRedespachoV523(rastro,eventos);
+    if(redespacho){etapas.splice(0,etapas.length,'Pedido/coleta','Coletada','Em transferência','Entregue à parceira','Transporte final','Recebida na Sofisticatto');}
+    const atual=redespacho?3:/braspress/i.test(nome)?indiceEtapaBraspressReal(eventos,rastro.status):indiceEtapaTimeline(eventos,rastro.status);
     const locais=eventosLocaisTimeline(eventos);
     const incidente=detectarAlertaTimeline(eventos);
     const dias=diasSemMovimentoTimeline(eventos);
@@ -4567,7 +4640,8 @@ async function abrirLinhaTempoRastreio(id){
     if(dias>=3&&atual<5)alertas+=`<div class="rast-timeline-aviso rast-timeline-alerta-parado"><b>⏱ Sem nova movimentação há ${dias} dia(s).</b><br>Vale acompanhar a próxima atualização da transportadora.</div>`;
     if(rastro.sincronizacao_erro&&!incidente)alertas+=`<div class="rast-timeline-aviso">⚠ ${escaparHtmlEmail(rastro.sincronizacao_erro)}</div>`;
     if(avisoAoVivo&&!eventos.length)alertas+=`<div class="rast-timeline-aviso">⚠ Consulta ao vivo: ${escaparHtmlEmail(avisoAoVivo)}</div>`;
-    const prevV415=previsaoRastreioV415(rastro,vivo,eventos);
+    const prevV415=redespacho?{texto:'Pendente de confirmação da transportadora de redespacho',origem:''}:previsaoRastreioV415(rastro,vivo,eventos);
+    if(redespacho)alertas+='<div class="rast-timeline-aviso"><b>Redespacho: entrega intermediária, não recebimento final.</b><br>Transportadora cadastrada: '+escaparHtmlEmail(redespacho.parceiro)+'<br>Continue acompanhando o segundo trecho. <button class="btn azul" type="button" id="rastConsultarRedespachoV523">Consultar segunda etapa / CT-e</button><div id="rastResultadoRedespachoV523" aria-live="polite"></div></div>';
     const previsaoHtmlV415=`<div class="rast-resumo-api" style="margin:10px 0"><span>📅 <b>Previsão de entrega:</b> ${escaparHtmlEmail(prevV415.texto)} ${prevV415.origem?`<small>(${escaparHtmlEmail(prevV415.origem)})</small>`:""}</span></div>`;
     const etapasHtml=`<div class="rast-etapas-box"><div class="rast-etapas-titulo">Etapas da entrega <small style="font-weight:500;color:#77718d">(progressão estimada com base nas ocorrências reais)</small></div><div class="rast-etapas">${etapas.map((x,i)=>`<div class="rast-etapa ${i<atual?'concluida':i===atual?'atual':''}"><div class="rast-etapa-dot">${i<atual?'✓':i===atual?'●':i+1}</div><div>${x}</div></div>`).join("")}</div>${locais.length?`<div class="rast-rota-locais"><b style="font-size:11px;color:#655f77">Locais registrados:</b>${locais.map(l=>`<span class="rast-rota-chip">📍 ${escaparHtmlEmail(l)}</span>`).join("")}</div>`:""}</div>`;
     if(!eventos.length){
@@ -4581,6 +4655,8 @@ async function abrirLinhaTempoRastreio(id){
     const conhecimentosBraspress=/braspress/i.test(nome)&&Array.isArray(vivo?.conhecimentos)?vivo.conhecimentos:[];
     const detalhesBraspress=conhecimentosBraspress.length?`<div class="rast-etapas-box" style="margin-top:12px"><div class="rast-etapas-titulo">Dados do conhecimento Braspress</div>${conhecimentosBraspress.map(c=>`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px 14px;font-size:12px;line-height:1.45"><div><b>Conhecimento/AWB:</b> ${escaparHtmlEmail(c.numero||"—")}</div><div><b>Status:</b> ${escaparHtmlEmail(c.status||"—")}</div><div><b>Origem:</b> ${escaparHtmlEmail(c.origem||[c.cidadeColeta,c.ufColeta].filter(Boolean).join(" / ")||"—")}</div><div><b>Destino:</b> ${escaparHtmlEmail([c.cidade,c.uf].filter(Boolean).join(" / ")||"—")}</div><div><b>Emissão:</b> ${escaparHtmlEmail(c.emissao||"—")}</div><div><b>Previsão:</b> ${escaparHtmlEmail(c.previsaoEntrega||"—")}</div><div><b>Volumes:</b> ${escaparHtmlEmail(c.volumes??"—")}</div><div><b>Peso:</b> ${escaparHtmlEmail(c.peso??"—")}</div><div><b>Valor mercadoria:</b> ${escaparHtmlEmail(c.valorMercantil??"—")}</div><div><b>Frete:</b> ${escaparHtmlEmail(c.totalFrete??"—")}</div><div><b>Última ocorrência:</b> ${escaparHtmlEmail(c.ultimaOcorrencia||"—")}</div><div><b>Data ocorrência:</b> ${escaparHtmlEmail(c.dataOcorrencia||"—")}</div></div>`).join("")}</div>`:"";
     body.innerHTML=alertas+previsaoHtmlV415+etapasHtml+resumo+detalhesBraspress+`<div class="rast-historico-titulo">Histórico completo das ocorrências (${eventos.length})</div><div class="rast-timeline">${eventos.map((e,i)=>{const detalhes=[];if(e.unidade)detalhes.push(`🏤 Unidade: ${escaparHtmlEmail(e.unidade)}`);if(e.destino)detalhes.push(`➡ Destino: ${escaparHtmlEmail(e.destino)}`);if(e.codigo)detalhes.push(`Código: ${escaparHtmlEmail(e.codigo)}`);if(e.recebedor)detalhes.push(`👤 Recebedor: ${escaparHtmlEmail(e.recebedor)}`);if(e.documentoRecebedor)detalhes.push(`Documento: ${escaparHtmlEmail(e.documentoRecebedor)}`);return `<div class="rast-evento ${i===0?'atual':''}"><div class="rast-evento-titulo">${escaparHtmlEmail(e.titulo||"Ocorrência")}</div><div class="rast-evento-data">${e.data&&dataEventoTimeline(e.data)?dataEventoTimeline(e.data).toLocaleString("pt-BR"):"Data não informada"}</div>${e.descricao&&textoNormalizadoTimeline(e.descricao)!==textoNormalizadoTimeline(e.titulo)?`<div class="rast-evento-desc">${escaparHtmlEmail(e.descricao)}</div>`:""}${e.local?`<div class="rast-evento-local">📍 ${escaparHtmlEmail(e.local)}</div>`:""}${detalhes.length?`<div class="rast-evento-detalhes">${detalhes.map(x=>`<span class="rast-evento-detalhe">${x}</span>`).join("")}</div>`:""}<div class="rast-evento-fonte">Fonte: ${escaparHtmlEmail(e.fonte||"Portal")}</div></div>`}).join("")}</div>`;
+    const btnRed=document.getElementById('rastConsultarRedespachoV523');
+    if(btnRed)btnRed.onclick=()=>consultarEtapaRedespachoV523(id,document.getElementById('rastResultadoRedespachoV523'),btnRed);
   }catch(e){body.innerHTML=`<div class="rast-timeline-vazio">Não foi possível carregar a linha do tempo: ${escaparHtmlEmail(e.message)}</div>`;}
 }
 
