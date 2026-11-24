@@ -7,20 +7,23 @@
  const PAPEL={w:229,h:114};
  const IDS=['nome','doc','rua','numero','compl','bairro','cep','cidade','uf','nf'];
  const BLOCOS={
-  logo:{w:48,h:20,m:8},rem:{w:91,m:8},
-  dest:{w:96,m:10},linhas:{w:28,h:12,m:7}
+  logo:{w:48,h:20,minW:16,maxW:85,minH:8,maxH:42,m:7},
+  rem:{w:82,h:42,minW:40,maxW:108,minH:22,maxH:86,m:7},
+  dest:{w:86,h:51,minW:45,maxW:108,minH:24,maxH:86,m:8},
+  linhas:{w:28,h:12,minW:12,maxW:65,minH:6,maxH:29,m:7}
  };
  const PADRAO={
   modo:'envelope',documento:false,nota:true,
-  logoX:10,logoY:7,
-  remX:10,remY:31,remAng:0,
-  destX:123,destY:33,destAng:0,
-  linhasX:15,linhasY:91,linhasAng:0
+  logoX:10,logoY:7,logoW:48,logoH:20,
+  remX:10,remY:31,remW:82,remH:42,remFont:9,remPad:0,remAng:0,
+  destX:123,destY:33,destW:86,destH:51,destFont:10,destPad:0,destAng:0,
+  linhasX:15,linhasY:91,linhasW:28,linhasH:12,linhasAng:0
  };
  const PREFIXO={logo:'Logo',rem:'Rem',dest:'Dest',linhas:'Linhas'};
  const NOMES={logo:'logo',rem:'remetente',dest:'destinatário',linhas:'risquinhos'};
  const TIPOS=['logo','rem','dest','linhas'];
- let inicializado=false;
+ const ZOOM_KEY='sofisticatto_envelope_zoom_v10';
+ let inicializado=false,zoomAtual='ajustar',guiasAtivas=true,selecionado='dest';
  const el=id=>document.getElementById('env'+id);
  const somenteNumero=s=>String(s||'').replace(/\D/g,'');
  const textoSeguro=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -68,6 +71,17 @@
     const chave=tipo+eixo,num=Number(p[chave]);
     p[chave]=Number.isFinite(num)?num:PADRAO[chave];
    }
+   const b=BLOCOS[tipo];
+   for(const [eixo,min,max] of [['W',b.minW,b.maxW],['H',b.minH,b.maxH]]){
+    const chave=tipo+eixo,num=Number(p[chave]);
+    p[chave]=limitar(Number.isFinite(num)?num:PADRAO[chave],min,max);
+   }
+   if(tipo==='rem'||tipo==='dest'){
+    for(const [eixo,min,max] of [['Font',7,14],['Pad',0,4]]){
+     const chave=tipo+eixo,num=Number(p[chave]);
+     p[chave]=limitar(Number.isFinite(num)?num:PADRAO[chave],min,max);
+    }
+   }
    if(tipo!=='logo'){
     const chave=tipo+'Ang',num=Number(p[chave]);
     p[chave]=limitar(Number.isFinite(num)?num:0,-5,5);
@@ -107,22 +121,15 @@
   if(d.uf&&!/^[A-Za-z]{2}$/.test(d.uf))faltam.push('UF com 2 letras');
   return [...new Set(faltam)];
  }
- function tamanhoBloco(tipo){
-  const b=BLOCOS[tipo],no=el('Arrastar'+PREFIXO[tipo]),papel=el('Papel');
-  let h=b.h;
-  if(!h){
-   if(no&&papel?.clientWidth&&no.offsetHeight>0)
-    h=no.offsetHeight*PAPEL.w/papel.clientWidth;
-   else h=tipo==='rem'?43:58;
-  }
-  return {w:b.w,h:h+(!b.h?2:0)};
+ function tamanhoBloco(tipo,p){
+  const c=p||configuracao();
+  return {w:c[tipo+'W'],h:c[tipo+'H']};
  }
  function cantosRotacionados(tipo,p){
-  const {w,h}=tamanhoBloco(tipo),a=(p[tipo+'Ang']||0)*Math.PI/180;
-  const c=Math.cos(a),s=Math.sin(a);
-  const xs=[0,w*c,-h*s,w*c-h*s],ys=[0,w*s,h*c,w*s+h*c];
-  return {minX:Math.min(...xs),maxX:Math.max(...xs),
-    minY:Math.min(...ys),maxY:Math.max(...ys)};
+  const {w,h}=tamanhoBloco(tipo,p),a=(p[tipo+'Ang']||0)*Math.PI/180;
+  const c=Math.cos(a),sen=Math.sin(a);
+  const xs=[0,w*c,-h*sen,w*c-h*sen],ys=[0,w*sen,h*c,w*sen+h*c];
+  return {minX:Math.min(...xs),maxX:Math.max(...xs),minY:Math.min(...ys),maxY:Math.max(...ys)};
  }
  function posicaoPermitida(tipo,p){
   const c=cantosRotacionados(tipo,p),m=BLOCOS[tipo].m;
@@ -304,18 +311,20 @@
   if(!pagina){textoNo('Status','Libere janelas pop-up no navegador para imprimir.');return;}
   const textoHtml=t=>textoSeguro(t).replace(/\n/g,'<br>');
   function estilo(tipo){
-   const pos=posicaoPermitida(tipo,config),b=BLOCOS[tipo];
+   const pos=posicaoPermitida(tipo,config),b=tamanhoBloco(tipo,config);
+   const estiloTexto=(tipo==='rem'||tipo==='dest')?
+     'font-size:'+config[tipo+'Font']+'pt;padding:'+config[tipo+'Pad']+'mm;':'';
    const ang=Number(config[tipo+'Ang'])||0;
    if(!papelBrother){
-    return 'left:'+pos.x+'mm;top:'+pos.y+'mm;width:'+b.w+'mm;'+
-      (b.h?'height:'+b.h+'mm;':'')+'transform:rotate('+ang+'deg);';
+    return 'left:'+pos.x+'mm;top:'+pos.y+'mm;width:'+b.w+'mm;height:'+b.h+'mm;'+
+      estiloTexto+'transform:rotate('+ang+'deg);';
    }
    // De (229x114, deitado) para (114x229, inserido pelo lado curto):
    // cada elemento recebe sua PRÓPRIA transformação, sem girar o conjunto.
    // O topo esquerdo horizontal (x,y) passa para (largura-y,x) no papel físico.
    return 'left:'+(larguraFisica-centralizar-pos.y)+'mm;top:'+
-      (centralizar+pos.x)+'mm;width:'+b.w+'mm;'+
-      (b.h?'height:'+b.h+'mm;':'')+'transform:rotate('+(90+ang)+'deg);';
+      (centralizar+pos.x)+'mm;width:'+b.w+'mm;height:'+b.h+'mm;'+
+      estiloTexto+'transform:rotate('+(90+ang)+'deg);';
   }
   const remHtml='<div class="rem" style="'+estilo('rem')+'"><strong>REMETENTE</strong>'+
     '<div class="rn">'+textoHtml(rem.nome)+'</div><div>'+textoHtml(rem.documento)+'</div>'+
