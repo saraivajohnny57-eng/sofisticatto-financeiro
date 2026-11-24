@@ -3,15 +3,16 @@
  'use strict';
  const STORAGE='sofisticatto_envelope_correios_115x230_v1';
  const LOGO='/assets/sofisticatto-logo.jpeg';
- // Correios anteriormente configurado: envelope fisico 115 x 230 mm (retrato na Brother);
- // arte 220 x 110 mm (paisagem) rotacionada 90 graus na impressao.
+ // Envelope medido: 229 x 114 mm (retrato 114 x 229 mm na Brother).
+ // Arte paisagem 229 x 114 mm, rotacionada 90° na impressao.
+ // Mantemos como opcao a regulagem anterior de papel 115 x 230 mm.
  const VALORES={modo:'envelope',x:0,y:0,documento:false,nota:true,
-  remX:56,remY:15,remAng:0,destX:126,destY:28,destAng:0};
- // Coordenadas da arte: 220 x 110 mm, girada 90° para o envelope 115 x 230 mm.
+  remX:10,remY:36,remAng:0,destX:124,destY:28,destAng:0};
+ // Coordenadas da arte: 229 x 114 mm, girada 90° para o envelope 114 x 229 mm.
  // A moldura de 10 mm é uma zona segura da arte (não é impressa).
- const TAMANHO={w:220,h:110,margem:10};
- const BLOCOS={rem:{w:78,baixo:100},dest:{w:85,baixo:100}};
- const LAYOUT_VERSAO=2;
+ const TAMANHO={w:229,h:114,margem:10};
+ const BLOCOS={rem:{w:78,baixo:104},dest:{w:85,baixo:104}};
+ const LAYOUT_VERSAO=3;
  const limitar=(v,min,max)=>Math.max(min,Math.min(max,v));
  const arredondar=v=>Math.round(v*10)/10;
  const ids=['nome','doc','rua','numero','compl','bairro','cep','cidade','uf','nf'];
@@ -39,7 +40,7 @@
    const antigo=JSON.parse(localStorage.getItem(STORAGE)||'{}');
    if(antigo&&typeof antigo==='object'&&!Array.isArray(antigo))p={...p,...antigo};
   }catch(_){}
-  // Migra uma vez as posições antigas que cortavam a NF-e.
+  // Migra uma vez o layout anterior para o formato físico 229 x 114 mm.
   // Mantém opções de impressão e correções físicas configuradas pelo usuário.
   if(Number(p.layoutVersao)!==LAYOUT_VERSAO){
    for(const tipo of ['rem','dest'])
@@ -52,6 +53,7 @@
   }
   p.x=limitar(p.x,-5,5);p.y=limitar(p.y,-5,5);
   p.remAng=limitar(p.remAng,-5,5);p.destAng=limitar(p.destAng,-5,5);
+  if(p.modo!=='a4'&&p.modo!=='envelope115')p.modo='envelope';
   return p;
  }
  function persistirConfig(p){
@@ -59,7 +61,7 @@
  }
  function guardar(){
   const p={...configuracao(),
-   modo:valor('Modo')==='a4'?'a4':'envelope',
+   modo:['a4','envelope115'].includes(valor('Modo'))?valor('Modo'):'envelope',
    x:limitar(Number(valor('X'))||0,-5,5),
    y:limitar(Number(valor('Y'))||0,-5,5),
    documento:!!el('Documento')?.checked,
@@ -80,10 +82,11 @@
   const cos=Math.cos(rad),sen=Math.sin(rad);
   const w=bloco.w,h=alturaBlocoMm(tipo);
   const metadeX=(w*cos+h*sen)/2,metadeY=(w*sen+h*cos)/2;
-  // Retém 10 mm da arte e compensação da orientação da Brother (rotação 90°).
-  // Além da margem de 10 mm, reserva 15 mm adicionais no fim da alimentação da Brother.
-  const minArteX=Math.max(10,5-p.y),maxArteX=Math.min(195,215-p.y);
-  const minArteY=Math.max(10,7.5+p.x),maxArteY=Math.min(bloco.baixo,102.5+p.x);
+  // Coordenadas exatas após a rotação de 90°: xPapel=114+p.x-yArte,
+  // yPapel=p.y+xArte. Conserva 10 mm físicos de cada lado da mídia 114x229.
+  // Reserva outros 10 mm no final da alimentação para minimizar cortes.
+  const minArteX=Math.max(10,10-p.y),maxArteX=Math.min(209,219-p.y);
+  const minArteY=Math.max(10,10+p.x),maxArteY=Math.min(bloco.baixo,104+p.x);
   return {
    minX:minArteX+metadeX-w/2,maxX:maxArteX-metadeX-w/2,
    minY:minArteY+metadeY-h/2,maxY:maxArteY-metadeY-h/2,
@@ -102,7 +105,7 @@
   const papel=el('Papel');if(!papel)return[];
   const largura=papel.clientWidth;
   // 10 pt = 3,5278 mm. Mantém na prévia a mesma fonte da impressão.
-  if(largura)papel.style.fontSize=(largura/220*3.52778)+'px';
+  if(largura)papel.style.fontSize=(largura/TAMANHO.w*3.52778)+'px';
   let p=configuracao(),mudou=false;
   for(const tipo of ['rem','dest']){
    const bloco=el(tipo==='rem'?'ArrastarRem':'ArrastarDest');
@@ -125,7 +128,7 @@
   }
   if(mudou)persistirConfig(p);
   // X/Y são correções no papel retrato. A arte gira 90° ao imprimir.
-  if(largura)papel.style.transform='translate('+(p.y*largura/220)+'px,'+(-p.x*largura/220)+'px)';
+  if(largura)papel.style.transform='translate('+(p.y*largura/TAMANHO.w)+'px,'+(-p.x*largura/TAMANHO.w)+'px)';
   return alertas;
  }
  function mudarAngulo(tipo,delta){
@@ -149,7 +152,7 @@
   });
   bloco.addEventListener('pointermove',e=>{
    if(!inicio||e.pointerId!==inicio.id||!papel.clientWidth)return;
-   const mmPorPx=220/papel.getBoundingClientRect().width;
+   const mmPorPx=TAMANHO.w/papel.getBoundingClientRect().width;
    const p=configuracao();
    p[tipo+'X']=inicio.x+(e.clientX-inicio.mouseX)*mmPorPx;
    p[tipo+'Y']=inicio.y+(e.clientY-inicio.mouseY)*mmPorPx;
@@ -207,7 +210,7 @@
   if(!inicializado)return;
   const d=dados(),missing=validar();
   textoNo('PrevRemNome',d.rem.nome);textoNo('PrevRemCnpj',d.rem.documento);
-  textoNo('PrevRemEndereco',endRem(d.rem).join('  ·  '));
+  textoNo('PrevRemEndereco',endRem(d.rem).join('\n'));
   textoNo('PrevDestNome',d.dest.nome||'NOME DO DESTINATÁRIO');
   textoNo('PrevDestDoc',d.config.documento&&d.dest.doc?d.dest.doc:'');
   textoNo('PrevDestEndereco',endDest(d.dest).join('\n'));
@@ -217,8 +220,9 @@
    fora.length?'Atenção: o texto de '+fora.join(' e ')+' não cabe na área segura. Reduza o endereço ou os dados antes de imprimir.':
    'Prévia com margem segura de 1 cm. Arraste os blocos; as posições também serão usadas na impressão.');
   const atual=d.config;
-  textoNo('Medida',atual.modo==='a4'?'A4 para conferência — conteúdo em 220 × 110 mm':
-   'Envelope 115 × 230 mm (papel retrato; arte 220 × 110 mm girada 90°)');
+  textoNo('Medida',atual.modo==='a4'?'A4 para conferência — arte 229 × 114 mm':
+   atual.modo==='envelope115'?'Envelope 115 × 230 mm (ajuste anterior; arte 229 × 114 mm girada 90°)':
+   'Envelope 114 × 229 mm (medida informada; arte 229 × 114 mm girada 90°)');
 
  }
  function child(parent,name){
@@ -270,23 +274,28 @@
   const faltam=validar();
   if(faltam.length){textoNo('Status','Corrija antes de imprimir: '+faltam.join(', '));return;}
   const {dest,rem,config}=dados();
-  const modo=config.modo==='a4'?'a4':'envelope';
+  const modo=config.modo;
   const p=window.open('','_blank','width=1050,height=780');
   if(!p){textoNo('Status','O navegador bloqueou a janela. Libere pop-ups para imprimir.');return;}
   // Sem rede externa nem envio de XML; todo o documento e montado no navegador.
   const htmlEnd=s=>textoSeguro(s).replace(/\n/g,'<br>');
   const remHTML='<div class="rem" style="'+estiloBloco('rem')+'"><strong>REMETENTE</strong><div class="rn">'+htmlEnd(rem.nome)+
-    '</div><div>'+htmlEnd(rem.documento)+'</div><div>'+htmlEnd(endRem(rem).join(' · '))+'</div></div>';
+    '</div><div>'+htmlEnd(rem.documento)+'</div><div>'+htmlEnd(endRem(rem).join('\n'))+'</div></div>';
   // A referência integra o destinatário e acompanha sua posição e rotação.
   const destHTML='<div class="dest" style="'+estiloBloco('dest')+'"><strong>DESTINATÁRIO</strong><div class="dn">'+htmlEnd(dest.nome)+
     '</div>'+(config.documento&&dest.doc?'<div>'+htmlEnd(dest.doc)+'</div>':'')+
     '<div class="end">'+htmlEnd(endDest(dest).join('\n'))+'</div>'+
     (config.nota&&dest.nf?'<div class="ref-nfe">Referência: NF-e '+textoSeguro(dest.nf)+'</div>':'')+'</div>';
   const imageUrl=location.origin+LOGO;
-  const align='translate('+(112.5+config.x)+'mm,'+(5+config.y)+'mm) rotate(90deg)';
+  // A folha fica em retrato, mas a arte tem 229x114 mm e recebe rotação de 90°.
+  const papelAnterior=modo==='envelope115';
+  const larguraPapel=papelAnterior?115:114;
+  const alturaPapel=papelAnterior?230:229;
+  const margemCentral=papelAnterior?0.5:0;
+  const align='translate('+(114+margemCentral+config.x)+'mm,'+(margemCentral+config.y)+'mm) rotate(90deg)';
   const printCss=modo==='a4'?
-   '@page{size:A4 portrait;margin:0}.sheet{width:210mm;height:297mm}.art{left:10mm;top:45mm;width:220mm;height:110mm;transform-origin:top left;transform:translate('+config.x+'mm,'+config.y+'mm) scale(.86)}':
-   '@page{size:115mm 230mm;margin:0}.sheet{width:115mm;height:230mm}.art{width:220mm;height:110mm;left:0;top:0;transform-origin:top left;transform:'+align+'}';
+   '@page{size:A4 portrait;margin:0}.sheet{width:210mm;height:297mm}.art{left:10mm;top:45mm;width:229mm;height:114mm;transform-origin:top left;transform:translate('+config.x+'mm,'+config.y+'mm) scale(.82)}':
+   '@page{size:'+larguraPapel+'mm '+alturaPapel+'mm;margin:0}.sheet{width:'+larguraPapel+'mm;height:'+alturaPapel+'mm}.art{width:229mm;height:114mm;left:0;top:0;transform-origin:top left;transform:'+align+'}';
   function estiloBloco(tipo){
    const pos=posicaoPermitida(tipo,config);
    return 'left:'+pos.x+'mm;top:'+pos.y+'mm;width:'+BLOCOS[tipo].w+'mm;transform:rotate('+config[tipo+'Ang']+'deg);';
@@ -308,18 +317,18 @@
   '.sheet{box-shadow:none!important;margin:0!important;break-after:page;page-break-after:avoid}'+
   'html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'+
   '</style></head><body><div class="toolbar"><button type="button" onclick="window.print()">Imprimir / Salvar como PDF</button>'+
-  '<small>'+(modo==='a4'?'Conferência em A4':'Brother: mídia Envelope 115 × 230 mm, alimentação manual/bandeja central, retrato, escala 100%')+'</small></div>'+
+  '<small>'+(modo==='a4'?'Conferência em A4':'Brother: mídia Envelope '+(papelAnterior?'115 × 230':'114 × 229')+' mm, alimentação manual/bandeja central, retrato, escala 100%')+'</small></div>'+
   '<div class="sheet"><div class="art"><img alt="Sofisticatto" src="'+textoSeguro(imageUrl)+'">'+
   remHTML+destHTML+'</div></div></body></html>';
   p.document.open();p.document.write(html);p.document.close();
-  textoNo('Info','Prévia de impressão aberta. Na Brother, escolha envelope 115 × 230 mm, origem manual e escala 100%.');
+  textoNo('Info','Prévia aberta. Na Brother, escolha exatamente '+(papelAnterior?'115 × 230':'114 × 229')+' mm, alimentação manual e escala 100%.');
  }
  function montar(){
   const root=document.getElementById('envelopeRoot');
   if(!root||inicializado)return;
   root.innerHTML=[
   '<div class="env-grid"><div class="card">',
-  '<h2>Impressão em envelope</h2><p>Mesma configuração dos Correios: papel 115 × 230 mm na bandeja central, com arte de 220 × 110 mm girada 90°.</p>',
+  '<h2>Impressão em envelope</h2><p>Envelope 229 × 114 mm (papel 114 × 229 mm na bandeja central). Arte girada 90° na impressão; opção anterior 115 × 230 mm preservada.</p>',
   '<label class="relatorio-label">Importar XML da NF-e</label><input id="envXml" type="file" accept=".xml,text/xml,application/xml">',
   '<label class="relatorio-label">Obter endereço de</label><select id="envOrigem"><option value="dest">Destinatário da NF-e (cliente)</option><option value="emit">Emitente da NF-e</option></select>',
   '<div class="env-fields"><label>Nome / Razão social<input id="envNome"></label><label>CPF/CNPJ<input id="envDoc"></label>',
@@ -334,7 +343,7 @@
   '<div class="env-giro"><b>Remetente</b><button type="button" data-env-bloco="rem" data-env-giro="-1" aria-label="Girar remetente 1 grau à esquerda">↶ 1°</button><output id="envRemAngulo">0°</output><button type="button" data-env-bloco="rem" data-env-giro="1" aria-label="Girar remetente 1 grau à direita">↷ 1°</button></div>',
   '<div class="env-giro"><b>Destinatário</b><button type="button" data-env-bloco="dest" data-env-giro="-1" aria-label="Girar destinatário 1 grau à esquerda">↶ 1°</button><output id="envDestAngulo">0°</output><button type="button" data-env-bloco="dest" data-env-giro="1" aria-label="Girar destinatário 1 grau à direita">↷ 1°</button></div>',
   '<button type="button" id="envRestaurarPos" class="btn">Restaurar posições e ângulos</button></div>',
-  '<div class="env-controls"><label>Modelo de impressão<select id="envModo"><option value="envelope">Envelope Correios · 115 × 230 mm</option><option value="a4">Conferência em folha A4</option></select></label>',
+  '<div class="env-controls"><label>Modelo de impressão<select id="envModo"><option value="envelope">Envelope 114 × 229 mm (novo)</option><option value="envelope115">Envelope 115 × 230 mm (anterior)</option><option value="a4">Conferência em folha A4</option></select></label>',
   '<label>Correção X (mm)<input id="envX" type="number" min="-5" max="5" step="0.5"></label>',
   '<label>Correção Y (mm)<input id="envY" type="number" min="-5" max="5" step="0.5"></label></div>',
   '<label class="env-check"><input type="checkbox" id="envDocumento"> Mostrar CPF/CNPJ do destinatário</label>',
@@ -349,7 +358,7 @@
   '<span id="envPrevDestEndereco"></span><small class="env-nf" id="envPrevNf"></small></div>',
   '</div></div><p class="env-info" id="envStatus" role="status"></p>',
   '<p class="env-info">Este é apenas o endereçamento do envelope, não uma etiqueta de postagem com rastreio. Para Carta Registrada, use a postagem oficial dos Correios.</p>',
-  '<p class="env-info">Na Brother: tipo de mídia <b>Envelope</b>, papel personalizado <b>115 × 230 mm</b>, orientação <b>Retrato</b>, alimentação <b>Manual / bandeja central</b>, escala <b>100%</b>, sem duplex.</p>',
+  '<p class="env-info">Na Brother: tipo de mídia <b>Envelope</b>, papel personalizado <b>114 × 229 mm</b> (ou 115 × 230 mm se selecionado), orientação <b>Retrato</b>, alimentação <b>Manual / bandeja central</b>, escala <b>100%</b>, sem duplex.</p>',
   '</div></div>'
   ].join('');
   const style=document.createElement('style');style.id='envelopeEstilo';
@@ -367,17 +376,18 @@
    '.env-actions{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}',
    '.env-sender,.env-info{color:#6c619b;font-size:12px;line-height:1.45}',
    '.env-frame{overflow-x:auto;border:1px solid #d5cbe7;border-radius:12px;background:#f9f7fc;padding:16px}',
-   '.env-paper{position:relative;width:100%;max-width:870px;aspect-ratio:2;background:white;border:1px solid #b2a9c0;box-shadow:0 2px 8px #0001;overflow:hidden;font-family:Arial,sans-serif;color:#202020}',
-   '.env-paper .env-logo{position:absolute;left:4.545%;top:9.09%;width:20.455%;height:20%;object-fit:contain;object-position:left center;pointer-events:none}',
+   '.env-paper{position:relative;width:100%;max-width:870px;aspect-ratio:229 / 114;background:white;border:1px solid #b2a9c0;box-shadow:0 2px 8px #0001;overflow:hidden;font-family:Arial,sans-serif;color:#202020}',
+   '.env-paper .env-logo{position:absolute;left:4.367%;top:8.772%;width:19.65%;height:19.3%;object-fit:contain;object-position:left center;pointer-events:none}',
    '.env-rem{position:absolute;font-size:.9em;line-height:1.35;overflow-wrap:anywhere;transform-origin:top left}',
    '.env-rem strong,.env-dest strong{display:block;margin-bottom:2mm;letter-spacing:.3px}.env-rem strong{font-size:.889em}.env-dest strong{font-size:.8em}',
    '.env-rem b,.env-dest b,.env-rem small,.env-dest small,.env-rem span,.env-dest span{display:block}',
+   '.env-rem span{white-space:pre-line}',
    '.env-dest{position:absolute;font-size:1em;line-height:1.32;overflow-wrap:anywhere;transform-origin:top left}',
    '.env-dest b{font-size:1.3em;line-height:1.22;margin-bottom:2mm}.env-rem b{font-size:1.111em}',
    '#envPrevDestEndereco{white-space:pre-line}',
    '.env-dest .env-nf{position:static;display:block;margin-top:3mm;font-size:.8em;line-height:1.3;text-align:left;color:#444;overflow-wrap:anywhere}',
    '@media(max-width:900px){.env-grid{grid-template-columns:1fr}}',
-   '.env-limite{position:absolute;inset:9.09% 4.545%;border:1px dashed #b6a2d9;border-radius:2px;pointer-events:none;box-sizing:border-box}',
+   '.env-limite{position:absolute;inset:8.772% 4.367%;border:1px dashed #b6a2d9;border-radius:2px;pointer-events:none;box-sizing:border-box}',
    '.env-draggable{cursor:grab;touch-action:none;user-select:none;border-radius:3px;outline:1px dashed transparent}',
    '.env-draggable:hover,.env-draggable:focus-visible{outline-color:#806cbd;background:rgba(111,75,164,.04)}',
    '.env-draggable.env-arrastando{cursor:grabbing;outline:1px solid #6a1b9a;background:rgba(111,75,164,.08)}',
