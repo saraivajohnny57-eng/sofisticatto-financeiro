@@ -1,4 +1,4 @@
-/* Envelope Sofisticatto: arte horizontal 229 x 114 mm no papel em paisagem, sem rotação. */
+/* Envelope Sofisticatto: prévia horizontal, impressão pelo lado curto 114x229 na Brother. */
 (function(){
  'use strict';
  const STORAGE='sofisticatto_envelope_paisagem_229x114_v8';
@@ -90,7 +90,8 @@
   return logradouro.replace(padrao,'').replace(/[\s,;–-]+$/,'').trim()||logradouro;
  }
  function endDest(d){
-  const numero=String(d.numero||'').trim().replace(/^(?:N[º°.]?|NRO\.?|NR\.?|NUMERO|NÚMERO)\s*[:.°º-]*\s*/i,'');
+  // Os XMLs podem trazer "Nr. 76" no campo número ou no logradouro.
+  const numero=String(d.numero||'').trim().replace(/^(?:NÚMERO|NUMERO|NRO\.?|NR\.?|N[º°.]?)\s*[:.°º-]*\s*/i,'');
   const rua=[enderecoSemNumeroRepetido(d.rua,numero),numero?'nº '+numero:''].filter(Boolean).join(', ');
   return [rua,d.compl,d.bairro,[d.cidade,d.uf].filter(Boolean).join(' / '),
    d.cep?('CEP '+d.cep):''].filter(Boolean);
@@ -293,14 +294,28 @@
   if(faltam.length){textoNo('Status','Confira antes de imprimir: '+faltam.join(', '));return;}
   const {dest,rem,config}=dados();
   const modo=config.modo;
+  // Mesmo princípio do Endereçador Correios: papel físico e impressão isolada.
+  // A DCP-L2540DW recebe o envelope pelo lado de 114 mm na entrada manual.
+  const papelBrother=modo!=='a4';
+  const larguraFisica=modo==='envelope115'?115:114;
+  const comprimentoFisico=modo==='envelope115'?230:229;
+  const centralizar=modo==='envelope115'?0.5:0;
   const pagina=window.open('','_blank','width=1000,height=850');
   if(!pagina){textoNo('Status','Libere janelas pop-up no navegador para imprimir.');return;}
   const textoHtml=t=>textoSeguro(t).replace(/\n/g,'<br>');
   function estilo(tipo){
    const pos=posicaoPermitida(tipo,config),b=BLOCOS[tipo];
-   return 'left:'+pos.x+'mm;top:'+pos.y+'mm;width:'+b.w+'mm;'+
-     (b.h?'height:'+b.h+'mm;':'')+
-     'transform:rotate('+(config[tipo+'Ang']||0)+'deg);';
+   const ang=Number(config[tipo+'Ang'])||0;
+   if(!papelBrother){
+    return 'left:'+pos.x+'mm;top:'+pos.y+'mm;width:'+b.w+'mm;'+
+      (b.h?'height:'+b.h+'mm;':'')+'transform:rotate('+ang+'deg);';
+   }
+   // De (229x114, deitado) para (114x229, inserido pelo lado curto):
+   // cada elemento recebe sua PRÓPRIA transformação, sem girar o conjunto.
+   // O topo esquerdo horizontal (x,y) passa para (largura-y,x) no papel físico.
+   return 'left:'+(larguraFisica-centralizar-pos.y)+'mm;top:'+
+      (centralizar+pos.x)+'mm;width:'+b.w+'mm;'+
+      (b.h?'height:'+b.h+'mm;':'')+'transform:rotate('+(90+ang)+'deg);';
   }
   const remHtml='<div class="rem" style="'+estilo('rem')+'"><strong>REMETENTE</strong>'+
     '<div class="rn">'+textoHtml(rem.nome)+'</div><div>'+textoHtml(rem.documento)+'</div>'+
@@ -315,18 +330,19 @@
     '" style="'+estilo('logo')+'">';
   const lines='<div class="postal-lines" style="'+estilo('linhas')+
     '" aria-hidden="true"><i></i><i></i><i></i></div>';
-  const papelW=modo==='envelope115'?230:229,papelH=modo==='envelope115'?115:114;
-  const paginaCss=modo==='a4'?
-    '@page{size:A4 landscape;margin:0}.sheet{width:297mm;height:210mm}.art{left:34mm;top:48mm;}':
-    '@page{size:'+papelW+'mm '+papelH+'mm;margin:0}.sheet{width:'+papelW+'mm;height:'+papelH+'mm}.art{left:'+
-      (modo==='envelope115'?'0.5':'0')+'mm;top:'+(modo==='envelope115'?'0.5':'0')+'mm;}';
+  const paginaCss=papelBrother?
+    '@page{size:'+larguraFisica+'mm '+comprimentoFisico+'mm;margin:0}'+
+    '.sheet{width:'+larguraFisica+'mm;height:'+comprimentoFisico+'mm}'+
+    '.art{left:0;top:0;width:'+larguraFisica+'mm;height:'+comprimentoFisico+'mm;}':
+    '@page{size:A4 landscape;margin:0}.sheet{width:297mm;height:210mm}'+
+    '.art{left:34mm;top:48mm;width:229mm;height:114mm;}';
   const css=[
    'html,body{margin:0;padding:0;color:#191919;background:#ececf0;font-family:Arial,Helvetica,sans-serif}',
    '.toolbar{position:sticky;top:0;z-index:10;background:white;padding:12px 20px;border-bottom:1px solid #ddd}',
    '.toolbar button{border:0;border-radius:8px;background:#5a4fa3;color:#fff;padding:11px 16px;font-weight:bold;cursor:pointer}',
    '.toolbar small{margin-left:14px;color:#51476c}',
    '.sheet{position:relative;background:white;margin:20px auto;box-shadow:0 2px 14px #0002;overflow:hidden}',
-   '.art{position:absolute;width:229mm;height:114mm;background:white;overflow:hidden}',
+   '.art{position:absolute;background:white;overflow:hidden;transform:none!important}',
    '.art img{position:absolute;object-fit:contain;object-position:left center;transform-origin:top left}',
    '.rem,.dest{position:absolute;box-sizing:border-box;overflow-wrap:anywhere;transform-origin:top left}',
    '.rem{font-size:9pt;line-height:1.32}.dest{font-size:10pt;line-height:1.32}',
@@ -342,8 +358,10 @@
    '.toolbar{display:none!important}.sheet{box-shadow:none;margin:0!important;break-after:avoid;page-break-after:avoid}',
    'html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
   ].join('');
-  const aviso=modo==='a4'?'Conferência em A4: arte em tamanho real':
-    'Brother: papel '+papelW+' × '+papelH+' mm, PAISAGEM (deitado), alimentação manual e escala 100% (não A4)';
+  const aviso=modo==='a4'?'Conferência em A4 horizontal, tamanho real':
+    'Correios/Brother: papel '+larguraFisica+' × '+comprimentoFisico+
+    ' mm, RETRATO, alimentação manual, escala 100%, sem A4. '+
+    'Os textos aparecem de lado na impressão porque o envelope entra pela borda de 114 mm.';
   const html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Envelope Sofisticatto</title>'+
    '<style>'+css+'</style></head><body><div class="toolbar">'+
    '<button type="button" onclick="window.print()">Imprimir / Salvar como PDF</button>'+
@@ -351,14 +369,16 @@
    '<div class="sheet"><div class="art">'+logo+remHtml+destHtml+lines+
    '</div></div></body></html>';
   pagina.document.open();pagina.document.write(html);pagina.document.close();
-  textoNo('Info','Prévia horizontal aberta. Na Brother selecione envelope na orientação Paisagem e escala 100%.');
+  textoNo('Info',papelBrother?
+    'Documento configurado para alimentação pelo lado curto: Brother 114 × 229 mm, Retrato e 100%. A prévia do portal continua deitada.':
+    'Conferência em A4 deitada, tamanho real.');
  }
  function montar(){
   const root=document.getElementById('envelopeRoot');
   if(!root||inicializado)return;
   root.innerHTML=[
    '<div class="env-grid"><div class="card">',
-   '<h2>Impressão em envelope</h2><p>Envelope DEITADO, 229 × 114 mm, sem rotação. A prévia e a página impressa ficam na horizontal.</p>',
+   '<h2>Impressão em envelope</h2><p>A prévia é deitada (229 × 114 mm). Para a Brother, a impressão física é preparada em 114 × 229 mm, pois o envelope entra pela borda curta. Cada bloco é posicionando separadamente.</p>',
    '<label class="relatorio-label">Importar XML da NF-e</label><input id="envXml" type="file" accept=".xml,text/xml,application/xml">',
    '<label class="relatorio-label">Obter endereço de</label><select id="envOrigem"><option value="dest">Destinatário da NF-e (cliente)</option><option value="emit">Emitente da NF-e</option></select>',
    '<div class="env-fields"><label>Nome / Razão social<input id="envNome"></label><label>CPF/CNPJ<input id="envDoc"></label>',
@@ -384,7 +404,7 @@
    '<div class="env-controls"><label>Modelo de impressão<select id="envModo"><option value="envelope">Envelope deitado 229 × 114 mm</option><option value="envelope115">Envelope deitado 230 × 115 mm</option><option value="a4">Conferência em folha A4 deitada</option></select></label></div>',
    '<label class="env-check"><input id="envDocumento" type="checkbox"> Mostrar CPF/CNPJ do destinatário</label>',
    '<label class="env-check"><input id="envNota" type="checkbox"> Mostrar referência da NF-e</label>',
-   '<div class="env-actions"><button type="button" id="envImprimir" class="btn roxo">Imprimir envelope / salvar PDF</button>',
+   '<div class="env-actions"><button type="button" id="envImprimir" class="btn roxo">Imprimir no padrão Correios / Brother</button>',
    '<button type="button" id="envLimpar" class="btn">Limpar destinatário</button></div>',
    '<p class="env-info" id="envInfo" role="status"></p></div>',
    '<div class="card"><h2>Prévia do envelope</h2><p id="envMedida"></p>',
@@ -395,7 +415,7 @@
    '<div class="env-postal-lines env-draggable" id="envArrastarLinhas" title="Arraste os três risquinhos"><i></i><i></i><i></i></div>',
    '</div></div><p id="envStatus" role="status" class="env-info"></p>',
    '<p class="env-info">Este é o endereçamento do envelope, não uma etiqueta oficial dos Correios com rastreio.</p>',
-   '<p class="env-info"><b>Brother:</b> use a orientação Paisagem (envelope deitado), tipo Envelopes, alimentação manual, escala 100% e sem duplex. Confira o tamanho personalizado: 229 × 114 mm (ou 230 × 115 mm se selecionado). Não deixe A4 selecionado.</p>',
+   '<p class="env-info"><b>Brother:</b> na janela de impressão, escolha <b>Retrato</b> e papel personalizado <b>114 × 229 mm</b> (ou 115 × 230 mm), alimentação manual, tipo Envelopes, escala 100%, sem duplex, cabeçalhos ou rodapés. A prévia continua deitada; no diálogo de impressão é normal ver os textos de lado.</p>',
    '</div></div>'
   ].join('');
   if(!document.getElementById('envelopeEstilo')){
