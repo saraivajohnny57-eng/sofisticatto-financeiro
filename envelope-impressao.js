@@ -7,14 +7,14 @@
  const PAPEL={w:229,h:114};
  const IDS=['nome','doc','rua','numero','compl','bairro','cep','cidade','uf','nf'];
  const BLOCOS={
-  logo:{w:48,h:20,minW:16,maxW:85,minH:8,maxH:42,m:7},
+  logo:{w:48,h:20,minW:16,maxW:85,minH:8,maxH:42,m:5},
   rem:{w:82,h:42,minW:40,maxW:108,minH:22,maxH:86,m:7},
   dest:{w:86,h:51,minW:45,maxW:108,minH:24,maxH:86,m:8},
   linhas:{w:28,h:12,minW:12,maxW:65,minH:6,maxH:29,m:7}
  };
  const PADRAO={
   modo:'envelope',documento:false,nota:true,
-  logoX:10,logoY:7,logoW:48,logoH:20,
+  logoX:10,logoY:5,logoW:48,logoH:20,
   remX:10,remY:31,remW:82,remH:42,remFont:9,remPad:0,remAng:0,
   destX:123,destY:33,destW:86,destH:51,destFont:10,destPad:0,destAng:0,
   linhasX:15,linhasY:91,linhasW:28,linhasH:12,linhasAng:0
@@ -66,6 +66,7 @@
    guardarConfig(salvo);
   }
   const p={...PADRAO,...salvo};
+  if(Number(salvo.logoY)===7&&!salvo.logoTopoV11){p.logoY=5;p.logoTopoV11=true;guardarConfig(p)}
   for(const tipo of TIPOS){
    for(const eixo of ['X','Y']){
     const chave=tipo+eixo,num=Number(p[chave]);
@@ -226,6 +227,20 @@
   p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
   guardarConfig(p);selecionarBloco(tipo);atualizar();
   textoNo('Info','Tamanho de '+NOMES[tipo]+' alterado sem mover os outros elementos.');
+ }
+ function atalhoEnvelope(tipo,acao){
+  const p=configuracao(),b=BLOCOS[tipo];
+  if(acao==='subir'||acao==='descer')p[tipo+'Y']+=(acao==='subir'?-2:2);
+  else if(tipo==='rem'||tipo==='dest')p[tipo+'Font']=limitar(arredondar(p[tipo+'Font']+(acao==='aumentar'?0.5:-0.5)),7,14);
+  else{
+   const proporcao=p[tipo+'H']/p[tipo+'W'];
+   p[tipo+'W']=limitar(arredondar(p[tipo+'W']+(acao==='aumentar'?3:-3)),b.minW,b.maxW);
+   p[tipo+'H']=limitar(arredondar(p[tipo+'W']*proporcao),b.minH,b.maxH);
+  }
+  const permitido=posicaoPermitida(tipo,p);
+  p[tipo+'X']=permitido.x;p[tipo+'Y']=permitido.y;
+  if(tipo==='logo')p.logoTopoV11=true;
+  guardarConfig(p);selecionarBloco(tipo);atualizar();
  }
  function mudarPosicao(tipo,eixo,valorNovo){
   const p=configuracao(),n=Number(valorNovo);
@@ -460,11 +475,11 @@
    '<div class="env-editor"><strong>Editor de envelope — medidas em milímetros</strong>',
    '<p>Arraste um elemento para mover; puxe a alça no canto inferior direito para aumentar ou diminuir a caixa. As medidas são independentes e valem para impressão.</p>',
    '<div class="env-edit-grid">',
-   '<div class="env-edit-card" data-env-card="logo"><b>Logo</b><label>Esquerda (mm)<input id="envLogoX" type="number" step="0.5"></label><label>Topo (mm)<input id="envLogoY" type="number" step="0.5"></label><label>Largura (mm)<input id="envLogoW" type="number" step="0.5"></label><label>Altura (mm)<input id="envLogoH" type="number" step="0.5"></label><button type="button" data-env-reset="logo">Restaurar logo</button></div>',
+   '<div class="env-edit-card" data-env-card="logo"><b>Logo</b><label>Esquerda (mm)<input id="envLogoX" type="number" step="0.5"></label><label>Topo (mm)<input id="envLogoY" type="number" step="0.5"></label><label>Largura (mm)<input id="envLogoW" type="number" step="0.5"></label><label>Altura (mm)<input id="envLogoH" type="number" step="0.5"></label><div class="env-atalhos"><button type="button" data-env-atalho="logo" data-env-acao="subir">↑ Subir</button><button type="button" data-env-atalho="logo" data-env-acao="descer">↓ Descer</button><button type="button" data-env-atalho="logo" data-env-acao="diminuir">− Diminuir</button><button type="button" data-env-atalho="logo" data-env-acao="aumentar">+ Aumentar</button></div><button type="button" data-env-reset="logo">Restaurar logo</button></div>',
    '<div class="env-edit-card" data-env-card="rem"><b>Remetente</b><label>Esquerda (mm)<input id="envRemX" type="number" step="0.5"></label><label>Topo (mm)<input id="envRemY" type="number" step="0.5"></label><label>Largura (mm)<input id="envRemW" type="number" step="0.5"></label><label>Altura (mm)<input id="envRemH" type="number" step="0.5"></label><label>Fonte (pt)<input id="envRemFont" type="number" min="7" max="14" step="0.5"></label><label>Espaçamento interno (mm)<input id="envRemPad" type="number" min="0" max="4" step="0.5"></label>',
-   '<div class="env-rotacao"><button type="button" data-env-tipo="rem" data-env-giro="-1">↶ 1°</button><output id="envRemAngulo">0°</output><button type="button" data-env-tipo="rem" data-env-giro="1">↷ 1°</button></div><button type="button" data-env-reset="rem">Restaurar remetente</button></div>',
+   '<div class="env-rotacao"><button type="button" data-env-tipo="rem" data-env-giro="-1">↶ 1°</button><output id="envRemAngulo">0°</output><button type="button" data-env-tipo="rem" data-env-giro="1">↷ 1°</button></div><div class="env-atalhos"><button type="button" data-env-atalho="rem" data-env-acao="subir">↑ Subir</button><button type="button" data-env-atalho="rem" data-env-acao="descer">↓ Descer</button><button type="button" data-env-atalho="rem" data-env-acao="diminuir">A−</button><button type="button" data-env-atalho="rem" data-env-acao="aumentar">A+</button></div><button type="button" data-env-reset="rem">Restaurar remetente</button></div>',
    '<div class="env-edit-card" data-env-card="dest"><b>Destinatário + NF-e</b><label>Esquerda (mm)<input id="envDestX" type="number" step="0.5"></label><label>Topo (mm)<input id="envDestY" type="number" step="0.5"></label><label>Largura (mm)<input id="envDestW" type="number" step="0.5"></label><label>Altura (mm)<input id="envDestH" type="number" step="0.5"></label><label>Fonte (pt)<input id="envDestFont" type="number" min="7" max="14" step="0.5"></label><label>Espaçamento interno (mm)<input id="envDestPad" type="number" min="0" max="4" step="0.5"></label>',
-   '<div class="env-rotacao"><button type="button" data-env-tipo="dest" data-env-giro="-1">↶ 1°</button><output id="envDestAngulo">0°</output><button type="button" data-env-tipo="dest" data-env-giro="1">↷ 1°</button></div><button type="button" data-env-reset="dest">Restaurar destinatário</button></div>',
+   '<div class="env-rotacao"><button type="button" data-env-tipo="dest" data-env-giro="-1">↶ 1°</button><output id="envDestAngulo">0°</output><button type="button" data-env-tipo="dest" data-env-giro="1">↷ 1°</button></div><div class="env-atalhos"><button type="button" data-env-atalho="dest" data-env-acao="subir">↑ Subir</button><button type="button" data-env-atalho="dest" data-env-acao="descer">↓ Descer</button><button type="button" data-env-atalho="dest" data-env-acao="diminuir">A−</button><button type="button" data-env-atalho="dest" data-env-acao="aumentar">A+</button></div><button type="button" data-env-reset="dest">Restaurar destinatário</button></div>',
    '<div class="env-edit-card" data-env-card="linhas"><b>Três risquinhos</b><label>Esquerda (mm)<input id="envLinhasX" type="number" step="0.5"></label><label>Topo (mm)<input id="envLinhasY" type="number" step="0.5"></label><label>Largura (mm)<input id="envLinhasW" type="number" step="0.5"></label><label>Altura (mm)<input id="envLinhasH" type="number" step="0.5"></label>',
    '<div class="env-rotacao"><button type="button" data-env-tipo="linhas" data-env-giro="-1">↶ 1°</button><output id="envLinhasAngulo">0°</output><button type="button" data-env-tipo="linhas" data-env-giro="1">↷ 1°</button></div><button type="button" data-env-reset="linhas">Restaurar risquinhos</button></div></div></div>',
    '<div class="env-controls"><label>Modelo de impressão<select id="envModo"><option value="envelope">Envelope deitado 229 × 114 mm</option><option value="envelope115">Envelope deitado 230 × 115 mm</option><option value="a4">Conferência em folha A4 deitada</option></select></label></div>',
@@ -538,6 +553,7 @@
     '.env-selecionado .env-resize-handle,.env-draggable:hover .env-resize-handle{opacity:1}',
     '.env-overflow{outline:2px solid #d12a2a!important}',
     '.env-card-selecionado{border-color:#7556a5!important;box-shadow:0 0 0 1px #7556a5}',
+    '.env-atalhos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:8px 0}.env-atalhos button{font-size:11px;padding:7px 5px}',
     '.env-draggable:hover{outline-color:#7556a5;background-color:rgba(121,90,178,.04)}',
     '.env-draggable.env-arrastando{cursor:grabbing;outline-color:#6a1b9a;background-color:rgba(121,90,178,.1)}',
     '@media(max-width:900px){.env-grid{grid-template-columns:1fr}}',
@@ -574,6 +590,8 @@
       mudarPosicao(tipo,eixo,input.value):mudarMedida(tipo,eixo,input.value));
    }
   }
+  root.querySelectorAll('[data-env-atalho]').forEach(botao=>botao.addEventListener('click',()=>
+   atalhoEnvelope(botao.getAttribute('data-env-atalho'),botao.getAttribute('data-env-acao'))));
   root.querySelectorAll('[data-env-giro]').forEach(botao=>botao.addEventListener('click',()=>
    mudarAngulo(botao.getAttribute('data-env-tipo'),Number(botao.getAttribute('data-env-giro')))));
   root.querySelectorAll('[data-env-reset]').forEach(botao=>botao.addEventListener('click',()=>
