@@ -1,29 +1,33 @@
-/* Impressao de envelope Sofisticatto, independente da pre-postagem Correios. */
+/* Envelope Sofisticatto: layout físico em retrato (sem rotação da arte). */
 (function(){
  'use strict';
- const STORAGE='sofisticatto_envelope_correios_115x230_v1';
+ const STORAGE='sofisticatto_envelope_retrato_114x229_v7';
+ const LEGACY='sofisticatto_envelope_correios_115x230_v1';
  const LOGO='/assets/sofisticatto-logo.jpeg';
- // Envelope medido: 229 x 114 mm (retrato 114 x 229 mm na Brother).
- // Arte paisagem 229 x 114 mm, rotacionada 90° na impressao.
- // Mantemos como opcao a regulagem anterior de papel 115 x 230 mm.
- const VALORES={modo:'envelope',x:0,y:0,documento:false,nota:true,
-  // remY alto leva o REMETENTE ao lado oposto do envelope depois da rotação.
-  // A função posicaoPermitida ajusta para a margem física de 10 mm considerando a altura real.
-  remX:5,remY:104,remAng:0,destX:124,destY:28,destAng:0};
- // Coordenadas da arte: 229 x 114 mm, girada 90° para o envelope 114 x 229 mm.
- // A moldura de 10 mm é uma zona segura da arte (não é impressa).
- const TAMANHO={w:229,h:114,margem:10};
- const BLOCOS={rem:{w:78,baixo:104},dest:{w:85,baixo:104}};
- const LAYOUT_VERSAO=6;
- const limitar=(v,min,max)=>Math.max(min,Math.min(max,v));
- const arredondar=v=>Math.round(v*10)/10;
- const ids=['nome','doc','rua','numero','compl','bairro','cep','cidade','uf','nf'];
+ const PAPEL={w:114,h:229};
+ const IDS=['nome','doc','rua','numero','compl','bairro','cep','cidade','uf','nf'];
+ const BLOCOS={
+  logo:{w:42,h:21,m:6},rem:{w:79,m:7},
+  dest:{w:65,m:8},linhas:{w:27,h:13,m:7}
+ };
+ const PADRAO={
+  modo:'envelope',documento:false,nota:true,
+  logoX:8,logoY:8,
+  remX:8,remY:35,remAng:0,
+  destX:41,destY:140,destAng:0,
+  linhasX:9,linhasY:114,linhasAng:0
+ };
+ const PREFIXO={logo:'Logo',rem:'Rem',dest:'Dest',linhas:'Linhas'};
+ const NOMES={logo:'logo',rem:'remetente',dest:'destinatário',linhas:'risquinhos'};
+ const TIPOS=['logo','rem','dest','linhas'];
  let inicializado=false;
- function el(id){return document.getElementById('env'+id);}
- function somenteNumero(s){return String(s||'').replace(/\D/g,'');}
- function textoSeguro(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
- function valor(id){return el(id)?.value?.trim()||'';}
- function textoNo(id,s){const n=el(id);if(n)n.textContent=s||'';}
+ const el=id=>document.getElementById('env'+id);
+ const somenteNumero=s=>String(s||'').replace(/\D/g,'');
+ const textoSeguro=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const valor=id=>el(id)?.value?.trim()||'';
+ function textoNo(id,txt){const no=el(id);if(no)no.textContent=txt||'';}
+ const limitar=(n,min,max)=>Math.max(min,Math.min(max,n));
+ const arredondar=n=>Math.round(n*10)/10;
  function dadosRemetente(){
   const ler=(id,def)=>document.getElementById(id)?.value?.trim()||def;
   return {
@@ -36,178 +40,42 @@
    uf:ler('corRemUf','GO')
   };
  }
- function configuracao(){
-  let p={...VALORES};
-  try{
-   const antigo=JSON.parse(localStorage.getItem(STORAGE)||'{}');
-   if(antigo&&typeof antigo==='object'&&!Array.isArray(antigo))p={...p,...antigo};
-  }catch(_){}
-  // Migração v6: converte correções compartilhadas em posições individuais.
-  if(Number(p.layoutVersao)!==LAYOUT_VERSAO){
-   const dx=limitar(Number(p.x)||0,-5,5),dy=limitar(Number(p.y)||0,-5,5);
-   for(const tipo of ['rem','dest']){
-    p[tipo+'X']=(Number(p[tipo+'X'])||VALORES[tipo+'X'])+dy;
-    p[tipo+'Y']=(Number(p[tipo+'Y'])||VALORES[tipo+'Y'])-dx;
-   }
-   p.x=0;p.y=0;p.layoutVersao=LAYOUT_VERSAO;persistirConfig(p);
-  }
-  for(const chave of ['x','y','remX','remY','remAng','destX','destY','destAng']){
-   const n=Number(p[chave]);p[chave]=Number.isFinite(n)?n:VALORES[chave];
-  }
-  // Nenhum deslocamento global: logo/remetente e destinatário são independentes.
-  p.x=0;p.y=0;
-  p.remAng=limitar(p.remAng,-5,5);p.destAng=limitar(p.destAng,-5,5);
-  if(p.modo!=='a4'&&p.modo!=='envelope115')p.modo='envelope';
-  return p;
- }
- function persistirConfig(p){
+ function guardarConfig(p){
   try{localStorage.setItem(STORAGE,JSON.stringify(p))}catch(_){}
  }
- function guardar(){
-  const p={...configuracao(),
-   modo:['a4','envelope115'].includes(valor('Modo'))?valor('Modo'):'envelope',
-   documento:!!el('Documento')?.checked,
-   nota:!!el('Nota')?.checked
-  };
-  persistirConfig(p);
-  textoNo('Info','Ajustes salvos neste navegador e aplicados à impressão.');
-  atualizar();
- }
- function alturaBlocoMm(tipo){
-  const papel=el('Papel'),item=el(tipo==='rem'?'ArrastarRem':'ArrastarDest');
-  if(!papel?.clientWidth||!item)return tipo==='rem'?46:52;
-  return item.offsetHeight*TAMANHO.w/papel.clientWidth;
- }
- function limitesBloco(tipo,p){
-  const bloco=BLOCOS[tipo],ang=Number(p[tipo+'Ang'])||0;
-  const rad=Math.abs(ang)*Math.PI/180;
-  const cos=Math.cos(rad),sen=Math.sin(rad);
-  const w=bloco.w,h=alturaBlocoMm(tipo);
-  const metadeX=(w*cos+h*sen)/2,metadeY=(w*sen+h*cos)/2;
-  // Limites separados para o formato 114 × 229 mm: 5 mm para remetente, 10 mm para destinatário.
-  const margem=tipo==='rem'?5:10;
-  const minArteX=margem,maxArteX=209;
-  const minArteY=margem,maxArteY=tipo==='rem'?109:104;
-  return {
-   minX:minArteX+metadeX-w/2,maxX:maxArteX-metadeX-w/2,
-   minY:minArteY+metadeY-h/2,maxY:maxArteY-metadeY-h/2,
-   cabe:h>0&&minArteX+2*metadeX<=maxArteX+0.05&&minArteY+2*metadeY<=maxArteY+0.05
-  };
- }
- function posicaoPermitida(tipo,p){
-  const l=limitesBloco(tipo,p);
-  return {
-   x:arredondar(limitar(p[tipo+'X'],l.minX,Math.max(l.minX,l.maxX))),
-   y:arredondar(limitar(p[tipo+'Y'],l.minY,Math.max(l.minY,l.maxY))),
-   cabe:l.cabe
-  };
- }
- function extremosRotacao(tipo,p){
-  const w=BLOCOS[tipo].w,h=alturaBlocoMm(tipo),a=(p[tipo+'Ang']||0)*Math.PI/180;
-  const dx=w*Math.cos(a),dy=w*Math.sin(a),hx=-h*Math.sin(a),hy=h*Math.cos(a);
-  return {minX:Math.min(0,dx,hx,dx+hx),maxY:Math.max(0,dy,hy,dy+hy)};
- }
- function posicaoFisica(tipo,p){
-  const pos=posicaoPermitida(tipo,p),ext=extremosRotacao(tipo,p);
-  return {topo:arredondar(pos.x+ext.minX),lateral:arredondar(TAMANHO.h-pos.y-ext.maxY)};
- }
- function aplicarCampoPosicao(tipo,eixo){
-  const prefixo=tipo==='rem'?'Rem':'Dest';
-  const input=el(prefixo+(eixo==='topo'?'Topo':'Lateral'));
-  if(!input||!input.value.trim())return;
-  const numero=Number(input.value);
-  if(!Number.isFinite(numero))return;
-  const p=configuracao(),ext=extremosRotacao(tipo,p);
-  if(eixo==='topo')p[tipo+'X']=numero-ext.minX;
-  else p[tipo+'Y']=TAMANHO.h-numero-ext.maxY;
-  const permitida=posicaoPermitida(tipo,p);
-  p[tipo+'X']=permitida.x;p[tipo+'Y']=permitida.y;
-  persistirConfig(p);atualizar();
-  textoNo('Info','Ajuste salvo somente para '+(tipo==='rem'?'remetente':'destinatário')+'.');
- }
- function posicaoLogo(p){
-  // A logo acompanha só o remetente, nunca o destinatário.
-  const pos=posicaoPermitida('rem',p);
-  return {x:limitar(pos.x,5,209),y:limitar(pos.y-30,5,85)};
- }
- function aplicarLayout(){
-  const papel=el('Papel');if(!papel)return[];
-  const largura=papel.clientWidth;
-  if(largura)papel.style.fontSize=(largura/TAMANHO.w*3.52778)+'px';
-  const p=configuracao(),alertas=[];let mudou=false;
-  for(const tipo of ['rem','dest']){
-   const bloco=el(tipo==='rem'?'ArrastarRem':'ArrastarDest');
-   if(!bloco)continue;
-   bloco.style.width=(BLOCOS[tipo].w/TAMANHO.w*100)+'%';
-   const pos=posicaoPermitida(tipo,p);
-   if(!pos.cabe)alertas.push(tipo==='rem'?'remetente':'destinatário');
-   if(p[tipo+'X']!==pos.x||p[tipo+'Y']!==pos.y)mudou=true;
-   p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
-   bloco.style.left=(pos.x/TAMANHO.w*100)+'%';
-   bloco.style.top=(pos.y/TAMANHO.h*100)+'%';
-   bloco.style.transform='rotate('+p[tipo+'Ang']+'deg)';
-   const prefixo=tipo==='rem'?'Rem':'Dest',rotulo=el(prefixo+'Angulo');
-   if(rotulo)rotulo.textContent=p[tipo+'Ang']+'°';
-   const f=posicaoFisica(tipo,p);
-   for(const [sufixo,numero] of [['Topo',f.topo],['Lateral',f.lateral]]){
-    const input=el(prefixo+sufixo);
-    if(input&&document.activeElement!==input)input.value=String(numero);
+ function configuracao(){
+  let salvo=null;
+  try{salvo=JSON.parse(localStorage.getItem(STORAGE)||'null')}catch(_){}
+  if(!salvo||typeof salvo!=='object'||Array.isArray(salvo)){
+   // O layout anterior girava a página: suas coordenadas não são reaproveitáveis.
+   // Apenas as opções são migradas; os quatro elementos ganham posições seguras.
+   let legado=null;
+   try{legado=JSON.parse(localStorage.getItem(LEGACY)||'null')}catch(_){}
+   salvo={...PADRAO};
+   if(legado&&typeof legado==='object'){
+    if(['envelope','envelope115','a4'].includes(legado.modo))salvo.modo=legado.modo;
+    if(typeof legado.nota==='boolean')salvo.nota=legado.nota;
+    if(typeof legado.documento==='boolean')salvo.documento=legado.documento;
+   }
+   guardarConfig(salvo);
+  }
+  const p={...PADRAO,...salvo};
+  for(const tipo of TIPOS){
+   for(const eixo of ['X','Y']){
+    const chave=tipo+eixo,num=Number(p[chave]);
+    p[chave]=Number.isFinite(num)?num:PADRAO[chave];
+   }
+   if(tipo!=='logo'){
+    const chave=tipo+'Ang',num=Number(p[chave]);
+    p[chave]=limitar(Number.isFinite(num)?num:0,-5,5);
    }
   }
-  if(mudou)persistirConfig(p);
-  const logo=el('Logo'),lp=posicaoLogo(p);
-  if(logo){logo.style.left=(lp.x/TAMANHO.w*100)+'%';logo.style.top=(lp.y/TAMANHO.h*100)+'%';}
-  papel.style.transform='none';
-  return alertas;
- }
- function mudarAngulo(tipo,delta){
-  const p=configuracao();
-  p[tipo+'Ang']=limitar(Math.round(p[tipo+'Ang']+delta),-5,5);
-  persistirConfig(p);atualizar();
-  textoNo('Info','Ângulo do '+(tipo==='rem'?'remetente':'destinatário')+
-   ' ajustado para '+p[tipo+'Ang']+'°. Alteração salva para impressão.');
- }
- function conectarArraste(tipo){
-  const bloco=el(tipo==='rem'?'ArrastarRem':'ArrastarDest'),papel=el('Papel');
-  if(!bloco||!papel)return;
-  let inicio=null;
-  bloco.addEventListener('pointerdown',e=>{
-   if(e.button!==0||!papel.clientWidth)return;
-   const p=configuracao();
-   inicio={id:e.pointerId,mouseX:e.clientX,mouseY:e.clientY,x:p[tipo+'X'],y:p[tipo+'Y']};
-   bloco.setPointerCapture(e.pointerId);
-   bloco.classList.add('env-arrastando');
-   e.preventDefault();
-  });
-  bloco.addEventListener('pointermove',e=>{
-   if(!inicio||e.pointerId!==inicio.id||!papel.clientWidth)return;
-   const mmPorPx=TAMANHO.w/papel.getBoundingClientRect().width;
-   const p=configuracao();
-   p[tipo+'X']=inicio.x+(e.clientX-inicio.mouseX)*mmPorPx;
-   p[tipo+'Y']=inicio.y+(e.clientY-inicio.mouseY)*mmPorPx;
-   const pos=posicaoPermitida(tipo,p);
-   p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
-   persistirConfig(p);
-   aplicarLayout();
-  });
-  const terminar=e=>{
-   if(!inicio||e.pointerId!==inicio.id)return;
-   inicio=null;bloco.classList.remove('env-arrastando');
-   atualizar();textoNo('Info','Posição do '+(tipo==='rem'?'remetente':'destinatário')+
-    ' salva. A impressão seguirá esta prévia.');
-  };
-  bloco.addEventListener('pointerup',terminar);
-  bloco.addEventListener('pointercancel',terminar);
- }
- function restaurarTipo(tipo){
-  const p=configuracao();
-  for(const campo of ['X','Y','Ang'])p[tipo+campo]=VALORES[tipo+campo];
-  persistirConfig(p);atualizar();
-  textoNo('Info','Somente o '+(tipo==='rem'?'remetente':'destinatário')+' foi restaurado.');
+  if(!['envelope','envelope115','a4'].includes(p.modo))p.modo='envelope';
+  return p;
  }
  function dados(){
   const dest={};
-  for(const id of ids)dest[id]=valor(id.charAt(0).toUpperCase()+id.slice(1));
+  for(const id of IDS)dest[id]=valor(id.charAt(0).toUpperCase()+id.slice(1));
   return {dest,rem:dadosRemetente(),config:configuracao()};
  }
  function enderecoSemNumeroRepetido(rua,numero){
@@ -228,30 +96,149 @@
   return [r.rua,r.bairro,[r.cidade,r.uf].filter(Boolean).join(' / '),
    r.cep?'CEP '+r.cep:''].filter(Boolean);
  }
- function validar(){const d=dados().dest;
+ function validar(){
+  const d=dados().dest;
   const faltam=['nome','rua','bairro','cidade','uf','cep'].filter(k=>!d[k]);
   if(d.cep&&somenteNumero(d.cep).length!==8)faltam.push('CEP com 8 dígitos');
   if(d.uf&&!/^[A-Za-z]{2}$/.test(d.uf))faltam.push('UF com 2 letras');
   return [...new Set(faltam)];
  }
+ function tamanhoBloco(tipo){
+  const b=BLOCOS[tipo],no=el('Arrastar'+PREFIXO[tipo]),papel=el('Papel');
+  let h=b.h;
+  if(!h){
+   if(no&&papel?.clientWidth&&no.offsetHeight>0)
+    h=no.offsetHeight*PAPEL.w/papel.clientWidth;
+   else h=tipo==='rem'?50:67;
+  }
+  return {w:b.w,h:h+(!b.h?2:0)};
+ }
+ function cantosRotacionados(tipo,p){
+  const {w,h}=tamanhoBloco(tipo),a=(p[tipo+'Ang']||0)*Math.PI/180;
+  const c=Math.cos(a),s=Math.sin(a);
+  const xs=[0,w*c,-h*s,w*c-h*s],ys=[0,w*s,h*c,w*s+h*c];
+  return {minX:Math.min(...xs),maxX:Math.max(...xs),
+    minY:Math.min(...ys),maxY:Math.max(...ys)};
+ }
+ function posicaoPermitida(tipo,p){
+  const c=cantosRotacionados(tipo,p),m=BLOCOS[tipo].m;
+  const minX=m-c.minX,maxX=PAPEL.w-m-c.maxX;
+  const minY=m-c.minY,maxY=PAPEL.h-m-c.maxY;
+  const cabe=minX<=maxX&&minY<=maxY;
+  return {
+   x:arredondar(limitar(p[tipo+'X'],minX,Math.max(minX,maxX))),
+   y:arredondar(limitar(p[tipo+'Y'],minY,Math.max(minY,maxY))),
+   cabe
+  };
+ }
  function atualizar(){
   if(!inicializado)return;
-  const d=dados(),missing=validar();
-  textoNo('PrevRemNome',d.rem.nome);textoNo('PrevRemCnpj',d.rem.documento);
-  textoNo('PrevRemEndereco',endRem(d.rem).join('\n'));
-  textoNo('PrevDestNome',d.dest.nome||'NOME DO DESTINATÁRIO');
-  textoNo('PrevDestDoc',d.config.documento&&d.dest.doc?d.dest.doc:'');
-  textoNo('PrevDestEndereco',endDest(d.dest).join('\n'));
-  textoNo('PrevNf',d.config.nota&&d.dest.nf?'Referência: NF-e '+d.dest.nf:'');
-  const fora=aplicarLayout();
-  textoNo('Status',missing.length?'Preencha ou confira: '+missing.join(', ')+'.':
-   fora.length?'Atenção: o texto de '+fora.join(' e ')+' não cabe na área segura. Reduza o endereço ou os dados antes de imprimir.':
-   'Prévia com margem segura de 1 cm. Arraste os blocos; as posições também serão usadas na impressão.');
-  const atual=d.config;
-  textoNo('Medida',atual.modo==='a4'?'A4 para conferência — arte 229 × 114 mm':
-   atual.modo==='envelope115'?'Envelope 115 × 230 mm (ajuste anterior; arte 229 × 114 mm girada 90°)':
-   'Envelope 114 × 229 mm (medida informada; arte 229 × 114 mm girada 90°)');
-
+  const {dest,rem,config}=dados();
+  textoNo('PrevRemNome',rem.nome);
+  textoNo('PrevRemCnpj',rem.documento);
+  textoNo('PrevRemEndereco',endRem(rem).join('\n'));
+  textoNo('PrevDestNome',dest.nome||'NOME DO DESTINATÁRIO');
+  textoNo('PrevDestDoc',config.documento&&dest.doc?dest.doc:'');
+  textoNo('PrevDestEndereco',endDest(dest).join('\n'));
+  textoNo('PrevNf',config.nota&&dest.nf?'Referência: NF-e '+dest.nf:'');
+  const erros=aplicarLayout(),faltam=validar();
+  textoNo('Status',faltam.length?'Confira: '+faltam.join(', ')+'.':
+   erros.length?'O conteúdo de '+erros.join(' e ')+' não cabe na margem segura. Ajuste os dados ou a posição.':
+   'Prévia e impressão em retrato, sem rotação global. Arraste cada item independentemente.');
+  textoNo('Medida',config.modo==='a4'?'A4 para conferência: arte em tamanho real de 114 × 229 mm':
+   config.modo==='envelope115'?'Envelope 115 × 230 mm (arte em 114 × 229 mm, centralizada)':
+   'Envelope 114 × 229 mm — retrato, tamanho real');
+ }
+ function aplicarLayout(){
+  const papel=el('Papel');
+  if(!papel)return[];
+  const largura=papel.clientWidth;
+  if(largura)papel.style.fontSize=(largura/PAPEL.w*3.52778)+'px';
+  const p=configuracao(),erros=[];
+  let mudou=false;
+  // Todos os elementos usam exatamente os mesmos x/y do CSS para imprimir.
+  for(const tipo of TIPOS){
+   const no=el('Arrastar'+PREFIXO[tipo]);
+   if(!no)continue;
+   const t=tamanhoBloco(tipo);
+   no.style.width=(BLOCOS[tipo].w/PAPEL.w*100)+'%';
+   if(BLOCOS[tipo].h)no.style.height=(BLOCOS[tipo].h/PAPEL.h*100)+'%';
+   const pos=posicaoPermitida(tipo,p);
+   if(!pos.cabe)erros.push(NOMES[tipo]);
+   if(pos.x!==p[tipo+'X']||pos.y!==p[tipo+'Y'])mudou=true;
+   p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
+   no.style.left=(pos.x/PAPEL.w*100)+'%';
+   no.style.top=(pos.y/PAPEL.h*100)+'%';
+   no.style.transform='rotate('+(p[tipo+'Ang']||0)+'deg)';
+   const px=el(PREFIXO[tipo]+'X'),py=el(PREFIXO[tipo]+'Y');
+   if(px&&document.activeElement!==px)px.value=String(pos.x);
+   if(py&&document.activeElement!==py)py.value=String(pos.y);
+   const ang=el(PREFIXO[tipo]+'Angulo');
+   if(ang)ang.textContent=(p[tipo+'Ang']||0)+'°';
+  }
+  if(mudou)guardarConfig(p);
+  return erros;
+ }
+ function mudarPosicao(tipo,eixo,valorNovo){
+  const p=configuracao(),n=Number(valorNovo);
+  if(!Number.isFinite(n))return;
+  p[tipo+eixo]=n;
+  const pos=posicaoPermitida(tipo,p);
+  p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
+  guardarConfig(p);atualizar();
+  textoNo('Info',NOMES[tipo]+' reposicionado. Os outros elementos não foram alterados.');
+ }
+ function mudarAngulo(tipo,delta){
+  if(tipo==='logo')return;
+  const p=configuracao();
+  p[tipo+'Ang']=limitar(p[tipo+'Ang']+delta,-5,5);
+  const pos=posicaoPermitida(tipo,p);
+  p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
+  guardarConfig(p);atualizar();
+ }
+ function conectarArraste(tipo){
+  const no=el('Arrastar'+PREFIXO[tipo]),papel=el('Papel');
+  if(!no||!papel)return;
+  let inicio=null;
+  no.addEventListener('dragstart',e=>e.preventDefault());
+  no.addEventListener('pointerdown',e=>{
+   if(e.button!==0||!papel.clientWidth)return;
+   const p=configuracao();
+   inicio={id:e.pointerId,x:e.clientX,y:e.clientY,origX:p[tipo+'X'],origY:p[tipo+'Y']};
+   no.setPointerCapture(e.pointerId);
+   no.classList.add('env-arrastando');
+   e.preventDefault();
+  });
+  no.addEventListener('pointermove',e=>{
+   if(!inicio||e.pointerId!==inicio.id)return;
+   const escala=PAPEL.w/papel.getBoundingClientRect().width;
+   const p=configuracao();
+   p[tipo+'X']=inicio.origX+(e.clientX-inicio.x)*escala;
+   p[tipo+'Y']=inicio.origY+(e.clientY-inicio.y)*escala;
+   const pos=posicaoPermitida(tipo,p);
+   p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
+   guardarConfig(p);aplicarLayout();
+  });
+  const fim=e=>{
+   if(!inicio||e.pointerId!==inicio.id)return;
+   inicio=null;no.classList.remove('env-arrastando');
+   atualizar();textoNo('Info','Posição de '+NOMES[tipo]+' salva para impressão.');
+  };
+  no.addEventListener('pointerup',fim);
+  no.addEventListener('pointercancel',fim);
+ }
+ function restaurarTipo(tipo){
+  const p=configuracao();
+  for(const e of ['X','Y'])p[tipo+e]=PADRAO[tipo+e];
+  if(tipo!=='logo')p[tipo+'Ang']=0;
+  guardarConfig(p);atualizar();
+  textoNo('Info','Somente '+NOMES[tipo]+' restaurado.');
+ }
+ function guardarOpcoes(){
+  const p=configuracao(),modo=valor('Modo');
+  p.modo=['envelope','envelope115','a4'].includes(modo)?modo:'envelope';
+  p.nota=!!el('Nota')?.checked;p.documento=!!el('Documento')?.checked;
+  guardarConfig(p);atualizar();
  }
  function child(parent,name){
   if(!parent)return null;
@@ -294,190 +281,196 @@
   }
  }
  function criarImpressao(){
-  const fora=aplicarLayout();
-  if(fora.length){
-   textoNo('Status','Texto fora da área segura: '+fora.join(', ')+'. Reduza o endereço para imprimir sem cortes.');
+  const erros=aplicarLayout();
+  if(erros.length){
+   textoNo('Status','Não é seguro imprimir: conteúdo fora da margem de '+erros.join(', ')+'.');
    return;
   }
   const faltam=validar();
-  if(faltam.length){textoNo('Status','Corrija antes de imprimir: '+faltam.join(', '));return;}
+  if(faltam.length){textoNo('Status','Confira antes de imprimir: '+faltam.join(', '));return;}
   const {dest,rem,config}=dados();
   const modo=config.modo;
-  const p=window.open('','_blank','width=1050,height=780');
-  if(!p){textoNo('Status','O navegador bloqueou a janela. Libere pop-ups para imprimir.');return;}
-  // Sem rede externa nem envio de XML; todo o documento e montado no navegador.
-  const htmlEnd=s=>textoSeguro(s).replace(/\n/g,'<br>');
-  const remHTML='<div class="rem" style="'+estiloBloco('rem')+'"><strong>REMETENTE</strong><div class="rn">'+htmlEnd(rem.nome)+
-    '</div><div>'+htmlEnd(rem.documento)+'</div><div>'+htmlEnd(endRem(rem).join('\n'))+'</div></div>';
-  // A referência integra o destinatário e acompanha sua posição e rotação.
-  const destHTML='<div class="dest" style="'+estiloBloco('dest')+'"><strong>DESTINATÁRIO</strong><div class="dn">'+htmlEnd(dest.nome)+
-    '</div>'+(config.documento&&dest.doc?'<div>'+htmlEnd(dest.doc)+'</div>':'')+
-    '<div class="end">'+htmlEnd(endDest(dest).join('\n'))+'</div>'+
-    (config.nota&&dest.nf?'<div class="ref-nfe">Referência: NF-e '+textoSeguro(dest.nf)+'</div>':'')+'</div>';
-  const imageUrl=location.origin+LOGO;
-  const logoPos=posicaoLogo(config);
-  // A folha fica em retrato, mas a arte tem 229x114 mm e recebe rotação de 90°.
-  const papelAnterior=modo==='envelope115';
-  const larguraPapel=papelAnterior?115:114;
-  const alturaPapel=papelAnterior?230:229;
-  const margemCentral=papelAnterior?0.5:0;
-  const align='translate('+(114+margemCentral)+'mm,'+margemCentral+'mm) rotate(90deg)';
-  const printCss=modo==='a4'?
-   '@page{size:A4 portrait;margin:0}.sheet{width:210mm;height:297mm}.art{left:10mm;top:45mm;width:229mm;height:114mm;transform-origin:top left;transform:scale(.82)}':
-   '@page{size:'+larguraPapel+'mm '+alturaPapel+'mm;margin:0}.sheet{width:'+larguraPapel+'mm;height:'+alturaPapel+'mm}.art{width:229mm;height:114mm;left:0;top:0;transform-origin:top left;transform:'+align+'}';
-  function estiloBloco(tipo){
-   const pos=posicaoPermitida(tipo,config);
-   return 'left:'+pos.x+'mm;top:'+pos.y+'mm;width:'+BLOCOS[tipo].w+'mm;transform:rotate('+config[tipo+'Ang']+'deg);';
+  const pagina=window.open('','_blank','width=1000,height=850');
+  if(!pagina){textoNo('Status','Libere janelas pop-up no navegador para imprimir.');return;}
+  const textoHtml=t=>textoSeguro(t).replace(/\n/g,'<br>');
+  function estilo(tipo){
+   const pos=posicaoPermitida(tipo,config),b=BLOCOS[tipo];
+   return 'left:'+pos.x+'mm;top:'+pos.y+'mm;width:'+b.w+'mm;'+
+     (b.h?'height:'+b.h+'mm;':'')+
+     'transform:rotate('+(config[tipo+'Ang']||0)+'deg);';
   }
+  const remHtml='<div class="rem" style="'+estilo('rem')+'"><strong>REMETENTE</strong>'+
+    '<div class="rn">'+textoHtml(rem.nome)+'</div><div>'+textoHtml(rem.documento)+'</div>'+
+    '<div>'+textoHtml(endRem(rem).join('\n'))+'</div></div>';
+  const destHtml='<div class="dest" style="'+estilo('dest')+'"><strong>DESTINATÁRIO</strong>'+
+    '<div class="dn">'+textoHtml(dest.nome)+'</div>'+
+    (config.documento&&dest.doc?'<div>'+textoHtml(dest.doc)+'</div>':'')+
+    '<div class="end">'+textoHtml(endDest(dest).join('\n'))+'</div>'+
+    (config.nota&&dest.nf?'<div class="ref-nfe">Referência: NF-e '+textoSeguro(dest.nf)+'</div>':'')+
+    '</div>';
+  const logo='<img alt="Sofisticatto" src="'+textoSeguro(location.origin+LOGO)+
+    '" style="'+estilo('logo')+'">';
+  const lines='<div class="postal-lines" style="'+estilo('linhas')+
+    '" aria-hidden="true"><i></i><i></i><i></i></div>';
+  const papelW=modo==='envelope115'?115:114,papelH=modo==='envelope115'?230:229;
+  const paginaCss=modo==='a4'?
+    '@page{size:A4 portrait;margin:0}.sheet{width:210mm;height:297mm}.art{left:48mm;top:26mm;}':
+    '@page{size:'+papelW+'mm '+papelH+'mm;margin:0}.sheet{width:'+papelW+'mm;height:'+papelH+'mm}.art{left:'+
+      (modo==='envelope115'?'0.5':'0')+'mm;top:'+(modo==='envelope115'?'0.5':'0')+'mm;}';
+  const css=[
+   'html,body{margin:0;padding:0;color:#191919;background:#ececf0;font-family:Arial,Helvetica,sans-serif}',
+   '.toolbar{position:sticky;top:0;z-index:10;background:white;padding:12px 20px;border-bottom:1px solid #ddd}',
+   '.toolbar button{border:0;border-radius:8px;background:#5a4fa3;color:#fff;padding:11px 16px;font-weight:bold;cursor:pointer}',
+   '.toolbar small{margin-left:14px;color:#51476c}',
+   '.sheet{position:relative;background:white;margin:20px auto;box-shadow:0 2px 14px #0002;overflow:hidden}',
+   '.art{position:absolute;width:114mm;height:229mm;background:white;overflow:hidden}',
+   '.art img{position:absolute;object-fit:contain;object-position:left center;transform-origin:top left}',
+   '.rem,.dest{position:absolute;box-sizing:border-box;overflow-wrap:anywhere;transform-origin:top left}',
+   '.rem{font-size:9pt;line-height:1.32}.dest{font-size:10pt;line-height:1.32}',
+   '.rem strong,.dest strong{display:block;letter-spacing:.25px;margin-bottom:.56em;font-size:.8em}',
+   '.rn{font-size:1.111em;font-weight:bold;line-height:1.22;margin-bottom:.3em}',
+   '.dn{font-size:1.3em;font-weight:bold;line-height:1.2;margin-bottom:.4em}',
+   '.end{white-space:normal}.ref-nfe{display:block;margin-top:.9em;font-size:.8em;line-height:1.32;color:#444}',
+   '.postal-lines{position:absolute;transform-origin:top left;opacity:.6;box-sizing:border-box}',
+   '.postal-lines i{display:block;border-top:1px solid #6e6e6e;margin-top:3mm;width:100%}',
+   '.postal-lines i:nth-child(2){width:88%}.postal-lines i:nth-child(3){width:76%}',
+   paginaCss,
+   '@media print{html,body{background:white!important;width:100%;height:100%}',
+   '.toolbar{display:none!important}.sheet{box-shadow:none;margin:0!important;break-after:avoid;page-break-after:avoid}',
+   'html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+  ].join('');
+  const aviso=modo==='a4'?'Conferência em A4: arte em tamanho real':
+    'Brother: papel '+papelW+' × '+papelH+' mm, retrato, alimentação manual e escala 100% (não A4)';
   const html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Envelope Sofisticatto</title>'+
-  '<style>html,body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#161616;background:#ededf0}'+
-  '.toolbar{padding:12px 20px;background:#fff;border-bottom:1px solid #ddd;position:sticky;top:0;z-index:2}'+
-  'button{border:0;border-radius:8px;background:#594b9e;color:white;padding:11px 18px;font-weight:700;cursor:pointer}'+
-  '.toolbar small{margin-left:12px;color:#51476c}.sheet{position:relative;background:white;margin:20px auto;box-shadow:0 1px 14px #0002;overflow:hidden}'+
-  '.art{position:absolute;border:0;box-sizing:border-box;background:#fff;overflow:hidden}'+
-  '.art img{position:absolute;width:45mm;height:22mm;object-fit:contain;object-position:left center}'+
-  '.rem{position:absolute;font-size:9pt;line-height:1.35;overflow-wrap:anywhere;transform-origin:top left}'+
-  '.rem strong,.dest strong{display:block;font-size:8pt;letter-spacing:.4px;margin-bottom:2mm}.rn{font-weight:bold;font-size:10pt}'+
-  '.dest{position:absolute;font-size:10pt;line-height:1.32;overflow-wrap:anywhere;transform-origin:top left}'+
-  '.dn{font-size:13pt;font-weight:bold;line-height:1.22;margin-bottom:2mm}.end{white-space:normal;font-size:10pt}'+
-  '.ref-nfe{display:block;margin-top:3mm;font-size:8pt;line-height:1.3;color:#444;overflow-wrap:anywhere}'+
-  '.postal-lines{position:absolute;left:190mm;top:9mm;width:27mm;opacity:.55}.postal-lines i{display:block;border-top:1px solid #777;margin-top:3mm}.postal-lines i:nth-child(2){width:88%}.postal-lines i:nth-child(3){width:76%}'+
-  printCss+
-  '@media print{html,body{width:100%;height:100%;background:white}.toolbar{display:none!important}'+
-  '.sheet{box-shadow:none!important;margin:0!important;break-after:page;page-break-after:avoid}'+
-  'html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'+
-  '</style></head><body><div class="toolbar"><button type="button" onclick="window.print()">Imprimir / Salvar como PDF</button>'+
-  '<small>'+(modo==='a4'?'Conferência em A4':'Brother: tamanho do papel '+(papelAnterior?'115 × 230':'114 × 229')+' mm (NÃO A4), alimentação manual, escala 100%')+'</small></div>'+
-  '<div class="sheet"><div class="art"><img alt="Sofisticatto" style="left:'+logoPos.x+'mm;top:'+logoPos.y+'mm" src="'+textoSeguro(imageUrl)+'">'+
-  '<div class="postal-lines" aria-hidden="true"><i></i><i></i><i></i></div>'+
-  remHTML+destHTML+'</div></div></body></html>';
-  p.document.open();p.document.write(html);p.document.close();
-  textoNo('Info','Prévia aberta. Na Brother, escolha exatamente '+(papelAnterior?'115 × 230':'114 × 229')+' mm, alimentação manual e escala 100%.');
+   '<style>'+css+'</style></head><body><div class="toolbar">'+
+   '<button type="button" onclick="window.print()">Imprimir / Salvar como PDF</button>'+
+   '<small>'+aviso+'</small></div>'+
+   '<div class="sheet"><div class="art">'+logo+remHtml+destHtml+lines+
+   '</div></div></body></html>';
+  pagina.document.open();pagina.document.write(html);pagina.document.close();
+  textoNo('Info','Prévia de impressão aberta sem rotação da arte. Escolha o tamanho exato do envelope no driver.');
  }
  function montar(){
   const root=document.getElementById('envelopeRoot');
   if(!root||inicializado)return;
   root.innerHTML=[
-  '<div class="env-grid"><div class="card">',
-  '<h2>Impressão em envelope</h2><p>Envelope 229 × 114 mm (papel 114 × 229 mm na bandeja central). Arte girada 90° na impressão. Para evitar margens excessivas, não use A4 no driver Brother.</p>',
-  '<label class="relatorio-label">Importar XML da NF-e</label><input id="envXml" type="file" accept=".xml,text/xml,application/xml">',
-  '<label class="relatorio-label">Obter endereço de</label><select id="envOrigem"><option value="dest">Destinatário da NF-e (cliente)</option><option value="emit">Emitente da NF-e</option></select>',
-  '<div class="env-fields"><label>Nome / Razão social<input id="envNome"></label><label>CPF/CNPJ<input id="envDoc"></label>',
-  '<label>Logradouro<input id="envRua"></label><label>Número<input id="envNumero"></label>',
-  '<label>Complemento<input id="envCompl"></label><label>Bairro<input id="envBairro"></label>',
-  '<label>CEP<input id="envCep" maxlength="9" inputmode="numeric"></label><label>Cidade<input id="envCidade"></label>',
-  '<label>UF<input id="envUf" maxlength="2"></label><label>NF-e (opcional)<input id="envNf"></label></div>',
-  '<button type="button" id="envRemCorreios" class="btn azul">Atualizar remetente dos Correios</button>',
-  '<p id="envRemResumo" class="env-sender"></p>',
-  '<div class="env-layout-editor"><strong>Posições independentes</strong>',
-  '<p>Ajuste cada bloco sem mover o outro. As distâncias são medidas na impressão física. Arraste os blocos na prévia se preferir. A logo acompanha o remetente; a referência NF-e acompanha o destinatário.</p>',
-  '<div class="env-pos-grid">',
-  '<div class="env-pos-card"><b>Remetente + logo</b>',
-  '<label>Distância do topo (mm)<input id="envRemTopo" type="number" min="5" max="209" step="0.5"></label>',
-  '<label>Distância da lateral (mm)<input id="envRemLateral" type="number" min="5" max="80" step="0.5"></label>',
-  '<div class="env-giro"><button type="button" data-env-bloco="rem" data-env-giro="-1">↶ 1°</button><output id="envRemAngulo">0°</output><button type="button" data-env-bloco="rem" data-env-giro="1">↷ 1°</button></div>',
-  '<button type="button" class="btn" data-env-restaurar="rem">Restaurar só remetente</button></div>',
-  '<div class="env-pos-card"><b>Destinatário + NF-e</b>',
-  '<label>Distância do topo (mm)<input id="envDestTopo" type="number" min="10" max="209" step="0.5"></label>',
-  '<label>Distância da lateral (mm)<input id="envDestLateral" type="number" min="10" max="80" step="0.5"></label>',
-  '<div class="env-giro"><button type="button" data-env-bloco="dest" data-env-giro="-1">↶ 1°</button><output id="envDestAngulo">0°</output><button type="button" data-env-bloco="dest" data-env-giro="1">↷ 1°</button></div>',
-  '<button type="button" class="btn" data-env-restaurar="dest">Restaurar só destinatário</button></div>',
-  '</div><p class="env-driver-alerta"><strong>Brother:</strong> papel 114 × 229 mm, escala 100%, não A4. A prévia utiliza o mesmo posicionamento da impressão.</p></div>',
-  '<div class="env-controls"><label>Modelo de impressão<select id="envModo"><option value="envelope">Envelope 114 × 229 mm</option><option value="envelope115">Envelope 115 × 230 mm</option><option value="a4">Conferência A4</option></select></label></div>',
-  '<label class="env-check"><input type="checkbox" id="envDocumento"> Mostrar CPF/CNPJ do destinatário</label>',
-  '<label class="env-check"><input type="checkbox" id="envNota"> Mostrar referência da NF-e</label>',
-  '<div class="env-actions"><button type="button" id="envImprimir" class="btn roxo">Imprimir envelope / salvar PDF</button>',
-  '<button type="button" id="envLimpar" class="btn">Limpar destinatário</button></div>',
-  '<p id="envInfo" class="env-info" role="status"></p></div>',
-  '<div class="card"><h2>Prévia do envelope</h2><p id="envMedida"></p>',
-  '<div class="env-frame"><div class="env-paper" id="envPapel"><div class="env-limite" aria-hidden="true"></div><img class="env-logo" id="envLogo" src="'+LOGO+'" alt="Logo Sofisticatto"><div class="env-postal-lines" aria-hidden="true"><i></i><i></i><i></i></div>',
-  '<div class="env-rem env-draggable" id="envArrastarRem" title="Arraste para reposicionar o remetente"><strong>REMETENTE</strong><b id="envPrevRemNome"></b><small id="envPrevRemCnpj"></small><span id="envPrevRemEndereco"></span></div>',
-  '<div class="env-dest env-draggable" id="envArrastarDest" title="Arraste para reposicionar o destinatário"><strong>DESTINATÁRIO</strong><b id="envPrevDestNome">NOME DO DESTINATÁRIO</b><small id="envPrevDestDoc"></small>',
-  '<span id="envPrevDestEndereco"></span><small class="env-nf" id="envPrevNf"></small></div>',
-  '</div></div><p class="env-info" id="envStatus" role="status"></p>',
-  '<p class="env-info">Este é apenas o endereçamento do envelope, não uma etiqueta de postagem com rastreio. Para Carta Registrada, use a postagem oficial dos Correios.</p>',
-  '<p class="env-info">Na Brother: tipo de mídia <b>Envelope</b>, papel personalizado <b>114 × 229 mm</b> (ou 115 × 230 mm se selecionado), orientação <b>Retrato</b>, alimentação <b>Manual / bandeja central</b>, escala <b>100%</b>, sem duplex.</p>',
-  '</div></div>'
+   '<div class="env-grid"><div class="card">',
+   '<h2>Impressão em envelope</h2><p>Arte no tamanho real de 114 × 229 mm, sem rotação. A prévia mostra a mesma orientação usada pela Brother.</p>',
+   '<label class="relatorio-label">Importar XML da NF-e</label><input id="envXml" type="file" accept=".xml,text/xml,application/xml">',
+   '<label class="relatorio-label">Obter endereço de</label><select id="envOrigem"><option value="dest">Destinatário da NF-e (cliente)</option><option value="emit">Emitente da NF-e</option></select>',
+   '<div class="env-fields"><label>Nome / Razão social<input id="envNome"></label><label>CPF/CNPJ<input id="envDoc"></label>',
+   '<label>Logradouro<input id="envRua"></label><label>Número<input id="envNumero"></label>',
+   '<label>Complemento<input id="envCompl"></label><label>Bairro<input id="envBairro"></label>',
+   '<label>CEP<input id="envCep" maxlength="9" inputmode="numeric"></label><label>Cidade<input id="envCidade"></label>',
+   '<label>UF<input id="envUf" maxlength="2"></label><label>NF-e (opcional)<input id="envNf"></label></div>',
+   '<button type="button" id="envRemCorreios" class="btn azul">Atualizar remetente dos Correios</button>',
+   '<p id="envRemResumo" class="env-sender"></p>',
+   '<div class="env-editor"><strong>Ajustar separadamente na prévia</strong>',
+   '<p>Arraste com o mouse a logo, o remetente, o destinatário ou os três risquinhos. Cada posição é salva neste navegador e usada diretamente na impressão.</p>',
+   '<div class="env-edit-grid">',
+   '<div class="env-edit-card"><b>Logo</b><label>Esquerda (mm)<input id="envLogoX" type="number" step="0.5"></label><label>Topo (mm)<input id="envLogoY" type="number" step="0.5"></label><button type="button" data-env-reset="logo">Restaurar logo</button></div>',
+   '<div class="env-edit-card"><b>Remetente</b><label>Esquerda (mm)<input id="envRemX" type="number" step="0.5"></label><label>Topo (mm)<input id="envRemY" type="number" step="0.5"></label>',
+   '<div class="env-rotacao"><button type="button" data-env-tipo="rem" data-env-giro="-1">↶ 1°</button><output id="envRemAngulo">0°</output><button type="button" data-env-tipo="rem" data-env-giro="1">↷ 1°</button></div>',
+   '<button type="button" data-env-reset="rem">Restaurar remetente</button></div>',
+   '<div class="env-edit-card"><b>Destinatário + NF-e</b><label>Esquerda (mm)<input id="envDestX" type="number" step="0.5"></label><label>Topo (mm)<input id="envDestY" type="number" step="0.5"></label>',
+   '<div class="env-rotacao"><button type="button" data-env-tipo="dest" data-env-giro="-1">↶ 1°</button><output id="envDestAngulo">0°</output><button type="button" data-env-tipo="dest" data-env-giro="1">↷ 1°</button></div>',
+   '<button type="button" data-env-reset="dest">Restaurar destinatário</button></div>',
+   '<div class="env-edit-card"><b>Três risquinhos</b><label>Esquerda (mm)<input id="envLinhasX" type="number" step="0.5"></label><label>Topo (mm)<input id="envLinhasY" type="number" step="0.5"></label>',
+   '<div class="env-rotacao"><button type="button" data-env-tipo="linhas" data-env-giro="-1">↶ 1°</button><output id="envLinhasAngulo">0°</output><button type="button" data-env-tipo="linhas" data-env-giro="1">↷ 1°</button></div>',
+   '<button type="button" data-env-reset="linhas">Restaurar risquinhos</button></div></div></div>',
+   '<div class="env-controls"><label>Modelo de impressão<select id="envModo"><option value="envelope">Envelope 114 × 229 mm</option><option value="envelope115">Envelope 115 × 230 mm</option><option value="a4">Conferência em folha A4</option></select></label></div>',
+   '<label class="env-check"><input id="envDocumento" type="checkbox"> Mostrar CPF/CNPJ do destinatário</label>',
+   '<label class="env-check"><input id="envNota" type="checkbox"> Mostrar referência da NF-e</label>',
+   '<div class="env-actions"><button type="button" id="envImprimir" class="btn roxo">Imprimir envelope / salvar PDF</button>',
+   '<button type="button" id="envLimpar" class="btn">Limpar destinatário</button></div>',
+   '<p class="env-info" id="envInfo" role="status"></p></div>',
+   '<div class="card"><h2>Prévia do envelope</h2><p id="envMedida"></p>',
+   '<div class="env-frame"><div class="env-paper" id="envPapel"><div class="env-limite" aria-hidden="true"></div>',
+   '<img class="env-logo env-draggable" id="envArrastarLogo" src="'+LOGO+'" alt="Arraste a logo Sofisticatto" draggable="false">',
+   '<div id="envArrastarRem" class="env-rem env-draggable"><strong>REMETENTE</strong><b id="envPrevRemNome"></b><small id="envPrevRemCnpj"></small><span id="envPrevRemEndereco"></span></div>',
+   '<div id="envArrastarDest" class="env-dest env-draggable"><strong>DESTINATÁRIO</strong><b id="envPrevDestNome">NOME DO DESTINATÁRIO</b><small id="envPrevDestDoc"></small><span id="envPrevDestEndereco"></span><small id="envPrevNf" class="env-nf"></small></div>',
+   '<div class="env-postal-lines env-draggable" id="envArrastarLinhas" title="Arraste os três risquinhos"><i></i><i></i><i></i></div>',
+   '</div></div><p id="envStatus" role="status" class="env-info"></p>',
+   '<p class="env-info">Este é o endereçamento do envelope, não uma etiqueta oficial dos Correios com rastreio.</p>',
+   '<p class="env-info"><b>Brother:</b> escolha papel 114 × 229 mm (ou o tamanho selecionado), orientação Retrato, tipo Envelopes, alimentação manual, escala 100% e sem duplex. Não deixe A4 selecionado.</p>',
+   '</div></div>'
   ].join('');
-  const style=document.createElement('style');style.id='envelopeEstilo';
-  style.textContent=[
-   '#emailSubEnvelope{width:100%;min-width:0}',
-   '.env-grid{display:grid;grid-template-columns:minmax(320px,470px) minmax(0,1fr);gap:18px}',
-   '#emailSubEnvelope .card{min-width:0;padding:22px}',
-   '#emailSubEnvelope .relatorio-label{display:block;margin-top:13px;font-size:13px;font-weight:600}',
-   '#emailSubEnvelope input:not([type=checkbox]),#emailSubEnvelope select{max-width:100%;width:100%;box-sizing:border-box;border:1px solid #d7c9ed;border-radius:8px;padding:10px;background:#f7f5fc}',
-   '.env-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}',
-   '.env-fields label,.env-controls label{font-size:13px;font-weight:600;color:#5a4f90}',
-   '.env-fields input,.env-controls input{display:block;margin-top:4px}',
-   '.env-controls{display:grid;grid-template-columns:2fr 1fr 1fr;gap:9px;margin:16px 0}',
-   '.env-check{display:block;margin:8px 0;font-size:13px}',
-   '.env-actions{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}',
-   '.env-sender,.env-info{color:#6c619b;font-size:12px;line-height:1.45}',
-   '.env-frame{overflow-x:auto;border:1px solid #d5cbe7;border-radius:12px;background:#f9f7fc;padding:16px}',
-   '.env-paper{position:relative;width:100%;max-width:870px;aspect-ratio:229 / 114;background:white;border:1px solid #b2a9c0;box-shadow:0 2px 8px #0001;overflow:hidden;font-family:Arial,sans-serif;color:#202020}',
-   '.env-paper .env-logo{position:absolute;left:4.367%;top:8.772%;width:19.65%;height:19.3%;object-fit:contain;object-position:left center;pointer-events:none}',
-   '.env-rem{position:absolute;font-size:.9em;line-height:1.35;overflow-wrap:anywhere;transform-origin:top left}',
-   '.env-rem strong,.env-dest strong{display:block;margin-bottom:2mm;letter-spacing:.3px}.env-rem strong{font-size:.889em}.env-dest strong{font-size:.8em}',
-   '.env-rem b,.env-dest b,.env-rem small,.env-dest small,.env-rem span,.env-dest span{display:block}',
-   '.env-rem span{white-space:pre-line;font-size:1em}.env-rem small{font-size:1em}',
-   '.env-dest{position:absolute;font-size:1em;line-height:1.32;overflow-wrap:anywhere;transform-origin:top left}',
-   '.env-dest b{font-size:1.3em;line-height:1.22;margin-bottom:2mm}.env-rem b{font-size:1.111em}',
-   '#envPrevDestEndereco{white-space:pre-line}',
-   '.env-dest .env-nf{position:static;display:block;margin-top:3mm;font-size:.8em;line-height:1.3;text-align:left;color:#444;overflow-wrap:anywhere}',
-   '@media(max-width:900px){.env-grid{grid-template-columns:1fr}}',
-   '.env-limite{position:absolute;inset:8.772% 4.367%;border:1px dashed #b6a2d9;border-radius:2px;pointer-events:none;box-sizing:border-box}',
-   '.env-draggable{cursor:grab;touch-action:none;user-select:none;border-radius:3px;outline:1px dashed transparent}',
-   '.env-draggable:hover,.env-draggable:focus-visible{outline-color:#806cbd;background:rgba(111,75,164,.04)}',
-   '.env-draggable.env-arrastando{cursor:grabbing;outline:1px solid #6a1b9a;background:rgba(111,75,164,.08)}',
-   '.env-layout-editor{padding:12px;margin:12px 0;border:1px solid #ddd2ec;border-radius:12px;background:#fbfaff}',
-   '.env-layout-editor>strong{color:#564783;font-size:14px}',
-   '.env-layout-editor p{font-size:12px;color:#615b7a;margin:6px 0 10px;line-height:1.45}',
-   '.env-giro{display:flex;align-items:center;gap:8px;margin:7px 0;flex-wrap:wrap}',
-   '.env-giro b{min-width:94px;font-size:13px;color:#4d436b}',
-   '.env-giro button{border:1px solid #c5b6dd;background:#fff;color:#594b9e;border-radius:7px;padding:6px 11px;font-weight:700;cursor:pointer}',
-   '.env-giro output{font-weight:700;font-size:13px;min-width:25px;text-align:center}',
-   '.env-pos-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}',
-   '.env-pos-card{border:1px solid #dcd3ee;background:#fff;border-radius:9px;padding:10px}',
-   '.env-pos-card>b{font-size:13px;color:#51467c;display:block;margin-bottom:8px}',
-   '.env-pos-card label{display:block;font-size:12px;color:#51467c;margin:8px 0}',
-   '.env-pos-card input{margin-top:3px;width:100%;max-width:100%}',
-   '.env-pos-card .btn{font-size:12px;padding:8px 9px}',
-   '.env-postal-lines{position:absolute;left:82.97%;top:7.9%;width:11.8%;opacity:.55;pointer-events:none}',
-   '.env-postal-lines i{display:block;border-top:1px solid #777;margin-top:10%;width:100%}',
-   '.env-postal-lines i:nth-child(2){width:88%}.env-postal-lines i:nth-child(3){width:76%}',
-   '@media(max-width:580px){.env-pos-grid{grid-template-columns:1fr}}',
-   '.env-rem-margem{font-size:12px;color:#51467c;display:block;margin:9px 0}',
-   '.env-rem-margem input{max-width:100px!important;margin-left:8px}',
-   '.env-driver-alerta{background:#fff9ee;border-left:3px solid #be822c;padding:8px 10px!important;color:#654817!important}',
-   '@media(max-width:580px){.env-fields{grid-template-columns:1fr}.env-controls{grid-template-columns:1fr 1fr}.env-controls label:first-child{grid-column:1/-1}}'
-  ].join('\n');
-  document.head.appendChild(style);
-  const p=configuracao();
-  el('Modo').value=p.modo;
-  el('Documento').checked=!!p.documento;el('Nota').checked=!!p.nota;
+  if(!document.getElementById('envelopeEstilo')){
+   const style=document.createElement('style');style.id='envelopeEstilo';
+   style.textContent=[
+    '#emailSubEnvelope{width:100%;min-width:0}',
+    '.env-grid{display:grid;grid-template-columns:minmax(320px,470px) minmax(0,1fr);gap:18px}',
+    '#emailSubEnvelope .card{min-width:0;padding:20px}',
+    '#emailSubEnvelope .relatorio-label{display:block;margin-top:12px;font-size:13px;font-weight:600}',
+    '#emailSubEnvelope input:not([type=checkbox]),#emailSubEnvelope select{max-width:100%;width:100%;box-sizing:border-box;border:1px solid #d7c9ed;border-radius:8px;padding:9px;background:#f7f5fc}',
+    '.env-fields{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:12px 0}',
+    '.env-fields label,.env-controls label{font-size:13px;font-weight:600;color:#514983}',
+    '.env-fields input,.env-controls input{display:block;margin-top:4px}',
+    '.env-controls{display:grid;grid-template-columns:1fr;margin:15px 0}',
+    '.env-check{display:block;margin:8px 0;font-size:13px}',
+    '.env-actions{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}',
+    '.env-sender,.env-info{color:#64588f;font-size:12px;line-height:1.5}',
+    '.env-editor{padding:12px;border:1px solid #dfd4ed;border-radius:12px;background:#faf9ff;margin-top:12px}',
+    '.env-editor>strong{font-size:14px;color:#51427c}',
+    '.env-editor p{font-size:12px;color:#62577e;line-height:1.4}',
+    '.env-edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}',
+    '.env-edit-card{padding:10px;border:1px solid #ddd2ee;border-radius:9px;background:#fff}',
+    '.env-edit-card>b{display:block;color:#554580;font-size:13px;margin-bottom:7px}',
+    '.env-edit-card label{display:block;font-size:12px;color:#5c5183;margin:7px 0}',
+    '.env-edit-card input{display:block;margin-top:3px}',
+    '.env-edit-card button{border:1px solid #cfbfdf;border-radius:7px;background:#fff;color:#54448c;padding:7px;font-size:12px;cursor:pointer}',
+    '.env-rotacao{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0}',
+    '.env-rotacao output{min-width:26px;text-align:center;color:#51427c;font-size:12px;font-weight:700}',
+    '.env-frame{overflow-x:auto;border:1px solid #d5cbe7;border-radius:12px;background:#f9f7fc;padding:14px;display:flex;justify-content:center}',
+    '.env-paper{position:relative;width:100%;max-width:430px;aspect-ratio:114 / 229;background:white;border:1px solid #b2a9c0;box-shadow:0 2px 8px #0001;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#191919;box-sizing:border-box}',
+    '.env-limite{position:absolute;inset:2.62% 5.26%;border:1px dashed #c1b0d8;pointer-events:none;box-sizing:border-box}',
+    '.env-paper .env-logo{position:absolute;object-fit:contain;object-position:left center;transform-origin:top left}',
+    '.env-rem,.env-dest{position:absolute;box-sizing:border-box;overflow-wrap:anywhere;transform-origin:top left}',
+    '.env-rem{font-size:.9em;line-height:1.32}.env-dest{font-size:1em;line-height:1.32}',
+    '.env-rem strong,.env-dest strong{display:block;letter-spacing:.25px;margin-bottom:.56em;font-size:.8em}',
+    '.env-rem b,.env-dest b,.env-rem small,.env-dest small,.env-rem span,.env-dest span{display:block}',
+    '.env-rem b{font-size:1.111em;font-weight:bold;line-height:1.22;margin-bottom:.3em}',
+    '.env-dest b{font-size:1.3em;font-weight:bold;line-height:1.2;margin-bottom:.4em}',
+    '#envPrevRemEndereco,#envPrevDestEndereco{white-space:pre-line}',
+    '.env-nf{margin-top:.9em;font-size:.8em;line-height:1.32;color:#444}',
+    '.env-postal-lines{position:absolute;box-sizing:border-box;transform-origin:top left;opacity:.6}',
+    '.env-postal-lines i{display:block;border-top:1px solid #6e6e6e;margin-top:3mm;width:100%}',
+    '.env-postal-lines i:nth-child(2){width:88%}.env-postal-lines i:nth-child(3){width:76%}',
+    '.env-draggable{cursor:grab;touch-action:none;user-select:none;outline:1px dashed transparent}',
+    '.env-draggable:hover{outline-color:#7556a5;background-color:rgba(121,90,178,.04)}',
+    '.env-draggable.env-arrastando{cursor:grabbing;outline-color:#6a1b9a;background-color:rgba(121,90,178,.1)}',
+    '@media(max-width:900px){.env-grid{grid-template-columns:1fr}}',
+    '@media(max-width:580px){.env-fields,.env-edit-grid{grid-template-columns:1fr}.env-paper{max-width:100%}}'
+   ].join('\n');
+   document.head.appendChild(style);
+  }
+  const cfg=configuracao();
+  el('Modo').value=cfg.modo;
+  el('Documento').checked=!!cfg.documento;
+  el('Nota').checked=!!cfg.nota;
   el('Xml').addEventListener('change',importarXml);
-  for(const id of ids){const e=el(id.charAt(0).toUpperCase()+id.slice(1));if(e)e.addEventListener('input',atualizar);}
+  for(const id of IDS){
+   const campo=el(id.charAt(0).toUpperCase()+id.slice(1));
+   if(campo)campo.addEventListener('input',atualizar);
+  }
   el('Cep').addEventListener('blur',()=>{el('Cep').value=formatCep(el('Cep').value);atualizar();});
   el('Uf').addEventListener('blur',()=>{el('Uf').value=valor('Uf').toUpperCase();atualizar();});
-  for(const id of ['Modo','Documento','Nota'])el(id).addEventListener('change',guardar);
-  for(const tipo of ['rem','dest'])for(const eixo of ['topo','lateral']){
-   const id=(tipo==='rem'?'Rem':'Dest')+(eixo==='topo'?'Topo':'Lateral');
-   el(id).addEventListener('change',()=>aplicarCampoPosicao(tipo,eixo));
+  for(const id of ['Modo','Documento','Nota'])el(id).addEventListener('change',guardarOpcoes);
+  for(const tipo of TIPOS){
+   conectarArraste(tipo);
+   for(const eixo of ['X','Y']){
+    const input=el(PREFIXO[tipo]+eixo);
+    if(input)input.addEventListener('change',()=>mudarPosicao(tipo,eixo,input.value));
+   }
   }
+  root.querySelectorAll('[data-env-giro]').forEach(botao=>botao.addEventListener('click',()=>
+   mudarAngulo(botao.getAttribute('data-env-tipo'),Number(botao.getAttribute('data-env-giro')))));
+  root.querySelectorAll('[data-env-reset]').forEach(botao=>botao.addEventListener('click',()=>
+   restaurarTipo(botao.getAttribute('data-env-reset'))));
   el('Imprimir').addEventListener('click',criarImpressao);
-  root.querySelectorAll('[data-env-bloco][data-env-giro]').forEach(botao=>{
-   botao.addEventListener('click',()=>mudarAngulo(
-    botao.getAttribute('data-env-bloco'),Number(botao.getAttribute('data-env-giro'))));
-  });
-  root.querySelectorAll('[data-env-restaurar]').forEach(botao=>{
-   botao.addEventListener('click',()=>restaurarTipo(botao.getAttribute('data-env-restaurar')));
-  });
-  conectarArraste('rem');conectarArraste('dest');
-  el('RemCorreios').addEventListener('click',()=>{
-    textoNo('RemResumo',dadoRemetenteResumo());atualizar();
-  });
+  el('RemCorreios').addEventListener('click',()=>{textoNo('RemResumo',dadoRemetenteResumo());atualizar();});
   el('Limpar').addEventListener('click',()=>{
-   for(const id of ids)el(id.charAt(0).toUpperCase()+id.slice(1)).value='';
+   for(const id of IDS)el(id.charAt(0).toUpperCase()+id.slice(1)).value='';
    el('Xml').value='';atualizar();textoNo('Info','Destinatário limpo.');
   });
   inicializado=true;
@@ -488,6 +481,9 @@
    observer.observe(el('Papel'));
   }
  }
- function dadoRemetenteResumo(){const r=dadosRemetente();return 'Remetente: '+r.nome+' · '+r.documento+' · '+endRem(r).join(' · ');}
+ function dadoRemetenteResumo(){
+  const rem=dadosRemetente();
+  return 'Remetente: '+rem.nome+' · '+rem.documento+' · '+endRem(rem).join(' · ');
+ }
  window.inicializarImpressaoEnvelopeSofisticatto=montar;
 })();
