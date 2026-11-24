@@ -252,6 +252,11 @@
   }
  }
  function criarImpressao(){
+  const fora=aplicarLayout();
+  if(fora.length){
+   textoNo('Status','Texto fora da área segura: '+fora.join(', ')+'. Reduza o endereço para imprimir sem cortes.');
+   return;
+  }
   const faltam=validar();
   if(faltam.length){textoNo('Status','Corrija antes de imprimir: '+faltam.join(', '));return;}
   const {dest,rem,config}=dados();
@@ -260,29 +265,33 @@
   if(!p){textoNo('Status','O navegador bloqueou a janela. Libere pop-ups para imprimir.');return;}
   // Sem rede externa nem envio de XML; todo o documento e montado no navegador.
   const htmlEnd=s=>textoSeguro(s).replace(/\n/g,'<br>');
-  const remHTML='<div class="rem"><strong>REMETENTE</strong><div class="rn">'+htmlEnd(rem.nome)+
+  const remHTML='<div class="rem" style="'+estiloBloco('rem')+'"><strong>REMETENTE</strong><div class="rn">'+htmlEnd(rem.nome)+
     '</div><div>'+htmlEnd(rem.documento)+'</div><div>'+htmlEnd(endRem(rem).join(' · '))+'</div></div>';
-  const destHTML='<div class="dest"><strong>DESTINATÁRIO</strong><div class="dn">'+htmlEnd(dest.nome)+
+  const destHTML='<div class="dest" style="'+estiloBloco('dest')+'"><strong>DESTINATÁRIO</strong><div class="dn">'+htmlEnd(dest.nome)+
     '</div>'+(config.documento&&dest.doc?'<div>'+htmlEnd(dest.doc)+'</div>':'')+
     '<div class="end">'+htmlEnd(endDest(dest).join('\n'))+'</div></div>';
   const nfHTML=(config.nota&&dest.nf?'<div class="nf">Referência: NF-e '+textoSeguro(dest.nf)+'</div>':'');
   const imageUrl=location.origin+LOGO;
   const align='translate('+(112.5+config.x)+'mm,'+(5+config.y)+'mm) rotate(90deg)';
-  const offsetA4='translate('+(Math.max(0,config.x))+'mm,'+(Math.max(0,config.y))+'mm)';
-  const printCss=modo==='a4'?'@page{size:A4 portrait;margin:0} .sheet{width:210mm;height:297mm;} .art{left:5mm;top:45mm;width:200mm;height:100mm;transform:'+offsetA4+';}':
-    '@page{size:115mm 230mm;margin:0} .sheet{width:115mm;height:230mm;} .art{width:220mm;height:110mm;left:0;top:0;transform-origin:top left;transform:'+align+';}';
+  const printCss=modo==='a4'?
+   '@page{size:A4 portrait;margin:0}.sheet{width:210mm;height:297mm}.art{left:10mm;top:45mm;width:220mm;height:110mm;transform-origin:top left;transform:translate('+config.x+'mm,'+config.y+'mm) scale(.86)}':
+   '@page{size:115mm 230mm;margin:0}.sheet{width:115mm;height:230mm}.art{width:220mm;height:110mm;left:0;top:0;transform-origin:top left;transform:'+align+'}';
+  function estiloBloco(tipo){
+   const pos=posicaoPermitida(tipo,config);
+   return 'left:'+pos.x+'mm;top:'+pos.y+'mm;width:'+BLOCOS[tipo].w+'mm;transform:rotate('+config[tipo+'Ang']+'deg);';
+  }
   const html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Envelope Sofisticatto</title>'+
   '<style>html,body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#161616;background:#ededf0}'+
   '.toolbar{padding:12px 20px;background:#fff;border-bottom:1px solid #ddd;position:sticky;top:0;z-index:2}'+
   'button{border:0;border-radius:8px;background:#594b9e;color:white;padding:11px 18px;font-weight:700;cursor:pointer}'+
   '.toolbar small{margin-left:12px;color:#51476c}.sheet{position:relative;background:white;margin:20px auto;box-shadow:0 1px 14px #0002;overflow:hidden}'+
   '.art{position:absolute;border:0;box-sizing:border-box;background:#fff;overflow:hidden}'+
-  '.art img{position:absolute;left:3.5%;top:6%;width:23%;height:21%;object-fit:contain;object-position:left center}'+
-  '.rem{position:absolute;left:4%;top:30%;width:37%;font-size:9pt;line-height:1.35;overflow-wrap:anywhere}'+
-  '.rem strong,.dest strong{display:block;font-size:8pt;letter-spacing:1px;margin-bottom:7px}.rn{font-weight:bold;font-size:10pt}'+
-  '.dest{position:absolute;left:59%;top:34%;width:36%;font-size:10pt;line-height:1.32;overflow-wrap:anywhere}'+
-  '.dn{font-size:13pt;font-weight:bold;line-height:1.22;margin-bottom:8px}.end{white-space:normal;font-size:10pt}'+
-  '.nf{position:absolute;right:5%;top:87%;width:36%;text-align:right;font-size:8pt;color:#444}'+
+  '.art img{position:absolute;left:10mm;top:10mm;width:45mm;height:22mm;object-fit:contain;object-position:left center}'+
+  '.rem{position:absolute;font-size:9pt;line-height:1.35;overflow-wrap:anywhere;transform-origin:top left}'+
+  '.rem strong,.dest strong{display:block;font-size:8pt;letter-spacing:.4px;margin-bottom:2mm}.rn{font-weight:bold;font-size:10pt}'+
+  '.dest{position:absolute;font-size:10pt;line-height:1.32;overflow-wrap:anywhere;transform-origin:top left}'+
+  '.dn{font-size:13pt;font-weight:bold;line-height:1.22;margin-bottom:2mm}.end{white-space:normal;font-size:10pt}'+
+  '.nf{position:absolute;right:10mm;bottom:14mm;width:82mm;text-align:right;font-size:8pt;color:#444;overflow-wrap:anywhere}'+
   printCss+
   '@media print{html,body{width:100%;height:100%;background:white}.toolbar{display:none!important}'+
   '.sheet{box-shadow:none!important;margin:0!important;break-after:page;page-break-after:avoid}'+
@@ -309,6 +318,11 @@
   '<label>UF<input id="envUf" maxlength="2"></label><label>NF-e (opcional)<input id="envNf"></label></div>',
   '<button type="button" id="envRemCorreios" class="btn azul">Atualizar remetente dos Correios</button>',
   '<p id="envRemResumo" class="env-sender"></p>',
+  '<div class="env-layout-editor"><strong>Ajustar posição e ângulo</strong>',
+  '<p>Arraste o REMETENTE e o DESTINATÁRIO com o mouse diretamente na prévia. A linha pontilhada mostra a margem segura de 1 cm. Os ajustes ficam salvos e valem para a impressão.</p>',
+  '<div class="env-giro"><b>Remetente</b><button type="button" data-env-bloco="rem" data-env-giro="-1" aria-label="Girar remetente 1 grau à esquerda">↶ 1°</button><output id="envRemAngulo">0°</output><button type="button" data-env-bloco="rem" data-env-giro="1" aria-label="Girar remetente 1 grau à direita">↷ 1°</button></div>',
+  '<div class="env-giro"><b>Destinatário</b><button type="button" data-env-bloco="dest" data-env-giro="-1" aria-label="Girar destinatário 1 grau à esquerda">↶ 1°</button><output id="envDestAngulo">0°</output><button type="button" data-env-bloco="dest" data-env-giro="1" aria-label="Girar destinatário 1 grau à direita">↷ 1°</button></div>',
+  '<button type="button" id="envRestaurarPos" class="btn">Restaurar posições e ângulos</button></div>',
   '<div class="env-controls"><label>Modelo de impressão<select id="envModo"><option value="envelope">Envelope Correios · 115 × 230 mm</option><option value="a4">Conferência em folha A4</option></select></label>',
   '<label>Correção X (mm)<input id="envX" type="number" min="-5" max="5" step="0.5"></label>',
   '<label>Correção Y (mm)<input id="envY" type="number" min="-5" max="5" step="0.5"></label></div>',
@@ -318,9 +332,9 @@
   '<button type="button" id="envLimpar" class="btn">Limpar destinatário</button></div>',
   '<p id="envInfo" class="env-info" role="status"></p></div>',
   '<div class="card"><h2>Prévia do envelope</h2><p id="envMedida"></p>',
-  '<div class="env-frame"><div class="env-paper" id="envPapel"><img class="env-logo" src="'+LOGO+'" alt="Logo Sofisticatto">',
-  '<div class="env-rem"><strong>REMETENTE</strong><b id="envPrevRemNome"></b><small id="envPrevRemCnpj"></small><span id="envPrevRemEndereco"></span></div>',
-  '<div class="env-dest"><strong>DESTINATÁRIO</strong><b id="envPrevDestNome">NOME DO DESTINATÁRIO</b><small id="envPrevDestDoc"></small>',
+  '<div class="env-frame"><div class="env-paper" id="envPapel"><div class="env-limite" aria-hidden="true"></div><img class="env-logo" src="'+LOGO+'" alt="Logo Sofisticatto">',
+  '<div class="env-rem env-draggable" id="envArrastarRem" title="Arraste para reposicionar o remetente"><strong>REMETENTE</strong><b id="envPrevRemNome"></b><small id="envPrevRemCnpj"></small><span id="envPrevRemEndereco"></span></div>',
+  '<div class="env-dest env-draggable" id="envArrastarDest" title="Arraste para reposicionar o destinatário"><strong>DESTINATÁRIO</strong><b id="envPrevDestNome">NOME DO DESTINATÁRIO</b><small id="envPrevDestDoc"></small>',
   '<span id="envPrevDestEndereco"></span></div><div class="env-nf" id="envPrevNf"></div>',
   '</div></div><p class="env-info" id="envStatus" role="status"></p>',
   '<p class="env-info">Este é apenas o endereçamento do envelope, não uma etiqueta de postagem com rastreio. Para Carta Registrada, use a postagem oficial dos Correios.</p>',
