@@ -51,13 +51,17 @@
   const logradouro=String(rua||'').trim().replace(/\s+/g,' ');
   const nro=String(numero||'').trim().replace(/^(?:N[º°.]?|NRO\.?|NR\.?|NUMERO|NÚMERO)\s*[:.°º-]*\s*/i,'');
   if(!nro)return logradouro;
-  // Somente remove o número ao final, sem alterar "Rua 4" ou outros números do nome.
-  const escaped=nro.replace(/[.*+?^${}()|[\]\\]/g,'\\ function endDest(d){
-  const rua=[d.rua,d.numero].filter(Boolean).join(', ');
+  // Remove somente número repetido ao final (ex.: "RUA X Nr. 76").
+  const escaped=nro.replace(/[.*+?^$\{\}()|[\]\\]/g,'\\$&');
+  const padrao=new RegExp('(?:\\s*[,;–-]\\s*|\\s+)(?:(?:N[º°.]?|NRO\\.?|NR\\.?|NUMERO|NÚMERO)\\s*[:.°º-]*\\s*)?'+escaped+'\\s*$','i');
+  return logradouro.replace(padrao,'').replace(/[\s,;–-]+$/,'').trim()||logradouro;
+ }
+ function endDest(d){
+  const numero=String(d.numero||'').trim().replace(/^(?:N[º°.]?|NRO\.?|NR\.?|NUMERO|NÚMERO)\s*[:.°º-]*\s*/i,'');
+  const rua=[enderecoSemNumeroRepetido(d.rua,numero),numero?'nº '+numero:''].filter(Boolean).join(', ');
   return [rua,d.compl,d.bairro,[d.cidade,d.uf].filter(Boolean).join(' / '),
    d.cep?('CEP '+d.cep):''].filter(Boolean);
- }');
-  const padrao=new RegExp('(?:\\s*[,;–-]\\s*|\\s+)(?:(?:N[º°.]?|NRO\\.?|NR\\.?|NUMERO|NÚMERO)\\s*[:.°º-]*\\s*)?'+escaped+'\\s*
+ }
  function endRem(r){
   return [r.rua,r.bairro,[r.cidade,r.uf].filter(Boolean).join(' / '),
    r.cep?'CEP '+r.cep:''].filter(Boolean);
