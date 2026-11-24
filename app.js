@@ -1354,11 +1354,11 @@ async function carregarModuloEmail(){
 
 function mostrarAbaEmail(aba){
   if(!garantirFinanceiroEmail()) return;
-  ["Preparar","Gerador","Etiquetas","Correios","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
+  ["Preparar","Gerador","Etiquetas","Envelope","Correios","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
     document.getElementById("emailSub" + nome).classList.remove("ativa");
     document.getElementById("emailAba" + nome).classList.remove("ativo");
   });
-  const mapa = {preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",correios:"Correios",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
+  const mapa = {preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",envelope:"Envelope",correios:"Correios",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
   const nome = mapa[aba];
   document.getElementById("emailSub" + nome).classList.add("ativa");
   document.getElementById("emailAba" + nome).classList.add("ativo");
@@ -1371,6 +1371,9 @@ function mostrarAbaEmail(aba){
   }
   if(aba === "etiquetas"){
     inicializarModuloEtiquetas();
+  }
+  if(aba === "envelope" && typeof inicializarImpressaoEnvelopeSofisticatto === "function"){
+    inicializarImpressaoEnvelopeSofisticatto();
   }
   if(aba === "correios"){
     inicializarModuloCorreios();

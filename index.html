@@ -269,6 +269,7 @@
       <button id="emailAbaPreparar" onclick="mostrarAbaEmail('preparar')">Preparar Envios</button>
       <button id="emailAbaGerador" onclick="mostrarAbaEmail('gerador')">Gerar Relatório</button>
       <button id="emailAbaEtiquetas" onclick="mostrarAbaEmail('etiquetas')">Etiquetas</button>
+      <button id="emailAbaEnvelope" onclick="mostrarAbaEmail('envelope')">Impressão em envelope</button>
       <button id="emailAbaCorreios" onclick="mostrarAbaEmail('correios')">Correios</button>
 <button id="emailAbaCotacoes" onclick="mostrarAbaEmail('cotacoes')">Cotação de Fretes</button>
       <button id="emailAbaColetas" onclick="mostrarAbaEmail('coletas')">Agendamento de Coleta</button>
@@ -893,6 +894,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
       <div id="etiquetasImpressao" style="display:none;"></div>
     </div>
 
+
+    <div id="emailSubEnvelope" class="email-subsecao"><div id="envelopeRoot"></div></div>
 
     <div id="emailSubCorreios" class="email-subsecao">
       <div class="correios-layout">
@@ -3482,7 +3485,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 
 <script src="progresso-operacoes-v460.js?v=461-logo-correcao"></script>
-<script src="financeiro.js?v=536-vendedora-gerar-relatorio"></script>
+<script src="financeiro.js?v=537-envelope-correios-papel-115x230"></script>
+<script src="envelope-impressao.js?v=1-correios-115x230"></script>
 <script src="etiquetas-editor-posicao-v464.js?v=466"></script>
 <script src="etiquetas-editor-grafico-v465.js?v=465"></script>
 <script src="relatorio-parcelas-clientes-v429.js?v=429-producao"></script>

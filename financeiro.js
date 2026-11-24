@@ -292,7 +292,7 @@ function configurarInterfacePorPerfil(){
   if(usuarioEhGerenteRastreio()) permitidas.add("Correios");
   // Gerador de documentos permitido para a vendedora, sem liberar cadastros financeiros.
   if(usuarioEhVendedoraRastreio()) permitidas.add("Gerador");
-  ["Logistica","Preparar","Gerador","Etiquetas","Correios","CobrancaBancaria","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(n=>{
+  ["Logistica","Preparar","Gerador","Etiquetas","Envelope","Correios","CobrancaBancaria","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(n=>{
     const b=document.getElementById("emailAba"+n); if(b)b.style.display=permitidas.has(n)?"inline-flex":"none";
   });
   ["Nova","Historico","Entradas","Transportadoras","Modelos"].forEach(n=>{const b=document.getElementById("coletaTab"+n);if(b)b.style.display="none"});
@@ -2505,11 +2505,11 @@ function mostrarAbaEmail(aba){
        ...(usuarioEhVendedoraRastreio()?["gerador"]:[])].includes(aba)){
     aba="coletas";
   }
-  ["Logistica","Preparar","Gerador","Etiquetas","Correios","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
+  ["Logistica","Preparar","Gerador","Etiquetas","Envelope","Correios","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
     document.getElementById("emailSub" + nome).classList.remove("ativa");
     document.getElementById("emailAba" + nome).classList.remove("ativo");
   });
-  const mapa = {logistica:"Logistica",preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",correios:"Correios",cotacoes:"Cotacoes",coletas:"Coletas",integracoes:"Integracoes",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
+  const mapa = {logistica:"Logistica",preparar:"Preparar",gerador:"Gerador",etiquetas:"Etiquetas",envelope:"Envelope",correios:"Correios",cotacoes:"Cotacoes",coletas:"Coletas",integracoes:"Integracoes",clientes:"Clientes",vendedoras:"Vendedoras",assinaturas:"Assinaturas",historico:"Historico"};
   const nome = mapa[aba];
   document.getElementById("emailSub" + nome).classList.add("ativa");
   document.getElementById("emailAba" + nome).classList.add("ativo");
@@ -2527,6 +2527,9 @@ function mostrarAbaEmail(aba){
   }
   if(aba === "etiquetas"){
     inicializarModuloEtiquetas();
+  }
+  if(aba === "envelope" && typeof inicializarImpressaoEnvelopeSofisticatto === "function"){
+    inicializarImpressaoEnvelopeSofisticatto();
   }
   if(aba === "correios"){
     inicializarModuloCorreios();
