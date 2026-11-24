@@ -7,12 +7,14 @@
  // Arte paisagem 229 x 114 mm, rotacionada 90° na impressao.
  // Mantemos como opcao a regulagem anterior de papel 115 x 230 mm.
  const VALORES={modo:'envelope',x:0,y:0,documento:false,nota:true,
-  remX:10,remY:36,remAng:0,destX:124,destY:28,destAng:0};
+  // remY alto leva o REMETENTE ao lado oposto do envelope depois da rotação.
+  // A função posicaoPermitida ajusta para a margem física de 10 mm considerando a altura real.
+  remX:10,remY:104,remAng:0,destX:124,destY:28,destAng:0};
  // Coordenadas da arte: 229 x 114 mm, girada 90° para o envelope 114 x 229 mm.
  // A moldura de 10 mm é uma zona segura da arte (não é impressa).
  const TAMANHO={w:229,h:114,margem:10};
  const BLOCOS={rem:{w:78,baixo:104},dest:{w:85,baixo:104}};
- const LAYOUT_VERSAO=3;
+ const LAYOUT_VERSAO=4;
  const limitar=(v,min,max)=>Math.max(min,Math.min(max,v));
  const arredondar=v=>Math.round(v*10)/10;
  const ids=['nome','doc','rua','numero','compl','bairro','cep','cidade','uf','nf'];
@@ -40,11 +42,12 @@
    const antigo=JSON.parse(localStorage.getItem(STORAGE)||'{}');
    if(antigo&&typeof antigo==='object'&&!Array.isArray(antigo))p={...p,...antigo};
   }catch(_){}
-  // Migra uma vez o layout anterior para o formato físico 229 x 114 mm.
-  // Mantém opções de impressão e correções físicas configuradas pelo usuário.
+  // Migração v4: altera SOMENTE a posição do remetente.
+  // Preserva o destinatário que já foi aprovado e as correções de impressão.
   if(Number(p.layoutVersao)!==LAYOUT_VERSAO){
-   for(const tipo of ['rem','dest'])
-    for(const eixo of ['X','Y','Ang'])p[tipo+eixo]=VALORES[tipo+eixo];
+   p.remX=VALORES.remX;
+   p.remY=VALORES.remY;
+   p.remAng=VALORES.remAng;
    p.layoutVersao=LAYOUT_VERSAO;
    persistirConfig(p);
   }
@@ -381,7 +384,7 @@
    '.env-rem{position:absolute;font-size:.9em;line-height:1.35;overflow-wrap:anywhere;transform-origin:top left}',
    '.env-rem strong,.env-dest strong{display:block;margin-bottom:2mm;letter-spacing:.3px}.env-rem strong{font-size:.889em}.env-dest strong{font-size:.8em}',
    '.env-rem b,.env-dest b,.env-rem small,.env-dest small,.env-rem span,.env-dest span{display:block}',
-   '.env-rem span{white-space:pre-line}',
+   '.env-rem span{white-space:pre-line;font-size:1em}.env-rem small{font-size:1em}',
    '.env-dest{position:absolute;font-size:1em;line-height:1.32;overflow-wrap:anywhere;transform-origin:top left}',
    '.env-dest b{font-size:1.3em;line-height:1.22;margin-bottom:2mm}.env-rem b{font-size:1.111em}',
    '#envPrevDestEndereco{white-space:pre-line}',
