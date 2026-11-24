@@ -152,7 +152,7 @@ let formularioRelatorioAlterado = false;
 function usuarioEhVendedoraRastreio(){ return usuarioLogado?.tipo === "vendedora_rastreio"; }
 function usuarioEhGerenteRastreio(){ return usuarioLogado?.tipo === "gerente_rastreio"; }
 function usuarioEhComercialRastreio(){ return usuarioEhVendedoraRastreio() || usuarioEhGerenteRastreio(); }
-function usuarioPodeGerarRelatorioEmail(){ return !!usuarioLogado && ["financeiro","vendedora_rastreio"].includes(usuarioLogado.tipo); }
+function usuarioPodeGerarRelatorioEmail(){ return !!usuarioLogado && ["financeiro","admin","vendedora_rastreio"].includes(usuarioLogado.tipo); }
 
 // V62: resolve a carteira da vendedora de forma tolerante a cadastros antigos/duplicados.
 function idsVendedoraUsuario(){
