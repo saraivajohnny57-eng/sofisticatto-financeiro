@@ -152,6 +152,7 @@ let formularioRelatorioAlterado = false;
 function usuarioEhVendedoraRastreio(){ return usuarioLogado?.tipo === "vendedora_rastreio"; }
 function usuarioEhGerenteRastreio(){ return usuarioLogado?.tipo === "gerente_rastreio"; }
 function usuarioEhComercialRastreio(){ return usuarioEhVendedoraRastreio() || usuarioEhGerenteRastreio(); }
+function usuarioPodeGerarRelatorioEmail(){ return !!usuarioLogado && ["financeiro","vendedora_rastreio"].includes(usuarioLogado.tipo); }
 
 // V62: resolve a carteira da vendedora de forma tolerante a cadastros antigos/duplicados.
 function idsVendedoraUsuario(){
@@ -289,6 +290,8 @@ function configurarInterfacePorPerfil(){
   // Vendedoras continuam sem acesso à aba Correios.
   const permitidas=new Set(["Coletas","Preparar","Clientes","Historico"]);
   if(usuarioEhGerenteRastreio()) permitidas.add("Correios");
+  // Gerador de documentos permitido para a vendedora, sem liberar cadastros financeiros.
+  if(usuarioEhVendedoraRastreio()) permitidas.add("Gerador");
   ["Logistica","Preparar","Gerador","Etiquetas","Correios","CobrancaBancaria","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(n=>{
     const b=document.getElementById("emailAba"+n); if(b)b.style.display=permitidas.has(n)?"inline-flex":"none";
   });
@@ -2479,7 +2482,8 @@ function descricaoModoEmail(){
 async function carregarModuloEmail(){
   if(!garantirFinanceiroEmail() || !bancoPronto()) return;
   if(usuarioEhComercialRastreio()){
-    await Promise.all([carregarVendedorasEmail(), carregarClientesEmail(), carregarHistoricoEmail()]);
+    await Promise.all([carregarVendedorasEmail(), carregarClientesEmail(), carregarHistoricoEmail(),
+      ...(usuarioEhVendedoraRastreio() ? [carregarConfiguracoesRelatorio()] : [])]);
   }else{
     await Promise.all([carregarVendedorasEmail(), carregarClientesEmail(), carregarAssinaturasEmail(), carregarHistoricoEmail(), carregarConfiguracoesRelatorio(), carregarRelatoriosClientes()]);
   }
@@ -2496,7 +2500,9 @@ async function carregarModuloEmail(){
 
 function mostrarAbaEmail(aba){
   if(!garantirFinanceiroEmail()) return;
-  if(usuarioEhComercialRastreio() && !["coletas","preparar","clientes","historico","correios"].includes(aba)){
+  if(usuarioEhComercialRastreio() &&
+     !["coletas","preparar","clientes","historico","correios",
+       ...(usuarioEhVendedoraRastreio()?["gerador"]:[])].includes(aba)){
     aba="coletas";
   }
   ["Logistica","Preparar","Gerador","Etiquetas","Correios","Cotacoes","Coletas","Integracoes","Clientes","Vendedoras","Assinaturas","Historico"].forEach(nome => {
@@ -2510,9 +2516,14 @@ function mostrarAbaEmail(aba){
   if(aba === "historico") carregarHistoricoEmail();
   if(aba === "assinaturas"){ carregarAssinaturasEmail(); atualizarPreviaAssinatura(); }
   if(aba === "gerador"){
+    if(!usuarioPodeGerarRelatorioEmail()){
+      mostrarAbaEmail("coletas");
+      return;
+    }
     carregarConfiguracoesRelatorio();
     carregarRelatoriosClientes();
     inicializarGeradorRelatorio();
+    configurarGeradorRelatorioPorPerfil();
   }
   if(aba === "etiquetas"){
     inicializarModuloEtiquetas();
@@ -4920,8 +4931,28 @@ document.addEventListener("click", evento => {
   }
 });
 
+// Vendedora usa apenas as opções já cadastradas pelo Financeiro; gravação permanece restrita.
+function configurarGeradorRelatorioPorPerfil(){
+  const restrita=usuarioEhVendedoraRastreio();
+  const aba=document.getElementById("emailSubGerador");
+  if(!aba)return;
+  const salvar=aba.querySelector('.relatorio-toolbar button[onclick="salvarRelatorioCliente()"]');
+  if(salvar)salvar.style.display=restrita?"none":"";
+  const cadastro=document.getElementById("gerNovaFormaNome")?.closest(".card");
+  if(cadastro)cadastro.style.display=restrita?"none":"";
+  const historico=document.getElementById("gerTabelaHistorico")?.closest(".card");
+  if(historico)historico.style.display=restrita?"none":"";
+  let aviso=document.getElementById("gerPermissaoVendedora");
+  if(restrita && !aviso){
+    aviso=document.createElement("p");aviso.id="gerPermissaoVendedora";
+    aviso.style.cssText="padding:9px 12px;border-radius:10px;background:#f3effc;color:#504184;font-size:13px;margin:12px 0;";
+    aviso.textContent="Vendedora: gere, imprima ou envie relatórios. Cadastros e histórico compartilhado permanecem com o Financeiro.";
+    aba.querySelector(".relatorio-toolbar")?.insertAdjacentElement("afterend",aviso);
+  }
+  if(aviso)aviso.style.display=restrita?"block":"none";
+}
 async function carregarConfiguracoesRelatorio(){
-  if(!banco || !usuarioLogado || usuarioLogado.tipo !== "financeiro") return;
+  if(!banco || !usuarioPodeGerarRelatorioEmail()) return;
   const [formas,prazos] = await Promise.all([
     banco.from("email_formas_pagamento").select("*").eq("ativo",true).order("nome"),
     banco.from("email_prazos_pagamento").select("*").eq("ativo",true).order("nome")
