@@ -36,12 +36,19 @@ function montar(){
   '<label>Redespacho (se existir)<input id="epRedespacho"></label></div>'+
   '<div class="ep-actions"><button class="btn azul" type="button" id="epPesquisar">Pesquisar SSW + Gmail</button>'+
   '<button class="btn azul" type="button" id="epRod">Consultar Rodonaves</button>'+
+  '<button class="btn azul" type="button" id="epGmailTeste">Testar leitura do Gmail</button>'+
   '<button class="btn" type="button" id="epXml">Importar XML da NF-e</button>'+
   '<input type="file" id="epArquivo" accept=".xml,text/xml,application/xml" hidden>'+
   '<button class="btn" type="button" id="epExemplo">Carregar NF 158284 (DANFE enviado)</button>'+
   '<button class="btn verde" type="button" id="epConferir">Conferir e cadastrar entrada</button></div>'+
   '<p id="epStatus" role="status" aria-live="polite"></p><div id="epResultados"></div>';
  get('epPesquisar').addEventListener('click',pesquisar);
+ get('epGmailTeste').addEventListener('click',async()=>{
+  const btn=get('epGmailTeste');btn.disabled=true;msg('Testando autorização de leitura do Gmail...');
+  try{const d=await consultar('descobrir-entradas-gmail',{testeConexao:true});
+   msg('Leitura autorizada: '+d.conta+'. Nenhuma mensagem ou anexo foi consultado.');
+  }catch(e){msg(e.message)}finally{btn.disabled=false}
+ });
  get('epRod').addEventListener('click',()=>{if(typeof descobrirEntradasRodonavesV441==='function')descobrirEntradasRodonavesV441()});
  get('epXml').addEventListener('click',()=>get('epArquivo').click());
  get('epArquivo').addEventListener('change',importar);
