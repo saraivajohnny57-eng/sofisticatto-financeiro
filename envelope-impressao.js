@@ -6,11 +6,12 @@
  // Correios anteriormente configurado: envelope fisico 115 x 230 mm (retrato na Brother);
  // arte 220 x 110 mm (paisagem) rotacionada 90 graus na impressao.
  const VALORES={modo:'envelope',x:0,y:0,documento:false,nota:true,
-  remX:10,remY:38,remAng:0,destX:120,destY:28,destAng:0};
+  remX:56,remY:15,remAng:0,destX:126,destY:28,destAng:0};
  // Coordenadas da arte: 220 x 110 mm, girada 90° para o envelope 115 x 230 mm.
  // A moldura de 10 mm é uma zona segura da arte (não é impressa).
  const TAMANHO={w:220,h:110,margem:10};
- const BLOCOS={rem:{w:79,baixo:100},dest:{w:89,baixo:84}};
+ const BLOCOS={rem:{w:78,baixo:100},dest:{w:85,baixo:100}};
+ const LAYOUT_VERSAO=2;
  const limitar=(v,min,max)=>Math.max(min,Math.min(max,v));
  const arredondar=v=>Math.round(v*10)/10;
  const ids=['nome','doc','rua','numero','compl','bairro','cep','cidade','uf','nf'];
@@ -38,6 +39,14 @@
    const antigo=JSON.parse(localStorage.getItem(STORAGE)||'{}');
    if(antigo&&typeof antigo==='object'&&!Array.isArray(antigo))p={...p,...antigo};
   }catch(_){}
+  // Migra uma vez as posições antigas que cortavam a NF-e.
+  // Mantém opções de impressão e correções físicas configuradas pelo usuário.
+  if(Number(p.layoutVersao)!==LAYOUT_VERSAO){
+   for(const tipo of ['rem','dest'])
+    for(const eixo of ['X','Y','Ang'])p[tipo+eixo]=VALORES[tipo+eixo];
+   p.layoutVersao=LAYOUT_VERSAO;
+   persistirConfig(p);
+  }
   for(const chave of ['x','y','remX','remY','remAng','destX','destY','destAng']){
    const n=Number(p[chave]);p[chave]=Number.isFinite(n)?n:VALORES[chave];
   }
@@ -72,7 +81,8 @@
   const w=bloco.w,h=alturaBlocoMm(tipo);
   const metadeX=(w*cos+h*sen)/2,metadeY=(w*sen+h*cos)/2;
   // Retém 10 mm da arte e compensação da orientação da Brother (rotação 90°).
-  const minArteX=Math.max(10,5-p.y),maxArteX=Math.min(210,215-p.y);
+  // Além da margem de 10 mm, reserva 15 mm adicionais no fim da alimentação da Brother.
+  const minArteX=Math.max(10,5-p.y),maxArteX=Math.min(195,215-p.y);
   const minArteY=Math.max(10,7.5+p.x),maxArteY=Math.min(bloco.baixo,102.5+p.x);
   return {
    minX:minArteX+metadeX-w/2,maxX:maxArteX-metadeX-w/2,
@@ -201,7 +211,7 @@
   textoNo('PrevDestNome',d.dest.nome||'NOME DO DESTINATÁRIO');
   textoNo('PrevDestDoc',d.config.documento&&d.dest.doc?d.dest.doc:'');
   textoNo('PrevDestEndereco',endDest(d.dest).join('\n'));
-  textoNo('PrevNf',d.config.nota&&d.dest.nf?'REFERÊNCIA: NF-e '+d.dest.nf:'');
+  textoNo('PrevNf',d.config.nota&&d.dest.nf?'Referência: NF-e '+d.dest.nf:'');
   const fora=aplicarLayout();
   textoNo('Status',missing.length?'Preencha ou confira: '+missing.join(', ')+'.':
    fora.length?'Atenção: o texto de '+fora.join(' e ')+' não cabe na área segura. Reduza o endereço ou os dados antes de imprimir.':
@@ -267,10 +277,11 @@
   const htmlEnd=s=>textoSeguro(s).replace(/\n/g,'<br>');
   const remHTML='<div class="rem" style="'+estiloBloco('rem')+'"><strong>REMETENTE</strong><div class="rn">'+htmlEnd(rem.nome)+
     '</div><div>'+htmlEnd(rem.documento)+'</div><div>'+htmlEnd(endRem(rem).join(' · '))+'</div></div>';
+  // A referência integra o destinatário e acompanha sua posição e rotação.
   const destHTML='<div class="dest" style="'+estiloBloco('dest')+'"><strong>DESTINATÁRIO</strong><div class="dn">'+htmlEnd(dest.nome)+
     '</div>'+(config.documento&&dest.doc?'<div>'+htmlEnd(dest.doc)+'</div>':'')+
-    '<div class="end">'+htmlEnd(endDest(dest).join('\n'))+'</div></div>';
-  const nfHTML=(config.nota&&dest.nf?'<div class="nf">Referência: NF-e '+textoSeguro(dest.nf)+'</div>':'');
+    '<div class="end">'+htmlEnd(endDest(dest).join('\n'))+'</div>'+
+    (config.nota&&dest.nf?'<div class="ref-nfe">Referência: NF-e '+textoSeguro(dest.nf)+'</div>':'')+'</div>';
   const imageUrl=location.origin+LOGO;
   const align='translate('+(112.5+config.x)+'mm,'+(5+config.y)+'mm) rotate(90deg)';
   const printCss=modo==='a4'?
@@ -291,7 +302,7 @@
   '.rem strong,.dest strong{display:block;font-size:8pt;letter-spacing:.4px;margin-bottom:2mm}.rn{font-weight:bold;font-size:10pt}'+
   '.dest{position:absolute;font-size:10pt;line-height:1.32;overflow-wrap:anywhere;transform-origin:top left}'+
   '.dn{font-size:13pt;font-weight:bold;line-height:1.22;margin-bottom:2mm}.end{white-space:normal;font-size:10pt}'+
-  '.nf{position:absolute;right:10mm;bottom:14mm;width:82mm;text-align:right;font-size:8pt;color:#444;overflow-wrap:anywhere}'+
+  '.ref-nfe{display:block;margin-top:3mm;font-size:8pt;line-height:1.3;color:#444;overflow-wrap:anywhere}'+
   printCss+
   '@media print{html,body{width:100%;height:100%;background:white}.toolbar{display:none!important}'+
   '.sheet{box-shadow:none!important;margin:0!important;break-after:page;page-break-after:avoid}'+
@@ -299,7 +310,7 @@
   '</style></head><body><div class="toolbar"><button type="button" onclick="window.print()">Imprimir / Salvar como PDF</button>'+
   '<small>'+(modo==='a4'?'Conferência em A4':'Brother: mídia Envelope 115 × 230 mm, alimentação manual/bandeja central, retrato, escala 100%')+'</small></div>'+
   '<div class="sheet"><div class="art"><img alt="Sofisticatto" src="'+textoSeguro(imageUrl)+'">'+
-  remHTML+destHTML+nfHTML+'</div></div></body></html>';
+  remHTML+destHTML+'</div></div></body></html>';
   p.document.open();p.document.write(html);p.document.close();
   textoNo('Info','Prévia de impressão aberta. Na Brother, escolha envelope 115 × 230 mm, origem manual e escala 100%.');
  }
@@ -319,7 +330,7 @@
   '<button type="button" id="envRemCorreios" class="btn azul">Atualizar remetente dos Correios</button>',
   '<p id="envRemResumo" class="env-sender"></p>',
   '<div class="env-layout-editor"><strong>Ajustar posição e ângulo</strong>',
-  '<p>Arraste o REMETENTE e o DESTINATÁRIO com o mouse diretamente na prévia. A linha pontilhada mostra a margem segura de 1 cm. Os ajustes ficam salvos e valem para a impressão.</p>',
+  '<p>Arraste o REMETENTE e o DESTINATÁRIO com o mouse diretamente na prévia. A referência da NF-e acompanha o destinatário. A linha pontilhada marca 1 cm e a impressora recebe uma folga extra no final do papel.</p>',
   '<div class="env-giro"><b>Remetente</b><button type="button" data-env-bloco="rem" data-env-giro="-1" aria-label="Girar remetente 1 grau à esquerda">↶ 1°</button><output id="envRemAngulo">0°</output><button type="button" data-env-bloco="rem" data-env-giro="1" aria-label="Girar remetente 1 grau à direita">↷ 1°</button></div>',
   '<div class="env-giro"><b>Destinatário</b><button type="button" data-env-bloco="dest" data-env-giro="-1" aria-label="Girar destinatário 1 grau à esquerda">↶ 1°</button><output id="envDestAngulo">0°</output><button type="button" data-env-bloco="dest" data-env-giro="1" aria-label="Girar destinatário 1 grau à direita">↷ 1°</button></div>',
   '<button type="button" id="envRestaurarPos" class="btn">Restaurar posições e ângulos</button></div>',
@@ -335,7 +346,7 @@
   '<div class="env-frame"><div class="env-paper" id="envPapel"><div class="env-limite" aria-hidden="true"></div><img class="env-logo" src="'+LOGO+'" alt="Logo Sofisticatto">',
   '<div class="env-rem env-draggable" id="envArrastarRem" title="Arraste para reposicionar o remetente"><strong>REMETENTE</strong><b id="envPrevRemNome"></b><small id="envPrevRemCnpj"></small><span id="envPrevRemEndereco"></span></div>',
   '<div class="env-dest env-draggable" id="envArrastarDest" title="Arraste para reposicionar o destinatário"><strong>DESTINATÁRIO</strong><b id="envPrevDestNome">NOME DO DESTINATÁRIO</b><small id="envPrevDestDoc"></small>',
-  '<span id="envPrevDestEndereco"></span></div><div class="env-nf" id="envPrevNf"></div>',
+  '<span id="envPrevDestEndereco"></span><small class="env-nf" id="envPrevNf"></small></div>',
   '</div></div><p class="env-info" id="envStatus" role="status"></p>',
   '<p class="env-info">Este é apenas o endereçamento do envelope, não uma etiqueta de postagem com rastreio. Para Carta Registrada, use a postagem oficial dos Correios.</p>',
   '<p class="env-info">Na Brother: tipo de mídia <b>Envelope</b>, papel personalizado <b>115 × 230 mm</b>, orientação <b>Retrato</b>, alimentação <b>Manual / bandeja central</b>, escala <b>100%</b>, sem duplex.</p>',
@@ -364,7 +375,7 @@
    '.env-dest{position:absolute;font-size:1em;line-height:1.32;overflow-wrap:anywhere;transform-origin:top left}',
    '.env-dest b{font-size:1.3em;line-height:1.22;margin-bottom:2mm}.env-rem b{font-size:1.111em}',
    '#envPrevDestEndereco{white-space:pre-line}',
-   '.env-nf{position:absolute;right:4.545%;bottom:12.727%;width:37.273%;text-align:right;font-size:.8em;color:#444;overflow-wrap:anywhere}',
+   '.env-dest .env-nf{position:static;display:block;margin-top:3mm;font-size:.8em;line-height:1.3;text-align:left;color:#444;overflow-wrap:anywhere}',
    '@media(max-width:900px){.env-grid{grid-template-columns:1fr}}',
    '.env-limite{position:absolute;inset:9.09% 4.545%;border:1px dashed #b6a2d9;border-radius:2px;pointer-events:none;box-sizing:border-box}',
    '.env-draggable{cursor:grab;touch-action:none;user-select:none;border-radius:3px;outline:1px dashed transparent}',
