@@ -5,7 +5,14 @@
  const LOGO='/assets/sofisticatto-logo.jpeg';
  // Correios anteriormente configurado: envelope fisico 115 x 230 mm (retrato na Brother);
  // arte 220 x 110 mm (paisagem) rotacionada 90 graus na impressao.
- const VALORES={modo:'envelope',x:0,y:0,documento:false,nota:true};
+ const VALORES={modo:'envelope',x:0,y:0,documento:false,nota:true,
+  remX:10,remY:38,remAng:0,destX:120,destY:28,destAng:0};
+ // Coordenadas da arte: 220 x 110 mm, girada 90° para o envelope 115 x 230 mm.
+ // A moldura de 10 mm é uma zona segura da arte (não é impressa).
+ const TAMANHO={w:220,h:110,margem:10};
+ const BLOCOS={rem:{w:79,baixo:100},dest:{w:89,baixo:84}};
+ const limitar=(v,min,max)=>Math.max(min,Math.min(max,v));
+ const arredondar=v=>Math.round(v*10)/10;
  const ids=['nome','doc','rua','numero','compl','bairro','cep','cidade','uf','nf'];
  let inicializado=false;
  function el(id){return document.getElementById('env'+id);}
@@ -27,20 +34,135 @@
  }
  function configuracao(){
   let p={...VALORES};
-  try{p={...p,...JSON.parse(localStorage.getItem(STORAGE)||'{}')}}catch(_){}
+  try{
+   const antigo=JSON.parse(localStorage.getItem(STORAGE)||'{}');
+   if(antigo&&typeof antigo==='object'&&!Array.isArray(antigo))p={...p,...antigo};
+  }catch(_){}
+  for(const chave of ['x','y','remX','remY','remAng','destX','destY','destAng']){
+   const n=Number(p[chave]);p[chave]=Number.isFinite(n)?n:VALORES[chave];
+  }
+  p.x=limitar(p.x,-5,5);p.y=limitar(p.y,-5,5);
+  p.remAng=limitar(p.remAng,-5,5);p.destAng=limitar(p.destAng,-5,5);
   return p;
  }
+ function persistirConfig(p){
+  try{localStorage.setItem(STORAGE,JSON.stringify(p))}catch(_){}
+ }
  function guardar(){
-  const p={
+  const p={...configuracao(),
    modo:valor('Modo')==='a4'?'a4':'envelope',
-   x:Math.max(-5,Math.min(5,Number(valor('X'))||0)),
-   y:Math.max(-5,Math.min(5,Number(valor('Y'))||0)),
+   x:limitar(Number(valor('X'))||0,-5,5),
+   y:limitar(Number(valor('Y'))||0,-5,5),
    documento:!!el('Documento')?.checked,
    nota:!!el('Nota')?.checked
   };
-  try{localStorage.setItem(STORAGE,JSON.stringify(p))}catch(_){}
-  textoNo('Info','Posição e opções salvas somente neste navegador.');
+  persistirConfig(p);
+  textoNo('Info','Ajustes salvos neste navegador e aplicados à impressão.');
   atualizar();
+ }
+ function alturaBlocoMm(tipo){
+  const papel=el('Papel'),item=el(tipo==='rem'?'ArrastarRem':'ArrastarDest');
+  if(!papel?.clientWidth||!item)return tipo==='rem'?46:52;
+  return item.offsetHeight*TAMANHO.w/papel.clientWidth;
+ }
+ function limitesBloco(tipo,p){
+  const bloco=BLOCOS[tipo],ang=Number(p[tipo+'Ang'])||0;
+  const rad=Math.abs(ang)*Math.PI/180;
+  const cos=Math.cos(rad),sen=Math.sin(rad);
+  const w=bloco.w,h=alturaBlocoMm(tipo);
+  const metadeX=(w*cos+h*sen)/2,metadeY=(w*sen+h*cos)/2;
+  // Retém 10 mm da arte e compensação da orientação da Brother (rotação 90°).
+  const minArteX=Math.max(10,5-p.y),maxArteX=Math.min(210,215-p.y);
+  const minArteY=Math.max(10,7.5+p.x),maxArteY=Math.min(bloco.baixo,102.5+p.x);
+  return {
+   minX:minArteX+metadeX-w/2,maxX:maxArteX-metadeX-w/2,
+   minY:minArteY+metadeY-h/2,maxY:maxArteY-metadeY-h/2,
+   cabe:h>0&&minArteX+2*metadeX<=maxArteX+0.05&&minArteY+2*metadeY<=maxArteY+0.05
+  };
+ }
+ function posicaoPermitida(tipo,p){
+  const l=limitesBloco(tipo,p);
+  return {
+   x:arredondar(limitar(p[tipo+'X'],l.minX,Math.max(l.minX,l.maxX))),
+   y:arredondar(limitar(p[tipo+'Y'],l.minY,Math.max(l.minY,l.maxY))),
+   cabe:l.cabe
+  };
+ }
+ function aplicarLayout(){
+  const papel=el('Papel');if(!papel)return[];
+  const largura=papel.clientWidth;
+  // 10 pt = 3,5278 mm. Mantém na prévia a mesma fonte da impressão.
+  if(largura)papel.style.fontSize=(largura/220*3.52778)+'px';
+  let p=configuracao(),mudou=false;
+  for(const tipo of ['rem','dest']){
+   const bloco=el(tipo==='rem'?'ArrastarRem':'ArrastarDest');
+   if(!bloco)continue;
+   bloco.style.width=(BLOCOS[tipo].w/TAMANHO.w*100)+'%';
+  }
+  const alertas=[];
+  for(const tipo of ['rem','dest']){
+   const bloco=el(tipo==='rem'?'ArrastarRem':'ArrastarDest');
+   if(!bloco)continue;
+   const pos=posicaoPermitida(tipo,p);
+   if(!pos.cabe)alertas.push(tipo==='rem'?'remetente':'destinatário');
+   if(p[tipo+'X']!==pos.x||p[tipo+'Y']!==pos.y)mudou=true;
+   p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
+   bloco.style.left=(pos.x/TAMANHO.w*100)+'%';
+   bloco.style.top=(pos.y/TAMANHO.h*100)+'%';
+   bloco.style.transform='rotate('+p[tipo+'Ang']+'deg)';
+   const rotulo=el(tipo==='rem'?'RemAngulo':'DestAngulo');
+   if(rotulo)rotulo.textContent=p[tipo+'Ang']+'°';
+  }
+  if(mudou)persistirConfig(p);
+  // X/Y são correções no papel retrato. A arte gira 90° ao imprimir.
+  if(largura)papel.style.transform='translate('+(p.y*largura/220)+'px,'+(-p.x*largura/220)+'px)';
+  return alertas;
+ }
+ function mudarAngulo(tipo,delta){
+  const p=configuracao();
+  p[tipo+'Ang']=limitar(Math.round(p[tipo+'Ang']+delta),-5,5);
+  persistirConfig(p);atualizar();
+  textoNo('Info','Ângulo do '+(tipo==='rem'?'remetente':'destinatário')+
+   ' ajustado para '+p[tipo+'Ang']+'°. Alteração salva para impressão.');
+ }
+ function conectarArraste(tipo){
+  const bloco=el(tipo==='rem'?'ArrastarRem':'ArrastarDest'),papel=el('Papel');
+  if(!bloco||!papel)return;
+  let inicio=null;
+  bloco.addEventListener('pointerdown',e=>{
+   if(e.button!==0||!papel.clientWidth)return;
+   const p=configuracao();
+   inicio={id:e.pointerId,mouseX:e.clientX,mouseY:e.clientY,x:p[tipo+'X'],y:p[tipo+'Y']};
+   bloco.setPointerCapture(e.pointerId);
+   bloco.classList.add('env-arrastando');
+   e.preventDefault();
+  });
+  bloco.addEventListener('pointermove',e=>{
+   if(!inicio||e.pointerId!==inicio.id||!papel.clientWidth)return;
+   const mmPorPx=220/papel.getBoundingClientRect().width;
+   const p=configuracao();
+   p[tipo+'X']=inicio.x+(e.clientX-inicio.mouseX)*mmPorPx;
+   p[tipo+'Y']=inicio.y+(e.clientY-inicio.mouseY)*mmPorPx;
+   const pos=posicaoPermitida(tipo,p);
+   p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
+   persistirConfig(p);
+   aplicarLayout();
+  });
+  const terminar=e=>{
+   if(!inicio||e.pointerId!==inicio.id)return;
+   inicio=null;bloco.classList.remove('env-arrastando');
+   atualizar();textoNo('Info','Posição do '+(tipo==='rem'?'remetente':'destinatário')+
+    ' salva. A impressão seguirá esta prévia.');
+  };
+  bloco.addEventListener('pointerup',terminar);
+  bloco.addEventListener('pointercancel',terminar);
+ }
+ function restaurarBlocos(){
+  const p=configuracao();
+  for(const tipo of ['rem','dest'])
+   for(const campo of ['X','Y','Ang'])p[tipo+campo]=VALORES[tipo+campo];
+  persistirConfig(p);atualizar();
+  textoNo('Info','Posições e ângulos restaurados, respeitando a margem de 1 cm.');
  }
  function dados(){
   const dest={};
@@ -80,13 +202,14 @@
   textoNo('PrevDestDoc',d.config.documento&&d.dest.doc?d.dest.doc:'');
   textoNo('PrevDestEndereco',endDest(d.dest).join('\n'));
   textoNo('PrevNf',d.config.nota&&d.dest.nf?'REFERÊNCIA: NF-e '+d.dest.nf:'');
+  const fora=aplicarLayout();
   textoNo('Status',missing.length?'Preencha ou confira: '+missing.join(', ')+'.':
-   'Dados completos. Confira a prévia e o sentido de alimentação do envelope.');
+   fora.length?'Atenção: o texto de '+fora.join(' e ')+' não cabe na área segura. Reduza o endereço ou os dados antes de imprimir.':
+   'Prévia com margem segura de 1 cm. Arraste os blocos; as posições também serão usadas na impressão.');
   const atual=d.config;
   textoNo('Medida',atual.modo==='a4'?'A4 para conferência — conteúdo em 220 × 110 mm':
    'Envelope 115 × 230 mm (papel retrato; arte 220 × 110 mm girada 90°)');
-  const p=el('Papel');
-  if(p)p.style.transform='translate('+atual.x*0.15+'px,'+atual.y*0.15+'px)';
+
  }
  function child(parent,name){
   if(!parent)return null;
