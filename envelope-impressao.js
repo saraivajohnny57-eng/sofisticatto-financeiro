@@ -423,6 +423,20 @@
    '<div class="sheet"><div class="art">'+logo+remHtml+destHtml+lines+
    '</div></div></body></html>';
   pagina.document.open();pagina.document.write(html);pagina.document.close();
+  // O navegador pode ter métricas de texto ligeiramente diferentes da prévia.
+  // Verificamos também o documento final, já com dimensões físicas em mm.
+  const btn=pagina.document.querySelector?.('.toolbar button');
+  if(btn)btn.onclick=()=>{
+   const blocos=Array.from(pagina.document.querySelectorAll('.rem,.dest'));
+   const fora=blocos.filter(no=>no.clientHeight>0&&
+     (no.scrollHeight>no.clientHeight+2||no.scrollWidth>no.clientWidth+2));
+   if(fora.length){
+    pagina.alert('O texto do envelope ultrapassa a caixa definida. '+
+     'Aumente a altura/largura do remetente ou destinatário no editor antes de imprimir.');
+    return;
+   }
+   pagina.focus();pagina.print();
+  };
   textoNo('Info',papelBrother?
     'Documento configurado para alimentação pelo lado curto: Brother 114 × 229 mm, Retrato e 100%. A prévia do portal continua deitada.':
     'Conferência em A4 deitada, tamanho real.');
