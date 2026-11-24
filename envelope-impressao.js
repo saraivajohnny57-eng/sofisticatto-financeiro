@@ -9,12 +9,12 @@
  const VALORES={modo:'envelope',x:0,y:0,documento:false,nota:true,
   // remY alto leva o REMETENTE ao lado oposto do envelope depois da rotação.
   // A função posicaoPermitida ajusta para a margem física de 10 mm considerando a altura real.
-  remX:10,remY:104,remAng:0,destX:124,destY:28,destAng:0};
+  remX:5,remY:104,remAng:0,destX:124,destY:28,destAng:0};
  // Coordenadas da arte: 229 x 114 mm, girada 90° para o envelope 114 x 229 mm.
  // A moldura de 10 mm é uma zona segura da arte (não é impressa).
  const TAMANHO={w:229,h:114,margem:10};
  const BLOCOS={rem:{w:78,baixo:104},dest:{w:85,baixo:104}};
- const LAYOUT_VERSAO=4;
+ const LAYOUT_VERSAO=5;
  const limitar=(v,min,max)=>Math.max(min,Math.min(max,v));
  const arredondar=v=>Math.round(v*10)/10;
  const ids=['nome','doc','rua','numero','compl','bairro','cep','cidade','uf','nf'];
@@ -42,7 +42,7 @@
    const antigo=JSON.parse(localStorage.getItem(STORAGE)||'{}');
    if(antigo&&typeof antigo==='object'&&!Array.isArray(antigo))p={...p,...antigo};
   }catch(_){}
-  // Migração v4: altera SOMENTE a posição do remetente.
+  // Migração v5: aproxima apenas o remetente da lateral. Mantém destinatário.
   // Preserva o destinatário que já foi aprovado e as correções de impressão.
   if(Number(p.layoutVersao)!==LAYOUT_VERSAO){
    p.remX=VALORES.remX;
@@ -88,7 +88,10 @@
   // Coordenadas exatas após a rotação de 90°: xPapel=114+p.x-yArte,
   // yPapel=p.y+xArte. Conserva 10 mm físicos de cada lado da mídia 114x229.
   // Reserva outros 10 mm no final da alimentação para minimizar cortes.
-  const minArteX=Math.max(10,10-p.y),maxArteX=Math.min(209,219-p.y);
+  // O remetente pode se aproximar até 5 mm da margem do arquivo.
+  // Para distância física precisa, o driver NÃO pode estar configurado em A4.
+  const minArteX=tipo==='rem'?Math.max(5,5-p.y):Math.max(10,10-p.y);
+  const maxArteX=Math.min(209,219-p.y);
   const minArteY=Math.max(10,10+p.x),maxArteY=Math.min(bloco.baixo,104+p.x);
   return {
    minX:minArteX+metadeX-w/2,maxX:maxArteX-metadeX-w/2,
@@ -123,6 +126,7 @@
    if(!pos.cabe)alertas.push(tipo==='rem'?'remetente':'destinatário');
    if(p[tipo+'X']!==pos.x||p[tipo+'Y']!==pos.y)mudou=true;
    p[tipo+'X']=pos.x;p[tipo+'Y']=pos.y;
+   if(tipo==='rem'&&el('RemMargem'))el('RemMargem').value=String(pos.x);
    bloco.style.left=(pos.x/TAMANHO.w*100)+'%';
    bloco.style.top=(pos.y/TAMANHO.h*100)+'%';
    bloco.style.transform='rotate('+p[tipo+'Ang']+'deg)';
@@ -320,7 +324,7 @@
   '.sheet{box-shadow:none!important;margin:0!important;break-after:page;page-break-after:avoid}'+
   'html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'+
   '</style></head><body><div class="toolbar"><button type="button" onclick="window.print()">Imprimir / Salvar como PDF</button>'+
-  '<small>'+(modo==='a4'?'Conferência em A4':'Brother: mídia Envelope '+(papelAnterior?'115 × 230':'114 × 229')+' mm, alimentação manual/bandeja central, retrato, escala 100%')+'</small></div>'+
+  '<small>'+(modo==='a4'?'Conferência em A4':'Brother: tamanho do papel '+(papelAnterior?'115 × 230':'114 × 229')+' mm (NÃO A4), alimentação manual, escala 100%')+'</small></div>'+
   '<div class="sheet"><div class="art"><img alt="Sofisticatto" src="'+textoSeguro(imageUrl)+'">'+
   remHTML+destHTML+'</div></div></body></html>';
   p.document.open();p.document.write(html);p.document.close();
@@ -331,7 +335,7 @@
   if(!root||inicializado)return;
   root.innerHTML=[
   '<div class="env-grid"><div class="card">',
-  '<h2>Impressão em envelope</h2><p>Envelope 229 × 114 mm (papel 114 × 229 mm na bandeja central). Arte girada 90° na impressão; opção anterior 115 × 230 mm preservada.</p>',
+  '<h2>Impressão em envelope</h2><p>Envelope 229 × 114 mm (papel 114 × 229 mm na bandeja central). Arte girada 90° na impressão. Para evitar margens excessivas, não use A4 no driver Brother.</p>',
   '<label class="relatorio-label">Importar XML da NF-e</label><input id="envXml" type="file" accept=".xml,text/xml,application/xml">',
   '<label class="relatorio-label">Obter endereço de</label><select id="envOrigem"><option value="dest">Destinatário da NF-e (cliente)</option><option value="emit">Emitente da NF-e</option></select>',
   '<div class="env-fields"><label>Nome / Razão social<input id="envNome"></label><label>CPF/CNPJ<input id="envDoc"></label>',
@@ -342,6 +346,8 @@
   '<button type="button" id="envRemCorreios" class="btn azul">Atualizar remetente dos Correios</button>',
   '<p id="envRemResumo" class="env-sender"></p>',
   '<div class="env-layout-editor"><strong>Ajustar posição e ângulo</strong>',
+  '<label class="env-rem-margem">Margem lateral do remetente (mm, na arte)<input id="envRemMargem" type="number" min="5" max="45" step="1" value="5"></label>',
+  '<p class="env-driver-alerta"><strong>Atenção à Brother:</strong> se em Preferências de Impressão o tamanho do papel continuar <b>A4</b>, a impressora pode centralizar a arte e criar uma margem grande, mesmo com o remetente a 5 mm no arquivo. Selecione o envelope 114 × 229 mm no driver antes de imprimir.</p>',
   '<p>Arraste o REMETENTE e o DESTINATÁRIO com o mouse diretamente na prévia. A referência da NF-e acompanha o destinatário. A linha pontilhada marca 1 cm e a impressora recebe uma folga extra no final do papel.</p>',
   '<div class="env-giro"><b>Remetente</b><button type="button" data-env-bloco="rem" data-env-giro="-1" aria-label="Girar remetente 1 grau à esquerda">↶ 1°</button><output id="envRemAngulo">0°</output><button type="button" data-env-bloco="rem" data-env-giro="1" aria-label="Girar remetente 1 grau à direita">↷ 1°</button></div>',
   '<div class="env-giro"><b>Destinatário</b><button type="button" data-env-bloco="dest" data-env-giro="-1" aria-label="Girar destinatário 1 grau à esquerda">↶ 1°</button><output id="envDestAngulo">0°</output><button type="button" data-env-bloco="dest" data-env-giro="1" aria-label="Girar destinatário 1 grau à direita">↷ 1°</button></div>',
@@ -402,6 +408,9 @@
    '.env-giro button{border:1px solid #c5b6dd;background:#fff;color:#594b9e;border-radius:7px;padding:6px 11px;font-weight:700;cursor:pointer}',
    '.env-giro output{font-weight:700;font-size:13px;min-width:25px;text-align:center}',
    '#envRestaurarPos{margin-top:8px;font-size:12px}',
+   '.env-rem-margem{font-size:12px;color:#51467c;display:block;margin:9px 0}',
+   '.env-rem-margem input{max-width:100px!important;margin-left:8px}',
+   '.env-driver-alerta{background:#fff9ee;border-left:3px solid #be822c;padding:8px 10px!important;color:#654817!important}',
    '@media(max-width:580px){.env-fields{grid-template-columns:1fr}.env-controls{grid-template-columns:1fr 1fr}.env-controls label:first-child{grid-column:1/-1}}'
   ].join('\n');
   document.head.appendChild(style);
@@ -419,6 +428,12 @@
     botao.getAttribute('data-env-bloco'),Number(botao.getAttribute('data-env-giro'))));
   });
   el('RestaurarPos').addEventListener('click',restaurarBlocos);
+  el('RemMargem').addEventListener('change',()=>{
+   const p=configuracao();
+   p.remX=arredondar(limitar(Number(valor('RemMargem'))||5,5,45));
+   persistirConfig(p);atualizar();
+   textoNo('Info','Margem do remetente ajustada na arte. Na Brother, use o tamanho real do envelope, nunca A4.');
+  });
   conectarArraste('rem');conectarArraste('dest');
   el('RemCorreios').addEventListener('click',()=>{
     textoNo('RemResumo',dadoRemetenteResumo());atualizar();
