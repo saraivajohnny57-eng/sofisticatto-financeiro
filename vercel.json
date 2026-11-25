@@ -3,7 +3,8 @@
   "functions": {
     "api/integracoes.js": {
       "maxDuration": 60,
-      "includeFiles": "node_modules/{tesseract.js/src/**,tesseract.js-core/**,@tesseract.js-data/por/4.0.0_best_int/**,@napi-rs/canvas-linux-x64-gnu/**}"
+      "includeFiles": "node_modules/{tesseract.js/**,tesseract.js-core/**,@tesseract.js-data/por/**,@napi-rs/canvas/**,@napi-rs/canvas-linux-x64-gnu/**,pdfjs-dist/legacy/build/**,pdfjs-dist/standard_fonts/**,pdfjs-dist/cmaps/**,pdfjs-dist/package.json,wasm-feature-detect/**,bmp-js/**,idb-keyval/**,is-url/**,node-fetch/**,whatwg-url/**,tr46/**,webidl-conversions/**,regenerator-runtime/**,zlibjs/**}"
     }
-  }
+  },
+  "installCommand": "npm install && node scripts/check-contas-pagar-ocr.cjs"
 }
