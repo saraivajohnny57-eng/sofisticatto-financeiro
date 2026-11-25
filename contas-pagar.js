@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 const $=id=>document.getElementById(id),today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-let rows=[],filtered=[],cursor=null,offset=0,busy=false,ready=false;
+let rows=[],filtered=[],cursor=null,offset=0,busy=false,ready=false,scanStats=null,scanRange=null;
 const money=n=>n==null?'—':(Number(n)/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const br=v=>v?String(v).slice(0,10).split('-').reverse().join('/'):'—';
 const dt=v=>v?new Date(v).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'}):'—';
@@ -76,9 +76,69 @@ function render(){
  $('cpCount').textContent=filtered.length+' de '+rows.length+' boletos carregados • '+groups(filtered).length+' e-mail(s) no filtro. As ações de grupo consultam todos os registros cadastrados do e-mail.';
 }
 async function load(more=false){const d=await request({acao:'listar',...range(),offset:more?offset:0});if(!more)rows=[];rows.push(...d.itens);offset=rows.length;$('cpMais').hidden=!d.mais;render()}
-async function scan(more=false){if(busy)return;busy=true;$('cpBuscar').disabled=true;$('cpContinuar').disabled=true;
- try{msg('Buscando PDFs no Gmail em somente leitura...');const d=await request({acao:'buscar',...range(),antes_uid:more?cursor:0});cursor=d.proximo;$('cpContinuar').hidden=!cursor;msg('Mensagens processadas: '+d.processados+' / '+d.total+' · Novos: '+d.registrados+' · Duplicados: '+d.duplicados+' · Corrigidos: '+(d.revisados||0)+' · Em conferência: '+d.conferencia+' · Erros: '+d.erros+(d.parcial?' · Busca parcial; use Continuar pesquisa.':''));await load()}
- finally{busy=false;$('cpBuscar').disabled=false;$('cpContinuar').disabled=false}
+function emptySearchStats(){return {processados:0,total:0,registrados:0,duplicados:0,revisados:0,conferencia:0,erros:0,pdfs_lidos:0,lotes:0,motivos:{}}}
+function addSearchStats(stats,d){
+ const n={...stats,motivos:{...stats.motivos},lotes:stats.lotes+1};
+ for(const k of ['processados','registrados','duplicados','revisados','conferencia','erros','pdfs_lidos'])n[k]+=Math.max(0,Number(d[k]||0));
+ n.total=n.processados+Math.max(0,Number(d.restantes??(Number(d.total||0)-Number(d.processados||0))));
+ for(const [k,v] of Object.entries(d.motivos_erros||{}))n.motivos[k]=(n.motivos[k]||0)+Math.max(0,Number(v)||0);
+ return n
+}
+function searchPercent(stats,complete=false){return complete?100:stats.total?Math.min(99,Math.floor(stats.processados/stats.total*100)):0}
+function searchSummary(n){return 'Mensagens: '+n.processados+'/'+n.total+' · PDFs lidos: '+n.pdfs_lidos+' · Novos: '+n.registrados+' · Duplicados: '+n.duplicados+' · Corrigidos: '+n.revisados+' · Em conferência: '+n.conferencia+' · Erros: '+n.erros}
+async function scan(more=false){
+ if(busy)return;const selected=range();
+ if(more&&(!cursor||!scanStats||!scanRange||scanRange.inicio!==selected.inicio||scanRange.fim!==selected.fim))more=false;
+ if(!more){cursor=null;scanStats=emptySearchStats();scanRange={...selected}}
+ busy=true;let stop=false,finished=false,problem='',stalled=0;
+ const d=$('cpSearchProgress'),title=el('h2','Pesquisa de boletos no Gmail'),period=el('p','Recebimento: '+br(scanRange.inicio)+' a '+br(scanRange.fim)),stage=el('p','Conectando ao Gmail e identificando mensagens...'),p=el('progress');p.max=100;p.removeAttribute('value');p.setAttribute('aria-label','Progresso da pesquisa');
+ const pct=el('strong','Localizando mensagens...'),grid=el('div');grid.className='cpSearchMetrics';
+ const counters={};for(const [k,label] of [['processados','Mensagens examinadas'],['pdfs_lidos','PDFs lidos'],['registrados','Boletos novos'],['duplicados','Duplicados'],['revisados','Corrigidos'],['conferencia','Novos em conferência'],['erros','Erros'],['lotes','Lotes concluídos']]){
+  const c=el('div'),v=el('strong','0');c.className='cpMetric';c.append(el('small',label),v);grid.append(c);counters[k]=v;
+ }
+ const causes=el('div');causes.className='cpSearchErrors';
+ const foot=el('p','A pesquisa continua automaticamente em lotes enquanto o portal estiver aberto. Não feche a página. Nenhum pagamento é realizado.');
+ const cancel=btn('Interromper pesquisa',()=>{stop=true;cancel.disabled=true;stage.textContent='Interrompendo após a etapa em andamento...';},'btn vermelho');
+ const close=btn('Fechar',()=>d.close());close.hidden=true;
+ d.replaceChildren(title,period,stage,p,pct,grid,causes,foot,cancel,close);
+ d.oncancel=e=>{if(busy){e.preventDefault();cancel.click()}};
+ for(const id of ['cpBuscar','cpContinuar','cpInicio','cpFim','cpLoad','cpMais'])$(id).disabled=true;
+ d.showModal();
+ const show=(complete=false)=>{
+  const n=scanStats,v=searchPercent(n,complete);p.value=v;pct.textContent=v+'% • '+n.processados+'/'+n.total+' mensagens examinadas';
+  for(const k of Object.keys(counters))counters[k].textContent=k==='processados'?n.processados+'/'+n.total:String(n[k]);
+  causes.replaceChildren();for(const [reason,count] of Object.entries(n.motivos))causes.append(el('p',reason+': '+count));
+ };
+ if(more)show();
+ try{
+  // Sequential requests avoid long Vercel functions and repeated database list reads.
+  while(!stop){
+   stage.textContent='Pesquisando lote '+(scanStats.lotes+1)+'...';
+   const sent=cursor;
+   const result=await request({acao:'buscar',...scanRange,continuacao:sent||undefined});
+   scanStats=addSearchStats(scanStats,result);
+   if(!result.parcial){finished=true;cursor=null;show(true);break}
+   if(!result.continuacao)throw Error('A pesquisa não retornou um cursor de continuação válido. Atualize o portal.');
+   cursor=result.continuacao;
+   const moved=JSON.stringify(sent)!==JSON.stringify(cursor)||Number(result.processados)>0||Number(result.anexos_processados)>0;
+   stalled=moved?0:stalled+1;
+   show();
+   if(stalled>=2)throw Error('O Gmail não avançou nas últimas tentativas. Use Continuar pesquisa para retomar.');
+  }
+ }catch(e){problem=e.message||'Falha de pesquisa.'}
+ finally{
+  // The modal remains visible until the user closes it. Refresh the list only once.
+  stage.textContent='Atualizando a lista de boletos...';
+  try{await load()}catch(e){problem+=(problem?' • ':'')+'Não foi possível atualizar a lista: '+e.message}
+  busy=false;for(const id of ['cpBuscar','cpContinuar','cpInicio','cpFim','cpLoad','cpMais'])$(id).disabled=false;
+  $('cpContinuar').hidden=!cursor;cancel.hidden=true;close.hidden=false;
+  show(finished);
+  if(problem)stage.textContent='Pesquisa interrompida: '+problem;
+  else if(finished)stage.textContent=scanStats.erros?'Pesquisa concluída com pendências de leitura.':'Pesquisa concluída.';
+  else stage.textContent='Pesquisa interrompida pelo usuário. Resultados já registrados foram preservados.';
+  foot.textContent=finished?(scanStats.erros?'Os erros indicados precisam de conferência. 100% significa mensagens examinadas, não todos os boletos reconhecidos.':'Resultados importados estão disponíveis na lista. Nenhum pagamento foi efetuado.'):(cursor?'Clique em Continuar pesquisa para retomar do último ponto nesta sessão.':'Clique em Buscar boletos no Gmail para iniciar novamente.');
+  msg(searchSummary(scanStats)+(finished?' · Pesquisa concluída'+(scanStats.erros?' com pendências.':'.'):' · Pesquisa parcial.')+(problem?' '+problem:''));
+ }
 }
 function details(r){const d=$('cpDialog');d.replaceChildren(el('h2','Documento recebido'),el('p','Assunto: '+r.assunto),el('p','Remetente: '+r.remetente),el('p','Recebido em: '+dt(r.recebido_em)),el('p','Linha digitável: '+(r.linha_digitavel||'Não validada')),el('p',r.observacao||''));
  if(r.linha_digitavel)d.append(btn('Copiar linha digitável',action(async()=>{await navigator.clipboard.writeText(r.linha_digitavel)})));
@@ -125,12 +185,12 @@ async function batch(print=false){if(busy)return;const list=filtered.slice();if(
  else{save(zip(files),'boletos_'+today()+'.zip');d.append(el('p','ZIP preparado. Confirme o download no navegador.'));}}
  }finally{busy=false;d.append(btn('Fechar',()=>d.close()))}}
 function mount(){if(ready)return;ready=true;
- const root=$('contasPagar');root.innerHTML='<div class="card cpRoot"><h1>Contas a pagar</h1><p>Boletos recebidos no Gmail · controle financeiro · sem débito automático</p><div id="cpMetrics" class="cpMetrics"></div><p id="cpAviso" class="cpAviso"></p><div class="cpTools"><label>Recebido de<input type="date" id="cpInicio"></label><label>Até<input type="date" id="cpFim"></label><label>Pesquisar<input id="cpBusca" placeholder="Beneficiário, CNPJ, e-mail"></label><label>Situação<select id="cpFiltro"><option value="">Todas</option><option>Em conferência</option><option>A vencer</option><option>Vence hoje</option><option>Vencido</option><option>Agendado</option><option>Pago manualmente</option><option>Cancelado</option></select></label></div><div class="cpActions"><button class="btn azul" id="cpLoad">Atualizar lista</button><button class="btn verde" id="cpBuscar">Buscar boletos no Gmail</button><button class="btn azul" id="cpContinuar" hidden>Continuar pesquisa</button><button class="btn azul" id="cpDda">Consultar disponibilidade DDA</button><button class="btn verde" id="cpZip">Baixar todos os boletos por filtro</button><button class="btn azul" id="cpPrint">Preparar impressão por filtro</button></div><p id="cpStatus" role="status" aria-live="polite"></p><p id="cpCount"></p><div class="cpScroll"><table><thead><tr><th>Beneficiário / e-mail</th><th>Parcela / documento</th><th>Valor</th><th>Emissão</th><th>Vencimento</th><th>Status</th><th>Categoria</th><th>Ações individuais</th><th>Ações do e-mail</th></tr></thead><tbody id="cpRows"></tbody></table></div><button class="btn azul" id="cpMais" hidden>Carregar mais registros</button><dialog id="cpDialog"></dialog><dialog id="cpProgress"></dialog></div>';
- const style=el('style');style.textContent='#contasPagar .cpMetrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:15px 0}.cpMetric{background:#f3eff9;border:1px solid #ded5ed;border-radius:10px;padding:14px;display:grid;gap:5px;color:#4d3b84}.cpMetric strong{font-size:19px}.cpTools,.cpActions{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0;align-items:end}.cpTools label{display:grid;gap:5px;font-size:12px;min-width:140px}.cpTools input,.cpTools select{padding:8px;border:1px solid #d6cce8;border-radius:7px}.cpScroll{overflow:auto}.cpScroll table{min-width:1050px;width:100%;border-collapse:collapse}.cpScroll td,.cpScroll th{padding:9px;border-bottom:1px solid #eee;vertical-align:top;text-align:left;font-size:12px}.cpScroll td button{display:block;margin:3px 0;font-size:11px;white-space:nowrap}.cpAviso{background:#fff6e2;color:#76520f;padding:10px;border-radius:8px}.cpRoot dialog{max-width:min(620px,90vw);max-height:85vh;overflow:auto;border:1px solid #d6cce8;border-radius:12px;padding:20px}.cpRoot dialog label{display:block;margin:8px 0}.cpRoot dialog input:not([type=checkbox]){display:block;width:100%;box-sizing:border-box;padding:7px}.cpRoot dialog button{margin:5px}.cpRoot progress{width:100%}.cpRoot [hidden]{display:none!important}.cpScroll .cpShared{background:#faf8fe;vertical-align:top;border-bottom:2px solid #d8cce9;min-width:150px}.cpShared small{display:block;margin:6px 0;overflow-wrap:anywhere}.cpScroll .cpGroupStart td{border-top:2px solid #d8cce9}.cpScroll .cpIndividual button,.cpScroll .cpGroupActions button{margin:2px 0;padding:6px 9px;min-height:28px}.cpGroupDetail{border:1px solid #ded4ee;border-radius:9px;padding:12px;margin:10px 0;overflow-wrap:anywhere}.cpGroupDetail p{margin:5px 0}';document.head.append(style);
+ const root=$('contasPagar');root.innerHTML='<div class="card cpRoot"><h1>Contas a pagar</h1><p>Boletos recebidos no Gmail · controle financeiro · sem débito automático</p><div id="cpMetrics" class="cpMetrics"></div><p id="cpAviso" class="cpAviso"></p><div class="cpTools"><label>Recebido de<input type="date" id="cpInicio"></label><label>Até<input type="date" id="cpFim"></label><label>Pesquisar<input id="cpBusca" placeholder="Beneficiário, CNPJ, e-mail"></label><label>Situação<select id="cpFiltro"><option value="">Todas</option><option>Em conferência</option><option>A vencer</option><option>Vence hoje</option><option>Vencido</option><option>Agendado</option><option>Pago manualmente</option><option>Cancelado</option></select></label></div><div class="cpActions"><button class="btn azul" id="cpLoad">Atualizar lista</button><button class="btn verde" id="cpBuscar">Buscar boletos no Gmail</button><button class="btn azul" id="cpContinuar" hidden>Continuar pesquisa</button><button class="btn azul" id="cpDda">Consultar disponibilidade DDA</button><button class="btn verde" id="cpZip">Baixar todos os boletos por filtro</button><button class="btn azul" id="cpPrint">Preparar impressão por filtro</button></div><p id="cpStatus" role="status" aria-live="polite"></p><p id="cpCount"></p><div class="cpScroll"><table><thead><tr><th>Beneficiário / e-mail</th><th>Parcela / documento</th><th>Valor</th><th>Emissão</th><th>Vencimento</th><th>Status</th><th>Categoria</th><th>Ações individuais</th><th>Ações do e-mail</th></tr></thead><tbody id="cpRows"></tbody></table></div><button class="btn azul" id="cpMais" hidden>Carregar mais registros</button><dialog id="cpDialog"></dialog><dialog id="cpProgress"></dialog><dialog id="cpSearchProgress"></dialog></div>';
+ const style=el('style');style.textContent='#contasPagar .cpMetrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:15px 0}.cpMetric{background:#f3eff9;border:1px solid #ded5ed;border-radius:10px;padding:14px;display:grid;gap:5px;color:#4d3b84}.cpMetric strong{font-size:19px}.cpTools,.cpActions{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0;align-items:end}.cpTools label{display:grid;gap:5px;font-size:12px;min-width:140px}.cpTools input,.cpTools select{padding:8px;border:1px solid #d6cce8;border-radius:7px}.cpScroll{overflow:auto}.cpScroll table{min-width:1050px;width:100%;border-collapse:collapse}.cpScroll td,.cpScroll th{padding:9px;border-bottom:1px solid #eee;vertical-align:top;text-align:left;font-size:12px}.cpScroll td button{display:block;margin:3px 0;font-size:11px;white-space:nowrap}.cpAviso{background:#fff6e2;color:#76520f;padding:10px;border-radius:8px}.cpRoot dialog{max-width:min(620px,90vw);max-height:85vh;overflow:auto;border:1px solid #d6cce8;border-radius:12px;padding:20px}.cpRoot dialog label{display:block;margin:8px 0}.cpRoot dialog input:not([type=checkbox]){display:block;width:100%;box-sizing:border-box;padding:7px}.cpRoot dialog button{margin:5px}.cpRoot progress{width:100%}.cpRoot [hidden]{display:none!important}.cpScroll .cpShared{background:#faf8fe;vertical-align:top;border-bottom:2px solid #d8cce9;min-width:150px}.cpShared small{display:block;margin:6px 0;overflow-wrap:anywhere}.cpScroll .cpGroupStart td{border-top:2px solid #d8cce9}.cpScroll .cpIndividual button,.cpScroll .cpGroupActions button{margin:2px 0;padding:6px 9px;min-height:28px}.cpGroupDetail{border:1px solid #ded4ee;border-radius:9px;padding:12px;margin:10px 0;overflow-wrap:anywhere}.cpGroupDetail p{margin:5px 0}#cpSearchProgress{width:min(620px,90vw);box-sizing:border-box}#cpSearchProgress progress{height:18px;accent-color:#5a4fa3}#cpSearchProgress .cpSearchMetrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:14px 0}#cpSearchProgress .cpMetric{padding:10px}#cpSearchProgress .cpSearchErrors{color:#a44a2c;font-size:12px}#cpSearchProgress .cpSearchErrors p{margin:4px 0}';document.head.append(style);
  $('cpFim').value=today();$('cpInicio').value=today().slice(0,8)+'01';
  $('cpLoad').onclick=action(()=>load());$('cpBuscar').onclick=action(()=>scan());$('cpContinuar').onclick=action(()=>scan(true));$('cpMais').onclick=action(()=>load(true));
  $('cpBusca').oninput=render;$('cpFiltro').onchange=render;
- for(const id of ['cpInicio','cpFim'])$(id).onchange=()=>{cursor=null;$('cpContinuar').hidden=true;rows=[];render();msg('Período alterado. Clique em Atualizar lista ou Buscar boletos.');};
+ for(const id of ['cpInicio','cpFim'])$(id).onchange=()=>{cursor=null;scanStats=null;scanRange=null;$('cpContinuar').hidden=true;rows=[];render();msg('Período alterado. Clique em Atualizar lista ou Buscar boletos.');};
  $('cpZip').onclick=action(()=>batch());$('cpPrint').onclick=action(()=>batch(true));$('cpDda').onclick=action(async()=>{const x=await request({acao:'dda'});msg('BB: '+x.bb+' · Bradesco: '+x.bradesco+' · '+x.pagamento)});
 }
 window.contasPagarAbrir=()=>{mount();action(()=>load())()};
