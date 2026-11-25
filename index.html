@@ -67,6 +67,7 @@
       <button title="Envio de Documentos" aria-label="Envio de Documentos" id="btnEnvioDocumentos" onclick="mostrarSecao('envioDocumentos')" style="display:none;"><span class="sof-nav-icon" aria-hidden="true">➤</span><span class="sof-nav-label">Envio de Documentos</span></button>
       <button title="Integração Bancária" aria-label="Integração Bancária" id="btnIntegracaoBancaria" onclick="mostrarSecao('integracaoBancaria')" style="display:none;"><span class="sof-nav-icon" aria-hidden="true">▤</span><span class="sof-nav-label">Integração Bancária</span></button>
       <button title="Etiquetas Terceirizados" aria-label="Etiquetas Terceirizados" id="btnEtiquetasTerceirizados" onclick="mostrarSecao('etiquetasTerceirizados')" style="display:none;"><span class="sof-nav-icon" aria-hidden="true">◇</span><span class="sof-nav-label">Etiquetas Terceirizados</span></button>
+      <button title="Contas a pagar" aria-label="Contas a pagar" id="btnContasPagar" style="display:none" onclick="mostrarSecao('contasPagar')"><span class="sof-nav-icon" aria-hidden="true">▣</span><span class="sof-nav-label">Contas a pagar</span><span id="cpBadge"></span></button>
       <button title="SEFAZ / Fiscal" aria-label="SEFAZ / Fiscal" id="btnSefazFiscal" style="display:none" onclick="mostrarSecao('sefazFiscal')"><span class="sof-nav-icon" aria-hidden="true">▣</span><span class="sof-nav-label">SEFAZ / Fiscal</span></button>
       <button title="Administração" aria-label="Administração" id="btnAdmin" onclick="mostrarSecao('admin')" style="display:none;"><span class="sof-nav-icon" aria-hidden="true">⚙</span><span class="sof-nav-label">Administração</span></button>
     </div>
@@ -75,6 +76,7 @@
 </div>
 
 <div class="main">
+<div id="contasPagar" style="display:none"></div>
   
 <div id="etiquetasTerceirizados" style="display:none;">
   <div class="card" style="padding:22px"><h1>🏷️ Etiquetas Terceirizados</h1><p>Pesquise pelo código para montar e imprimir uma etiqueta térmica. O cadastro guarda os dados, não PDFs.</p>
@@ -3487,7 +3489,8 @@ SOFISTICATTO COSMÉTICOS</textarea>
 
 
 <script src="progresso-operacoes-v460.js?v=461-logo-correcao"></script>
-<script src="financeiro.js?v=537-envelope-correios-papel-115x230"></script>
+<script src="financeiro.js?v=538-contas-pagar"></script>
+<script src="contas-pagar.js?v=1"></script>
 <script src="envelope-impressao.js?v=11-logo-mais-alta-botoes"></script>
 <script src="etiquetas-editor-posicao-v464.js?v=466"></script>
 <script src="etiquetas-editor-grafico-v465.js?v=465"></script>

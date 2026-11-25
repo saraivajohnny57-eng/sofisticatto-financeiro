@@ -8,6 +8,7 @@
 const validarChave = require("../lib/integracoes/validar-chave");
 const portalFinanceiro02Auth = require("../lib/portal/auth");
 const portalFinanceiro02Data = require("../lib/portal/data");
+const contasPagar = require("../lib/portal/contas-pagar");
 const statusServidor = require("../lib/integracoes/status-servidor");
 const salvarCredenciais = require("../lib/integracoes/salvar-credenciais");
 const statusCredenciais = require("../lib/integracoes/status-credenciais");
@@ -122,6 +123,7 @@ module.exports = async function handler(req, res) {
   const action = String(req.query?.action || req.body?.action || "").trim();
   if(action === "portal-auth") return portalFinanceiro02Auth(req,res);
   if(action === "portal-data") return portalFinanceiro02Data(req,res);
+  if(action === "contas-pagar") return contasPagar(req,res);
 
   if (action === "health") {
     return responder(res, 200, {

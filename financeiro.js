@@ -256,6 +256,7 @@ function configurarIntegracaoPerfilCobrancaV293(){
 }
 
 function configurarInterfacePorPerfil(){
+  const cp=document.getElementById("btnContasPagar");if(cp)cp.style.display=["admin","financeiro"].includes(usuarioLogado?.tipo)?"block":"none";
   const comercial=usuarioEhComercialRastreio();
   const entregador=usuarioLogado?.tipo==="entregador";
   const cobranca=usuarioEhCobrancaV293();
@@ -351,6 +352,8 @@ function iniciarSistema(){
 }
 
 function mostrarSecao(secao){
+  const cp=document.getElementById("contasPagar");if(cp)cp.style.display="none";
+  if(secao==="contasPagar"&&!["admin","financeiro"].includes(usuarioLogado?.tipo)){alert("Acesso restrito ao Financeiro e Administração.");secao="dashboard";}
   document.getElementById("dashboard").style.display = "none";
   document.getElementById("relatorios").style.display = "none";
   document.getElementById("historico").style.display = "none";
@@ -377,6 +380,7 @@ function mostrarSecao(secao){
   }
 
   document.getElementById(secao).style.display = "block";
+  if(secao==="contasPagar")window.contasPagarAbrir?.();
   if(secao==="sefazFiscal")abrirPainelFiscalV476("geral");
   if(secao === "envioDocumentos") carregarModuloEmail();
   if(secao === "integracaoBancaria"){
