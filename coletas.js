@@ -2972,7 +2972,7 @@ function rastreioPodeAtualizarV440(r){
  // completar a NF-e/chave ou receber um diagnóstico específico.
  return !!r?.id;
 }
-async function atualizarRastreioDanfeV440(rastro,botao){
+async function atualizarRastreioDanfeV440(rastro,botao,{silencioso=false,recarregar=true}={}){
  const original=botao?.textContent||'Atualizar rastreio';
  if(botao){botao.disabled=true;botao.textContent='Consultando SSW por NF-e...';}
  try{
@@ -2987,8 +2987,8 @@ async function atualizarRastreioDanfeV440(rastro,botao){
   if(!resp.ok)throw new Error(json.erro||`HTTP ${resp.status}`);
   const resultado=(json.resultados||[]).find(x=>x.chave===chave);
   if(!resultado?.localizado||!resultado.ocorrencias?.length){
-   alert(`SSW não retornou novas ocorrências confirmadas para a NF ${rastro.numero_nfe||'—'}.\n\n${resultado?.motivo||'Nenhuma ocorrência encontrada.'}\n\nO histórico anterior foi preservado.`);
-   return;
+   if(!silencioso)alert(`SSW não retornou novas ocorrências confirmadas para a NF ${rastro.numero_nfe||'—'}.\n\n${resultado?.motivo||'Nenhuma ocorrência encontrada.'}\n\nO histórico anterior foi preservado.`);
+   return false;
   }
   const eventos=resultado.ocorrencias.map(e=>({ocorrencia:e.titulo,descricao:e.descricao,data_hora:e.data,cidade:e.local}));
   const antigo=Array.isArray(rastro.consulta_api?.tracking)?rastro.consulta_api.tracking:[];
@@ -3033,10 +3033,11 @@ async function atualizarRastreioDanfeV440(rastro,botao){
   }
   const gravar=await banco.from('logistica_rastreamentos').update(update).eq('id',rastro.id).select('id').maybeSingle();
   if(gravar.error||!gravar.data)throw new Error(gravar.error?.message||'Não foi possível confirmar a gravação.');
-  await carregarRastreamentosLogistica(rastro.sentido||'saida');
-  if(typeof carregarRastreamentosEntregues==='function')await carregarRastreamentosEntregues();
-  alert(`Consulta SSW por chave NF-e concluída.\n\nNF: ${rastro.numero_nfe||'—'}\nOcorrências retornadas: ${eventos.length}\nEventos no histórico: ${conjunto.length}\nTransportadora SSW: ${resultado.transportadora||'não identificada'}\nTransportadora no cadastro: ${rastro.frete_transportadoras?.nome||'não informada'}\n\nA transportadora cadastrada não foi alterada. Veja a Linha do tempo para os detalhes.`);
- }catch(e){alert('Não foi possível atualizar pelo SSW Tracking DANFE: '+e.message);}
+  if(recarregar){await carregarRastreamentosLogistica(rastro.sentido||'saida');
+  if(typeof carregarRastreamentosEntregues==='function')await carregarRastreamentosEntregues();}
+  if(!silencioso)alert(`Consulta SSW por chave NF-e concluída.\n\nNF: ${rastro.numero_nfe||'—'}\nOcorrências retornadas: ${eventos.length}\nEventos no histórico: ${conjunto.length}\nTransportadora SSW: ${resultado.transportadora||'não identificada'}\nTransportadora no cadastro: ${rastro.frete_transportadoras?.nome||'não informada'}\n\nA transportadora cadastrada não foi alterada. Veja a Linha do tempo para os detalhes.`);
+  return true;
+ }catch(e){if(!silencioso)alert('Não foi possível atualizar pelo SSW Tracking DANFE: '+e.message);return false;}
  finally{if(botao&&document.body.contains(botao)){botao.disabled=false;botao.textContent=original;}}
 }
 
@@ -3044,6 +3045,7 @@ async function atualizarRastreioIntegrado(id,botao=null){
   const rastro=await obterRastreamentoPorId(id); if(!rastro)return alert("Rastreio não encontrado.");
   const nome=rastro.frete_transportadoras?.nome||"";
   const nomeTipoV464=nomeNormalizadoTransportadora(nome);
+  if(rastro.sentido==='entrada'&&typeof window.atualizarEntradaMultiV524==='function')return window.atualizarEntradaMultiV524(rastro,botao);
   // Nunca direcionar uma API própria ou privada para o SSW por ter chave NF-e.
   if(/(^| )uniao( |$)/.test(nomeTipoV464)){
     alert("União Transportes: a atualização automática dentro do Sofisticatto depende de acesso autorizado a API/EDI da transportadora. Os eventos já salvos continuam disponíveis na Linha do tempo; nenhum site externo será aberto.");
@@ -4930,9 +4932,10 @@ async function descobrirEntradasGmailV442(){
   box.replaceChildren(titulo);
   if(!itens.length)return;
   const tabela=document.createElement('table');tabela.className='tabela-logistica';const head=document.createElement('thead'),tr=document.createElement('tr');
-  ['CT-e','NF-e','Remetente / CNPJ','Transportadora','Destinatário / CNPJ','Conferência'].forEach(t=>{const th=document.createElement('th');th.textContent=t;tr.append(th)});head.append(tr);tabela.append(head);
-  const body=document.createElement('tbody');itens.forEach(x=>{const row=document.createElement('tr');const campos=[x.numeroCte||'—',x.numeroNfe||'—',`${x.remetente||'Não informado'} ${x.cnpjRemetente||''}`,x.transportadora||'Não informada',`${x.destinatario||'Não informado'} ${x.cnpjDestinatario||''}`,x.destinatarioConfirmado?'✓ Sofisticatto confirmada':x.destinatarioInformado?'Outro destinatário — não cadastrar':'Destinatário não identificado'];campos.forEach(v=>{const td=document.createElement('td');td.textContent=v;row.append(td)});body.append(row)});tabela.append(body);
+  ['CT-e','NF-e','Remetente / CNPJ','Transportadora','Origem / destino do trecho','Destinatário / CNPJ','Conferência'].forEach(t=>{const th=document.createElement('th');th.textContent=t;tr.append(th)});head.append(tr);tabela.append(head);
+  const body=document.createElement('tbody');itens.forEach(x=>{const row=document.createElement('tr');const campos=[x.numeroCte||'—',x.numeroNfe||'—',`${x.remetente||'Não informado'} ${x.cnpjRemetente||''}`,x.transportadora||'Não informada',[x.origemTransporte,x.destinoTransporte].filter(Boolean).join(' → ')||'Não informado',`${x.destinatario||'Não informado'} ${x.cnpjDestinatario||''}`,x.destinatarioConfirmado?'✓ Sofisticatto confirmada':x.destinatarioInformado?'Outro destinatário — não cadastrar':'Destinatário não identificado'];campos.forEach(v=>{const td=document.createElement('td');td.textContent=v;row.append(td)});body.append(row)});tabela.append(body);
   const wrap=document.createElement('div');wrap.className='table-wrap';wrap.append(tabela);box.append(wrap);
+  if(typeof window.montarAcaoEntradasV524==='function')window.montarAcaoEntradasV524(box,itens,d);
  }catch(e){box.textContent='⚠ Falha na consulta: '+String(e.message||e)}
 }
 

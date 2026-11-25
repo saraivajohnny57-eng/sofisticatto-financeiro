@@ -77,7 +77,7 @@ function render(item){
  const box=get('epResultados'),card=document.createElement('div');card.className='ep-result';
  card.append(text('strong',item.source+' — '+(item.confirmed?'Ocorrências encontradas':'Conferir antes de salvar')));
  for(const [label,value] of [['NF-e',item.nf],['Chave',item.key],['CT-e',item.cte],
-  ['Fornecedor',item.supplier],['Transportadora',item.carrier],['Redespacho',item.transfer],
+  ['Fornecedor',item.supplier],['Transportadora',item.carrier],['Redespacho',item.transfer],['Origem do trecho',item.origem],['Destino do trecho',item.destino],
   ['Resultado',item.message]]){
   if(value)card.append(text('p',label+': '+value));
  }
@@ -87,8 +87,12 @@ function render(item){
   for(const e of item.events.slice(0,50))list.append(text('li',[e.data,e.titulo,e.local,e.descricao].filter(Boolean).join(' — ')));
   details.append(list);card.append(details);
  }
- const button=text('button','Conferir e cadastrar esta entrada');button.className='btn azul';button.type='button';
- button.addEventListener('click',()=>cadastrar(item));card.append(button);box.append(card);
+ const button=text('button',item.existingId?'Atualizar rastreio':item.documentoGmail?'Atualizar ou registrar':'Conferir e cadastrar esta entrada');button.className='btn azul';button.type='button';
+ button.addEventListener('click',async()=>{
+  if(item.existingId&&typeof atualizarRastreioIntegrado==='function')return atualizarRastreioIntegrado(item.existingId,button);
+  if(item.documentoGmail&&typeof window.aplicarEntradasGmailV524==='function')return window.aplicarEntradasGmailV524([item.documentoGmail],box,button,item.key);
+  return cadastrar(item);
+ });card.append(button);box.append(card);
 }
 async function pesquisar(){
  const button=get('epPesquisar'),box=get('epResultados');
@@ -108,15 +112,15 @@ async function pesquisar(){
    }catch(e){warnings.push('SSW: '+e.message)}
   }else warnings.push('SSW exige chave NF-e de 44 dígitos.');
   try{
-   const d=await consultar('descobrir-entradas-gmail',{dias:15});let matches=0;
+   const d=await consultar('descobrir-entradas-gmail',{dias:30,...(key?{chaveNfe:key}:{})});let matches=0;
    for(const v of d.resultados||[]){
     const corresponde=(nf&&String(v.numeroNfe||'').replace(/^0+/,'')===nf.replace(/^0+/,''))||
      (key&&(v.chavesNfe||[]).some(c=>dig(c)===key))||
      (cte&&(dig(v.numeroCte)===cte||dig(v.chaveCte)===cte));
-    if(!corresponde||v.destinatarioInformado&&!v.destinatarioConfirmado)continue;
+    if(!corresponde||!v.destinatarioConfirmado)continue;
     matches++;
     found.push({...base,source:'Gmail — XML CT-e',confirmed:false,
-     nf:v.numeroNfe||nf,key:(v.chavesNfe||[])[0]||key,cte:v.numeroCte||cte,
+     nf:key?String(Number(key.slice(25,34))):v.numeroNfe||nf,key:key||(v.chavesNfe||[])[0]||'',cte:v.numeroCte||cte,documentoGmail:v,origem:v.origemTransporte,destino:v.destinoTransporte,
      supplier:v.remetente||base.supplier,carrier:v.transportadora||base.carrier,
      message:v.destinatarioConfirmado?'Destinatário confirmado no CT-e; sem ocorrência de entrega':'Destino não confirmado, conferir'});
    }
@@ -124,9 +128,8 @@ async function pesquisar(){
   }catch(e){warnings.push('Gmail: '+e.message)}
   const existentes=(typeof rastreamentosLogistica!=='undefined'&&Array.isArray(rastreamentosLogistica))?rastreamentosLogistica:[];
   for(const x of existentes.filter(v=>v.sentido==='entrada'&&(
-    (key&&dig(v.chave_nfe)===key)||(nf&&String(v.numero_nfe||'').replace(/^0+/,'')===nf.replace(/^0+/,''))||
-    (cte&&dig(v.numero_cte)===cte))).slice(0,6)){
-    found.push({...base,source:'Entrada já cadastrada',confirmed:false,nf:x.numero_nfe||nf,key:x.chave_nfe||key,
+    (key?dig(v.chave_nfe)===key:((nf&&String(v.numero_nfe||'').replace(/^0+/,'')===nf.replace(/^0+/,''))||(cte&&dig(v.numero_cte)===cte))))).slice(0,6)){
+    found.push({...base,source:'Entrada já cadastrada',existingId:x.id,confirmed:false,nf:x.numero_nfe||nf,key:x.chave_nfe||key,
      cte:x.numero_cte||cte,supplier:x.parceiro_nome||base.supplier,
      message:'Registro existente (ID '+x.id+'); evite duplicar.'});
   }
