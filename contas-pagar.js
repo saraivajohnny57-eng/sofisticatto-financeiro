@@ -50,11 +50,11 @@ async function groupReprocess(r){if(busy)return;busy=true;try{const all=await fu
 async function recoverPending(){
  if(busy)return;const targets=rows.filter(needsRecovery);if(!targets.length)return msg('Nenhum registro incompleto na lista carregada.');
  if(!confirm('Recuperar os dados de '+targets.length+' registro(s) incompletos, sem consultar novamente todos os e-mails?'))return;
- busy=true;let stopped=false,done=0,corrected=0,pending=0;
+ busy=true;let stopped=false,done=0,corrected=0,pending=0,partial=0,complete=0;
  const d=$('cpProgress'),p=el('progress'),info=el('p'),results=el('div'),stop=btn('Interromper',()=>{stopped=true;stop.disabled=true;});
  p.max=targets.length;p.value=0;d.replaceChildren(el('h2','Recuperação de boletos pendentes'),p,info,results,stop);d.oncancel=e=>{if(busy){e.preventDefault();stop.click()}};d.showModal();
- try{for(const x of targets){if(stopped)break;info.textContent='Recuperando '+(done+1)+'/'+targets.length+'...';try{const o=await request({acao:'ocr',id:x.id});corrected+=o.revisados||0;pending+=o.pendencias||0;results.append(el('p',(x.numero_documento||x.assunto||'Boleto')+': '+o.detalhe));}catch(e){pending++;results.append(el('p',(x.numero_documento||x.assunto||'Boleto')+': '+e.message))}p.value=++done;}
- await load();info.textContent=done+'/'+targets.length+' processados • '+corrected+' recuperados • '+pending+' pendências • '+(targets.length-done)+' não processados.';
+ try{for(const x of targets){if(stopped)break;info.textContent='Recuperando '+(done+1)+'/'+targets.length+'...';try{const o=await request({acao:'ocr',id:x.id});corrected+=o.revisados||0;pending+=o.pendencias||0;if(o.revisados&&o.pendencias)partial++;if(o.revisados&&!o.pendencias)complete++;results.append(el('p',(x.numero_documento||x.assunto||'Boleto')+': '+o.detalhe));}catch(e){pending++;results.append(el('p',(x.numero_documento||x.assunto||'Boleto')+': '+e.message))}p.value=++done;}
+ await load();info.textContent=done+'/'+targets.length+' processados • '+corrected+' com dados recuperados ('+complete+' completos, '+partial+' parciais) • '+pending+' ainda pendentes • '+(targets.length-done)+' não processados.';
  }finally{busy=false;stop.remove();d.oncancel=null;d.append(btn('Fechar',()=>d.close()))}
 }
 function render(){
