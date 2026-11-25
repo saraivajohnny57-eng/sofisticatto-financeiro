@@ -14,7 +14,7 @@ function status(r){if(r.status==='aberto'||r.status==='agendado'){if(r.venciment
 function safeName(s){return String(s||'boleto').replace(/[\\/:*?"<>|]/g,'_').slice(0,110)}
 function save(b,n){const url=URL.createObjectURL(b),a=el('a');a.href=url;a.download=n;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}
 async function blob(r,part){return request({acao:'baixar',id:r.id,parte:part||r.parte},true)}
-function name(r,part){const a=(r.anexos||[]).find(x=>x.parte===(part||r.parte));return safeName(a?.nome||'boleto.pdf')}
+function name(r,part){const a=(r.anexos||[]).find(x=>x.parte===(part||r.parte));const n=safeName(a?.nome||'boleto.pdf');return (!part||part===r.parte)&&r.pagina_pdf>0?n.replace(/\.pdf$/i,'_parcela_p'+r.pagina_pdf+'.pdf'):n}
 function action(fn){return async()=>{try{await fn()}catch(e){msg(e.message)}}}
 function render(){
  const term=$('cpBusca').value.toLowerCase().trim(),st=$('cpFiltro').value;
@@ -27,12 +27,13 @@ function render(){
  $('cpAviso').textContent=due.length||late.length?due.length+' vencem hoje e '+late.length+' estão vencidos no período carregado.':'Nenhum vencimento de hoje ou vencido nos boletos conferidos deste período.';
  const tb=$('cpRows');tb.replaceChildren();
  for(const r of filtered){
-  const tr=el('tr');for(const t of [r.beneficiario||'Beneficiário a conferir',r.documento||'—',money(r.valor_centavos),br(r.emissao),dt(r.recebido_em),br(r.vencimento),status(r),r.categoria||'—'])tr.append(el('td',t));
+  const tr=el('tr');for(const t of [r.beneficiario||'Beneficiário a conferir',r.documento||'—',r.numero_documento||'—',money(r.valor_centavos),br(r.emissao),dt(r.recebido_em),br(r.vencimento),status(r),r.categoria||'—'])tr.append(el('td',t));
   const docs=el('td'),ops=el('td');
   docs.append(btn('Baixar boleto',action(async()=>save(await blob(r),name(r)))));
   for(const a of r.anexos||[])if(a.parte!==r.parte)docs.append(btn('Baixar '+a.tipo,action(async()=>save(await blob(r,a.parte),name(r,a.parte)))));
   ops.append(btn('Imprimir',action(()=>printOne(r))),btn('E-mail / detalhes',()=>details(r)));
   if(!['pago_manual','cancelado'].includes(r.status))ops.append(btn('Conferir / editar',()=>edit(r)));
+ if(r.status==='conferencia'&&!String(r.fonte_dados||'').startsWith('Conferência manual'))ops.append(btn('Reprocessar PDF',action(async()=>{msg('Lendo novamente o PDF original...');const d=await request({acao:'reprocessar',id:r.id});await load();msg('Releitura: '+d.revisados+' corrigido(s), '+d.registrados+' novo(s), '+d.duplicados+' preservado(s), '+d.erros+' erro(s). '+(d.detalhe||''));})));
   if(['aberto','agendado'].includes(r.status))ops.append(btn('Marcar como pago',()=>paid(r),'btn verde'));
   if(r.status==='aberto')ops.append(btn('Marcar agendado',action(async()=>{if(confirm('Registrar como agendado? Isto não agenda no banco.')){await request({acao:'alterar',id:r.id,operacao:'agendar'});await load()}})));
   tr.append(docs,ops);tb.append(tr);
@@ -41,7 +42,7 @@ function render(){
 }
 async function load(more=false){const d=await request({acao:'listar',...range(),offset:more?offset:0});if(!more)rows=[];rows.push(...d.itens);offset=rows.length;$('cpMais').hidden=!d.mais;render()}
 async function scan(more=false){if(busy)return;busy=true;$('cpBuscar').disabled=true;$('cpContinuar').disabled=true;
- try{msg('Buscando PDFs no Gmail em somente leitura...');const d=await request({acao:'buscar',...range(),antes_uid:more?cursor:0});cursor=d.proximo;$('cpContinuar').hidden=!cursor;msg('Mensagens processadas: '+d.processados+' / '+d.total+' · Novos: '+d.registrados+' · Duplicados: '+d.duplicados+' · Em conferência: '+d.conferencia+' · Erros: '+d.erros+(d.parcial?' · Busca parcial; use Continuar pesquisa.':''));await load()}
+ try{msg('Buscando PDFs no Gmail em somente leitura...');const d=await request({acao:'buscar',...range(),antes_uid:more?cursor:0});cursor=d.proximo;$('cpContinuar').hidden=!cursor;msg('Mensagens processadas: '+d.processados+' / '+d.total+' · Novos: '+d.registrados+' · Duplicados: '+d.duplicados+' · Corrigidos: '+(d.revisados||0)+' · Em conferência: '+d.conferencia+' · Erros: '+d.erros+(d.parcial?' · Busca parcial; use Continuar pesquisa.':''));await load()}
  finally{busy=false;$('cpBuscar').disabled=false;$('cpContinuar').disabled=false}
 }
 function details(r){const d=$('cpDialog');d.replaceChildren(el('h2','Documento recebido'),el('p','Assunto: '+r.assunto),el('p','Remetente: '+r.remetente),el('p','Recebido em: '+dt(r.recebido_em)),el('p','Linha digitável: '+(r.linha_digitavel||'Não validada')),el('p',r.observacao||''));
@@ -58,7 +59,22 @@ function form(r,paying){const d=$('cpDialog');d.replaceChildren(el('h2',paying?'
  try{await request(b);d.close();await load();msg('Registro atualizado. Nenhuma transação bancária realizada.')}catch(e){out.textContent=e.message}
  },'btn verde'),btn('Cancelar',()=>d.close()));d.showModal()}
 const edit=r=>form(r,false),paid=r=>form(r,true);
-async function printOne(r){const w=window.open('','_blank');if(!w)throw Error('Permita pop-ups para imprimir.');try{w.location.href=URL.createObjectURL(new Blob([await blob(r)],{type:'application/pdf'}));msg('PDF aberto. Use Ctrl+P para imprimir.')}catch(e){w.close();throw e}}
+let activePreview=null;
+function previewPdf(file,filename){
+ if(activePreview)activePreview();
+ const url=URL.createObjectURL(new Blob([file],{type:'application/pdf'})),modal=el('dialog');
+ modal.style.cssText='width:min(1120px,96vw);height:92vh;max-width:96vw;max-height:92vh;padding:0;border:1px solid #d4c8e8;border-radius:14px;overflow:hidden;background:white;color:#302653';
+ const panel=el('section');panel.style.cssText='height:100%;display:flex;flex-direction:column';
+ const header=el('header');header.style.cssText='display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px;background:#f4effa;border-bottom:1px solid #ded4ee';
+ const title=el('strong',filename);title.style.flex='1';
+ const frame=el('iframe');frame.title='Prévia do boleto original';frame.style.cssText='width:100%;flex:1;border:0;background:#eee';frame.src=url;
+ let closed=false;const close=()=>{if(closed)return;closed=true;modal.close();modal.remove();URL.revokeObjectURL(url);if(activePreview===close)activePreview=null};
+ modal.addEventListener('cancel',e=>{e.preventDefault();close()});
+ header.append(title,btn('Imprimir',()=>{try{frame.contentWindow.focus();frame.contentWindow.print()}catch{msg('Use o ícone de impressão no visualizador do PDF.')}},'btn verde'),btn('Baixar PDF',()=>save(file,filename)),btn('Fechar',close));
+ const note=el('small','Prévia interna • PDF preservado • Confira o tamanho real na impressão.');note.style.cssText='padding:6px 12px;color:#665577';
+ panel.append(header,note,frame);modal.append(panel);document.body.append(modal);modal.showModal();activePreview=close;
+}
+async function printOne(r){msg('Carregando prévia interna...');const b=await blob(r);previewPdf(b,name(r));msg('Prévia interna pronta.');}
 function crc(b){let c=0xffffffff;for(const x of b){c^=x;for(let j=0;j<8;j++)c=(c>>>1)^((c&1)?0xedb88320:0)}return (c^0xffffffff)>>>0}
 function zip(files){const parts=[],central=[];let off=0,cd=0;const enc=new TextEncoder();
  for(const f of files){const n=enc.encode(f.name),b=f.data,h=new Uint8Array(30+n.length),v=new DataView(h.buffer),z=new Uint8Array(46+n.length),w=new DataView(z.buffer);const sum=crc(b);v.setUint32(0,0x04034b50,true);v.setUint16(4,20,true);v.setUint16(6,2048,true);v.setUint32(14,sum,true);v.setUint32(18,b.length,true);v.setUint32(22,b.length,true);v.setUint16(26,n.length,true);h.set(n,30);w.setUint32(0,0x02014b50,true);w.setUint16(4,20,true);w.setUint16(6,20,true);w.setUint16(8,2048,true);w.setUint32(16,sum,true);w.setUint32(20,b.length,true);w.setUint32(24,b.length,true);w.setUint16(28,n.length,true);w.setUint32(42,off,true);z.set(n,46);parts.push(h,b);central.push(z);off+=h.length+b.length;cd+=z.length}
@@ -69,12 +85,12 @@ async function batch(print=false){if(busy)return;const list=filtered.slice();if(
  try{for(const r of list){try{const b=await blob(r);files.push({name:(files.length+1)+'_'+name(r),data:new Uint8Array(await b.arrayBuffer())});ok++}catch(e){fail++;errors.append(el('p',(r.beneficiario||r.assunto||r.id)+': '+e.message))}p.value++;update()}
  if(files.length){if(print){
  // Impressão em lote sem alegar confirmação física: cada PDF é aberto por clique explícito.
- const label=el('p','PDFs preparados. Abra cada documento e use Ctrl+P; o navegador não confirma impressão física.');d.append(label);
- for(const f of files)d.append(btn('Abrir '+f.name,()=>{const w=window.open('','_blank');if(w)w.location.href=URL.createObjectURL(new Blob([f.data],{type:'application/pdf'}));else msg('Permita pop-ups.')}));}
+ const label=el('p','PDFs preparados. Visualize cada documento no balão interno e clique em Imprimir; a impressão física não é confirmada pelo navegador.');d.append(label);
+ for(const f of files)d.append(btn('Visualizar '+f.name,()=>previewPdf(new Blob([f.data],{type:'application/pdf'}),f.name)));}
  else{save(zip(files),'boletos_'+today()+'.zip');d.append(el('p','ZIP preparado. Confirme o download no navegador.'));}}
  }finally{busy=false;d.append(btn('Fechar',()=>d.close()))}}
 function mount(){if(ready)return;ready=true;
- const root=$('contasPagar');root.innerHTML='<div class="card cpRoot"><h1>Contas a pagar</h1><p>Boletos recebidos no Gmail · controle financeiro · sem débito automático</p><div id="cpMetrics" class="cpMetrics"></div><p id="cpAviso" class="cpAviso"></p><div class="cpTools"><label>Recebido de<input type="date" id="cpInicio"></label><label>Até<input type="date" id="cpFim"></label><label>Pesquisar<input id="cpBusca" placeholder="Beneficiário, CNPJ, e-mail"></label><label>Situação<select id="cpFiltro"><option value="">Todas</option><option>Em conferência</option><option>A vencer</option><option>Vence hoje</option><option>Vencido</option><option>Agendado</option><option>Pago manualmente</option><option>Cancelado</option></select></label></div><div class="cpActions"><button class="btn azul" id="cpLoad">Atualizar lista</button><button class="btn verde" id="cpBuscar">Buscar boletos no Gmail</button><button class="btn azul" id="cpContinuar" hidden>Continuar pesquisa</button><button class="btn azul" id="cpDda">Consultar disponibilidade DDA</button><button class="btn verde" id="cpZip">Baixar todos os boletos por filtro</button><button class="btn azul" id="cpPrint">Preparar impressão por filtro</button></div><p id="cpStatus" role="status" aria-live="polite"></p><p id="cpCount"></p><div class="cpScroll"><table><thead><tr><th>Beneficiário</th><th>CPF/CNPJ</th><th>Valor</th><th>Emissão</th><th>Recebimento</th><th>Vencimento</th><th>Status</th><th>Categoria</th><th>Documentos</th><th>Ações</th></tr></thead><tbody id="cpRows"></tbody></table></div><button class="btn azul" id="cpMais" hidden>Carregar mais registros</button><dialog id="cpDialog"></dialog><dialog id="cpProgress"></dialog></div>';
+ const root=$('contasPagar');root.innerHTML='<div class="card cpRoot"><h1>Contas a pagar</h1><p>Boletos recebidos no Gmail · controle financeiro · sem débito automático</p><div id="cpMetrics" class="cpMetrics"></div><p id="cpAviso" class="cpAviso"></p><div class="cpTools"><label>Recebido de<input type="date" id="cpInicio"></label><label>Até<input type="date" id="cpFim"></label><label>Pesquisar<input id="cpBusca" placeholder="Beneficiário, CNPJ, e-mail"></label><label>Situação<select id="cpFiltro"><option value="">Todas</option><option>Em conferência</option><option>A vencer</option><option>Vence hoje</option><option>Vencido</option><option>Agendado</option><option>Pago manualmente</option><option>Cancelado</option></select></label></div><div class="cpActions"><button class="btn azul" id="cpLoad">Atualizar lista</button><button class="btn verde" id="cpBuscar">Buscar boletos no Gmail</button><button class="btn azul" id="cpContinuar" hidden>Continuar pesquisa</button><button class="btn azul" id="cpDda">Consultar disponibilidade DDA</button><button class="btn verde" id="cpZip">Baixar todos os boletos por filtro</button><button class="btn azul" id="cpPrint">Preparar impressão por filtro</button></div><p id="cpStatus" role="status" aria-live="polite"></p><p id="cpCount"></p><div class="cpScroll"><table><thead><tr><th>Beneficiário</th><th>CPF/CNPJ</th><th>Documento</th><th>Valor</th><th>Emissão</th><th>Recebimento</th><th>Vencimento</th><th>Status</th><th>Categoria</th><th>Documentos</th><th>Ações</th></tr></thead><tbody id="cpRows"></tbody></table></div><button class="btn azul" id="cpMais" hidden>Carregar mais registros</button><dialog id="cpDialog"></dialog><dialog id="cpProgress"></dialog></div>';
  const style=el('style');style.textContent='#contasPagar .cpMetrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:15px 0}.cpMetric{background:#f3eff9;border:1px solid #ded5ed;border-radius:10px;padding:14px;display:grid;gap:5px;color:#4d3b84}.cpMetric strong{font-size:19px}.cpTools,.cpActions{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0;align-items:end}.cpTools label{display:grid;gap:5px;font-size:12px;min-width:140px}.cpTools input,.cpTools select{padding:8px;border:1px solid #d6cce8;border-radius:7px}.cpScroll{overflow:auto}.cpScroll table{min-width:1050px;width:100%;border-collapse:collapse}.cpScroll td,.cpScroll th{padding:9px;border-bottom:1px solid #eee;vertical-align:top;text-align:left;font-size:12px}.cpScroll td button{display:block;margin:3px 0;font-size:11px;white-space:nowrap}.cpAviso{background:#fff6e2;color:#76520f;padding:10px;border-radius:8px}.cpRoot dialog{max-width:min(620px,90vw);max-height:85vh;overflow:auto;border:1px solid #d6cce8;border-radius:12px;padding:20px}.cpRoot dialog label{display:block;margin:8px 0}.cpRoot dialog input:not([type=checkbox]){display:block;width:100%;box-sizing:border-box;padding:7px}.cpRoot dialog button{margin:5px}.cpRoot progress{width:100%}.cpRoot [hidden]{display:none!important}';document.head.append(style);
  $('cpFim').value=today();$('cpInicio').value=today().slice(0,8)+'01';
  $('cpLoad').onclick=action(()=>load());$('cpBuscar').onclick=action(()=>scan());$('cpContinuar').onclick=action(()=>scan(true));$('cpMais').onclick=action(()=>load(true));
