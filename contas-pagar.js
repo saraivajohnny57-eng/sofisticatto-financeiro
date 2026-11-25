@@ -95,6 +95,16 @@ function render(){
  }
  $('cpCount').textContent=filtered.length+' de '+rows.length+' boletos carregados • '+groups(filtered).length+' e-mail(s) no filtro. As ações de grupo consultam todos os registros cadastrados do e-mail.';
 }
+async function loadAllForRecovery(){
+ const all=[];let offset=0;
+ for(;;){
+  const page=await request({acao:'listar',...range(),offset});
+  all.push(...page.itens);if(!page.mais)break;
+  if(!page.itens.length||offset+page.itens.length>10000)throw Error('Limite de registros do período; reduza o intervalo.');
+  offset+=page.itens.length;
+ }
+ rows=all;offset=all.length;$('cpMais').hidden=true;render();return all;
+}
 async function load(more=false){const d=await request({acao:'listar',...range(),offset:more?offset:0});if(!more)rows=[];rows.push(...d.itens);offset=rows.length;$('cpMais').hidden=!d.mais;render()}
 function emptySearchStats(){return {processados:0,total:0,registrados:0,duplicados:0,revisados:0,conferencia:0,erros:0,pdfs_lidos:0,reenvios:0,possiveis_substituicoes:0,pendencias:0,ocr:0,ocr_corrigidos:0,ocr_pendencias:0,lotes:0,motivos:{}}}
 function addSearchStats(stats,d){
@@ -113,7 +123,7 @@ async function scan(more=false){
  busy=true;let stop=false,finished=false,problem='',stalled=0;
  const d=$('cpSearchProgress'),title=el('h2','Pesquisa de boletos no Gmail'),period=el('p','Recebimento: '+br(scanRange.inicio)+' a '+br(scanRange.fim)),stage=el('p','Conectando ao Gmail e identificando mensagens...'),p=el('progress');p.max=100;p.removeAttribute('value');p.setAttribute('aria-label','Progresso da pesquisa');
  const pct=el('strong','Localizando mensagens...'),grid=el('div');grid.className='cpSearchMetrics';
- const counters={};for(const [k,label] of [['processados','Mensagens examinadas'],['pdfs_lidos','PDFs lidos'],['registrados','Boletos novos'],['duplicados','Duplicados'],['revisados','Corrigidos'],['conferencia','Novos em conferência'],['erros','Erros'],['reenvios','Reenvios vinculados'],['possiveis_substituicoes','Possíveis substituições'],['pendencias','PDFs a conferir'],['ocr','OCR executado'],['ocr_corrigidos','Corrigidos por OCR'],['ocr_pendencias','Pendências OCR'],['lotes','Lotes concluídos']]){
+ const counters={};for(const [k,label] of [['processados','Mensagens examinadas'],['pdfs_lidos','PDFs lidos'],['registrados','Boletos novos'],['duplicados','Duplicados'],['revisados','Corrigidos'],['conferencia','Novos em conferência'],['erros','Erros'],['reenvios','Reenvios vinculados'],['possiveis_substituicoes','Possíveis substituições'],['pendencias','PDFs sinalizados na leitura inicial'],['ocr','OCR executado'],['ocr_corrigidos','Registros recuperados'],['ocr_pendencias','Registros ainda incompletos'],['lotes','Lotes concluídos']]){
   const c=el('div'),v=el('strong','0');c.className='cpMetric';c.append(el('small',label),v);grid.append(c);counters[k]=v;
  }
  const causes=el('div');causes.className='cpSearchErrors';
@@ -149,14 +159,14 @@ async function scan(more=false){
  finally{
   // The modal remains visible until the user closes it. Refresh the list only once.
   stage.textContent='Atualizando a lista de boletos...';
-  try{await load();if(finished&&!stop){const candidates=rows.filter(x=>needsRecovery(x));const targets=candidates.slice(0,20);let attemptedRecovery=0;for(const [i,x] of targets.entries()){if(stop)break;attemptedRecovery++;stage.textContent='Recuperação: documento '+(i+1)+'/'+targets.length;try{const r=await request({acao:'ocr',id:x.id});scanStats.ocr+=r.ocr||0;scanStats.ocr_corrigidos+=r.revisados||0;scanStats.ocr_pendencias+=r.pendencias||0;if(r.pendencias){const k=r.detalhe||'Recuperação incompleta';scanStats.motivos[k]=(scanStats.motivos[k]||0)+1;}}catch(e){scanStats.ocr_pendencias++;const k='Recuperação: '+e.message;scanStats.motivos[k]=(scanStats.motivos[k]||0)+1;}show(true)}if(candidates.length>20||stop)scanStats.ocr_pendencias+=candidates.length-attemptedRecovery;if(targets.length)await load()}}catch(e){problem+=(problem?' • ':'')+'Não foi possível atualizar a lista: '+e.message}
+  try{if(finished&&!stop){await loadAllForRecovery();const candidates=rows.filter(x=>needsRecovery(x));const targets=candidates;let attemptedRecovery=0;for(const [i,x] of targets.entries()){if(stop)break;attemptedRecovery++;stage.textContent='Reconhecimento automático (PDF, OCR e código de barras): '+(i+1)+'/'+targets.length;try{const r=await request({acao:'ocr',id:x.id});scanStats.ocr+=r.ocr||0;scanStats.ocr_corrigidos+=r.revisados||0;scanStats.ocr_pendencias+=r.pendencias||0;if(r.pendencias){const k=r.detalhe||'Recuperação incompleta';scanStats.motivos[k]=(scanStats.motivos[k]||0)+1;}}catch(e){scanStats.ocr_pendencias++;const k='Recuperação: '+e.message;scanStats.motivos[k]=(scanStats.motivos[k]||0)+1;}show(true);p.value=Math.round(attemptedRecovery*100/Math.max(1,targets.length));pct.textContent=p.value+'% • '+attemptedRecovery+'/'+targets.length+' registros analisados na recuperação'}if(stop)scanStats.ocr_pendencias+=candidates.length-attemptedRecovery;if(targets.length)await loadAllForRecovery();scanStats.ocr_pendencias=rows.filter(needsRecovery).length;}else await load()}catch(e){problem+=(problem?' • ':'')+'Não foi possível atualizar a lista: '+e.message}
   busy=false;for(const id of ['cpBuscar','cpContinuar','cpInicio','cpFim','cpLoad','cpMais'])$(id).disabled=false;
   $('cpContinuar').hidden=!cursor;cancel.hidden=true;close.hidden=false;
   show(finished);
   if(problem)stage.textContent='Pesquisa interrompida: '+problem;
-  else if(finished)stage.textContent=(scanStats.erros||scanStats.pendencias||scanStats.ocr_pendencias)?'Pesquisa concluída com pendências de leitura.':'Pesquisa concluída.';
+  else if(finished)stage.textContent=(scanStats.erros||scanStats.ocr_pendencias||stop)?'Pesquisa concluída com pendências de leitura.':'Pesquisa concluída.';
   else stage.textContent='Pesquisa interrompida pelo usuário. Resultados já registrados foram preservados.';
-  foot.textContent=finished?((scanStats.erros||scanStats.pendencias||scanStats.ocr_pendencias)?'As pendências indicadas precisam de conferência. 100% significa mensagens examinadas, não todos os boletos reconhecidos.':'Resultados importados estão disponíveis na lista. Nenhum pagamento foi efetuado.'):(cursor?'Clique em Continuar pesquisa para retomar do último ponto nesta sessão.':'Clique em Buscar boletos no Gmail para iniciar novamente.');
+  foot.textContent=finished?((scanStats.erros||scanStats.ocr_pendencias||stop)?'As pendências indicadas precisam de conferência. 100% significa mensagens examinadas, não todos os boletos reconhecidos.':'Resultados importados estão disponíveis na lista. Nenhum pagamento foi efetuado.'):(cursor?'Clique em Continuar pesquisa para retomar do último ponto nesta sessão.':'Clique em Buscar boletos no Gmail para iniciar novamente.');
   msg(searchSummary(scanStats)+(finished?' · Pesquisa concluída'+(scanStats.erros?' com pendências.':'.'):' · Pesquisa parcial.')+(problem?' '+problem:''));
  }
 }
