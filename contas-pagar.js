@@ -16,6 +16,31 @@ function save(b,n){const url=URL.createObjectURL(b),a=el('a');a.href=url;a.downl
 async function blob(r,part){return request({acao:'baixar',id:r.id,parte:part||r.parte},true)}
 function name(r,part){const a=(r.anexos||[]).find(x=>x.parte===(part||r.parte));const n=safeName(a?.nome||'boleto.pdf');return (!part||part===r.parte)&&r.pagina_pdf>0?n.replace(/\.pdf$/i,'_parcela_p'+r.pagina_pdf+'.pdf'):n}
 function action(fn){return async()=>{try{await fn()}catch(e){msg(e.message)}}}
+function groupKey(r){return JSON.stringify([r.conta_email,r.caixa,r.uidvalidity,String(r.uid)])}
+function orderGroup(a,b){return String(a.vencimento||'9999').localeCompare(String(b.vencimento||'9999'))||String(a.numero_documento||'').localeCompare(String(b.numero_documento||''))||Number(a.pagina_pdf)-Number(b.pagina_pdf)||String(a.id).localeCompare(String(b.id))}
+function groups(rs){const m=new Map();for(const r of rs){const k=groupKey(r);if(!m.has(k))m.set(k,[]);m.get(k).push(r)}return [...m.values()].map(x=>x.sort(orderGroup))}
+function fmtDoc(v){const d=String(v||'').replace(/\D/g,'');return d.length===14?d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):d.length===11?d.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/,'$1.$2.$3-$4'):(v||'—')}
+async function fullGroup(r){return (await request({acao:'grupo',id:r.id})).itens}
+function groupName(rs){return safeName((rs[0].beneficiario||'boletos').slice(0,55)+'_'+String(rs[0].uid)+'_'+rs.length+'-boletos.pdf')}
+async function groupAction(r,print){if(busy)return;busy=true;
+ try{const all=await fullGroup(r);if(!confirm((print?'Imprimir':'Baixar')+' todos os '+all.length+' registro(s) cadastrados deste e-mail, inclusive os que não aparecem no filtro?'))return;
+ msg('Preparando PDF conjunto de '+all.length+' boleto(s)...');const b=await request({acao:'pdf-grupo',id:r.id,ids:all.map(x=>x.id)},true);
+ if(print)previewPdf(b,groupName(all));else save(b,groupName(all));msg('PDF conjunto preparado: '+all.length+' boleto(s).');
+ }finally{busy=false}}
+async function groupDialog(r,editing=false){const all=await fullGroup(r),d=$('cpDialog');d.replaceChildren(el('h2',editing?'Conferir / editar boletos do e-mail':'E-mail / detalhes'),el('p','Assunto: '+r.assunto),el('p','Remetente: '+r.remetente),el('p','Recebido em: '+dt(r.recebido_em)),el('p',all.length+' boleto(s) cadastrados neste e-mail.'));
+ for(const [i,x] of all.entries()){const card=el('div');card.className='cpGroupDetail';card.append(el('strong','Boleto '+(i+1)+' • '+(x.numero_documento||'—')),el('p',br(x.vencimento)+' · '+money(x.valor_centavos)+' · '+status(x)),el('p','Linha digitável: '+(x.linha_digitavel||'Não validada')),el('p',x.observacao||''));
+ if(x.linha_digitavel)card.append(btn('Copiar linha digitável',action(()=>navigator.clipboard.writeText(x.linha_digitavel))));
+ if(!['pago_manual','cancelado'].includes(x.status))card.append(btn('Conferir / editar',()=>{d.close();edit(x)}));
+ if(['aberto','agendado'].includes(x.status))card.append(btn('Marcar como pago',()=>{d.close();paid(x)},'btn verde'));
+ if(x.status==='aberto')card.append(btn('Marcar agendado',action(async()=>{if(confirm('Registrar como agendado? Isto não agenda no banco.')){await request({acao:'alterar',id:x.id,operacao:'agendar'});d.close();await load()}})));
+ card.append(btn('Imprimir',action(()=>printOne(x))));d.append(card)}
+ d.append(btn('Fechar',()=>d.close()));d.showModal()}
+async function groupReprocess(r){if(busy)return;busy=true;try{const all=await fullGroup(r),seen=new Set(),targets=all.filter(x=>{const k=x.arquivo_hash+'|'+x.parte;if(x.status!=='conferencia'||String(x.fonte_dados||'').startsWith('Conferência manual')||seen.has(k))return false;seen.add(k);return true});if(!targets.length){msg('Nenhum PDF pendente de releitura.');return}
+ let revised=0,added=0,fail=0;
+ for(const [i,x] of targets.entries()){msg('Reprocessando PDF '+(i+1)+'/'+targets.length+'...');try{const d=await request({acao:'reprocessar',id:x.id});revised+=d.revisados||0;added+=d.registrados||0;fail+=d.erros||0}catch{fail++}}
+ await load();msg('Releitura concluída: '+revised+' corrigido(s), '+added+' novo(s), '+fail+' erro(s). Registros conferidos preservados.');
+ }finally{busy=false}}
+
 function render(){
  const term=$('cpBusca').value.toLowerCase().trim(),st=$('cpFiltro').value;
  filtered=rows.filter(r=>(!term||[r.beneficiario,r.documento,r.assunto,r.remetente,r.linha_digitavel].join(' ').toLowerCase().includes(term))&&(!st||status(r)===st));
@@ -26,19 +51,29 @@ function render(){
  $('cpBadge').textContent=due.length?' ('+due.length+')':'';
  $('cpAviso').textContent=due.length||late.length?due.length+' vencem hoje e '+late.length+' estão vencidos no período carregado.':'Nenhum vencimento de hoje ou vencido nos boletos conferidos deste período.';
  const tb=$('cpRows');tb.replaceChildren();
- for(const r of filtered){
-  const tr=el('tr');for(const t of [r.beneficiario||'Beneficiário a conferir',r.documento||'—',r.numero_documento||'—',money(r.valor_centavos),br(r.emissao),dt(r.recebido_em),br(r.vencimento),status(r),r.categoria||'—'])tr.append(el('td',t));
-  const docs=el('td'),ops=el('td');
-  docs.append(btn('Baixar boleto',action(async()=>save(await blob(r),name(r)))));
-  for(const a of r.anexos||[])if(a.parte!==r.parte)docs.append(btn('Baixar '+a.tipo,action(async()=>save(await blob(r,a.parte),name(r,a.parte)))));
-  ops.append(btn('Imprimir',action(()=>printOne(r))),btn('E-mail / detalhes',()=>details(r)));
-  if(!['pago_manual','cancelado'].includes(r.status))ops.append(btn('Conferir / editar',()=>edit(r)));
- if(r.status==='conferencia'&&!String(r.fonte_dados||'').startsWith('Conferência manual'))ops.append(btn('Reprocessar PDF',action(async()=>{msg('Lendo novamente o PDF original...');const d=await request({acao:'reprocessar',id:r.id});await load();msg('Releitura: '+d.revisados+' corrigido(s), '+d.registrados+' novo(s), '+d.duplicados+' preservado(s), '+d.erros+' erro(s). '+(d.detalhe||''));})));
-  if(['aberto','agendado'].includes(r.status))ops.append(btn('Marcar como pago',()=>paid(r),'btn verde'));
-  if(r.status==='aberto')ops.append(btn('Marcar agendado',action(async()=>{if(confirm('Registrar como agendado? Isto não agenda no banco.')){await request({acao:'alterar',id:r.id,operacao:'agendar'});await load()}})));
-  tr.append(docs,ops);tb.append(tr);
+ const allGroups=new Map(groups(rows).map(g=>[groupKey(g[0]),g]));
+ for(const group of groups(filtered)){
+  const all=allGroups.get(groupKey(group[0]))||group,first=group[0],names=[...new Set(all.map(x=>x.beneficiario).filter(Boolean))],docs=[...new Set(all.map(x=>x.documento).filter(Boolean))];
+  const shared=el('td');shared.rowSpan=group.length;shared.className='cpShared';
+  shared.append(el('strong',names.join(' / ')||'Beneficiário a conferir'),el('small',docs.map(fmtDoc).join(' / ')||'CPF/CNPJ a conferir'),el('small','Recebido: '+dt(first.recebido_em)),el('small',all.length+' boleto(s) carregado(s)'+(group.length!==all.length?' • '+group.length+' no filtro':'')),el('small','Total carregado: '+money(total(all))),el('small',first.assunto||''));
+  const actions=el('td');actions.rowSpan=group.length;actions.className='cpShared cpGroupActions';
+  actions.append(btn('Imprimir todos',action(()=>groupAction(first,true)),'btn verde'),btn('Baixar todos (PDF)',action(()=>groupAction(first,false))),btn('E-mail / detalhes',action(()=>groupDialog(first))),btn('Conferir / editar',action(()=>groupDialog(first,true))));
+  if(all.some(x=>x.status==='conferencia'&&!String(x.fonte_dados||'').startsWith('Conferência manual')))actions.append(btn('Reprocessar PDF',action(()=>groupReprocess(first))));
+  const primary=new Set(all.map(x=>String(x.parte))),parts=new Map();
+  for(const r of all)for(const d of r.anexos||[])if(!primary.has(String(d.parte))&&!parts.has(String(d.parte)))parts.set(String(d.parte),{r,d});
+  for(const {r,d} of parts.values())actions.append(btn('Baixar '+d.tipo,action(async()=>save(await blob(r,d.parte),name(r,d.parte)))));
+  for(const [i,r] of group.entries()){
+   const tr=el('tr');if(i===0)tr.className='cpGroupStart';
+   if(i===0)tr.append(shared);
+   const n=all.findIndex(x=>x.id===r.id)+1;
+   for(const t of ['Boleto '+n+(r.numero_documento?' • '+r.numero_documento:''),money(r.valor_centavos),br(r.emissao),br(r.vencimento),status(r),r.categoria||'—'])tr.append(el('td',t));
+   const dc=el('td');dc.className='cpIndividual';
+   dc.append(btn('Imprimir boleto '+n,action(()=>printOne(r))),btn('Baixar boleto '+n,action(async()=>save(await blob(r),name(r)))));
+   if(['aberto','agendado'].includes(r.status))dc.append(btn('Marcar como pago',()=>paid(r),'btn verde'));
+   tr.append(dc);if(i===0)tr.append(actions);tb.append(tr)
+  }
  }
- $('cpCount').textContent=filtered.length+' de '+rows.length+' registros carregados. Totais referem-se apenas ao período e aos registros carregados.';
+ $('cpCount').textContent=filtered.length+' de '+rows.length+' boletos carregados • '+groups(filtered).length+' e-mail(s) no filtro. As ações de grupo consultam todos os registros cadastrados do e-mail.';
 }
 async function load(more=false){const d=await request({acao:'listar',...range(),offset:more?offset:0});if(!more)rows=[];rows.push(...d.itens);offset=rows.length;$('cpMais').hidden=!d.mais;render()}
 async function scan(more=false){if(busy)return;busy=true;$('cpBuscar').disabled=true;$('cpContinuar').disabled=true;
@@ -90,8 +125,8 @@ async function batch(print=false){if(busy)return;const list=filtered.slice();if(
  else{save(zip(files),'boletos_'+today()+'.zip');d.append(el('p','ZIP preparado. Confirme o download no navegador.'));}}
  }finally{busy=false;d.append(btn('Fechar',()=>d.close()))}}
 function mount(){if(ready)return;ready=true;
- const root=$('contasPagar');root.innerHTML='<div class="card cpRoot"><h1>Contas a pagar</h1><p>Boletos recebidos no Gmail · controle financeiro · sem débito automático</p><div id="cpMetrics" class="cpMetrics"></div><p id="cpAviso" class="cpAviso"></p><div class="cpTools"><label>Recebido de<input type="date" id="cpInicio"></label><label>Até<input type="date" id="cpFim"></label><label>Pesquisar<input id="cpBusca" placeholder="Beneficiário, CNPJ, e-mail"></label><label>Situação<select id="cpFiltro"><option value="">Todas</option><option>Em conferência</option><option>A vencer</option><option>Vence hoje</option><option>Vencido</option><option>Agendado</option><option>Pago manualmente</option><option>Cancelado</option></select></label></div><div class="cpActions"><button class="btn azul" id="cpLoad">Atualizar lista</button><button class="btn verde" id="cpBuscar">Buscar boletos no Gmail</button><button class="btn azul" id="cpContinuar" hidden>Continuar pesquisa</button><button class="btn azul" id="cpDda">Consultar disponibilidade DDA</button><button class="btn verde" id="cpZip">Baixar todos os boletos por filtro</button><button class="btn azul" id="cpPrint">Preparar impressão por filtro</button></div><p id="cpStatus" role="status" aria-live="polite"></p><p id="cpCount"></p><div class="cpScroll"><table><thead><tr><th>Beneficiário</th><th>CPF/CNPJ</th><th>Documento</th><th>Valor</th><th>Emissão</th><th>Recebimento</th><th>Vencimento</th><th>Status</th><th>Categoria</th><th>Documentos</th><th>Ações</th></tr></thead><tbody id="cpRows"></tbody></table></div><button class="btn azul" id="cpMais" hidden>Carregar mais registros</button><dialog id="cpDialog"></dialog><dialog id="cpProgress"></dialog></div>';
- const style=el('style');style.textContent='#contasPagar .cpMetrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:15px 0}.cpMetric{background:#f3eff9;border:1px solid #ded5ed;border-radius:10px;padding:14px;display:grid;gap:5px;color:#4d3b84}.cpMetric strong{font-size:19px}.cpTools,.cpActions{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0;align-items:end}.cpTools label{display:grid;gap:5px;font-size:12px;min-width:140px}.cpTools input,.cpTools select{padding:8px;border:1px solid #d6cce8;border-radius:7px}.cpScroll{overflow:auto}.cpScroll table{min-width:1050px;width:100%;border-collapse:collapse}.cpScroll td,.cpScroll th{padding:9px;border-bottom:1px solid #eee;vertical-align:top;text-align:left;font-size:12px}.cpScroll td button{display:block;margin:3px 0;font-size:11px;white-space:nowrap}.cpAviso{background:#fff6e2;color:#76520f;padding:10px;border-radius:8px}.cpRoot dialog{max-width:min(620px,90vw);max-height:85vh;overflow:auto;border:1px solid #d6cce8;border-radius:12px;padding:20px}.cpRoot dialog label{display:block;margin:8px 0}.cpRoot dialog input:not([type=checkbox]){display:block;width:100%;box-sizing:border-box;padding:7px}.cpRoot dialog button{margin:5px}.cpRoot progress{width:100%}.cpRoot [hidden]{display:none!important}';document.head.append(style);
+ const root=$('contasPagar');root.innerHTML='<div class="card cpRoot"><h1>Contas a pagar</h1><p>Boletos recebidos no Gmail · controle financeiro · sem débito automático</p><div id="cpMetrics" class="cpMetrics"></div><p id="cpAviso" class="cpAviso"></p><div class="cpTools"><label>Recebido de<input type="date" id="cpInicio"></label><label>Até<input type="date" id="cpFim"></label><label>Pesquisar<input id="cpBusca" placeholder="Beneficiário, CNPJ, e-mail"></label><label>Situação<select id="cpFiltro"><option value="">Todas</option><option>Em conferência</option><option>A vencer</option><option>Vence hoje</option><option>Vencido</option><option>Agendado</option><option>Pago manualmente</option><option>Cancelado</option></select></label></div><div class="cpActions"><button class="btn azul" id="cpLoad">Atualizar lista</button><button class="btn verde" id="cpBuscar">Buscar boletos no Gmail</button><button class="btn azul" id="cpContinuar" hidden>Continuar pesquisa</button><button class="btn azul" id="cpDda">Consultar disponibilidade DDA</button><button class="btn verde" id="cpZip">Baixar todos os boletos por filtro</button><button class="btn azul" id="cpPrint">Preparar impressão por filtro</button></div><p id="cpStatus" role="status" aria-live="polite"></p><p id="cpCount"></p><div class="cpScroll"><table><thead><tr><th>Beneficiário / e-mail</th><th>Parcela / documento</th><th>Valor</th><th>Emissão</th><th>Vencimento</th><th>Status</th><th>Categoria</th><th>Ações individuais</th><th>Ações do e-mail</th></tr></thead><tbody id="cpRows"></tbody></table></div><button class="btn azul" id="cpMais" hidden>Carregar mais registros</button><dialog id="cpDialog"></dialog><dialog id="cpProgress"></dialog></div>';
+ const style=el('style');style.textContent='#contasPagar .cpMetrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:15px 0}.cpMetric{background:#f3eff9;border:1px solid #ded5ed;border-radius:10px;padding:14px;display:grid;gap:5px;color:#4d3b84}.cpMetric strong{font-size:19px}.cpTools,.cpActions{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0;align-items:end}.cpTools label{display:grid;gap:5px;font-size:12px;min-width:140px}.cpTools input,.cpTools select{padding:8px;border:1px solid #d6cce8;border-radius:7px}.cpScroll{overflow:auto}.cpScroll table{min-width:1050px;width:100%;border-collapse:collapse}.cpScroll td,.cpScroll th{padding:9px;border-bottom:1px solid #eee;vertical-align:top;text-align:left;font-size:12px}.cpScroll td button{display:block;margin:3px 0;font-size:11px;white-space:nowrap}.cpAviso{background:#fff6e2;color:#76520f;padding:10px;border-radius:8px}.cpRoot dialog{max-width:min(620px,90vw);max-height:85vh;overflow:auto;border:1px solid #d6cce8;border-radius:12px;padding:20px}.cpRoot dialog label{display:block;margin:8px 0}.cpRoot dialog input:not([type=checkbox]){display:block;width:100%;box-sizing:border-box;padding:7px}.cpRoot dialog button{margin:5px}.cpRoot progress{width:100%}.cpRoot [hidden]{display:none!important}.cpScroll .cpShared{background:#faf8fe;vertical-align:top;border-bottom:2px solid #d8cce9;min-width:150px}.cpShared small{display:block;margin:6px 0;overflow-wrap:anywhere}.cpScroll .cpGroupStart td{border-top:2px solid #d8cce9}.cpScroll .cpIndividual button,.cpScroll .cpGroupActions button{margin:2px 0;padding:6px 9px;min-height:28px}.cpGroupDetail{border:1px solid #ded4ee;border-radius:9px;padding:12px;margin:10px 0;overflow-wrap:anywhere}.cpGroupDetail p{margin:5px 0}';document.head.append(style);
  $('cpFim').value=today();$('cpInicio').value=today().slice(0,8)+'01';
  $('cpLoad').onclick=action(()=>load());$('cpBuscar').onclick=action(()=>scan());$('cpContinuar').onclick=action(()=>scan(true));$('cpMais').onclick=action(()=>load(true));
  $('cpBusca').oninput=render;$('cpFiltro').onchange=render;
