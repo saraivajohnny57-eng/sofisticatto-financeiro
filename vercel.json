@@ -1,3 +1,9 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/integracoes.js": {
+      "maxDuration": 60,
+      "includeFiles": "node_modules/{tesseract.js/src/**,tesseract.js-core/**,@tesseract.js-data/por/4.0.0_best_int/**,@napi-rs/canvas-linux-x64-gnu/**}"
+    }
+  }
 }

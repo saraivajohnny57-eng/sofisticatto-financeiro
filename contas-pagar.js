@@ -31,6 +31,7 @@ async function groupDialog(r,editing=false){const all=await fullGroup(r),d=$('cp
  for(const [i,x] of all.entries()){const card=el('div');card.className='cpGroupDetail';card.append(el('strong','Boleto '+(i+1)+' • '+(x.numero_documento||'—')),el('p',br(x.vencimento)+' · '+money(x.valor_centavos)+' · '+status(x)),el('p','Linha digitável: '+(x.linha_digitavel||'Não validada')),el('p',x.observacao||''));
  if(x.possivel_substituicao)card.append(el('p','Possível substituição de boleto anterior. Compare os documentos antes de pagar.'));
  for(const re of x.reenvios||[])card.append(el('p','Reenvio: '+dt(re.recebido_em)+' • '+re.assunto));
+ if(x.status==='conferencia'&&!x.linha_digitavel&&!String(x.fonte_dados||'').startsWith('Conferência manual'))card.append(btn('Reconhecer imagem (OCR)',action(async()=>{msg('Executando OCR do documento...');const o=await request({acao:'ocr',id:x.id});d.close();await load();msg(o.detalhe)})));
  if(x.linha_digitavel)card.append(btn('Copiar linha digitável',action(()=>navigator.clipboard.writeText(x.linha_digitavel))));
  if(!['pago_manual','cancelado'].includes(x.status))card.append(btn('Conferir / editar',()=>{d.close();edit(x)}));
  if(['aberto','agendado'].includes(x.status))card.append(btn('Marcar como pago',()=>{d.close();paid(x)},'btn verde'));
@@ -39,7 +40,7 @@ async function groupDialog(r,editing=false){const all=await fullGroup(r),d=$('cp
  d.append(btn('Fechar',()=>d.close()));d.showModal()}
 async function groupReprocess(r){if(busy)return;busy=true;try{const all=await fullGroup(r),seen=new Set(),targets=all.filter(x=>{const k=x.arquivo_hash+'|'+x.parte;if(x.status!=='conferencia'||String(x.fonte_dados||'').startsWith('Conferência manual')||seen.has(k))return false;seen.add(k);return true});if(!targets.length){msg('Nenhum PDF pendente de releitura.');return}
  let revised=0,added=0,fail=0;
- for(const [i,x] of targets.entries()){msg('Reprocessando PDF '+(i+1)+'/'+targets.length+'...');try{const d=await request({acao:'reprocessar',id:x.id});revised+=d.revisados||0;added+=d.registrados||0;fail+=d.erros||0}catch{fail++}}
+ for(const [i,x] of targets.entries()){msg('Reprocessando PDF '+(i+1)+'/'+targets.length+'...');try{const d=await request({acao:'reprocessar',id:x.id});revised+=d.revisados||0;added+=d.registrados||0;fail+=d.erros||0;if(!x.linha_digitavel){msg('Reconhecendo imagem (OCR)...');const o=await request({acao:'ocr',id:x.id});revised+=o.revisados||0;fail+=o.pendencias||0;}}catch{fail++}}
  await load();msg('Releitura concluída: '+revised+' corrigido(s), '+added+' novo(s), '+fail+' erro(s). Registros conferidos preservados.');
  }finally{busy=false}}
 
@@ -81,7 +82,7 @@ function render(){
  $('cpCount').textContent=filtered.length+' de '+rows.length+' boletos carregados • '+groups(filtered).length+' e-mail(s) no filtro. As ações de grupo consultam todos os registros cadastrados do e-mail.';
 }
 async function load(more=false){const d=await request({acao:'listar',...range(),offset:more?offset:0});if(!more)rows=[];rows.push(...d.itens);offset=rows.length;$('cpMais').hidden=!d.mais;render()}
-function emptySearchStats(){return {processados:0,total:0,registrados:0,duplicados:0,revisados:0,conferencia:0,erros:0,pdfs_lidos:0,reenvios:0,possiveis_substituicoes:0,pendencias:0,lotes:0,motivos:{}}}
+function emptySearchStats(){return {processados:0,total:0,registrados:0,duplicados:0,revisados:0,conferencia:0,erros:0,pdfs_lidos:0,reenvios:0,possiveis_substituicoes:0,pendencias:0,ocr:0,ocr_corrigidos:0,ocr_pendencias:0,lotes:0,motivos:{}}}
 function addSearchStats(stats,d){
  const n={...stats,motivos:{...stats.motivos},lotes:stats.lotes+1};
  for(const k of ['processados','registrados','duplicados','revisados','conferencia','erros','pdfs_lidos','reenvios','possiveis_substituicoes','pendencias'])n[k]+=Math.max(0,Number(d[k]||0));
@@ -90,7 +91,7 @@ function addSearchStats(stats,d){
  return n
 }
 function searchPercent(stats,complete=false){return complete?100:stats.total?Math.min(99,Math.floor(stats.processados/stats.total*100)):0}
-function searchSummary(n){return 'Mensagens: '+n.processados+'/'+n.total+' · PDFs lidos: '+n.pdfs_lidos+' · Novos: '+n.registrados+' · Duplicados: '+n.duplicados+' · Corrigidos: '+n.revisados+' · Em conferência: '+n.conferencia+' · Erros: '+n.erros}
+function searchSummary(n){return 'Mensagens: '+n.processados+'/'+n.total+' · PDFs lidos: '+n.pdfs_lidos+' · Novos: '+n.registrados+' · Duplicados: '+n.duplicados+' · Corrigidos: '+n.revisados+' · Em conferência: '+n.conferencia+' · Erros: '+n.erros+' · OCR: '+n.ocr+' · Corrigidos por OCR: '+n.ocr_corrigidos+' · Pendências OCR: '+n.ocr_pendencias}
 async function scan(more=false){
  if(busy)return;const selected=range();
  if(more&&(!cursor||!scanStats||!scanRange||scanRange.inicio!==selected.inicio||scanRange.fim!==selected.fim))more=false;
@@ -98,7 +99,7 @@ async function scan(more=false){
  busy=true;let stop=false,finished=false,problem='',stalled=0;
  const d=$('cpSearchProgress'),title=el('h2','Pesquisa de boletos no Gmail'),period=el('p','Recebimento: '+br(scanRange.inicio)+' a '+br(scanRange.fim)),stage=el('p','Conectando ao Gmail e identificando mensagens...'),p=el('progress');p.max=100;p.removeAttribute('value');p.setAttribute('aria-label','Progresso da pesquisa');
  const pct=el('strong','Localizando mensagens...'),grid=el('div');grid.className='cpSearchMetrics';
- const counters={};for(const [k,label] of [['processados','Mensagens examinadas'],['pdfs_lidos','PDFs lidos'],['registrados','Boletos novos'],['duplicados','Duplicados'],['revisados','Corrigidos'],['conferencia','Novos em conferência'],['erros','Erros'],['reenvios','Reenvios vinculados'],['possiveis_substituicoes','Possíveis substituições'],['pendencias','PDFs a conferir'],['lotes','Lotes concluídos']]){
+ const counters={};for(const [k,label] of [['processados','Mensagens examinadas'],['pdfs_lidos','PDFs lidos'],['registrados','Boletos novos'],['duplicados','Duplicados'],['revisados','Corrigidos'],['conferencia','Novos em conferência'],['erros','Erros'],['reenvios','Reenvios vinculados'],['possiveis_substituicoes','Possíveis substituições'],['pendencias','PDFs a conferir'],['ocr','OCR executado'],['ocr_corrigidos','Corrigidos por OCR'],['ocr_pendencias','Pendências OCR'],['lotes','Lotes concluídos']]){
   const c=el('div'),v=el('strong','0');c.className='cpMetric';c.append(el('small',label),v);grid.append(c);counters[k]=v;
  }
  const causes=el('div');causes.className='cpSearchErrors';
@@ -134,12 +135,12 @@ async function scan(more=false){
  finally{
   // The modal remains visible until the user closes it. Refresh the list only once.
   stage.textContent='Atualizando a lista de boletos...';
-  try{await load()}catch(e){problem+=(problem?' • ':'')+'Não foi possível atualizar a lista: '+e.message}
+  try{await load();if(finished&&!stop){const candidates=rows.filter(x=>x.status==='conferencia'&&!x.linha_digitavel&&!String(x.fonte_dados||'').startsWith('Conferência manual'));const targets=candidates.slice(0,20);for(const [i,x] of targets.entries()){if(stop)break;stage.textContent='OCR: documento '+(i+1)+'/'+targets.length;try{const r=await request({acao:'ocr',id:x.id});scanStats.ocr+=r.ocr||0;scanStats.ocr_corrigidos+=r.revisados||0;scanStats.ocr_pendencias+=r.pendencias||0;}catch{scanStats.ocr_pendencias++}show(true)}if(candidates.length>20||stop)scanStats.ocr_pendencias+=candidates.length-scanStats.ocr;if(targets.length)await load()}}catch(e){problem+=(problem?' • ':'')+'Não foi possível atualizar a lista: '+e.message}
   busy=false;for(const id of ['cpBuscar','cpContinuar','cpInicio','cpFim','cpLoad','cpMais'])$(id).disabled=false;
   $('cpContinuar').hidden=!cursor;cancel.hidden=true;close.hidden=false;
   show(finished);
   if(problem)stage.textContent='Pesquisa interrompida: '+problem;
-  else if(finished)stage.textContent=(scanStats.erros||scanStats.pendencias)?'Pesquisa concluída com pendências de leitura.':'Pesquisa concluída.';
+  else if(finished)stage.textContent=(scanStats.erros||scanStats.pendencias||scanStats.ocr_pendencias)?'Pesquisa concluída com pendências de leitura.':'Pesquisa concluída.';
   else stage.textContent='Pesquisa interrompida pelo usuário. Resultados já registrados foram preservados.';
   foot.textContent=finished?((scanStats.erros||scanStats.pendencias)?'Os erros indicados precisam de conferência. 100% significa mensagens examinadas, não todos os boletos reconhecidos.':'Resultados importados estão disponíveis na lista. Nenhum pagamento foi efetuado.'):(cursor?'Clique em Continuar pesquisa para retomar do último ponto nesta sessão.':'Clique em Buscar boletos no Gmail para iniciar novamente.');
   msg(searchSummary(scanStats)+(finished?' · Pesquisa concluída'+(scanStats.erros?' com pendências.':'.'):' · Pesquisa parcial.')+(problem?' '+problem:''));
@@ -163,7 +164,7 @@ let activePreview=null;
 function previewPdf(file,filename){
  if(activePreview)activePreview();
  const url=URL.createObjectURL(new Blob([file],{type:'application/pdf'})),modal=el('dialog');
- modal.style.cssText='width:min(1120px,96vw);height:92vh;max-width:96vw;max-height:92vh;padding:0;border:1px solid #d4c8e8;border-radius:14px;overflow:hidden;background:white;color:#302653';
+ modal.style.cssText='position:fixed;inset:0;margin:auto;width:min(1120px,96vw);height:92vh;max-width:96vw;max-height:92vh;padding:0;border:1px solid #d4c8e8;border-radius:14px;overflow:hidden;background:white;color:#302653';
  const panel=el('section');panel.style.cssText='height:100%;display:flex;flex-direction:column';
  const header=el('header');header.style.cssText='display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px;background:#f4effa;border-bottom:1px solid #ded4ee';
  const title=el('strong',filename);title.style.flex='1';
