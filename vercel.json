@@ -6,5 +6,10 @@
       "includeFiles": "node_modules/{tesseract*,@tesseract.js-data/por,@napi-rs/canvas*,pdfjs-dist,wasm-feature-detect,bmp-js,idb-keyval,is-url,node-fetch,whatwg-url,tr46,webidl-conversions,regenerator-runtime,zlibjs}/**"
     }
   },
-  "installCommand": "npm install && node scripts/check-contas-pagar-ocr.cjs"
+  "installCommand": "npm install && node scripts/check-contas-pagar-ocr.cjs",
+  "git": {
+    "deploymentEnabled": {
+      "homologacao-rastreio-detalhado-20261127": false
+    }
+  }
 }
