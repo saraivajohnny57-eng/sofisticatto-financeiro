@@ -38,6 +38,7 @@ const cotarSSW = require("../lib/integracoes/cotar-ssw");
 const salvarRastreioLogistica = require("../lib/integracoes/salvar-rastreio-logistica");
 const atualizarRastreiosGeral = require("../lib/integracoes/atualizar-rastreios-geral");
 const documentosCorreios = require("../lib/integracoes/documentos-correios");
+const cartaEnvelope = require("../lib/integracoes/carta-envelope");
 const criarPrepostagemCorreios = require("../lib/integracoes/criar-prepostagem-correios");
 const buscarCepCorreios = require("../lib/integracoes/buscar-cep-correios");
 const verificarCobertura = require("../lib/integracoes/verificar-cobertura");
@@ -97,6 +98,7 @@ const ROTAS = Object.freeze({
   "salvar-rastreio-logistica": salvarRastreioLogistica,
   "atualizar-rastreios-geral": atualizarRastreiosGeral,
   "documentos-correios": documentosCorreios,
+  "carta-envelope": cartaEnvelope,
   "criar-prepostagem-correios": criarPrepostagemCorreios,
   "buscar-cep-correios": buscarCepCorreios,
   "verificar-cobertura": verificarCobertura,
